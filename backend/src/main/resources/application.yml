@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: LinQOrbit
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:linqorbit}
+    username: ${DB_USERNAME:linqorbit}
+    password: ${DB_PASSWORD:linqorbit}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: 9080
