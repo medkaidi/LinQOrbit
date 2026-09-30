@@ -38,10 +38,26 @@ config/       configuration
 ```
 
 Règles :
-- Une feature regroupe ses propres composants, hooks, API, validations, types quand elle en a besoin : `features/job-offer/…`. Ne pas les mettre dans `components/`, `hooks/`, `types/` génériques.
+- Une feature regroupe ses propres composants, pages, données et logique métier quand elle en a besoin : `features/job-offer/…`. Les hooks vont dans `hooks/`, les schémas Zod dans `lib/validations/`, les modules API dans `lib/api/` (voir « Placement des fichiers »). Ne rien mettre dans `components/` qui n'est pas réellement partagé.
 - Ne pas créer de dossiers/sous-dossiers vides « pour la forme ». Créer un sous-dossier seulement quand du code le justifie.
 - Pas de couches `services/`, `managers/`, `providers/` ni d'abstractions (factories, repositories) sans besoin réel.
 - `app/` ne contient pas la logique métier : les pages appellent les composants et hooks des features.
+
+## Placement des fichiers (obligatoire)
+
+Un fichier créé hors de son dossier d'architecture est une erreur, même s'il compile.
+Avant de créer un fichier, vérifier ce tableau — **en cas de doute, demander plutôt que de créer au mauvais endroit** :
+
+| Dossier | Contenu |
+|---|---|
+| `app/` | routing et layouts Next.js UNIQUEMENT (route groups, pages) |
+| `components/` | composants réellement partagés entre domaines (`ui/`, `layout/`, `navigation/`, `brand/`) |
+| `features/<domaine>/` | composants, pages, données et logique métier du domaine (formulaires, `countries.ts`, …) |
+| `hooks/` | **tous** les hooks personnalisés (`use-auth.ts`, …) — jamais dans `features/` |
+| `lib/api/` | instance axios + **tous** les modules API par domaine (`auth.api.ts`, `candidate.api.ts`, …) |
+| `lib/validations/` | **tous** les schémas Zod (`*.schemas.ts`) |
+| `lib/utils/`, `stores/`, `types/`, `config/` | utilitaires, Zustand, types globaux, configuration |
+| `tests/` | **tous** les fichiers de test + `tests/helpers/` pour les cohortes partagées |
 
 ## Séparation des responsabilités (state)
 
@@ -56,16 +72,16 @@ Ne jamais mettre de données serveur dans Zustand « parce que Zustand est dispo
 
 ## API
 
-- Instance Axios unique : `lib/api/axios.ts`, `baseURL = NEXT_PUBLIC_API_URL` (`.env.local`, défaut `http://localhost:8080`).
+- Instance Axios unique : `lib/api/axios.ts`, `baseURL = NEXT_PUBLIC_API_URL` (`.env.local`, défaut `http://localhost:9080`).
 - Le backend est **Spring Boot** (REST). Un service IA Python/FastAPI est appelé par le backend, jamais directement par le frontend.
-- Les modules API par domaine (`auth.api.ts`, `candidate.api.ts`, …) vivent dans `lib/api/` ou dans la feature concernée, et ne sont créés que lorsqu'ils sont utilisés. Aucune fonction API fictive.
+- Les modules API par domaine (`auth.api.ts`, `candidate.api.ts`, …) vivent **uniquement** dans `lib/api/`, et ne sont créés que lorsqu'ils sont utilisés. Aucune fonction API fictive.
 
 ## Tests
 
 - **Vitest** + **React Testing Library** + `@testing-library/jest-dom` (environnement `jsdom`). Pas de Jest, pas de Playwright/Cypress pour l'instant.
 - Commandes : `npm run test` (watch), `npm run test:run` (CI, non interactif).
 - Config : `vitest.config.mts` + `vitest.setup.ts` (matchers jest-dom). Alias `@/` identique au tsconfig.
-- **Localisation** : fichier de test à côté du code testé (`Feature.test.tsx` auprès de `Feature.tsx`, `util.test.ts` auprès de `util.ts`). Pas de dossier `tests/` géant.
+- **Localisation** : **tous** les tests vivent dans `tests/`, en **miroir de l'arborescence source** (`tests/features/auth/login-form.test.tsx` pour `features/auth/login-form.tsx`), avec `tests/helpers/` pour les cohortes partagées (`test-utils.tsx`). `tests/mocks/` et `tests/fixtures/` : créer uniquement au premier besoin, jamais de dossiers vides pour la forme.
 - Ce qu'on teste : logique pure, schemas Zod, stores Zustand avec logique, hooks significatifs, comportements de composants (interaction, rendu conditionnel, formulaires, callbacks). On teste le **comportement**, pas l'existence d'un HTML.
 - Interdits : tests bidons « ça existe », faux tests métier sur des fonctionnalités inexistantes, course au 100 % de couverture.
 - Une fonctionnalité n'est pas terminée parce qu'elle compile : elle doit venir avec ses tests.

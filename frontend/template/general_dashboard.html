@@ -1,0 +1,739 @@
+<!DOCTYPE html><html lang="fr" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>LinQOrbit AI - Tableau de Bord Recrutement</title>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            display: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#fff7ed',
+              100: '#ffedd5',
+              200: '#fed7aa',
+              300: '#fdba74',
+              400: '#fb923c',
+              500: '#f97316',
+              600: '#ea580c',
+              700: '#c2410c',
+              vibrant: '#ff6600',
+            },
+            slate: {
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              300: '#cbd5e1',
+              400: '#94a3b8',
+              500: '#64748b',
+              600: '#475569',
+              700: '#334155',
+              800: '#1e293b',
+              900: '#0f172a',
+            },
+            emerald: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              200: '#a7f3d0',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+            }
+          }
+        }
+      }
+    };
+  </script>
+<style>
+    @layer base {
+      * {
+        box-shadow: none !important;
+        text-shadow: none !important;
+      }
+      body {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+      }
+    }
+  </style>
+</head>
+<body class="bg-[#fafafa] text-slate-900 antialiased selection:bg-orange-100 selection:text-orange-900">
+<!-- Sidebar: Crisp White with Slate-200 border, dark espresso active pills & vibrant orange highlights -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-white border-r border-slate-200 z-50 flex flex-col justify-between py-5">
+<div class="flex flex-col">
+<!-- Logo Container -->
+<div class="px-5 pb-5 border-b border-slate-100"><div class="flex items-center gap-2.5"><div class="flex items-center"><svg class="h-7 w-auto" viewBox="0 0 200 44" fill="none" xmlns="http://www.w3.org/2000/svg"><text x="2" y="31" fill="#0F172A" font-family="'Plus Jakarta Sans', sans-serif" font-size="27" font-weight="700" letter-spacing="-0.5">Lin</text><circle cx="63" cy="22" r="14" stroke="#F97316" stroke-width="3.5" fill="none"></circle><path d="M 69 29 Q 75 35 81 37" stroke="#F97316" stroke-width="3.5" stroke-linecap="round" fill="none"></path><circle cx="89" cy="22" r="14" stroke="#0F172A" stroke-width="3.5" fill="none"></circle><text x="108" y="31" fill="#0F172A" font-family="'Plus Jakarta Sans', sans-serif" font-size="27" font-weight="700" letter-spacing="-0.5">rbit</text></svg></div><div class="h-8 w-8 shrink-0 flex items-center justify-center"><svg class="w-8 h-8" viewBox="-130 -130 260 260" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="0" cy="0" rx="112" ry="60" transform="rotate(-42)" stroke="#94A3B8" stroke-width="3" stroke-linecap="round" fill="none"></ellipse><ellipse cx="0" cy="0" rx="112" ry="60" transform="rotate(42)" stroke="#0F172A" stroke-width="3" stroke-linecap="round" fill="none"></ellipse><circle cx="0" cy="0" r="28" stroke="#F97316" stroke-width="4.5" fill="none"></circle></svg></div></div></div>
+<div class="px-5 pt-5 pb-2">
+<span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">Navigation Recrutement</span>
+</div>
+<!-- Nav Items -->
+<nav class="flex flex-col gap-1 px-3">
+<a class="flex items-center justify-between px-3.5 py-2.5 rounded-full font-bold text-xs bg-slate-900 text-white tracking-wide" data-path="vue-d-ensemble" href="#">
+<div class="flex items-center gap-2.5">
+<span class="material-symbols-outlined text-[18px] text-orange-400">grid_view</span>
+<span class="">Vue d'ensemble</span>
+</div>
+<span class="w-2 h-2 rounded-full bg-orange-500"></span>
+</a>
+<a class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-full font-semibold text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors" data-path="offres-et-pipelines" href="#">
+<span class="material-symbols-outlined text-[18px] text-slate-400">view_kanban</span>
+<span class="">Offres &amp; Pipelines</span>
+</a>
+<a class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-full font-semibold text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors" data-path="vivier-de-candidats" href="#">
+<span class="material-symbols-outlined text-[18px] text-slate-400">group</span>
+<span class="">Vivier de Candidats</span>
+</a>
+<a class="flex items-center justify-between px-3.5 py-2.5 rounded-full font-semibold text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors" data-path="studio-agents-ia" href="#">
+<div class="flex items-center gap-2.5">
+<span class="material-symbols-outlined text-[18px] text-orange-500">smart_toy</span>
+<span class="">Studio Agents IA</span>
+</div>
+<span class="px-2 py-0.5 text-[9px] font-bold font-mono rounded-full bg-orange-50 text-orange-600 border border-orange-200">3 IA</span>
+</a>
+<a class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-full font-semibold text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors" data-path="entretiens-et-evaluations" href="#">
+<span class="material-symbols-outlined text-[18px] text-slate-400">assignment_turned_in</span>
+<span class="">Entretiens &amp; Évaluations</span>
+</a>
+<a class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-full font-semibold text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors" data-path="parametres-et-integrations-ats" href="#">
+<span class="material-symbols-outlined text-[18px] text-slate-400">tune</span>
+<span class="">Paramètres &amp; Intégrations</span>
+</a>
+</nav>
+</div>
+<!-- Bottom Telemetry Card -->
+<div class="flex flex-col gap-3 px-3">
+<div class="bg-slate-50 border border-slate-200 rounded-2xl p-3.5">
+<div class="flex items-center justify-between mb-1.5">
+<div class="flex items-center gap-2">
+<span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+<span class="text-xs font-semibold text-slate-800">IA Télémétrie</span>
+</div>
+<span class="font-mono text-xs font-bold text-slate-700">98%</span>
+</div>
+<p class="text-[11px] text-slate-500 leading-tight mb-2">3 agents actifs sur le sourcing et ranking en temps réel.</p>
+<div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+<div class="bg-emerald-500 h-full w-[98%] rounded-full"></div>
+</div>
+</div>
+<a class="flex items-center gap-2 px-2 py-1.5 text-slate-500 hover:text-slate-900 text-xs font-medium transition-colors" href="#">
+<span class="material-symbols-outlined text-[16px] text-slate-400">help_outline</span>
+<span class="">Aide &amp; Documentation API</span>
+</a>
+</div>
+</aside>
+<!-- Top Header -->
+<div class="pl-64">
+<header class="fixed top-0 left-64 right-0 h-16 bg-white/95 backdrop-blur-sm border-b border-slate-200 z-40 flex items-center justify-between px-8">
+<div class="flex items-center gap-4 flex-1 max-w-xl">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
+<input class="w-full pl-10 pr-12 py-2 rounded-full bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-orange-500 focus:bg-white transition-all" placeholder="Rechercher un candidat, un poste, ou demander à l'IA..." type="text">
+<kbd class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono border border-slate-200 bg-white text-slate-500 px-2 py-0.5 rounded-full font-bold">⌘K</kbd>
+</div>
+<div class="hidden xl:flex items-center border border-slate-200 rounded-full p-1 bg-slate-50">
+<button class="px-3 py-1 text-xs font-semibold rounded-full bg-white text-slate-900 border border-slate-200">Tech &amp; Product</button>
+<button class="px-3 py-1 text-xs font-semibold rounded-full text-slate-600 hover:text-slate-900 transition-colors">Sales &amp; Mktg</button>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<!-- Signature Pill Primary Button in Luminous Vibrant Orange (#f97316) -->
+<button class="group inline-flex items-center gap-2 py-1 px-2.5 rounded-full text-orange-600 hover:text-white hover:bg-orange-500 font-bold text-xs transition-all duration-200 focus:outline-none cursor-pointer"><span class="w-6 h-6 rounded-full bg-orange-500 group-hover:bg-white text-white group-hover:text-orange-500 flex items-center justify-center shrink-0 transition-colors duration-200"><span class="material-symbols-outlined text-[16px]">add</span></span><span class="leading-none transition-colors duration-200">Nouveau Poste</span></button>
+<!-- Sourcing IA Warm Pill -->
+<button class="flex items-center gap-2 px-4 py-2 rounded-full bg-orange-50 border border-orange-200 text-orange-600 font-bold text-xs hover:bg-orange-100 transition-colors">
+<span class="material-symbols-outlined text-[16px] text-orange-500">auto_awesome</span>
+<span class="hidden lg:inline">Sourcing IA</span>
+</button>
+<div class="h-5 w-[1px] bg-slate-200"></div>
+<button class="relative p-2 rounded-full border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span class="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-white"></span>
+</button>
+<div class="flex items-center gap-2.5 pl-1">
+<div class="flex flex-col text-right hidden sm:flex">
+<span class="text-xs text-slate-900 font-bold leading-tight">Camille V.</span>
+<span class="text-[11px] text-slate-500 leading-tight font-medium">Talent Acquisition Lead</span>
+</div>
+<img alt="Camille V." class="w-8 h-8 rounded-full object-cover border-2 border-slate-200" src="https://lh3.googleusercontent.com/aida/AEtjO1Uegj4hyHPzLUa9F27VxUJvsf-8QsL-_6pqpbym8gi73UBDQ7CK-JbxEPA_yMHxQD4yjL0wQcoplRXvkPZiOqhIZ21iXRKCl_NFX8HHKLDTUkoMLqsV77XjwyHZ-ZuYsh6XR6J97_FVzmZWa88qEkCzd3LmqMauwK46NhBMon3YAPN_-L46LmvqG-Hz0UG2mup0YN_guIRdEjNssxE6GaKAdum1VQVh8ROUkhij0vC3pPx8OE1BAHZ1xg">
+</div>
+</div>
+</header>
+<!-- Main Content Area: Pure White (#ffffff) / subtle canvas (#fafafa) -->
+<main class="relative pt-16 bg-[#fafafa] min-h-screen px-8 py-7">
+<div class="max-w-7xl mx-auto flex flex-col gap-6">
+<!-- Top Welcome Bar & Action Row -->
+<div class="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 pb-2 border-b border-slate-200">
+<div class="flex flex-col">
+<div class="flex items-center gap-2 mb-1">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200">
+<span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+<span class="text-[10px] font-bold text-slate-800 uppercase tracking-widest font-mono">Système Autonome En Ligne</span>
+</span>
+<span class="text-slate-500 text-xs font-mono font-medium">• Télémétrie v4.8 active</span>
+</div>
+<h1 class="font-display text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Bonjour Camille, voici l'activité de vos agents de recrutement</h1>
+<p class="text-xs sm:text-sm text-slate-600 mt-0.5 font-medium">Supervision globale des pipelines prédictifs, du vivier actif et de l'orchestration cognitive multi-agents.</p>
+</div>
+<div class="flex flex-wrap items-center gap-2.5">
+<div class="flex items-center bg-white border border-slate-200 rounded-full px-3 py-1.5">
+<span class="material-symbols-outlined text-slate-400 text-[16px] mr-1.5">calendar_today</span>
+<select class="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-2">
+<option>7 derniers jours</option>
+<option>30 derniers jours</option>
+<option>Ce trimestre</option>
+<option>Année courante</option>
+</select>
+</div>
+<button class="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border-2 border-slate-900 text-slate-900 font-bold text-xs hover:bg-slate-50 transition-colors" id="btn-ai-summary">
+<span class="material-symbols-outlined text-orange-500 text-[16px]">auto_awesome</span>
+<span class="">Synthèse quotidienne IA</span>
+</button>
+<!-- Luminous Vibrant Orange Action CTA -->
+<button class="group inline-flex items-center gap-2 py-1 px-2.5 rounded-full text-orange-600 hover:text-white hover:bg-orange-500 font-bold text-xs transition-all duration-200 focus:outline-none cursor-pointer"><span class="w-6 h-6 rounded-full bg-orange-500 group-hover:bg-white text-white group-hover:text-orange-500 flex items-center justify-center shrink-0 transition-colors duration-200"><span class="material-symbols-outlined text-[14px]">rocket_launch</span></span><span class="leading-none transition-colors duration-200">Nouvelle campagne</span></button>
+</div>
+</div>
+<!-- 4 Clean Flat Metric Cards on Pure White (#ffffff) -->
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+<!-- Card 1 -->
+<div class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<div>
+<span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider font-mono">Postes Actifs</span>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="font-display text-2xl font-bold text-slate-900">12</span>
+<span class="text-xs text-slate-500 font-medium">ouverts</span>
+</div>
+</div>
+<div class="h-9 w-9 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-600">
+<span class="material-symbols-outlined text-[18px]">business_center</span>
+</div>
+</div>
+<div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200 font-mono">
+<span class="h-1.5 w-1.5 rounded-full bg-orange-500"></span>4 en tension
+</span>
+<span class="text-[11px] text-slate-500 font-medium">Besoin critique</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<div>
+<span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider font-mono">Sourcés par l'IA (Mois)</span>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="font-display text-2xl font-bold text-orange-500">348</span>
+<span class="text-xs text-slate-500 font-medium">profils qualifiés</span>
+</div>
+</div>
+<div class="h-9 w-9 rounded-full bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-500">
+<span class="material-symbols-outlined text-[18px]">psychology</span>
+</div>
+</div>
+<div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+<span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 font-mono">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>+28%
+</span>
+<span class="text-[11px] text-slate-500 font-medium">vs. mois précédent</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<div>
+<span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider font-mono">Taux Pré-qualification IA</span>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="font-display text-2xl font-bold text-slate-900">74.2%</span>
+<span class="text-xs text-slate-500 font-medium">précision</span>
+</div>
+</div>
+<div class="h-9 w-9 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+</div>
+</div>
+<div class="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2.5">
+<div class="flex-1 bg-slate-100 border border-slate-200 h-2 rounded-full overflow-hidden">
+<div class="bg-emerald-500 h-full rounded-full" style="width: 74.2%"></div>
+</div>
+<span class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-[10px] font-mono font-bold text-emerald-700 border border-emerald-200">Vérifié</span>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<div>
+<span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider font-mono">Délai Moyen Réduit</span>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="font-display text-2xl font-bold text-slate-900">18 j</span>
+<span class="text-xs text-slate-500 font-medium">cycle moyen</span>
+</div>
+</div>
+<div class="h-9 w-9 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-600">
+<span class="material-symbols-outlined text-[18px]">speed</span>
+</div>
+</div>
+<div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+<div class="text-[11px] text-slate-500 font-medium"><span class="font-bold text-slate-800">38 j</span> secteur</div>
+<span class="text-[10px] font-mono font-bold bg-orange-50 text-orange-600 border border-orange-200 px-2.5 py-0.5 rounded-full">-52% accélération</span>
+</div>
+</div>
+</div>
+<!-- Middle Section: Control Tower & AI Recommendations -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+<!-- Control Tower (7 cols) -->
+<div class="xl:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 flex flex-col">
+<div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+<div class="flex items-center gap-2.5">
+<div class="h-8 w-8 rounded-xl bg-orange-50 border border-orange-200 text-orange-500 flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">hub</span>
+</div>
+<div>
+<h2 class="text-sm font-bold text-slate-900">Tour de contrôle des Agents IA en direct</h2>
+<p class="text-[11px] text-slate-500">Surveillance télémétrique et débit d'inférence en temps réel</p>
+</div>
+</div>
+<span class="px-3 py-1 rounded-full border border-orange-200 bg-orange-50 font-mono text-[11px] font-bold text-orange-600">
+                3 AGENTS OPÉRATIONNELS
+              </span>
+</div>
+<div class="flex flex-col gap-3">
+<!-- Agent 1 -->
+<div class="border border-slate-200 rounded-xl p-3.5 bg-slate-50/60 hover:bg-slate-50 transition-colors">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-start gap-2.5">
+<div class="h-7 w-7 rounded-lg bg-orange-50 border border-orange-200 text-orange-500 flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[16px]">travel_explore</span>
+</div>
+<div>
+<span class="text-xs font-bold text-slate-900">Agent Sourcing &amp; Scraping Sémantique</span>
+<p class="text-[11px] text-slate-500 mt-0.5 leading-snug">Scouting continu sur LinkedIn Recruiter, GitHub, CVthèques partenaires</p>
+</div>
+</div>
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white border border-slate-200 text-[10px] font-semibold text-slate-700 shrink-0">
+<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                    ACTIF EN ARRIÈRE-PLAN
+                  </span>
+</div>
+<div class="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2.5 border-t border-slate-200 text-xs">
+<div class="flex items-center gap-1.5">
+<span class="text-slate-500 text-[11px]">Foyer d'effort ciblé :</span>
+<span class="font-mono text-[11px] bg-slate-900 text-white px-2.5 py-0.5 rounded-full font-medium">Staff Software Engineer</span>
+</div>
+<span class="text-[11px] text-slate-500 font-mono">42 profils explorés/heure</span>
+</div>
+</div>
+<!-- Agent 2 -->
+<div class="border border-slate-200 rounded-xl p-3.5 bg-slate-50/60 hover:bg-slate-50 transition-colors">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-start gap-2.5">
+<div class="h-7 w-7 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[16px]">videocam</span>
+</div>
+<div>
+<span class="text-xs font-bold text-slate-900">Agent Screening Vidéo &amp; Asynchrone</span>
+<p class="text-[11px] text-slate-500 mt-0.5 leading-snug">Synthèse audio-linguistique, détection de compétences clés et clarté de synthèse</p>
+</div>
+</div>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white border border-slate-200 text-[10px] font-semibold text-slate-700 shrink-0">
+<span class="material-symbols-outlined text-[14px] text-orange-500">task_alt</span>
+                    8 analysés aujourd'hui
+                  </span>
+</div>
+<div class="mt-3 pt-2.5 border-t border-slate-200 flex items-center gap-3">
+<div class="flex-1 bg-slate-200 h-1.5 rounded-full overflow-hidden">
+<div class="bg-orange-500 h-full rounded-full" style="width: 88%"></div>
+</div>
+<span class="font-mono text-[11px] text-slate-500 shrink-0">Précision verbatim 99.1%</span>
+</div>
+</div>
+<!-- Agent 3 -->
+<div class="border border-slate-200 rounded-xl p-3.5 bg-slate-50/60 hover:bg-slate-50 transition-colors">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-start gap-2.5">
+<div class="h-7 w-7 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[16px]">balance</span>
+</div>
+<div>
+<span class="text-xs font-bold text-slate-900">Agent Matching &amp; Parité Inclusive</span>
+<p class="text-[11px] text-slate-500 mt-0.5 leading-snug">Neutralisation des biais cognitifs et pondération objective des compétences</p>
+</div>
+</div>
+<div class="flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full text-[10px] shrink-0">
+<span class="text-slate-500">Score Moyen :</span>
+<span class="font-mono font-bold text-orange-600">88%</span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2.5 mt-3 border-t border-slate-200 text-[11px]">
+<span class="text-slate-500">Biais neutralisés sur 12 critères socio-démographiques</span>
+<span class="font-mono font-semibold text-slate-800">Audit conforme RGPD / AI Act</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Recommendations & Audit (5 cols) -->
+<div class="xl:col-span-5 flex flex-col gap-4">
+<!-- Recommendations Box -->
+<div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col">
+<div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-orange-500 text-[18px]">notifications_active</span>
+<h2 class="text-sm font-bold text-slate-900">Recommandations Prioritaires IA</h2>
+</div>
+<span class="font-mono text-[10px] font-semibold bg-orange-50 text-orange-600 border border-orange-200 px-2.5 py-0.5 rounded-full">
+                  Action requise
+                </span>
+</div>
+<div class="flex flex-col gap-3">
+<!-- Item 1 -->
+<div class="border border-slate-200 rounded-xl p-3 bg-slate-50/60">
+<div class="flex items-center justify-between mb-1">
+<span class="text-[10px] font-bold uppercase tracking-wider text-orange-600 font-mono">Alerte Scoring Élevé</span>
+<span class="font-mono text-[10px] text-slate-400">Il y a 12 min</span>
+</div>
+<p class="text-xs text-slate-800 leading-snug">
+                    3 candidats à fort matching (&gt;94%) viennent de valider leur test technique pour <span class="font-semibold text-orange-600">Lead Frontend</span>.
+                  </p>
+<div class="flex items-center justify-between pt-2.5 mt-2 border-t border-slate-200">
+<div class="flex items-center -space-x-1.5">
+<img alt="Candidate 1" class="w-6 h-6 rounded-full object-cover border border-white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDIdx0H3VAvnNAtyJwgFzS_9UGrpbRpOtNDpQaS0NU11dGCQTA7EcbiL7rF5dStOFwS997PnNQDW4_q4FIeivUgYaa-6sSW6tbJ4GNZOaccqMjw9sxbKs72NeHCn52RUtOH5xwmdGCXcUdSd2u_ct0FZuO7u8mH2PsFRu-YXnAVenvxSc2vVc0mJ7LZlkk5qwv7bT6wN37fcPhGanANuwG-5xiafTz82sIVpcKy6OCvYn6liX-2Xzh1">
+<img alt="Candidate 2" class="w-6 h-6 rounded-full object-cover border border-white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDrcejYO1ChBPNt1IgbM7Vb1psTfutkdooMnpOQ6PYJNs6xg-ST-Mf7_bGAsL2AuXZi0SMC1mI5LCR2HNWCxYeOXWtw0ZB7ENxykwa9JbjUWa7opAmQUF9fon_gzD6KIxgkLWQXyB1dzzxQqrht0p_YxEYAWdvyfyBOaSa26OMK0cMAWTsu7F-ToJYUkakp9uJt4n5nqF5eyw-MZaTow0f0DKaXsDF8hWZDWbw_M20XafLfGXAh0f4C">
+<img alt="Candidate 3" class="w-6 h-6 rounded-full object-cover border border-white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCt3MOSYKT_aocEiWGq_o_ZZOZ_Nh61rR0bjIuoLA8Vq2HbKvE5RoPxvpkgHwePupuu8Yl2YYaWB1Xxg1AzfBojRNRn2wCzNMev3exChO6L10dRi-B8FxP84mljBpGH81H85zJd125uVn35MlVeEJcooyw_K9YlZFBPQLVjzSmWPJwDS75ITanZgHSygH_F0YJhLa_lCe3YvPwpEh-uxjIWxV9M_jflRa-vR3tiIcGN2v2RnZMDqxSm">
+</div>
+<button class="text-xs font-semibold text-orange-600 hover:text-orange-700 flex items-center gap-1 transition-colors">
+<span class="">Engager les entretiens</span>
+<span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="border border-slate-200 rounded-xl p-3 bg-slate-50/60">
+<div class="flex items-center justify-between mb-1">
+<span class="text-[10px] font-bold uppercase tracking-wider text-slate-700 font-mono">Optimisation Vivier</span>
+<span class="font-mono text-[10px] text-slate-400">Il y a 47 min</span>
+</div>
+<p class="text-xs text-slate-700 leading-snug">
+                    Agent Sourcing signale un vivier restreint sur <span class="font-semibold text-slate-900">DevOps Kubernetes</span> : suggestion d'ajuster le critère d'expérience ou de lancer une relance personnalisée.
+                  </p>
+<div class="flex items-center gap-2 pt-2.5 mt-2 border-t border-slate-200">
+<button class="px-3.5 py-1.5 rounded-full bg-white border border-slate-300 text-slate-800 font-bold text-[11px] hover:bg-slate-50 transition-colors">Ajuster critères (-1 an)</button>
+<!-- Luminous Vibrant Orange Button -->
+<button class="group inline-flex items-center gap-1.5 py-1 px-2 rounded-full text-orange-600 hover:text-white hover:bg-orange-500 font-bold text-[11px] transition-all duration-200 focus:outline-none cursor-pointer"><span class="w-5 h-5 rounded-full bg-orange-500 group-hover:bg-white text-white group-hover:text-orange-500 flex items-center justify-center shrink-0 transition-colors duration-200"><span class="material-symbols-outlined text-[13px]">bolt</span></span><span class="leading-none transition-colors duration-200">Lancer relance IA</span></button>
+</div>
+</div>
+</div>
+</div>
+<!-- Audit Banner: Slate-900 with Vibrant Orange accents -->
+<div class="bg-slate-900 border border-slate-800 text-white rounded-2xl p-4 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="h-8 w-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-orange-400">
+<span class="material-symbols-outlined text-[18px]">insights</span>
+</div>
+<div>
+<span class="text-xs font-bold tracking-tight text-white">Audit prédictif d'embauche</span>
+<p class="text-[11px] text-slate-300">Prévision de clôture des 12 postes d'ici 24 jours ouvrés.</p>
+</div>
+</div>
+<span class="font-mono text-[11px] font-bold text-orange-300 border border-orange-500/40 bg-slate-800 px-2.5 py-0.5 rounded-full shrink-0">
+                92% FIABILITÉ
+              </span>
+</div>
+</div>
+</div>
+<!-- Table: Postes en cours prioritaires -->
+<div class="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col mb-4">
+<div class="p-4 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+<div>
+<div class="flex items-center gap-2">
+<h2 class="text-sm font-bold text-slate-900">Postes en cours prioritaires</h2>
+<span class="px-2.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200 text-[10px] font-mono font-bold">4 ACTIFS</span>
+</div>
+<p class="text-[11px] text-slate-500 font-medium mt-0.5">Suivi matriciel du pipeline automatisé et vélocité des agents</p>
+</div>
+<div class="flex items-center gap-2.5 w-full sm:w-auto">
+<div class="relative flex-1 sm:flex-initial">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">filter_list</span>
+<input class="pl-9 pr-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-orange-500 focus:bg-white w-full sm:w-60 transition-colors" placeholder="Filtrer un poste ou responsable..." type="text">
+</div>
+<button class="px-3.5 py-1.5 rounded-full bg-white border-2 border-slate-900 text-xs font-bold text-slate-900 hover:bg-slate-50 transition-colors shrink-0 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">view_kanban</span>
+<span class="">Vue Kanban</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto w-full">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50/80 border-b border-slate-200 text-slate-500 text-[11px] font-semibold uppercase tracking-wider font-mono">
+<th class="py-2.5 px-4">Poste &amp; Pôle</th>
+<th class="py-2.5 px-4">Pipeline Prédictif (Sourcing → Prequal → Entretien → Offre)</th>
+<th class="py-2.5 px-4">Activité IA</th>
+<th class="py-2.5 px-4">Responsable</th>
+<th class="py-2.5 px-4 text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="text-xs text-slate-800 divide-y divide-slate-200">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3 px-4">
+<div class="flex flex-col">
+<span class="font-semibold text-slate-900">Staff Software Engineer</span>
+<span class="text-[11px] text-slate-500">Engineering • Paris (Hybride) • CDI</span>
+</div>
+</td>
+<td class="py-3 px-4">
+<div class="flex flex-col gap-1 w-60">
+<div class="flex justify-between font-mono text-[10px] text-slate-500">
+<span class="">48 sourcés</span>
+<span class="">14 qualifiés</span>
+<span class="">4 rdv</span>
+<span class="text-orange-600 font-bold">1 offre</span>
+</div>
+<div class="flex h-1.5 rounded-full overflow-hidden bg-slate-100 border border-slate-200 gap-0.5">
+<div class="bg-slate-300" style="width: 45%" title="48 sourcés"></div>
+<div class="bg-orange-300" style="width: 25%" title="14 préqualifiés"></div>
+<div class="bg-orange-500" style="width: 20%" title="4 entretiens"></div>
+<div class="bg-slate-900" style="width: 10%" title="1 offre en cours"></div>
+</div>
+</div>
+</td>
+<td class="py-3 px-4">
+<div class="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold text-emerald-700">
+<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+<span class="">96% continu</span>
+</div>
+</td>
+<td class="py-3 px-4">
+<div class="flex items-center gap-2">
+<img alt="Camille V." class="w-6 h-6 rounded-full object-cover border border-slate-200" src="https://lh3.googleusercontent.com/aida/AEtjO1Uegj4hyHPzLUa9F27VxUJvsf-8QsL-_6pqpbym8gi73UBDQ7CK-JbxEPA_yMHxQD4yjL0wQcoplRXvkPZiOqhIZ21iXRKCl_NFX8HHKLDTUkoMLqsV77XjwyHZ-ZuYsh6XR6J97_FVzmZWa88qEkCzd3LmqMauwK46NhBMon3YAPN_-L46LmvqG-Hz0UG2mup0YN_guIRdEjNssxE6GaKAdum1VQVh8ROUkhij0vC3pPx8OE1BAHZ1xg">
+<span class="font-medium text-slate-700">Camille V.</span>
+</div>
+</td>
+<td class="py-3 px-4 text-right">
+<button class="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3 px-4">
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="font-semibold text-slate-900">Senior DevOps / Kubernetes</span>
+<span class="bg-orange-50 text-orange-700 border border-orange-200 px-2 py-0.2 rounded-full font-mono text-[10px] font-bold">En tension</span>
+</div>
+<span class="text-[11px] text-slate-500">Cloud Infrastructure • Full Remote</span>
+</div>
+</td>
+<td class="py-3 px-4">
+<div class="flex flex-col gap-1 w-60">
+<div class="flex justify-between font-mono text-[10px] text-slate-500">
+<span class="">19 sourcés</span>
+<span class="">5 qualifiés</span>
+<span class="">2 rdv</span>
+<span class="">0 offre</span>
+</div>
+<div class="flex h-1.5 rounded-full overflow-hidden bg-slate-100 border border-slate-200 gap-0.5">
+<div class="bg-slate-300" style="width: 60%"></div>
+<div class="bg-orange-300" style="width: 25%"></div>
+<div class="bg-orange-500" style="width: 15%"></div>
+</div>
+</div>
+</td>
+<td class="py-3 px-4">
+<div class="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold text-orange-600">
+<span class="h-1.5 w-1.5 rounded-full bg-orange-500"></span>
+<span class="">Alerte Vivier</span>
+</div>
+</td>
+<td class="py-3 px-4">
+<div class="flex items-center gap-2">
+<img alt="Alexandre D." class="w-6 h-6 rounded-full object-cover border border-slate-200" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDzT5j7Ahp4QBGv3hfMVT7tRsqg4e9hmP2BPuaVxoZNlrNyauZDWaiXxBmWcOkJen4b_USPL18fB_4QaGatzvhQ3R9thj4B6Kmx6vJ6mwOLv7BVr-PLF0-3n4JbCfwqrKtVTI9ORMQLrnhJwluXTMMmYXOqDxfmpCConVipMJtmdlIIgzGnxeOHLeuglpo84rQLVU-Rl6JCE3NFiekCC7lSV9oae0I9pQ1qM-GdbfphJcKX2zcOnIuM">
+<span class="font-medium text-slate-700">Alexandre D.</span>
+</div>
+</td>
+<td class="py-3 px-4 text-right">
+<button class="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3 px-4">
+<div class="flex flex-col">
+<span class="font-semibold text-slate-900">Lead Frontend (React/Next.js)</span>
+<span class="text-[11px] text-slate-500">Core Experience • Lyon (Hybride)</span>
+</div>
+</td>
+<td class="py-3 px-4">
+<div class="flex flex-col gap-1 w-60">
+<div class="flex justify-between font-mono text-[10px] text-slate-500">
+<span class="">62 sourcés</span>
+<span class="">21 qualifiés</span>
+<span class="">8 rdv</span>
+<span class="text-orange-600 font-bold">2 finalistes</span>
+</div>
+<div class="flex h-1.5 rounded-full overflow-hidden bg-slate-100 border border-slate-200 gap-0.5">
+<div class="bg-slate-300" style="width: 40%"></div>
+<div class="bg-orange-300" style="width: 30%"></div>
+<div class="bg-orange-500" style="width: 20%"></div>
+<div class="bg-slate-900" style="width: 10%"></div>
+</div>
+</div>
+</td>
+<td class="py-3 px-4">
+<div class="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold text-emerald-700">
+<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+<span class="">98% optimal</span>
+</div>
+</td>
+<td class="py-3 px-4">
+<div class="flex items-center gap-2">
+<img alt="Camille V." class="w-6 h-6 rounded-full object-cover border border-slate-200" src="https://lh3.googleusercontent.com/aida/AEtjO1Uegj4hyHPzLUa9F27VxUJvsf-8QsL-_6pqpbym8gi73UBDQ7CK-JbxEPA_yMHxQD4yjL0wQcoplRXvkPZiOqhIZ21iXRKCl_NFX8HHKLDTUkoMLqsV77XjwyHZ-ZuYsh6XR6J97_FVzmZWa88qEkCzd3LmqMauwK46NhBMon3YAPN_-L46LmvqG-Hz0UG2mup0YN_guIRdEjNssxE6GaKAdum1VQVh8ROUkhij0vC3pPx8OE1BAHZ1xg">
+<span class="font-medium text-slate-700">Camille V.</span>
+</div>
+</td>
+<td class="py-3 px-4 text-right">
+<button class="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-slate-50/70 transition-colors">
+<td class="py-3 px-4">
+<div class="flex flex-col">
+<span class="font-semibold text-slate-900">Head of Product Growth</span>
+<span class="text-[11px] text-slate-500">Scaleup Marketing • Paris • CDI</span>
+</div>
+</td>
+<td class="py-3 px-4">
+<div class="flex flex-col gap-1 w-60">
+<div class="flex justify-between font-mono text-[10px] text-slate-500">
+<span class="">34 sourcés</span>
+<span class="">11 qualifiés</span>
+<span class="">3 rdv</span>
+<span class="">0 offre</span>
+</div>
+<div class="flex h-1.5 rounded-full overflow-hidden bg-slate-100 border border-slate-200 gap-0.5">
+<div class="bg-slate-300" style="width: 50%"></div>
+<div class="bg-orange-300" style="width: 30%"></div>
+<div class="bg-orange-500" style="width: 20%"></div>
+</div>
+</div>
+</td>
+<td class="py-3 px-4">
+<div class="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold text-emerald-700">
+<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+<span class="">91% actif</span>
+</div>
+</td>
+<td class="py-3 px-4">
+<div class="flex items-center gap-2">
+<img alt="Sara M." class="w-6 h-6 rounded-full object-cover border border-slate-200" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD2JjkN6gsrtpMILSB6W-jWlc_iK0CGlGAXwJfMBdgi8jMaKeI0xiEchkfQh3DtJdoO4n3cM15zEJd2BBKor1BnPMWQoEKmYnJvHG4grWxPRAFYlrYz6pPTwPapq4TVDljbAirnscutsOuWlAB2bpCLXDSUrckuI_wzPlSQvuF9bJJKbhRgf8Da4oQ3tFohSC94qGhkxzg_ABYb5UUBQ1uu-4J5z-zzCWOD4WWMvTOTNt7AzH4QjcbD">
+<span class="font-medium text-slate-700">Sara M.</span>
+</div>
+</td>
+<td class="py-3 px-4 text-right">
+<button class="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-3 bg-slate-50/80 border-t border-slate-200 flex items-center justify-between">
+<span class="text-xs text-slate-500">Affichage de 4 postes prioritaires sur 12 au total</span>
+<button class="text-xs font-semibold text-orange-600 hover:text-orange-700 flex items-center gap-1 transition-colors">
+<span class="">Accéder à tous les pipelines</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Modal Dialog -->
+<div class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4" id="ai-modal">
+<div class="bg-white border border-slate-300 max-w-lg w-full rounded-2xl p-5 flex flex-col relative">
+<div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
+<div class="flex items-center gap-2">
+<div class="h-7 w-7 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-500">
+<span class="material-symbols-outlined text-[16px]">auto_awesome</span>
+</div>
+<div>
+<h3 class="text-sm font-bold text-slate-900">Synthèse Quotidienne IA</h3>
+<span class="font-mono text-[10px] text-slate-400">Généré ce matin à 08:30 • Confiance 97.4%</span>
+</div>
+</div>
+<button class="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" id="btn-close-modal">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<div class="flex flex-col gap-3 text-xs text-slate-700">
+<p class="">Bonjour Camille, vos agents ont analysé <span class="font-bold text-slate-900">112 nouveaux profils</span> ces dernières 24h sur les viviers Européens.</p>
+<div class="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-col gap-2">
+<span class="font-mono text-[10px] font-bold text-orange-600 uppercase tracking-wider">Points Saillants</span>
+<ul class="list-disc list-inside space-y-1 text-slate-600">
+<li class="">Détection d'une corrélation positive entre les profils GitHub Rust et la vitesse de test sur <span class="font-semibold text-slate-800">Staff Software Engineer</span>.</li>
+<li class="">Recommandation d'accélérer l'offre sur M. Lefèvre (Score 96%) avant préemption concurrente estimée sous 72h.</li>
+<li class="">Campagne asynchrone achevée pour le poste Marketing avec un taux d'adhésion record de 82%.</li>
+</ul>
+</div>
+<p class="text-slate-500">Voulez-vous générer les emails d'invitation pré-remplis pour les 3 finalistes Lead Frontend ?</p>
+</div>
+<div class="mt-4 pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+<button class="px-3.5 py-1.5 rounded-full bg-white border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-100 transition-colors" id="btn-cancel-modal">
+          Fermer
+        </button>
+<button class="px-4 py-1.5 rounded-full bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold transition-colors">
+          Valider &amp; Transmettre
+        </button>
+</div>
+</div>
+</div>
+<script>
+    (function() {
+      const openBtn = document.getElementById('btn-ai-summary');
+      const closeBtn = document.getElementById('btn-close-modal');
+      const cancelBtn = document.getElementById('btn-cancel-modal');
+      const modal = document.getElementById('ai-modal');
+
+      function toggleModal(open) {
+        if (!modal) return;
+        if (open) {
+          modal.classList.remove('hidden');
+        } else {
+          modal.classList.add('hidden');
+        }
+      }
+
+      if (openBtn) openBtn.addEventListener('click', () => toggleModal(true));
+      if (closeBtn) closeBtn.addEventListener('click', () => toggleModal(false));
+      if (cancelBtn) cancelBtn.addEventListener('click', () => toggleModal(false));
+
+      window.addEventListener('click', (e) => {
+        if (e.target === modal) toggleModal(false);
+      });
+    })();
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+</body></html>

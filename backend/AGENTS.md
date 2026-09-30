@@ -7,17 +7,18 @@ Backend principal de la plateforme de recrutement LinQOrbit. Il possède **toute
 - **Java 17** (LTS), **Spring Boot 4.1.1**, **Maven** (Wrapper : `./mvnw`)
 - Spring Web (REST), Spring Security, Spring Data JPA / Hibernate, Bean Validation
 - **PostgreSQL** + **Flyway** (migrations SQL), **MapStruct** (mapping Entity ↔ DTO)
+- **springdoc-openapi 3.x** (Swagger UI : `/swagger-ui.html`, spec : `/v3/api-docs`)
 - Port **9080** — configuration via `application.yml` + variables d'environnement (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, voir `.env.example`)
 
-Interdits pour la V0 : Kafka, Redis, Lombok (non installé), architecture hexagonale, CQRS, event sourcing, microservices, generic repositories/services, interfaces sans implémentation multiple.
+Interdits pour la V0 : Kafka, Redis, Lombok (non installé), architecture hexagonale, CQRS, event sourcing, microservices, generic repositories/services, interfaces sans implémentation multiple — **à l'exception des contrats d'API** (`XxxApi`, voir « Contrat d'API »), qui sont implémentés par leur contrôleur unique.
 
 ## Organisation : architecture par domaine
 
 ```text
 com.linqorbit/
 ├── LinQOrbitApplication.java
-├── config/            configuration technique (SecurityConfig, …)
-├── common/            utilitaires transverses (exception/ avec GlobalExceptionHandler)
+├── config/            configuration technique (SecurityConfig, OpenApiConfig, …)
+├── common/            utilitaires transverses (exception/ avec GlobalExceptionHandler, logging/ avec RequestLoggingFilter)
 ├── auth/  user/  candidate/  recruiter/  company/
 ├── joboffer/  application/  matching/  attachment/
 └── …
@@ -38,6 +39,14 @@ HTTP → Controller (validation entrée, appelle le service, DTO de sortie)
 ```
 
 Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Request DTO → Controller → Service → Entity → Repository` et inversement `Entity → Service → Response DTO → Controller → JSON`. MapStruct pour les mappings dès qu'il y a plusieurs champs.
+
+## Contrat d'API (springdoc / Swagger)
+
+- Chaque domaine expose sa surface via une **interface de contrat** `XxxApi` posée dans son package (`auth/AuthApi.java`), implémentée par son contrôleur (`AuthController implements AuthApi`).
+- L'interface porte **les endpoints** (`@PostMapping`, …) **et** le contrat OpenAPI (`@Tag`, `@Operation`, `@ApiResponses`) ; le contrôleur ne porte que `@RestController`, le préfixe de chemin de classe et le corps des méthodes.
+- **springdoc-openapi** génère la doc depuis ces annotations : `/v3/api-docs` (spec JSON) et `/swagger-ui.html` (UI). Métadonnées globales (titre, version, scheme Bearer) : `config/OpenApiConfig`.
+- Nouvel endpoint = passage obligatoire par l'interface `XxxApi` : le contrat et le code avancent ensemble.
+- Couvert par `OpenApiDocsTest` (présence des paths dans `/v3/api-docs`).
 
 ## Base de données
 
@@ -60,6 +69,14 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 ## Erreurs
 
 `common/exception/GlobalExceptionHandler` (`@RestControllerAdvice`) : format ProblemDetail (RFC 7807). Étendre progressivement, sans système d'exceptions surdimensionné.
+
+## Logging (SLF4J)
+
+- SLF4J/Logback (fourni par Spring Boot) — jamais de `System.out`, aucune librairie concurrente.
+- **Corrélation requête** : `common/logging/RequestLoggingFilter` crée un `X-Request-Id` (MDC `correlationId`, affiché par le pattern console) et logue chaque requête — méthode + URI à l'entrée, statut + durée à la sortie (WARN si ≥ 400, ERROR si ≥ 500).
+- **Étapes métier** : chaque service logue ses étapes clés — INFO pour la réception et le succès (identifiants, statut), WARN pour chaque refus (motif + email/id concerné).
+- **Interdit dans les logs** : mots de passe, hash, jetons JWT, corps de requête. Les données utiles (email, userId, statut) sont loggées champ par champ, jamais le payload brut.
+- Configuration : `application.yml` (`logging.pattern.console`, `logging.level`). Pas de tests de plumbing sur le logging.
 
 ## Tests
 
