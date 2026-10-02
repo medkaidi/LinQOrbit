@@ -20,12 +20,14 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 
 import com.linqorbit.auth.dto.AuthResponse;
+import com.linqorbit.auth.dto.ChangePasswordRequest;
 import com.linqorbit.auth.dto.LoginRequest;
 import com.linqorbit.auth.dto.SignupRequest;
 import com.linqorbit.auth.dto.UserResponse;
 import com.linqorbit.auth.exception.AccountNotActiveException;
 import com.linqorbit.auth.exception.EmailAlreadyExistsException;
 import com.linqorbit.auth.exception.InvalidCredentialsException;
+import com.linqorbit.auth.exception.WrongCurrentPasswordException;
 import com.linqorbit.user.User;
 import com.linqorbit.user.UserRepository;
 import com.linqorbit.user.UserSex;
@@ -144,6 +146,71 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.login(new LoginRequest("ada@example.com", "secret123")))
                 .isInstanceOf(AccountNotActiveException.class);
         verify(jwtEncoder, never()).encode(any());
+    }
+
+    @Test
+    void getProfileRetourneLeProfilDuCompte() {
+        User user = userWithId();
+        user.setEmail("ada@example.com");
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(userMapper.toUserResponse(user)).thenReturn(
+                new UserResponse(user.getId(), "ada@example.com", "Ada", "Lovelace",
+                        "female", "+1 555 000 0000", "FR", "Paris", "FR"));
+
+        UserResponse response = authService.getProfile(user.getId());
+
+        assertThat(response.id()).isEqualTo(user.getId());
+        assertThat(response.email()).isEqualTo("ada@example.com");
+        assertThat(response.firstName()).isEqualTo("Ada");
+    }
+
+    @Test
+    void getProfileRejetteUnUtilisateurInconnu() {
+        UUID unknownId = UUID.randomUUID();
+        when(userRepository.findById(unknownId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.getProfile(unknownId))
+                .isInstanceOf(InvalidCredentialsException.class);
+    }
+
+    @Test
+    void changePasswordMetAJourLeHash() {
+        User user = userWithId();
+        user.setPasswordHash("old-hash");
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("secret123", "old-hash")).thenReturn(true);
+        when(passwordEncoder.encode("nouveau-mdp-1")).thenReturn("new-hash");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        authService.changePassword(user.getId(), new ChangePasswordRequest("secret123", "nouveau-mdp-1"));
+
+        assertThat(user.getPasswordHash()).isEqualTo("new-hash");
+        verify(userRepository).save(any(User.class));
+        verify(passwordEncoder).encode("nouveau-mdp-1");
+    }
+
+    @Test
+    void changePasswordRejetteLeMauvaisMotDePasseActuel() {
+        User user = userWithId();
+        user.setPasswordHash("old-hash");
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong", "old-hash")).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.changePassword(
+                user.getId(), new ChangePasswordRequest("wrong", "nouveau-mdp-1")))
+                .isInstanceOf(WrongCurrentPasswordException.class);
+        verify(userRepository, never()).save(any(User.class));
+        assertThat(user.getPasswordHash()).isEqualTo("old-hash");
+    }
+
+    @Test
+    void changePasswordRejetteUnUtilisateurInconnu() {
+        UUID unknownId = UUID.randomUUID();
+        when(userRepository.findById(unknownId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.changePassword(
+                unknownId, new ChangePasswordRequest("secret123", "nouveau-mdp-1")))
+                .isInstanceOf(InvalidCredentialsException.class);
     }
 
     private static User userWithId() {

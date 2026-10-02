@@ -2,6 +2,7 @@ package com.linqorbit.auth;
 
 import java.time.Instant;
 import java.util.Locale;
+import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,11 +17,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.linqorbit.auth.dto.AuthResponse;
+import com.linqorbit.auth.dto.ChangePasswordRequest;
 import com.linqorbit.auth.dto.LoginRequest;
 import com.linqorbit.auth.dto.SignupRequest;
+import com.linqorbit.auth.dto.UserResponse;
 import com.linqorbit.auth.exception.AccountNotActiveException;
 import com.linqorbit.auth.exception.EmailAlreadyExistsException;
 import com.linqorbit.auth.exception.InvalidCredentialsException;
+import com.linqorbit.auth.exception.WrongCurrentPasswordException;
 import com.linqorbit.user.User;
 import com.linqorbit.user.UserRepository;
 import com.linqorbit.user.UserSex;
@@ -86,6 +90,34 @@ public class AuthService {
         log.info("Login succeeded : userId={}, email={}", user.getId(), email);
 
         return buildResponse(user);
+    }
+
+    @Transactional(readOnly = true)
+    public UserResponse getProfile(UUID userId) {
+        log.info("Profile requested : userId={}", userId);
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            log.warn("Profile lookup failed : user not found, userId={}", userId);
+            throw new InvalidCredentialsException();
+        }
+        return userMapper.toUserResponse(user);
+    }
+
+    @Transactional
+    public void changePassword(UUID userId, ChangePasswordRequest request) {
+        log.info("Password change requested : userId={}", userId);
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            log.warn("Password change rejected : user not found, userId={}", userId);
+            throw new InvalidCredentialsException();
+        }
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            log.warn("Password change rejected : wrong current password, userId={}", userId);
+            throw new WrongCurrentPasswordException();
+        }
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(user);
+        log.info("Password changed : userId={}", userId);
     }
 
     private AuthResponse buildResponse(User user) {

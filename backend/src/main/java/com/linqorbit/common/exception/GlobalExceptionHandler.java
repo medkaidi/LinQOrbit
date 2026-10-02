@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.linqorbit.auth.exception.AccountNotActiveException;
 import com.linqorbit.auth.exception.EmailAlreadyExistsException;
 import com.linqorbit.auth.exception.InvalidCredentialsException;
+import com.linqorbit.auth.exception.WrongCurrentPasswordException;
 
 /**
  * Gestion centralisée minimale des erreurs REST (format ProblemDetail / RFC 7807).
@@ -58,6 +59,15 @@ public class GlobalExceptionHandler {
         problem.setTitle("Account not active");
         problem.setDetail("This account is not active.");
         log.warn("Login rejected : account not active");
+        return problem;
+    }
+
+    @ExceptionHandler(WrongCurrentPasswordException.class)
+    public ProblemDetail handleWrongCurrentPassword(WrongCurrentPasswordException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
+        problem.setTitle("Wrong current password");
+        problem.setDetail("The current password is incorrect.");
+        log.warn("Password change rejected : wrong current password");
         return problem;
     }
 

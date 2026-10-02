@@ -29,7 +29,13 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.paths['/api/v1/auth/signup'].post.summary")
                         .value("Créer un compte"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post.summary")
-                        .value("Se connecter"));
+                        .value("Se connecter"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/me'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/me'].get.summary")
+                        .value("Profil du compte"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/change-password'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/change-password'].post.summary")
+                        .value("Changer le mot de passe"));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.linqorbit.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -155,6 +156,76 @@ class AuthFlowIntegrationTest {
                         .content(loginJson(email, "secret123")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").isNotEmpty());
+    }
+
+    @Test
+    void profilEtChangementDeMotDePasseAvecUnVraiJeton() throws Exception {
+        String email = "profile-" + UUID.randomUUID() + "@example.com";
+        MvcResult signup = mockMvc.perform(post("/api/v1/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(signupJson(email, "female")))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode signupBody = objectMapper.readTree(signup.getResponse().getContentAsString());
+        String token = signupBody.get("token").asText();
+        UUID userId = UUID.fromString(signupBody.get("user").get("id").asText());
+        createdUserIds.add(userId);
+
+        mockMvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(userId.toString()))
+                .andExpect(jsonPath("$.email").value(email))
+                .andExpect(jsonPath("$.firstName").value("Ada"));
+
+        mockMvc.perform(post("/api/v1/auth/change-password")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\": \"secret123\", \"newPassword\": \"nouveau-mdp-1\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson(email, "secret123")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.title").value("Invalid credentials"));
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson(email, "nouveau-mdp-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isNotEmpty());
+    }
+
+    @Test
+    void changePasswordRejetteLeMauvaisMotDePasseActuel() throws Exception {
+        String email = "wrongcurrent-" + UUID.randomUUID() + "@example.com";
+        MvcResult signup = mockMvc.perform(post("/api/v1/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(signupJson(email, "male")))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode signupBody = objectMapper.readTree(signup.getResponse().getContentAsString());
+        String token = signupBody.get("token").asText();
+        createdUserIds.add(UUID.fromString(signupBody.get("user").get("id").asText()));
+
+        mockMvc.perform(post("/api/v1/auth/change-password")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\": \"mauvais-mdp\", \"newPassword\": \"nouveau-mdp-1\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.title").value("Wrong current password"));
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson(email, "secret123")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void meSansJetonRenvoie401() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/me"))
+                .andExpect(status().isUnauthorized());
     }
 
     private static String signupJson(String email, String sex) {
