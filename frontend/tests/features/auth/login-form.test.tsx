@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { LoginForm } from "@/features/auth/login-form";
 import { renderWithQueryClient } from "@/tests/helpers/test-utils";
+import { useAuthStore } from "@/stores/auth-store";
 
 const pushMock = vi.hoisted(() => vi.fn());
 
@@ -48,7 +49,7 @@ describe("LoginForm", () => {
   beforeEach(() => {
     mockedLogin.mockReset();
     pushMock.mockClear();
-    localStorage.clear();
+    useAuthStore.getState().clearAuth();
   });
 
   it("shows validation errors when submitted empty", async () => {
@@ -105,8 +106,8 @@ describe("LoginForm", () => {
         remember: true,
       }),
     );
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/"));
-    expect(localStorage.getItem("linqorbit.token")).toBe("jwt-token");
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/dashboard"));
+    expect(useAuthStore.getState().token).toBe("jwt-token");
   });
 
   it("shows the server error when the credentials are rejected", async () => {

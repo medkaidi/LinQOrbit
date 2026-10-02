@@ -76,6 +76,14 @@ Ne jamais mettre de données serveur dans Zustand « parce que Zustand est dispo
 - Le backend est **Spring Boot** (REST). Un service IA Python/FastAPI est appelé par le backend, jamais directement par le frontend.
 - Les modules API par domaine (`auth.api.ts`, `candidate.api.ts`, …) vivent **uniquement** dans `lib/api/`, et ne sont créés que lorsqu'ils sont utilisés. Aucune fonction API fictive.
 
+## Zone authentifiée
+
+- **Session** = Zustand persisté (`stores/auth-store.ts`, clé `linqorbit.auth`) : `{ token, user, setAuth, clearAuth }`. Jamais de `localStorage` brut ; l'ancienne clé `linqorbit.token` est abandonnée (reconnexion une fois nécessaire).
+- **Axios** (`lib/api/axios.ts`) : interceptor request → `Authorization: Bearer` depuis le store ; interceptor response **401 → `clearAuth()`** (la garde se charge de la redirection, jamais de `router` dans axios).
+- **Redirections** : login/signup → `/dashboard` (`hooks/use-auth.ts`) ; `logout()` → `clearAuth` + `/login` ; `features/auth/auth-gate.tsx` enveloppe le groupe `app/(dashboard)/` (sans token → `replace("/login")`, rendu null côté serveur via `useMounted`) ; `features/auth/redirect-if-authenticated.tsx` enveloppe `app/(auth)/` (token → `replace("/dashboard")`).
+- **Shell** : `components/layout/dashboard-sidebar.tsx` (nav, items futurs en `<span aria-disabled>` **sans `href`** — zéro lien mort), `components/layout/dashboard-header.tsx` (contrôles sans backend en `disabled` + `aria-disabled`, jamais de faux boutons actifs), menu utilisateur `components/navigation/user-menu.tsx`.
+- **Visuel** : les pages de la zone authentifiée s'inspirent de `template/general_dashboard.html` (shell complet), traduites en anglais et exprimées avec les tokens `globals.css` — pas de valeurs Tailwind brutes du template.
+
 ## Tests
 
 - **Vitest** + **React Testing Library** + `@testing-library/jest-dom` (environnement `jsdom`). Pas de Jest, pas de Playwright/Cypress pour l'instant.
@@ -90,5 +98,5 @@ Ne jamais mettre de données serveur dans Zustand « parce que Zustand est dispo
 
 - Langue : **l'UI est en anglais** (`lang="en"` dans `app/layout.tsx`, textes et metadata en anglais). Les échanges de l'équipe sont en français, pas le code de l'application.
 - Styles : classes Tailwind uniquement ; pas de fichiers CSS par composant, pas de styles inline sauf nécessité.
-- Ne pas développer : auth, dashboards, pages métier, RBAC, tests e2e, Kafka — hors scope tant que ce n'est pas demandé.
+- Ne pas développer : RBAC, tests e2e, Kafka — hors scope tant que ce n'est pas demandé.
 - Vérifier avant de conclure : `npm run lint` puis `npm run build`.

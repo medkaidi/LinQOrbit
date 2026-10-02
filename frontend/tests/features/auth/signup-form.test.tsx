@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { SignUpForm } from "@/features/auth/signup-form";
 import { renderWithQueryClient } from "@/tests/helpers/test-utils";
+import { useAuthStore } from "@/stores/auth-store";
 
 const pushMock = vi.hoisted(() => vi.fn());
 
@@ -64,7 +65,7 @@ describe("SignUpForm", () => {
   beforeEach(() => {
     mockedSignup.mockReset();
     pushMock.mockClear();
-    localStorage.clear();
+    useAuthStore.getState().clearAuth();
   });
 
   it("shows validation errors when submitted empty", async () => {
@@ -120,8 +121,8 @@ describe("SignUpForm", () => {
         terms: true,
       }),
     );
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/"));
-    expect(localStorage.getItem("linqorbit.token")).toBe("jwt-token");
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/dashboard"));
+    expect(useAuthStore.getState().token).toBe("jwt-token");
   });
 
   it("shows the server error when the email is already registered", async () => {

@@ -1,5 +1,9 @@
 import { api } from "@/lib/api/axios";
-import type { LoginValues, SignupValues } from "@/lib/validations/auth.schemas";
+import type {
+  ChangePasswordValues,
+  LoginValues,
+  SignupValues,
+} from "@/lib/validations/auth.schemas";
 import { isAxiosError } from "axios";
 
 export type AuthUser = {
@@ -42,6 +46,18 @@ export async function login(values: LoginValues): Promise<AuthResponse> {
   };
   const response = await api.post<AuthResponse>("/api/v1/auth/login", payload);
   return response.data;
+}
+
+export async function me(): Promise<AuthUser> {
+  const response = await api.get<AuthUser>("/api/v1/auth/me");
+  return response.data;
+}
+
+export async function changePassword(values: ChangePasswordValues): Promise<void> {
+  await api.post("/api/v1/auth/change-password", {
+    currentPassword: values.currentPassword,
+    newPassword: values.newPassword,
+  });
 }
 
 type ProblemDetailBody = {

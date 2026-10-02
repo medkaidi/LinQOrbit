@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClientWrapper } from "@/tests/helpers/test-utils";
+import { useAuthStore } from "@/stores/auth-store";
 
 const pushMock = vi.hoisted(() => vi.fn());
 
@@ -59,7 +60,7 @@ describe("useAuth", () => {
     mockedLogin.mockReset();
     mockedSignup.mockReset();
     pushMock.mockClear();
-    localStorage.clear();
+    useAuthStore.getState().clearAuth();
   });
 
   it("stores the token and redirects after a successful signup", async () => {
@@ -68,8 +69,9 @@ describe("useAuth", () => {
 
     act(() => result.current.signup(signupValues));
 
-    await waitFor(() => expect(localStorage.getItem("linqorbit.token")).toBe("jwt-token"));
-    expect(pushMock).toHaveBeenCalledWith("/");
+    await waitFor(() => expect(useAuthStore.getState().token).toBe("jwt-token"));
+    expect(useAuthStore.getState().user?.email).toBe("ada@example.com");
+    expect(pushMock).toHaveBeenCalledWith("/dashboard");
   });
 
   it("stores the token and redirects after a successful login", async () => {
@@ -78,8 +80,8 @@ describe("useAuth", () => {
 
     act(() => result.current.login(loginValues));
 
-    await waitFor(() => expect(localStorage.getItem("linqorbit.token")).toBe("jwt-token"));
-    expect(pushMock).toHaveBeenCalledWith("/");
+    await waitFor(() => expect(useAuthStore.getState().token).toBe("jwt-token"));
+    expect(pushMock).toHaveBeenCalledWith("/dashboard");
   });
 
   it("exposes the server error message when login fails", async () => {
@@ -96,7 +98,7 @@ describe("useAuth", () => {
     await waitFor(() =>
       expect(result.current.errorMessage).toBe("The email or password is incorrect."),
     );
-    expect(localStorage.getItem("linqorbit.token")).toBeNull();
+    expect(useAuthStore.getState().token).toBeNull();
     expect(pushMock).not.toHaveBeenCalled();
   });
 
@@ -122,5 +124,20 @@ describe("useAuth", () => {
 
     expect(result.current.isPending).toBe(false);
     expect(result.current.errorMessage).toBeNull();
+  });
+
+  it("clears the session and redirects to login on logout", async () => {
+    mockedLogin.mockResolvedValue(authResponse);
+    const { result } = renderHook(() => useAuth(), { wrapper: queryClientWrapper });
+
+    act(() => result.current.login(loginValues));
+    await waitFor(() => expect(useAuthStore.getState().token).toBe("jwt-token"));
+    pushMock.mockClear();
+
+    act(() => result.current.logout());
+
+    expect(useAuthStore.getState().token).toBeNull();
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(pushMock).toHaveBeenCalledWith("/login");
   });
 });

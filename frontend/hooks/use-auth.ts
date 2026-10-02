@@ -8,16 +8,17 @@ import {
   signup as signupRequest,
   type AuthResponse,
 } from "@/lib/api/auth.api";
+import { useAuthStore } from "@/stores/auth-store";
 import type { LoginValues, SignupValues } from "@/lib/validations/auth.schemas";
-
-const TOKEN_STORAGE_KEY = "linqorbit.token";
 
 export function useAuth() {
   const router = useRouter();
+  const setAuth = useAuthStore((state) => state.setAuth);
+  const clearAuth = useAuthStore((state) => state.clearAuth);
 
   const handleSuccess = (data: AuthResponse) => {
-    localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
-    router.push("/");
+    setAuth({ token: data.token, user: data.user });
+    router.push("/dashboard");
   };
 
   const signup = useMutation({
@@ -31,9 +32,15 @@ export function useAuth() {
 
   const error = signup.error ?? login.error;
 
+  const logout = () => {
+    clearAuth();
+    router.push("/login");
+  };
+
   return {
     signup: (values: SignupValues) => signup.mutate(values),
     login: (values: LoginValues) => login.mutate(values),
+    logout,
     isPending: signup.isPending || login.isPending,
     errorMessage: error ? getAuthErrorMessage(error) : null,
   };

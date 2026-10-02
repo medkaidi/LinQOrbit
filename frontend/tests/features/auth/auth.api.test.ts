@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getAuthErrorMessage, login, signup } from "@/lib/api/auth.api";
+import { changePassword, getAuthErrorMessage, login, me, signup } from "@/lib/api/auth.api";
 
 vi.mock("@/lib/api/axios", () => ({
-  api: { post: vi.fn() },
+  api: { post: vi.fn(), get: vi.fn() },
 }));
 
 import { api } from "@/lib/api/axios";
 
 const mockedPost = vi.mocked(api.post);
+const mockedGet = vi.mocked(api.get);
 
 const signupValues = {
   email: "ada@example.com",
@@ -32,6 +33,7 @@ const loginValues = {
 describe("auth.api", () => {
   beforeEach(() => {
     mockedPost.mockReset();
+    mockedGet.mockReset();
   });
 
   it("posts the signup payload without confirmPassword nor terms", async () => {
@@ -65,6 +67,31 @@ describe("auth.api", () => {
       password: "super-secret",
     });
     expect(result).toEqual(data);
+  });
+
+  it("fetches the profile from /me", async () => {
+    const user = { id: "1", email: "ada@example.com", firstName: "Ada" };
+    mockedGet.mockResolvedValue({ data: user });
+
+    const result = await me();
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/auth/me");
+    expect(result).toEqual(user);
+  });
+
+  it("posts only currentPassword and newPassword on change-password", async () => {
+    mockedPost.mockResolvedValue({ data: undefined });
+
+    await changePassword({
+      currentPassword: "secret-123",
+      newPassword: "brand-new-1",
+      confirmNewPassword: "brand-new-1",
+    });
+
+    expect(mockedPost).toHaveBeenCalledWith("/api/v1/auth/change-password", {
+      currentPassword: "secret-123",
+      newPassword: "brand-new-1",
+    });
   });
 });
 
