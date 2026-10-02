@@ -14,12 +14,25 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 /**
  * Compte utilisateur. L'identifiant est généré côté Java (Hibernate) : les tables
  * candidates et recruiters réutiliseront ce même UUID (clé primaire partagée).
+ * Construction : builder uniquement (voir AGENTS), setters réservés aux mises à jour.
  */
 @Entity
 @Table(name = "users")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
+@Builder
 public class User {
 
     @Id
@@ -65,103 +78,4 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-
-    public User() {
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
-    }
-
-    public String getFirstName() {
-        return firstName;
-    }
-
-    public void setFirstName(String firstName) {
-        this.firstName = firstName;
-    }
-
-    public String getLastName() {
-        return lastName;
-    }
-
-    public void setLastName(String lastName) {
-        this.lastName = lastName;
-    }
-
-    public String getPhone() {
-        return phone;
-    }
-
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-
-    public UserStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(UserStatus status) {
-        this.status = status;
-    }
-
-    public UserSex getSex() {
-        return sex;
-    }
-
-    public void setSex(UserSex sex) {
-        this.sex = sex;
-    }
-
-    public String getHomeCountry() {
-        return homeCountry;
-    }
-
-    public void setHomeCountry(String homeCountry) {
-        this.homeCountry = homeCountry;
-    }
-
-    public String getCurrentCity() {
-        return currentCity;
-    }
-
-    public void setCurrentCity(String currentCity) {
-        this.currentCity = currentCity;
-    }
-
-    public String getCurrentCountry() {
-        return currentCountry;
-    }
-
-    public void setCurrentCountry(String currentCountry) {
-        this.currentCountry = currentCountry;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
 }

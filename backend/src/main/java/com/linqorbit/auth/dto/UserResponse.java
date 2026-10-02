@@ -1,4 +1,4 @@
-package com.linqorbit.auth;
+package com.linqorbit.auth.dto;
 
 import java.util.UUID;
 

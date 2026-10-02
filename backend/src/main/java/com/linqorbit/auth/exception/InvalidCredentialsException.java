@@ -1,4 +1,4 @@
-package com.linqorbit.auth;
+package com.linqorbit.auth.exception;
 
 public class InvalidCredentialsException extends RuntimeException {
 

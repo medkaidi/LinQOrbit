@@ -1,10 +1,13 @@
 package com.linqorbit.user;
 
+import lombok.Getter;
+
 /**
  * Sexe du compte, stocké en SMALLINT (colonne users.sex).
  * Code et valeur API sont déclarés ensemble pour qu'aucun des deux mappings
  * (base et JSON) ne dépende de l'ordre des constantes.
  */
+@Getter
 public enum UserSex {
 
     MALE(1, "male"),
@@ -17,14 +20,6 @@ public enum UserSex {
     UserSex(int code, String apiValue) {
         this.code = code;
         this.apiValue = apiValue;
-    }
-
-    public int getCode() {
-        return code;
-    }
-
-    public String getApiValue() {
-        return apiValue;
     }
 
     public static UserSex fromCode(short code) {

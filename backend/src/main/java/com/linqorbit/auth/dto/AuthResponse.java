@@ -1,4 +1,4 @@
-package com.linqorbit.auth;
+package com.linqorbit.auth.dto;
 
 public record AuthResponse(String token, UserResponse user) {
 }

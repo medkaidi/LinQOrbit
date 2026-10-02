@@ -4,6 +4,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 
+import com.linqorbit.auth.dto.UserResponse;
 import com.linqorbit.user.User;
 import com.linqorbit.user.UserSex;
 

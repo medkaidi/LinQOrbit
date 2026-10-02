@@ -18,6 +18,11 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.linqorbit.auth.dto.AuthResponse;
+import com.linqorbit.auth.dto.UserResponse;
+import com.linqorbit.auth.exception.AccountNotActiveException;
+import com.linqorbit.auth.exception.EmailAlreadyExistsException;
+import com.linqorbit.auth.exception.InvalidCredentialsException;
 import com.linqorbit.config.SecurityConfig;
 
 @WebMvcTest(AuthController.class)

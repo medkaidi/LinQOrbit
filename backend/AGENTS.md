@@ -7,10 +7,11 @@ Backend principal de la plateforme de recrutement LinQOrbit. Il possède **toute
 - **Java 17** (LTS), **Spring Boot 4.1.1**, **Maven** (Wrapper : `./mvnw`)
 - Spring Web (REST), Spring Security, Spring Data JPA / Hibernate, Bean Validation
 - **PostgreSQL** + **Flyway** (migrations SQL), **MapStruct** (mapping Entity ↔ DTO)
+- **Lombok** — version gérée par le parent Boot ; annotation processing configuré dans le `pom.xml` (avant MapStruct)
 - **springdoc-openapi 3.x** (Swagger UI : `/swagger-ui.html`, spec : `/v3/api-docs`)
 - Port **9080** — configuration via `application.yml` + variables d'environnement (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, voir `.env.example`)
 
-Interdits pour la V0 : Kafka, Redis, Lombok (non installé), architecture hexagonale, CQRS, event sourcing, microservices, generic repositories/services, interfaces sans implémentation multiple — **à l'exception des contrats d'API** (`XxxApi`, voir « Contrat d'API »), qui sont implémentés par leur contrôleur unique.
+Interdits pour la V0 : Kafka, Redis, architecture hexagonale, CQRS, event sourcing, microservices, generic repositories/services, interfaces sans implémentation multiple — **à l'exception des contrats d'API** (`XxxApi`, voir « Contrat d'API »), qui sont implémentés par leur contrôleur unique.
 
 ## Organisation : architecture par domaine
 
@@ -18,14 +19,22 @@ Interdits pour la V0 : Kafka, Redis, Lombok (non installé), architecture hexago
 com.linqorbit/
 ├── LinQOrbitApplication.java
 ├── config/            configuration technique (SecurityConfig, OpenApiConfig, …)
-├── common/            utilitaires transverses (exception/ avec GlobalExceptionHandler, logging/ avec RequestLoggingFilter)
-├── auth/  user/  candidate/  recruiter/  company/
-├── joboffer/  application/  matching/  attachment/
-└── …
+├── common/            partagé entre domaines (exception/, logging/) — jamais une décharge
+├── auth/              domaine auth : AuthApi, AuthController, AuthService, UserMapper
+│   ├── dto/           4 DTOs de l'API auth
+│   └── exception/     3 exceptions métier
+├── user/              domaine utilisateur (implémenté)
+├── application/ attachment/ candidate/ company/ joboffer/ matching/ recruiter/
+│                      domaines roadmap — pré-créés (exception), vides jusqu'à leur 1re classe
 ```
 
-- Chaque domaine regroupe son code quand il existe : `Candidate.java`, `CandidateController.java`, `CandidateService.java`, `CandidateRepository.java` — **à plat dans le package du domaine**.
-- Subdiviser en sous-packages (`controller/`, `service/`…) uniquement quand la complexité le justifie.
+- Chaque domaine est **autonome** : ses classes **à plat dans son package** (`Candidate.java`, `CandidateController.java`, `CandidateService.java`, `CandidateRepository.java`). Interdits : packages globaux `controllers/`, `services/`, `repositories/`, `entities/`, `dtos/`.
+- **Regroupement seulement quand la croissance le justifie** — « structure simple d'abord, groupement quand c'est motivé » :
+  - plusieurs classes d'une même responsabilité → sous-package correspondant (`dto/`, `exception/`, `mapper/`… ) ;
+  - un fichier unique → reste à plat (un seul DTO dans `candidate/` → `candidate/CandidateResponse.java`, pas de `dto/` ; même règle pour exception/mapper/validator) ;
+  - ne **jamais** créer ces packages par anticipation.
+- **Exception roadmap (décision explicite de l'équipe)** : les 7 domaines à venir — `application/`, `attachment/`, `candidate/`, `company/`, `joboffer/`, `matching/`, `recruiter/` — sont **pré-créés volontairement** avec leur `.gitkeep` pour matérialiser le périmètre du projet. Seule exception : **toute autre** naît avec sa première classe, jamais en avance (pas de nouveaux dossiers vides ni de `.gitkeep`).
+- `common/` : uniquement ce qui est **réellement partagé** (traitement d'erreurs HTTP, pagination, utilitaires transverses). Une classe utilisée par plusieurs domaines mais appartenant à l'un d'eux reste dans son domaine.
 - Ne **jamais** créer de classes vides ou de packages pour respecter une architecture théorique.
 - Ne jamais utiliser le default package.
 
@@ -72,7 +81,7 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 
 ## Logging (SLF4J)
 
-- SLF4J/Logback (fourni par Spring Boot) — jamais de `System.out`, aucune librairie concurrente.
+- **Point d'entrée standard : `@Slf4j`** (Lombok) — le champ `log` remplace toute déclaration manuelle (`log.info` / `log.warn` / `log.error`, pas de niveau `alert` en SLF4J) ; SLF4J/Logback reste le moteur (fourni par Spring Boot) — jamais de `System.out`, aucune librairie concurrente.
 - **Corrélation requête** : `common/logging/RequestLoggingFilter` crée un `X-Request-Id` (MDC `correlationId`, affiché par le pattern console) et logue chaque requête — méthode + URI à l'entrée, statut + durée à la sortie (WARN si ≥ 400, ERROR si ≥ 500).
 - **Étapes métier** : chaque service logue ses étapes clés — INFO pour la réception et le succès (identifiants, statut), WARN pour chaque refus (motif + email/id concerné).
 - **Interdit dans les logs** : mots de passe, hash, jetons JWT, corps de requête. Les données utiles (email, userId, statut) sont loggées champ par champ, jamais le payload brut.
@@ -92,6 +101,14 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 ## Conventions
 
 - Configuration : `application.yml` uniquement, aucun secret hardcodé (variables d'env avec défauts locaux).
+- **Lombok** :
+  - `@RequiredArgsConstructor` pour l'injection par constructeur (champs `final`) — jamais de constructeur manuel quand Lombok peut le générer ;
+  - `@Getter` / `@Setter` / `@NoArgsConstructor` sur les entités JPA, `@Getter` sur les enums — plus d'accesseur manuel ;
+  - **DTOs = `record`** (constructeur + accesseurs natifs, pas de Lombok) ;
+  - `@Value` / `@Qualifier` vont sur le **champ** (`lombok.config` les copie vers le constructeur généré) ;
+  - `@Slf4j` donne le champ `log` (`log.info/warn/error`) — **jamais** de `LoggerFactory.getLogger(...)` manuel ;
+  - **Construction d'entités = builder** : `@Builder` + `@NoArgsConstructor` + `@AllArgsConstructor(access = AccessLevel.PACKAGE)` sur l'entité (recette JPA obligatoire, **jamais `@Builder` seul** — cela casserait Hibernate qui a besoin du no-args), usage `User.builder().email(…)….build()` — **jamais** `new Entity()` + cascade de setters à la création ; les setters restent réservés aux **mises à jour** d'entités existantes ;
+  - les annotations JPA restent sur les **champs** (source de vérité), jamais sur les méthodes générées.
 - Pas de profil Spring (`@Profile`, `application-dev.yml`) tant que le besoin ne se présente pas.
 - Asynchrone local acceptable ; **Kafka interdit** pour la V0 (l'architecture doit rester compatible avec son ajout futur, sans abstraction fictive).
 - Vérifier avant de conclure : `./mvnw clean`, `./mvnw test`, `./mvnw verify` (PostgreSQL requis : voir `.env.example`).

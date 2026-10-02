@@ -11,6 +11,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 
+import com.linqorbit.auth.dto.AuthResponse;
+import com.linqorbit.auth.dto.LoginRequest;
+import com.linqorbit.auth.dto.SignupRequest;
+
 /**
  * Contrat d'API d'authentification : définit les endpoints et leur documentation OpenAPI.
  * Implémenté par {@link AuthController}.

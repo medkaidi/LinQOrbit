@@ -1,9 +1,12 @@
 package com.linqorbit.user;
 
+import lombok.Getter;
+
 /**
  * Statut d'un compte utilisateur, stocké en SMALLINT (colonne users.status).
  * Le mapping vers le code est explicite : jamais basé sur l'ordre de déclaration.
  */
+@Getter
 public enum UserStatus {
 
     ACTIVE(1),
@@ -14,10 +17,6 @@ public enum UserStatus {
 
     UserStatus(int code) {
         this.code = code;
-    }
-
-    public int getCode() {
-        return code;
     }
 
     public static UserStatus fromCode(short code) {

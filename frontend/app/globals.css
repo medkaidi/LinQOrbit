@@ -136,6 +136,14 @@
   --radius-lg: 2rem;
   --radius-xl: 3rem;
 
+  /* Espacements — portés du template (template/home_page.html) */
+  --spacing-gutter: 1.5rem;
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2.5rem;
+
   /* Ombres — équivalence Tailwind v3 du template */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }

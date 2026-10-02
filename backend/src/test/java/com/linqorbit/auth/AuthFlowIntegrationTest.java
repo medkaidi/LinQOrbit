@@ -109,12 +109,13 @@ class AuthFlowIntegrationTest {
     @Test
     void loginRejetteUnCompteInactif() throws Exception {
         String email = "inactive-" + UUID.randomUUID() + "@example.com";
-        User user = new User();
-        user.setEmail(email);
-        user.setPasswordHash(passwordEncoder.encode("secret123"));
-        user.setFirstName("Ina");
-        user.setLastName("Ctive");
-        user.setStatus(UserStatus.SUSPENDED);
+        User user = User.builder()
+                .email(email)
+                .passwordHash(passwordEncoder.encode("secret123"))
+                .firstName("Ina")
+                .lastName("Ctive")
+                .status(UserStatus.SUSPENDED)
+                .build();
         user = userRepository.save(user);
         createdUserIds.add(user.getId());
 

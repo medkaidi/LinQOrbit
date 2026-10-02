@@ -5,15 +5,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.linqorbit.auth.dto.AuthResponse;
+import com.linqorbit.auth.dto.LoginRequest;
+import com.linqorbit.auth.dto.SignupRequest;
+
+import lombok.RequiredArgsConstructor;
+
 @RestController
 @RequestMapping("/api/v1/auth")
+@RequiredArgsConstructor
 public class AuthController implements AuthApi {
 
     private final AuthService authService;
-
-    public AuthController(AuthService authService) {
-        this.authService = authService;
-    }
 
     @Override
     public ResponseEntity<AuthResponse> signup(SignupRequest request) {

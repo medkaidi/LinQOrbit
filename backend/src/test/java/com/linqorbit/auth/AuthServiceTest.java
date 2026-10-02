@@ -19,6 +19,13 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 
+import com.linqorbit.auth.dto.AuthResponse;
+import com.linqorbit.auth.dto.LoginRequest;
+import com.linqorbit.auth.dto.SignupRequest;
+import com.linqorbit.auth.dto.UserResponse;
+import com.linqorbit.auth.exception.AccountNotActiveException;
+import com.linqorbit.auth.exception.EmailAlreadyExistsException;
+import com.linqorbit.auth.exception.InvalidCredentialsException;
 import com.linqorbit.user.User;
 import com.linqorbit.user.UserRepository;
 import com.linqorbit.user.UserSex;
@@ -140,9 +147,7 @@ class AuthServiceTest {
     }
 
     private static User userWithId() {
-        User user = new User();
-        user.setId(UUID.randomUUID());
-        return user;
+        return User.builder().id(UUID.randomUUID()).build();
     }
 
     private static Jwt token(String value) {

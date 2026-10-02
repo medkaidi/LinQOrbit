@@ -3,8 +3,7 @@ package com.linqorbit.common.logging;
 import java.io.IOException;
 import java.util.UUID;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -21,11 +20,10 @@ import jakarta.servlet.http.HttpServletResponse;
  * Le corps des requêtes n'est jamais loggé (mots de passe, jetons) — les données
  * métier sont loggées par les services, champ par champ.
  */
+@Slf4j
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class RequestLoggingFilter extends OncePerRequestFilter {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(RequestLoggingFilter.class);
 
     static final String CORRELATION_ID = "correlationId";
     static final String REQUEST_ID_HEADER = "X-Request-Id";
@@ -47,16 +45,16 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         }
         long start = System.nanoTime();
         try {
-            LOGGER.info("-> {} {}", request.getMethod(), target);
+            log.info("-> {} {}", request.getMethod(), target);
             filterChain.doFilter(request, response);
             long durationMs = (System.nanoTime() - start) / 1_000_000;
             int status = response.getStatus();
             if (status >= 500) {
-                LOGGER.error("<- {} {} -> {} ({} ms)", request.getMethod(), target, status, durationMs);
+                log.error("<- {} {} -> {} ({} ms)", request.getMethod(), target, status, durationMs);
             } else if (status >= 400) {
-                LOGGER.warn("<- {} {} -> {} ({} ms)", request.getMethod(), target, status, durationMs);
+                log.warn("<- {} {} -> {} ({} ms)", request.getMethod(), target, status, durationMs);
             } else {
-                LOGGER.info("<- {} {} -> {} ({} ms)", request.getMethod(), target, status, durationMs);
+                log.info("<- {} {} -> {} ({} ms)", request.getMethod(), target, status, durationMs);
             }
         } finally {
             MDC.remove(CORRELATION_ID);
