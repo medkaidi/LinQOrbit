@@ -72,6 +72,18 @@ describe("UserMenu", () => {
     expect(screen.queryByRole("menu", { name: "Account menu" })).not.toBeInTheDocument();
   });
 
+  it("returns focus to the trigger on Escape", () => {
+    renderWithQueryClient(<UserMenu />);
+
+    openMenu();
+    const trigger = screen.getByRole("button", { name: "Account menu" });
+    screen.getByRole("menuitem", { name: "View profile" }).focus();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(trigger).toHaveFocus();
+  });
+
   it("closes the menu when clicking outside", () => {
     renderWithQueryClient(<UserMenu />);
 

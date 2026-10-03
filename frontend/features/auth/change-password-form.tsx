@@ -43,9 +43,9 @@ export function ChangePasswordForm() {
   };
 
   return (
-    <div className="max-w-xl">
+    <div className="w-full max-w-xl mx-auto">
       <div className="mb-6">
-        <h1 className="font-headline-lg text-headline-lg text-text-primary font-bold tracking-tight">
+        <h1 className="font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
           Change password
         </h1>
         <p className="mt-1 text-body-md font-body-md text-text-secondary">
@@ -54,6 +54,17 @@ export function ChangePasswordForm() {
       </div>
 
       <section className="bg-canvas-white rounded-2xl p-6 shadow-sm">
+        {serverError ? (
+          <Alert variant="error" title="Password change failed" className="mt-0 mb-4">
+            {serverError}
+          </Alert>
+        ) : null}
+        {successMessage ? (
+          <Alert variant="success" title="Password updated" className="mt-0 mb-4">
+            {successMessage}
+          </Alert>
+        ) : null}
+
         <form className="flex flex-col gap-4" noValidate onSubmit={handleSubmit(onSubmit)}>
           <PasswordField
             label="Current password"
@@ -64,6 +75,11 @@ export function ChangePasswordForm() {
           />
           <PasswordField
             label="New password"
+            labelAction={
+              <span className="text-body-sm font-body-sm text-text-tertiary">
+                At least 8 characters
+              </span>
+            }
             placeholder="••••••••••••"
             autoComplete="new-password"
             error={errors.newPassword?.message}
@@ -85,17 +101,6 @@ export function ChangePasswordForm() {
             <span>Update password</span>
           </Button>
         </form>
-
-        {serverError ? (
-          <Alert variant="error" title="Password change failed" className="mt-4">
-            {serverError}
-          </Alert>
-        ) : null}
-        {successMessage ? (
-          <Alert variant="success" title="Password updated" className="mt-4">
-            {successMessage}
-          </Alert>
-        ) : null}
       </section>
     </div>
   );

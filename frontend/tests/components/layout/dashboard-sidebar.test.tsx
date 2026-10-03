@@ -11,10 +11,10 @@ describe("DashboardSidebar", () => {
     expect(overview).toHaveAttribute("aria-current", "page");
   });
 
-  it("renders future sections as disabled entries without links", () => {
+  it("renders future sections as enabled controls without links", () => {
     render(<DashboardSidebar />);
 
-    const comingSoon = [
+    const futureSections = [
       "Offers & Pipelines",
       "Candidate Pool",
       "AI Agents Studio",
@@ -22,10 +22,12 @@ describe("DashboardSidebar", () => {
       "Settings & Integrations",
       "API Help & Documentation",
     ];
-    for (const label of comingSoon) {
+    for (const label of futureSections) {
       const entry = screen.getByText(label);
       expect(entry.closest("a")).toBeNull();
-      expect(entry.closest("[aria-disabled='true']")).not.toBeNull();
+      const control = entry.closest("button");
+      expect(control).not.toBeNull();
+      expect(control).not.toBeDisabled();
     }
   });
 

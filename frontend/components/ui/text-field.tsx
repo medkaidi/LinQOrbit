@@ -44,7 +44,7 @@ export function TextField({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
           className={cn(
-            "w-full h-11 rounded-full font-body-md text-body-md text-text-primary placeholder:text-text-tertiary focus:outline-none transition-all",
+            "w-full h-11 rounded-full font-body-md text-body-md text-text-primary placeholder:text-text-tertiary focus:outline-none transition-[border-color,box-shadow,background-color] duration-150 ease-out",
             icon ? "pl-11" : "pl-4",
             trailing ? "pr-11" : "pr-4",
             error

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
 import { UserMenu } from "@/components/navigation/user-menu";
 import { Icon } from "@/components/ui/icon";
+import { NewCampaignButton } from "@/components/ui/new-campaign-button";
 
 export function DashboardHeader() {
   return (
@@ -10,10 +11,10 @@ export function DashboardHeader() {
       <div className="flex items-center gap-4 flex-1 max-w-xl">
         <Link
           href="/dashboard"
-          className="lg:hidden flex items-center gap-2 shrink-0 focus:outline-none"
+          className="lg:hidden flex items-center gap-2 shrink-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
           aria-label="Back to dashboard overview"
         >
-          <Logo className="h-8 w-auto" />
+          <Logo className="h-7 w-auto" />
         </Link>
         <div className="relative w-full hidden md:block">
           <Icon
@@ -54,16 +55,16 @@ export function DashboardHeader() {
       <div className="flex items-center gap-3">
         <button
           type="button"
-          disabled
-          aria-disabled="true"
-          title="Coming soon"
-          className="group inline-flex items-center gap-2 py-1 px-2.5 rounded-full text-orange-deep font-bold text-xs transition-all duration-200 focus:outline-none cursor-not-allowed disabled:opacity-60"
+          className="group inline-flex items-center gap-2 py-1 px-2.5 rounded-full text-orange-deep hover:text-canvas-white hover:bg-primary-container font-bold text-xs transition-[background-color,color] duration-200 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
         >
-          <span className="w-6 h-6 rounded-full bg-orange-vibrant text-canvas-white flex items-center justify-center shrink-0">
+          <span className="w-6 h-6 rounded-full bg-primary-container group-hover:bg-canvas-white text-canvas-white group-hover:text-primary-container flex items-center justify-center shrink-0 transition-colors duration-200">
             <Icon name="add" className="text-[16px]" />
           </span>
-          <span className="leading-none">New Job</span>
+          <span className="leading-none transition-colors duration-200">New Job</span>
         </button>
+        <span className="hidden sm:block">
+          <NewCampaignButton />
+        </span>
         <button
           type="button"
           disabled

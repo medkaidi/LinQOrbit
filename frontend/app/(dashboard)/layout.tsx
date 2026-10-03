@@ -9,7 +9,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/">) {
         <DashboardSidebar />
         <DashboardHeader />
         <main className="pt-16 lg:pl-64">
-          <div className="max-w-7xl mx-auto px-gutter py-7 flex flex-col gap-6">{children}</div>
+          <div className="w-full px-gutter py-7 flex flex-col gap-6">{children}</div>
         </main>
       </div>
     </AuthGate>

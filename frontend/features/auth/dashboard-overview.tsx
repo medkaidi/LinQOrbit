@@ -1,41 +1,50 @@
 "use client";
 
 import { Icon } from "@/components/ui/icon";
+import { NewCampaignButton } from "@/components/ui/new-campaign-button";
 import { useMounted } from "@/hooks/use-mounted";
 import { useAuthStore } from "@/stores/auth-store";
 
 const STATS = [
   {
-    label: "Active jobs",
+    section: "Pipeline",
+    period: "This month",
     value: "12",
     caption: "open",
-    icon: "business_center",
-    trendIcon: "priority_high",
-    trend: "4 in critical demand",
+    bandTitle: "Active jobs",
+    bandTrend: "4 in critical demand",
+    bandIcon: "add",
+    bandClass: "bg-orange-deep",
   },
   {
-    label: "AI-sourced this month",
+    section: "AI sourcing",
+    period: "Real-time",
     value: "348",
     caption: "qualified profiles",
-    icon: "psychology",
-    trendIcon: "trending_up",
-    trend: "+28% vs last month",
+    bandTitle: "AI-sourced this month",
+    bandTrend: "+28% vs last month",
+    bandIcon: "trending_up",
+    bandClass: "bg-text-primary",
   },
   {
-    label: "AI pre-qualification rate",
+    section: "AI precision",
+    period: "Continuous",
     value: "74.2%",
     caption: "accuracy",
-    icon: "verified",
-    trendIcon: "task_alt",
-    trend: "Verified",
+    bandTitle: "AI pre-qualification rate",
+    bandTrend: "Verified",
+    bandIcon: "verified",
+    bandClass: "bg-blue-deep",
   },
   {
-    label: "Reduced time-to-hire",
+    section: "Velocity",
+    period: "Last 30 days",
     value: "18d",
     caption: "average cycle",
-    icon: "schedule",
-    trendIcon: "speed",
-    trend: "38d sector average, 52% faster",
+    bandTitle: "Reduced time-to-hire",
+    bandTrend: "38d sector average, 52% faster",
+    bandIcon: "bolt",
+    bandClass: "bg-emerald-deep",
   },
 ] as const;
 
@@ -47,7 +56,6 @@ const AGENTS = [
       "Continuous scouting across LinkedIn Recruiter, GitHub, and partner CV databases.",
     focusLabel: "Current focus",
     focusValue: "Staff Software Engineer",
-    metricIcon: "bolt",
     metric: "42 profiles explored per hour",
   },
   {
@@ -57,7 +65,6 @@ const AGENTS = [
       "Audio-linguistic synthesis, key-skill detection, and clarity scoring.",
     focusLabel: "Verbatim precision",
     focusValue: "99.1%",
-    metricIcon: "task_alt",
     metric: "Screening summaries generated automatically",
   },
   {
@@ -66,7 +73,6 @@ const AGENTS = [
     description: "Cognitive bias neutralization and objective skill weighting.",
     focusLabel: "Average match score",
     focusValue: "88%",
-    metricIcon: "balance",
     metric: "Biases neutralized across 12 socio-demographic criteria",
   },
 ] as const;
@@ -135,65 +141,58 @@ export function DashboardOverview() {
   return (
     <div className="flex flex-col gap-6">
       {/* Welcome bar */}
-      <section className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+      <section className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
         <div className="max-w-3xl">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-subtle text-orange-deep font-label-md text-label-md">
-              <Icon name="calendar_today" className="text-[14px]" />
-              {today ?? "\u00A0"}
-            </span>
-          </div>
-          <h1 className="font-headline-lg text-headline-lg text-text-primary font-bold tracking-tight">
-            Welcome back, {firstName} — here&apos;s what your recruiting agents are working on
+          <p className="mb-2 text-body-sm font-body-sm text-text-secondary">
+            {today ?? "\u00A0"}
+          </p>
+          <h1 className="font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
+            Welcome back, {firstName}
           </h1>
           <p className="mt-2 text-body-md font-body-md text-text-secondary">
-            Oversee predictive pipelines, the active talent pool, and multi-agent orchestration
-            in one place.
+            Here&apos;s what your recruiting agents are working on.
           </p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            title="Coming soon"
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-canvas-white border border-slate-border text-text-primary font-bold text-xs shadow-sm cursor-not-allowed disabled:opacity-60"
-          >
-            <Icon name="auto_awesome" className="text-[16px] text-orange-deep" />
-            Daily AI brief
-          </button>
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            title="Coming soon"
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-orange-vibrant border border-orange-vibrant text-canvas-white font-bold text-xs shadow-sm cursor-not-allowed disabled:opacity-70"
-          >
-            <Icon name="rocket_launch" className="text-[16px]" />
-            New campaign
-          </button>
-        </div>
+        <NewCampaignButton />
       </section>
 
       {/* Stat cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4" aria-label="Key metrics">
         {STATS.map((stat) => (
-          <div key={stat.label} className="bg-canvas-white rounded-2xl p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-body-sm font-body-sm text-text-secondary">{stat.label}</span>
-              <span className="w-9 h-9 rounded-xl bg-orange-subtle text-orange-deep flex items-center justify-center shrink-0">
-                <Icon name={stat.icon} className="text-[18px]" />
-              </span>
+          <div
+            key={stat.bandTitle}
+            className="bg-canvas-white border border-slate-border rounded-2xl overflow-hidden flex flex-col justify-between hover:border-slate-border-strong transition-[border-color] duration-150 ease-out"
+          >
+            <div className="p-4 pb-3 flex flex-col flex-1">
+              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-border">
+                <span className="text-body-sm font-body-sm font-medium text-text-secondary">
+                  {stat.section}
+                </span>
+                <span className="text-[11px] font-mono text-text-tertiary">{stat.period}</span>
+              </div>
+              <div className="my-auto text-center py-1">
+                <div className="text-display-mobile font-display font-extrabold text-text-primary leading-none">
+                  {stat.value}
+                </div>
+                <div className="mt-1.5 text-body-sm font-body-sm text-text-tertiary font-medium">
+                  {stat.caption}
+                </div>
+              </div>
             </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="font-headline-lg text-headline-lg font-bold text-text-primary">
-                {stat.value}
-              </span>
-              <span className="text-body-sm font-body-sm text-text-tertiary">{stat.caption}</span>
-            </div>
-            <div className="mt-2 flex items-center gap-1.5 text-body-sm font-body-sm text-text-secondary">
-              <Icon name={stat.trendIcon} className="text-[16px] text-orange-deep" />
-              <span>{stat.trend}</span>
+            <div
+              className={`px-3.5 py-2.5 text-canvas-white flex items-center justify-between mt-2 ${stat.bandClass}`}
+            >
+              <div className="flex flex-col text-left leading-tight">
+                <span className="font-label-caps text-label-caps uppercase">
+                  {stat.bandTitle}
+                </span>
+                <span className="text-[10px] text-canvas-white/90 font-medium">
+                  {stat.bandTrend}
+                </span>
+              </div>
+              <div className="w-5 h-5 rounded flex items-center justify-center border border-canvas-white/40 bg-canvas-white/20 shrink-0 ml-2">
+                <Icon name={stat.bandIcon} className="text-[14px] text-canvas-white" />
+              </div>
             </div>
           </div>
         ))}
@@ -208,7 +207,7 @@ export function DashboardOverview() {
                 Live AI agent control tower
               </h2>
               <p className="text-body-sm font-body-sm text-text-secondary">
-                Real-time telemetry and inference throughput across your agents.
+                Real-time telemetry across your agents.
               </p>
             </div>
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-subtle">
@@ -232,13 +231,12 @@ export function DashboardOverview() {
                   </p>
                 </div>
               </div>
-              <div className="mt-3 rounded-xl bg-canvas-subtle p-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="mt-4 pt-3 border-t border-slate-border flex flex-wrap items-center justify-between gap-2">
                 <span className="text-body-sm font-body-sm text-text-secondary">
                   <span className="font-bold text-text-primary">{agent.focusLabel}:</span>{" "}
                   {agent.focusValue}
                 </span>
-                <span className="inline-flex items-center gap-1.5 text-body-sm font-body-sm text-orange-deep">
-                  <Icon name={agent.metricIcon} className="text-[16px]" />
+                <span className="text-body-sm font-body-sm text-text-secondary">
                   {agent.metric}
                 </span>
               </div>
@@ -247,71 +245,73 @@ export function DashboardOverview() {
         </div>
 
         <div className="lg:col-span-5 flex flex-col gap-4">
-          <div className="bg-canvas-white rounded-2xl p-5 shadow-sm flex flex-col gap-3">
+          <div className="bg-canvas-white rounded-2xl p-5 shadow-sm">
             <div>
               <h2 className="font-headline-md text-headline-md text-text-primary font-bold">
                 Priority AI recommendations
               </h2>
               <p className="text-body-sm font-body-sm text-text-secondary">
-                Actions your agents suggest based on live scoring.
+                Suggested actions from live scoring.
               </p>
             </div>
 
-            <div className="rounded-xl bg-canvas-subtle p-4 flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-subtle text-orange-deep font-label-md text-label-md">
-                  <Icon name="crisis_alert" className="text-[14px]" />
-                  High scoring alert
-                </span>
-                <span className="text-body-sm font-body-sm text-text-tertiary">12 min ago</span>
-              </div>
-              <p className="text-body-sm font-body-sm text-text-secondary">
-                Lead Frontend: a strong match was detected. Engage the interview loop.
-              </p>
-              <button
-                type="button"
-                disabled
-                aria-disabled="true"
-                title="Coming soon"
-                className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-vibrant text-canvas-white font-bold text-xs shadow-sm cursor-not-allowed disabled:opacity-70"
-              >
-                Engage interviews
-                <Icon name="arrow_forward" className="text-[14px]" />
-              </button>
-            </div>
-
-            <div className="rounded-xl bg-canvas-subtle p-4 flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-subtle text-orange-deep font-label-md text-label-md">
-                  <Icon name="inhomogeneity" className="text-[14px]" />
-                  Talent pool optimization
-                </span>
-                <span className="text-body-sm font-body-sm text-text-tertiary">47 min ago</span>
-              </div>
-              <p className="text-body-sm font-body-sm text-text-secondary">
-                DevOps Kubernetes: consider adjusting the experience criterion or launching a
-                follow-up wave.
-              </p>
-              <div className="flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-col divide-y divide-slate-border">
+              <div className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-subtle text-orange-deep font-label-md text-label-md">
+                    <Icon name="crisis_alert" className="text-[14px]" />
+                    High scoring alert
+                  </span>
+                  <span className="text-body-sm font-body-sm text-text-tertiary">12 min ago</span>
+                </div>
+                <p className="text-body-sm font-body-sm text-text-secondary">
+                  Lead Frontend: a strong match was detected. Engage the interview loop.
+                </p>
                 <button
                   type="button"
                   disabled
                   aria-disabled="true"
                   title="Coming soon"
-                  className="px-3 py-1.5 rounded-full bg-canvas-white border border-slate-border text-text-primary font-bold text-xs shadow-sm cursor-not-allowed disabled:opacity-60"
+                  className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-canvas-white border border-slate-border text-text-secondary font-bold text-xs shadow-sm cursor-not-allowed disabled:opacity-60"
                 >
-                  Adjust criteria (-1 yr)
+                  Engage interviews
+                  <Icon name="arrow_forward" className="text-[14px]" />
                 </button>
-                <button
-                  type="button"
-                  disabled
-                  aria-disabled="true"
-                  title="Coming soon"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-vibrant text-canvas-white font-bold text-xs shadow-sm cursor-not-allowed disabled:opacity-70"
-                >
-                  <Icon name="bolt" className="text-[14px]" />
-                  Launch AI follow-up
-                </button>
+              </div>
+
+              <div className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-canvas-subtle text-text-secondary font-label-md text-label-md">
+                    <Icon name="inhomogeneity" className="text-[14px]" />
+                    Talent pool optimization
+                  </span>
+                  <span className="text-body-sm font-body-sm text-text-tertiary">47 min ago</span>
+                </div>
+                <p className="text-body-sm font-body-sm text-text-secondary">
+                  DevOps Kubernetes: consider adjusting the experience criterion or launching a
+                  follow-up wave.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                    title="Coming soon"
+                    className="px-3 py-1.5 rounded-full bg-canvas-white border border-slate-border text-text-secondary font-bold text-xs shadow-sm cursor-not-allowed disabled:opacity-60"
+                  >
+                    Adjust criteria (-1 yr)
+                  </button>
+                  <button
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                    title="Coming soon"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-canvas-white border border-slate-border text-text-secondary font-bold text-xs shadow-sm cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Icon name="bolt" className="text-[14px]" />
+                    Launch AI follow-up
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -336,13 +336,13 @@ export function DashboardOverview() {
 
       {/* Pipeline table */}
       <section className="bg-canvas-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-5 border-b border-slate-border">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6 py-5 border-b border-slate-border">
           <div>
             <h2 className="font-headline-md text-headline-md text-text-primary font-bold">
               Priority open jobs
             </h2>
             <p className="text-body-sm font-body-sm text-text-secondary">
-              Matrix view of the automated pipeline and agent velocity.
+              Pipeline health and velocity across your priority jobs.
             </p>
           </div>
           <span className="px-3 py-1 rounded-full bg-orange-subtle text-orange-deep font-label-caps text-label-caps uppercase tracking-wider">
@@ -354,19 +354,19 @@ export function DashboardOverview() {
           <table className="w-full text-left min-w-[720px]">
             <thead>
               <tr className="border-b border-slate-border">
-                <th className="px-6 py-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
+                <th className="px-4 lg:px-6 py-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
                   Job
                 </th>
-                <th className="px-6 py-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
+                <th className="px-4 lg:px-6 py-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
                   Pipeline
                 </th>
-                <th className="px-6 py-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
+                <th className="px-4 lg:px-6 py-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
                   Health
                 </th>
-                <th className="px-6 py-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
+                <th className="px-4 lg:px-6 py-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
                   Owner
                 </th>
-                <th className="px-6 py-3">
+                <th className="px-4 lg:px-6 py-3">
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>
@@ -374,7 +374,7 @@ export function DashboardOverview() {
             <tbody>
               {PIPELINE_ROWS.map((row) => (
                 <tr key={row.title} className="border-b border-slate-border last:border-b-0">
-                  <td className="px-6 py-4">
+                  <td className="px-4 lg:px-6 py-4">
                     <div className="flex items-center gap-2">
                       <span className="font-label-lg text-label-lg text-text-primary font-bold">
                         {row.title}
@@ -387,7 +387,7 @@ export function DashboardOverview() {
                     </div>
                     <p className="mt-0.5 text-body-sm font-body-sm text-text-tertiary">{row.meta}</p>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 lg:px-6 py-4">
                     <div className="flex flex-wrap gap-1.5">
                       {row.pipeline.map((step) => (
                         <span
@@ -399,7 +399,7 @@ export function DashboardOverview() {
                       ))}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 lg:px-6 py-4">
                     <span
                       className={`px-2.5 py-1 rounded-full font-label-md text-label-md whitespace-nowrap ${
                         row.statusTone === "success"
@@ -410,7 +410,7 @@ export function DashboardOverview() {
                       {row.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 lg:px-6 py-4">
                     <div className="flex items-center gap-2">
                       <span className="w-7 h-7 rounded-full bg-surface-container text-text-primary flex items-center justify-center text-[11px] font-bold shrink-0">
                         {ownerInitials(row.owner)}
@@ -420,14 +420,14 @@ export function DashboardOverview() {
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-4 lg:px-6 py-4 text-right">
                     <button
                       type="button"
                       disabled
                       aria-disabled="true"
                       title="Coming soon"
                       aria-label={`Row actions for ${row.title}`}
-                      className="p-2 rounded-full text-text-tertiary hover:bg-canvas-subtle cursor-not-allowed disabled:opacity-60"
+                      className="p-2 rounded-full text-text-tertiary cursor-not-allowed disabled:opacity-60"
                     >
                       <Icon name="more_horiz" className="text-[18px]" />
                     </button>
@@ -438,7 +438,7 @@ export function DashboardOverview() {
           </table>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 px-6 py-4 border-t border-slate-border">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 lg:px-6 py-4 border-t border-slate-border">
           <span className="text-body-sm font-body-sm text-text-secondary">
             Showing 4 priority jobs out of 12 total
           </span>

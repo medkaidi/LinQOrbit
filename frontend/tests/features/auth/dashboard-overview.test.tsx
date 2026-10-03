@@ -38,14 +38,18 @@ describe("DashboardOverview", () => {
     expect(screen.getByText("Showing 4 priority jobs out of 12 total")).toBeInTheDocument();
   });
 
-  it("keeps campaign and row action controls inert", () => {
+  it("keeps row action controls inert", () => {
     render(<DashboardOverview />);
 
-    expect(screen.getByRole("button", { name: /new campaign/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /daily ai brief/i })).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Row actions for Staff Software Engineer" }),
     ).toBeDisabled();
     expect(screen.queryByRole("link", { name: /view all pipelines/i })).not.toBeInTheDocument();
+  });
+
+  it("renders New campaign as an enabled action", () => {
+    render(<DashboardOverview />);
+
+    expect(screen.getByRole("button", { name: /new campaign/i })).not.toBeDisabled();
   });
 });

@@ -47,9 +47,9 @@ export function ProfileView() {
 
   if (!profile) {
     return (
-      <div className="max-w-3xl">
+      <div className="w-full">
         <div className="mb-6">
-          <h1 className="font-headline-lg text-headline-lg text-text-primary font-bold tracking-tight">
+          <h1 className="font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
             Profile
           </h1>
         </div>
@@ -79,9 +79,9 @@ export function ProfileView() {
   }
 
   return (
-    <div className="max-w-3xl flex flex-col gap-6">
+    <div className="w-full flex flex-col gap-6">
       <div>
-        <h1 className="font-headline-lg text-headline-lg text-text-primary font-bold tracking-tight">
+        <h1 className="font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
           Profile
         </h1>
         <p className="mt-1 text-body-md font-body-md text-text-secondary">
@@ -89,40 +89,61 @@ export function ProfileView() {
         </p>
       </div>
 
-      <section className="bg-canvas-white rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0">
-            <span className="w-16 h-16 rounded-full bg-primary-fixed text-on-primary-fixed border-2 border-slate-border flex items-center justify-center text-headline-md font-bold shrink-0">
-              {initialsOf(profile)}
-            </span>
-            <div className="min-w-0">
-              <p className="font-headline-md text-headline-md text-text-primary font-bold truncate">
-                {profile.firstName} {profile.lastName}
-              </p>
-              <p className="text-body-md font-body-md text-text-secondary truncate">
-                {profile.email}
-              </p>
-            </div>
+      <section className="bg-canvas-white rounded-2xl shadow-sm divide-y divide-slate-border">
+        <div className="p-6 flex items-center gap-4 min-w-0">
+          <span className="w-16 h-16 rounded-full bg-primary-fixed text-on-primary-fixed border-2 border-slate-border flex items-center justify-center text-headline-md font-bold shrink-0">
+            {initialsOf(profile)}
+          </span>
+          <div className="min-w-0">
+            <p className="font-headline-md text-headline-md text-text-primary font-bold truncate">
+              {profile.firstName} {profile.lastName}
+            </p>
+            <p className="text-body-md font-body-md text-text-secondary truncate">
+              {profile.email}
+            </p>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <h2 className="font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
+            Personal information
+          </h2>
+          <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            <Field label="First name" value={profile.firstName} />
+            <Field label="Last name" value={profile.lastName} />
+            <Field label="Phone" value={profile.phone?.trim() || "Not provided"} />
+            <Field label="Sex" value={SEX_LABELS[profile.sex] ?? profile.sex} />
+          </dl>
+        </div>
+
+        <div className="p-6">
+          <h2 className="font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
+            Location
+          </h2>
+          <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            <Field label="Current city" value={profile.currentCity} />
+            <Field label="Current country" value={countryLabel(profile.currentCountry)} />
+            <Field label="Country of origin" value={countryLabel(profile.homeCountry)} />
+          </dl>
+        </div>
+
+        <div className="p-6 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
+              Security
+            </h2>
+            <p className="mt-1 text-body-sm font-body-sm text-text-secondary">
+              Manage how you sign in to LinQOrbit.
+            </p>
           </div>
           <Link
             href="/change-password"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-container hover:bg-orange-deep text-on-primary font-label-lg text-label-lg transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-container hover:bg-orange-deep text-on-primary font-label-lg text-label-lg transition-[background-color,scale] duration-150 ease-out active:scale-[0.97]"
           >
             <Icon name="lock" className="text-[18px]" />
             Change password
           </Link>
         </div>
-
-        <dl className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="First name" value={profile.firstName} />
-          <Field label="Last name" value={profile.lastName} />
-          <Field label="Email" value={profile.email} />
-          <Field label="Phone" value={profile.phone?.trim() || "Not provided"} />
-          <Field label="Sex" value={SEX_LABELS[profile.sex] ?? profile.sex} />
-          <Field label="Country of origin" value={countryLabel(profile.homeCountry)} />
-          <Field label="Current city" value={profile.currentCity} />
-          <Field label="Current country" value={countryLabel(profile.currentCountry)} />
-        </dl>
       </section>
 
       {isError ? (

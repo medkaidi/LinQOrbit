@@ -12,6 +12,7 @@ export function UserMenu() {
   const user = useAuthStore((state) => state.user);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) {
@@ -25,6 +26,7 @@ export function UserMenu() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpen(false);
+        triggerRef.current?.focus();
       }
     };
     document.addEventListener("mousedown", handlePointerDown);
@@ -48,11 +50,12 @@ export function UserMenu() {
     <div ref={containerRef} className="relative">
       <button
         type="button"
+        ref={triggerRef}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Account menu"
         onClick={() => setOpen((current) => !current)}
-        className="flex items-center gap-2.5 pl-1 pr-2 py-1 rounded-full hover:bg-canvas-subtle transition-colors focus:outline-none cursor-pointer"
+        className="flex items-center gap-2.5 pl-1 pr-2 py-1 rounded-full hover:bg-canvas-subtle transition-[background-color,scale] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep active:scale-[0.98] cursor-pointer"
       >
         <span className="hidden sm:flex flex-col text-right">
           <span className="text-xs text-text-primary font-bold leading-tight">{displayName}</span>
@@ -73,7 +76,7 @@ export function UserMenu() {
         <div
           role="menu"
           aria-label="Account menu"
-          className="absolute right-0 top-full mt-2 w-64 rounded-2xl bg-canvas-white border border-slate-border shadow-md p-2 z-50"
+          className="absolute right-0 top-full mt-2 w-64 rounded-2xl bg-canvas-white border border-slate-border shadow-md p-2 z-50 origin-top-right transition-[opacity,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] starting:opacity-0 starting:scale-95 motion-reduce:transition-none"
         >
           <div className="px-3 py-2 border-b border-slate-border mb-1">
             <p className="text-body-md font-body-md font-bold text-text-primary truncate">

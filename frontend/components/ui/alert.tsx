@@ -41,7 +41,11 @@ export function Alert({ variant = "info", title, children, className }: AlertPro
   return (
     <div
       role="status"
-      className={cn("mt-6 p-3 rounded-lg flex items-center gap-3", classes.wrapper, className)}
+      className={cn(
+        "mt-6 p-3 rounded-lg flex items-center gap-3 transition-[opacity,transform] duration-150 ease-out starting:opacity-0 starting:translate-y-1 motion-reduce:transition-none",
+        classes.wrapper,
+        className,
+      )}
     >
       <div
         className={cn(

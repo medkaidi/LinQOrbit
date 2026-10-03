@@ -32,9 +32,15 @@ describe("DashboardHeader", () => {
     expect(
       screen.getByLabelText("Search candidates, jobs, or ask the AI"),
     ).toBeDisabled();
-    expect(screen.getByRole("button", { name: /new job/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /ai sourcing/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Notifications" })).toBeDisabled();
+  });
+
+  it("renders New Job and New Campaign as enabled CTAs", () => {
+    renderWithQueryClient(<DashboardHeader />);
+
+    expect(screen.getByRole("button", { name: /new job/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /new campaign/i })).not.toBeDisabled();
   });
 
   it("shows the signed-in user in the trigger", () => {
