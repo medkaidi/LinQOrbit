@@ -21,7 +21,7 @@ export function DashboardSidebar() {
             href="/dashboard"
             className="flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
           >
-            <Logo className="h-6 w-auto" />
+            <Logo className="h-6 w-auto" strokeScale={2} />
             <Wordmark className="h-6 w-auto" />
           </Link>
         </div>

@@ -21,7 +21,7 @@ export function SiteHeader() {
       <div className="h-16 max-w-7xl mx-auto px-gutter flex items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-xl">
           <Link href="/" className="flex items-center gap-space-sm group focus:outline-none">
-            <Logo className="h-6 w-auto object-contain" />
+            <Logo className="h-6 w-auto object-contain" strokeScale={2} />
             <Wordmark className="h-6 w-auto hidden sm:block" />
           </Link>
           <nav className="hidden md:flex items-center gap-space-lg h-16" aria-label="Main">

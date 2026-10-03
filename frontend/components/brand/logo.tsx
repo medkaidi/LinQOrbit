@@ -1,9 +1,10 @@
 export type LogoProps = {
   className?: string;
   title?: string;
+  strokeScale?: number;
 };
 
-export function Logo({ className, title = "LinQOrbit" }: LogoProps) {
+export function Logo({ className, title = "LinQOrbit", strokeScale = 1 }: LogoProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -20,7 +21,7 @@ export function Logo({ className, title = "LinQOrbit" }: LogoProps) {
           ry="60"
           transform="rotate(-42)"
           stroke="#94A3B8"
-          strokeWidth="3"
+          strokeWidth={5 * strokeScale}
           strokeLinecap="round"
           fill="none"
         />
@@ -28,12 +29,12 @@ export function Logo({ className, title = "LinQOrbit" }: LogoProps) {
           rx="112"
           ry="60"
           transform="rotate(42)"
-          stroke="#0F172A"
-          strokeWidth="3"
+          stroke="#334155"
+          strokeWidth={5 * strokeScale}
           strokeLinecap="round"
           fill="none"
         />
-        <circle r="28" stroke="#F97316" strokeWidth="4.5" fill="none" />
+        <circle r="28" stroke="#F97316" strokeWidth={7.5 * strokeScale} fill="none" />
       </g>
     </svg>
   );

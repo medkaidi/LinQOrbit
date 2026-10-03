@@ -22,9 +22,9 @@ export function Wordmark({ className, title = "LinQOrbit" }: WordmarkProps) {
           y="0"
           textAnchor="end"
           fontFamily={fontFamily}
-          fontWeight="700"
+          fontWeight="500"
           fontSize="62"
-          fill="#0F172A"
+          fill="#334155"
           letterSpacing="-0.03em"
         >
           Lin
@@ -40,16 +40,16 @@ export function Wordmark({ className, title = "LinQOrbit" }: WordmarkProps) {
           />
         </g>
         <g transform="translate(14, -20)">
-          <circle r="26" stroke="#0F172A" strokeWidth="4.5" fill="none" />
+          <circle r="26" stroke="#334155" strokeWidth="4.5" fill="none" />
         </g>
         <text
           x="43"
           y="0"
           textAnchor="start"
           fontFamily={fontFamily}
-          fontWeight="700"
+          fontWeight="500"
           fontSize="62"
-          fill="#0F172A"
+          fill="#334155"
           letterSpacing="-0.03em"
         >
           rbit
