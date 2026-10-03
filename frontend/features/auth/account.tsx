@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { countryOptions } from "@/features/auth/countries";
+import { countryOptions } from "@/config/countries";
 import { me, type AuthUser } from "@/lib/api/auth.api";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -35,7 +35,7 @@ function initialsOf(user: AuthUser) {
   return `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase();
 }
 
-export function ProfileView() {
+export function AccountView() {
   const storeUser = useAuthStore((state) => state.user);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["auth", "me"],
@@ -43,20 +43,20 @@ export function ProfileView() {
     staleTime: 60_000,
   });
 
-  const profile = data ?? storeUser;
+  const account = data ?? storeUser;
 
-  if (!profile) {
+  if (!account) {
     return (
       <div className="w-full">
         <div className="mb-6">
           <h1 className="font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
-            Profile
+            My account
           </h1>
         </div>
         {isError ? (
-          <Alert variant="error" title="Unable to load your profile" className="mt-0">
+          <Alert variant="error" title="Unable to load your account" className="mt-0">
             <span className="flex flex-wrap items-center gap-3">
-              Something went wrong while fetching your profile.
+              Something went wrong while fetching your account.
               <Button variant="outline" onClick={() => refetch()}>
                 Try again
               </Button>
@@ -73,7 +73,7 @@ export function ProfileView() {
             <div className="mt-2 h-4 w-2/3 rounded-full bg-canvas-subtle" />
           </div>
         )}
-        {isLoading ? <span className="sr-only">Loading profile…</span> : null}
+        {isLoading ? <span className="sr-only">Loading account…</span> : null}
       </div>
     );
   }
@@ -82,7 +82,7 @@ export function ProfileView() {
     <div className="w-full flex flex-col gap-6">
       <div>
         <h1 className="font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
-          Profile
+          My account
         </h1>
         <p className="mt-1 text-body-md font-body-md text-text-secondary">
           Your account details as stored on LinQOrbit.
@@ -92,14 +92,14 @@ export function ProfileView() {
       <section className="bg-canvas-white rounded-2xl shadow-sm divide-y divide-slate-border">
         <div className="p-6 flex items-center gap-4 min-w-0">
           <span className="w-16 h-16 rounded-full bg-primary-fixed text-on-primary-fixed border-2 border-slate-border flex items-center justify-center text-headline-md font-bold shrink-0">
-            {initialsOf(profile)}
+            {initialsOf(account)}
           </span>
           <div className="min-w-0">
             <p className="font-headline-md text-headline-md text-text-primary font-bold truncate">
-              {profile.firstName} {profile.lastName}
+              {account.firstName} {account.lastName}
             </p>
             <p className="text-body-md font-body-md text-text-secondary truncate">
-              {profile.email}
+              {account.email}
             </p>
           </div>
         </div>
@@ -109,10 +109,10 @@ export function ProfileView() {
             Personal information
           </h2>
           <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-            <Field label="First name" value={profile.firstName} />
-            <Field label="Last name" value={profile.lastName} />
-            <Field label="Phone" value={profile.phone?.trim() || "Not provided"} />
-            <Field label="Sex" value={SEX_LABELS[profile.sex] ?? profile.sex} />
+            <Field label="First name" value={account.firstName} />
+            <Field label="Last name" value={account.lastName} />
+            <Field label="Phone" value={account.phone?.trim() || "Not provided"} />
+            <Field label="Sex" value={SEX_LABELS[account.sex] ?? account.sex} />
           </dl>
         </div>
 
@@ -121,9 +121,9 @@ export function ProfileView() {
             Location
           </h2>
           <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            <Field label="Current city" value={profile.currentCity} />
-            <Field label="Current country" value={countryLabel(profile.currentCountry)} />
-            <Field label="Country of origin" value={countryLabel(profile.homeCountry)} />
+            <Field label="Current city" value={account.currentCity} />
+            <Field label="Current country" value={countryLabel(account.currentCountry)} />
+            <Field label="Country of origin" value={countryLabel(account.homeCountry)} />
           </dl>
         </div>
 
@@ -147,8 +147,8 @@ export function ProfileView() {
       </section>
 
       {isError ? (
-        <Alert variant="error" title="Profile may be out of date" className="mt-0">
-          We could not refresh your profile from the server.
+        <Alert variant="error" title="Account may be out of date" className="mt-0">
+          We could not refresh your account from the server.
         </Alert>
       ) : null}
     </div>

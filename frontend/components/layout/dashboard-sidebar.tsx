@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/brand/logo";
 import { Wordmark } from "@/components/brand/wordmark";
@@ -12,7 +15,57 @@ const NAV_ITEMS = [
   { icon: "tune", label: "Settings & Integrations" },
 ] as const;
 
+type SidebarLinkProps = {
+  href: string;
+  icon: string;
+  label: string;
+  active: boolean;
+};
+
+function SidebarLink({ href, icon, label, active }: SidebarLinkProps) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={
+        active
+          ? "flex items-center justify-between px-4 py-2 rounded-full bg-orange-subtle border border-orange-border text-orange-deep font-semibold transition-colors group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+          : "flex items-center gap-2.5 px-4 py-2 rounded-full text-text-secondary hover:text-text-primary hover:bg-slate-surface transition-colors group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+      }
+    >
+      <span className="flex items-center gap-2.5">
+        <span
+          className={
+            active
+              ? "w-7 h-7 rounded-full bg-primary-container text-canvas-white flex items-center justify-center shrink-0"
+              : "w-7 h-7 rounded-full bg-slate-surface text-slate-muted group-hover:bg-canvas-white group-hover:text-text-primary transition-colors shrink-0"
+          }
+        >
+          <Icon name={icon} className="text-[16px]" />
+        </span>
+        <span
+          className={
+            active
+              ? "text-xs font-semibold tracking-tight text-orange-deep"
+              : "text-xs font-semibold tracking-tight"
+          }
+        >
+          {label}
+        </span>
+      </span>
+      {active ? (
+        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-canvas-white border border-orange-border text-orange-deep text-[10px] font-mono font-bold tracking-wider uppercase shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary-container shrink-0" aria-hidden="true" />
+          Active
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
 export function DashboardSidebar() {
+  const pathname = usePathname();
+
   return (
     <aside className="hidden lg:flex fixed left-0 top-0 h-full w-64 bg-canvas-white border-r border-slate-border z-50 flex-col justify-between py-5">
       <div className="flex flex-col">
@@ -33,24 +86,18 @@ export function DashboardSidebar() {
         </div>
 
         <nav className="flex flex-col gap-1 px-3" aria-label="Dashboard">
-          <Link
+          <SidebarLink
             href="/dashboard"
-            aria-current="page"
-            className="flex items-center justify-between px-4 py-2 rounded-full bg-orange-subtle border border-orange-border text-orange-deep font-semibold transition-colors group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-          >
-            <span className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-full bg-primary-container text-canvas-white flex items-center justify-center shrink-0">
-                <Icon name="grid_view" className="text-[16px]" />
-              </span>
-              <span className="text-xs font-semibold tracking-tight text-orange-deep">
-                Overview
-              </span>
-            </span>
-            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-canvas-white border border-orange-border text-orange-deep text-[10px] font-mono font-bold tracking-wider uppercase shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary-container shrink-0" aria-hidden="true" />
-              Active
-            </span>
-          </Link>
+            icon="grid_view"
+            label="Overview"
+            active={pathname === "/dashboard"}
+          />
+          <SidebarLink
+            href="/profile"
+            icon="person"
+            label="Profile"
+            active={pathname.startsWith("/profile")}
+          />
 
           {NAV_ITEMS.map((item) => {
             const hasBadge = "badge" in item && Boolean(item.badge);

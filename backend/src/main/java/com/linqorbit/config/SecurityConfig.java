@@ -17,9 +17,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * API stateless, CSRF off. Les endpoints d'authentification sont ouverts
- * (permitAll) ; le profil et le changement de mot de passe exigent un jeton
- * JWT valide (authenticated). Les ressources protégées seront restreintes
- * avec les fonctionnalités qui les accompagneront.
+ * (permitAll) ; le profil, le changement de mot de passe et le profil candidat
+ * exigent un jeton JWT valide (authenticated). Les ressources protégées seront
+ * restreintes avec les fonctionnalités qui les accompagneront.
  */
 @Configuration
 @EnableWebSecurity
@@ -35,6 +35,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/me", "/api/v1/auth/change-password").authenticated()
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/candidates/**").authenticated()
                         .anyRequest().permitAll())
                 .oauth2ResourceServer(rs -> rs.jwt(jwt -> {
                 }));

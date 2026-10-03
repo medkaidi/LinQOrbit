@@ -24,7 +24,13 @@ com.linqorbit/
 │   ├── dto/           5 DTOs de l'API auth
 │   └── exception/     4 exceptions métier
 ├── user/              domaine utilisateur (implémenté)
-├── application/ attachment/ candidate/ company/ joboffer/ matching/ recruiter/
+├── candidate/         profil candidat (implémenté) : CandidateApi, CandidateController,
+│   ├── dto/           18 DTOs de l'API profil (About/Experience/Diploma/Skill/Language/Link …)
+│   ├── entity/        entités du profil (ProfessionalExperience, Diploma, CandidateSkill …)
+│   ├── repository/    repositories (Diploma, Skill, Language, StudyField …)
+│   ├── mapper/        CandidateMapper (MapStruct)
+│   └── exception/     InvalidProfileSectionException, ReferenceNotFoundException
+├── application/ attachment/ company/ joboffer/ matching/ recruiter/
 │                      domaines roadmap — pré-créés (exception), vides jusqu'à leur 1re classe
 ```
 
@@ -59,11 +65,10 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 
 ## Base de données
 
-- **Flyway est le seul responsable du schéma** : `src/main/resources/db/migration/` avec `V1__…sql`, `V2__…sql`.
+- **Flyway est le seul responsable du schéma** : `src/main/resources/db/migration/` avec `V1__…sql` … `V4__…sql` (`V3` profil candidat, `V4` listes de référence).
 - Une migration exécutée est **immuable** ; toute modification du schéma = nouvelle migration.
-- `spring.jpa.hibernate.ddl-auto: validate` — Hibernate ne crée ni ne modifie jamais le schéma.
+- `spring.jpa.hibernate.ddl-auto: validate` — Hibernate ne crée ni ne modifie jamais le schéma, et **compare les types JDBC, pas le SQL** : `INTEGER` ≠ `SMALLINT` (int2), `VARCHAR` ≠ `TEXT`. Chaque colonne doit être déclarée avec le type exact du type Java (`Integer` → `INTEGER`, `String` → `VARCHAR(n)`, `Long` → `BIGINT`) sous peine d'échouer au démarrage du contexte.
 - SQL PostgreSQL strict, pas de dépendance à des dialectes spécifiques dans les migrations.
-- Aucune entité du MCD n'existe encore : elles viendront progressivement, chacune avec sa migration.
 
 ## Sécurité
 
@@ -72,12 +77,16 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 
 ## Communication
 
-- **Frontend Next.js** appelle l'API REST : préfixe futur `/api/v1/{auth,candidates,recruiters,companies,job-offers,applications,matchings}`.
+- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,recruiters,companies,job-offers,applications,matchings}` — `auth` et `candidates` existent (`/api/v1/candidates/me/profile` + `/{about,experiences,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}`), les autres sont à venir.
 - **Service IA Python (FastAPI)** : appelé par ce backend en HTTP (`/ai/...`), jamais par le frontend. Client HTTP à créer quand les endpoints IA existeront — pas de fake AI, pas de client avant le besoin.
 
 ## Erreurs
 
 `common/exception/GlobalExceptionHandler` (`@RestControllerAdvice`) : format ProblemDetail (RFC 7807). Étendre progressivement, sans système d'exceptions surdimensionné.
+
+Deux pièges déjà rencontrés :
+- un corps `List<…>` validé par méthode (`@Valid @RequestBody List<…>`) est traité par Spring 7 via `HandlerMethodValidationException`, pas par `MethodArgumentNotValidException` → handler dédié sinon 500 ;
+- la validation d'un champ `String` vide (`""`) par Bean Validation n'atteint pas toujours le même handler : vérifier le flux complet d'un 400.
 
 ## Logging (SLF4J)
 
@@ -93,7 +102,7 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 - **Unit tests** (priorité) : la logique métier des Services, avec Mockito pour Repository / API externes / dépendances. Rapides et isolés — aucun PostgreSQL requis.
 - **Tests d'intégration** : `@WebMvcTest` / `@DataJpaTest` / `@SpringBootTest` au cas par cas quand les fonctionnalités existent (nécessitent PostgreSQL, voir `.env.example`).
 - `@SpringBootTest` contexte = requis PostgreSQL actif (`docker start linqorbit-pg`).
-- Sécurité : `spring-security-test` est prêt (MockMvc + `SecurityMockMvcRequestPostProcessors`) — l'utiliser dès que l'auth arrivera, sans créer de faux système d'auth pour un test.
+- Sécurité : `spring-security-test` est prêt (MockMvc + `SecurityMockMvcRequestPostProcessors`) — l'utiliser dès que l'auth arrivera, sans créer de faux système d'auth pour un test. Tout endpoint sous `.authenticated()` doit recevoir `jwt()` dans ses tests : sans jeton, le test échoue en 403 et non par la validation métier attendue.
 - MapStruct : ne tester que les mappings avec logique/transformations réelles, jamais les getters/setters générés.
 - Philosophie : couverture des comportements importants (règles métier, validations, transformations, erreurs, cas limites), pas 100 % à tout prix, pas de tests de plumbing.
 - Une fonctionnalité n'est pas terminée parce qu'elle compile : elle doit venir avec ses tests.

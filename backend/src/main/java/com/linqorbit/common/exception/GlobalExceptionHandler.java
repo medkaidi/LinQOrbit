@@ -9,11 +9,15 @@ import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.util.BindErrorUtils;
 
 import com.linqorbit.auth.exception.AccountNotActiveException;
 import com.linqorbit.auth.exception.EmailAlreadyExistsException;
 import com.linqorbit.auth.exception.InvalidCredentialsException;
 import com.linqorbit.auth.exception.WrongCurrentPasswordException;
+import com.linqorbit.candidate.exception.InvalidProfileSectionException;
+import com.linqorbit.candidate.exception.ReferenceNotFoundException;
 
 /**
  * Gestion centralisée minimale des erreurs REST (format ProblemDetail / RFC 7807).
@@ -68,6 +72,38 @@ public class GlobalExceptionHandler {
         problem.setTitle("Wrong current password");
         problem.setDetail("The current password is incorrect.");
         log.warn("Password change rejected : wrong current password");
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidProfileSectionException.class)
+    public ProblemDetail handleInvalidProfileSection(InvalidProfileSectionException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Invalid profile section");
+        problem.setDetail(ex.getMessage());
+        log.warn("Candidate profile update rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(ReferenceNotFoundException.class)
+    public ProblemDetail handleReferenceNotFound(ReferenceNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Unknown reference");
+        problem.setDetail(ex.getMessage());
+        log.warn("Candidate profile update rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    /**
+     * Corps en liste (ex : PUT des expériences) : Spring valide chaque élément via
+     * la validation de méthode, pas via MethodArgumentNotValidException.
+     */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ProblemDetail handleMethodValidation(HandlerMethodValidationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Validation failed");
+        String errors = BindErrorUtils.resolveAndJoin(ex.getAllErrors());
+        problem.setDetail(errors);
+        log.warn("Request rejected : validation errors [{}]", errors);
         return problem;
     }
 

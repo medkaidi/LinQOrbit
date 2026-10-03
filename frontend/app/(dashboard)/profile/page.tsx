@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 
-import { ProfileView } from "@/features/auth/profile";
+import { ProfileView } from "@/features/candidate/profile-view";
 
 export const metadata: Metadata = {
-  title: "Profile — LinQOrbit",
-  description: "Your LinQOrbit account profile.",
+  title: "My professional profile — LinQOrbit",
+  description: "Your professional profile on LinQOrbit.",
 };
 
 export default function ProfilePage() {

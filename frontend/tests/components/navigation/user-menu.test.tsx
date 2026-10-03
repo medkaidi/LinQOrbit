@@ -50,9 +50,9 @@ describe("UserMenu", () => {
 
     openMenu();
 
-    const profileLink = screen.getByRole("menuitem", { name: "View profile" });
+    const accountLink = screen.getByRole("menuitem", { name: "My Account" });
     const passwordLink = screen.getByRole("menuitem", { name: "Change password" });
-    expect(profileLink).toHaveAttribute("href", "/profile");
+    expect(accountLink).toHaveAttribute("href", "/account");
     expect(passwordLink).toHaveAttribute("href", "/change-password");
     expect(screen.getByRole("menuitem", { name: "Log out" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Account menu" })).toHaveAttribute(
@@ -77,7 +77,7 @@ describe("UserMenu", () => {
 
     openMenu();
     const trigger = screen.getByRole("button", { name: "Account menu" });
-    screen.getByRole("menuitem", { name: "View profile" }).focus();
+    screen.getByRole("menuitem", { name: "My Account" }).focus();
 
     fireEvent.keyDown(document, { key: "Escape" });
 

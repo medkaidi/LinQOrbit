@@ -70,6 +70,13 @@ Zod              validation / schémas
 
 Ne jamais mettre de données serveur dans Zustand « parce que Zustand est dispo ».
 
+## Formulaires (React Hook Form + Zod)
+
+- **Jamais de `z.preprocess` ni de `transform` dans un schéma branché à `zodResolver`** : dès que `z.input ≠ z.output`, `zodResolver(schema)` n'est plus assignable à `useForm<Values>()` (erreur TS). Les champs facultatifs sont donc **toujours du `string`** : `""` = vide, et la couche API (`lib/api/*.api.ts`) convertit `""` → `null` (et une saisie numérique en `string` → `number | null` avant l'envoi).
+- Ce que la conversion API fait pour le profil candidat : dates/pays/bio/issuer `""` → `null`, `yearsExperience` `"7"` → `7`, `issuer`/`issuedAt` conservés seulement si `linkType === "certification"`.
+- Réflexe : une règle métier qui dépend d'un **autre champ** (fin de carrière postérieure au début, doublon dans la liste) vit dans un `.superRefine` du schéma ; une règle qui **masque un champ** ne peut pas y vivre (l'erreur serait inatteignable) → on vide/masque dans la couche API.
+- Listes d'objets = `useFieldArray` + un schéma `z.object({ items: z.array(rowSchema) })` ; selects = `Controller` via `features/candidate/select-field.tsx` (ou `components/ui/select`), `parse` quand la valeur formulaire n'est pas une `string`.
+
 ## API
 
 - Instance Axios unique : `lib/api/axios.ts`, `baseURL = NEXT_PUBLIC_API_URL` (`.env.local`, défaut `http://localhost:9080`).
@@ -81,7 +88,9 @@ Ne jamais mettre de données serveur dans Zustand « parce que Zustand est dispo
 - **Session** = Zustand persisté (`stores/auth-store.ts`, clé `linqorbit.auth`) : `{ token, user, setAuth, clearAuth }`. Jamais de `localStorage` brut ; l'ancienne clé `linqorbit.token` est abandonnée (reconnexion une fois nécessaire).
 - **Axios** (`lib/api/axios.ts`) : interceptor request → `Authorization: Bearer` depuis le store ; interceptor response **401 → `clearAuth()`** (la garde se charge de la redirection, jamais de `router` dans axios).
 - **Redirections** : login/signup → `/dashboard` (`hooks/use-auth.ts`) ; `logout()` → `clearAuth` + `/login` ; `features/auth/auth-gate.tsx` enveloppe le groupe `app/(dashboard)/` (sans token → `replace("/login")`, rendu null côté serveur via `useMounted`) ; `features/auth/redirect-if-authenticated.tsx` enveloppe `app/(auth)/` (token → `replace("/dashboard")`).
-- **Shell** : `components/layout/dashboard-sidebar.tsx` (nav, items futurs en `type="button"` **sans `href`** — hover actifs avec `cursor-pointer`, aucun lien mort, l'état actif suit la route courante et porte le badge « Active »), `components/layout/dashboard-header.tsx` (CTA « New Job » et capsule « New campaign » — `components/ui/new-campaign-button.tsx`, partagée avec le welcome bar — activés en prévisualisation sans handler, contrôles sans backend réel — search, Sourcing IA, segments, notifications — restant en `disabled` + `aria-disabled`, jamais de faux boutons actifs), menu utilisateur `components/navigation/user-menu.tsx`.
+- **Shell** : `components/layout/dashboard-sidebar.tsx` (nav, items futurs en `type="button"` **sans `href`** — hover actifs avec `cursor-pointer`, aucun lien mort, l'état actif suit la route courante et porte le badge « Active » ; l'item Profile reste actif sur `/profile/edit` via `startsWith("/profile")`), `components/layout/dashboard-header.tsx` (CTA « New Job » et capsule « New campaign » — `components/ui/new-campaign-button.tsx`, wrapper de la primitive partagée `components/ui/nav-pill.tsx`, aussi utilisée pour « Edit profile » — activés en prévisualisation sans handler, contrôles sans backend réel — search, Sourcing IA, segments, notifications — restant en `disabled` + `aria-disabled`, jamais de faux boutons actifs), menu utilisateur `components/navigation/user-menu.tsx`.
+- **Routes du compte** : `/profile` = affichage du profil **professionnel** (`features/candidate/profile-view.tsx`, lecture seule + squelette « Goals & criteria » sans données) — **un `section` carte par bloc, même découpage que l'édition** (titres `font-headline-md`, en-tête `p-6` + corps `px-6 pb-6`, compteur en texte muet à droite, éléments de liste dans des wrappers `rounded-2xl border border-slate-border bg-canvas-subtle`), `/profile/edit` = édition des **6 sections** (`features/candidate/profile-edit.tsx`), `/account` = « My account » (identité, email, mot de passe, `features/auth/account.tsx`). Les **descriptions de section sont partagées** : `SECTION_DESCRIPTIONS` dans `features/candidate/profile-shared.tsx`, consommé par l'affichage *et* les 6 sections d'édition — jamais dupliqué. L'ancien contenu de `/profile` a été déplacé en `/account` ; le user-menu pointe `/account`, l'item « Profile » de la sidebar pointe `/profile`.
+- **CTA** : le style de bouton standard de la plateforme est la variante `cta` de `components/ui/button.tsx` (pill orange + badge circulaire qui s'inverse au survol, style « New Job ») ; la pilule de navigation (badge circulaire + libellé + flèche, lien ou bouton) est `components/ui/nav-pill.tsx`. Aucun des deux ne cumule de classes conflictuelles avec le `className` appelant (`cn()` n'est pas un tailwind-merge).
 - **Visuel** : les pages de la zone authentifiée s'inspirent de `template/general_dashboard.html` (shell complet), traduites en anglais et exprimées avec les tokens `globals.css` — pas de valeurs Tailwind brutes du template.
 
 ## Tests
@@ -98,5 +107,6 @@ Ne jamais mettre de données serveur dans Zustand « parce que Zustand est dispo
 
 - Langue : **l'UI est en anglais** (`lang="en"` dans `app/layout.tsx`, textes et metadata en anglais). Les échanges de l'équipe sont en français, pas le code de l'application.
 - Styles : classes Tailwind uniquement ; pas de fichiers CSS par composant, pas de styles inline sauf nécessité.
+- **`cn()` est un simple `join` (pas de tailwind-merge)** : cumuler deux classes conflictuelles (`bg-*` + `bg-*`, `w-full` + `w-44`, `h-11` + `h-12`) donne un ordre de surcharge non déterministe. Résoudre par une **variante** (`Badge` avec `tone`, `Button` avec `variant`) ou un wrapper (`<div className="w-44">` autour d'un bouton `w-full`), jamais en empilant.
 - Ne pas développer : RBAC, tests e2e, Kafka — hors scope tant que ce n'est pas demandé.
 - Vérifier avant de conclure : `npm run lint` puis `npm run build`.

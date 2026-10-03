@@ -1,10 +1,10 @@
 import { api } from "@/lib/api/axios";
+import { getApiErrorMessage } from "@/lib/utils/api-error";
 import type {
   ChangePasswordValues,
   LoginValues,
   SignupValues,
 } from "@/lib/validations/auth.schemas";
-import { isAxiosError } from "axios";
 
 export type AuthUser = {
   id: string;
@@ -60,23 +60,6 @@ export async function changePassword(values: ChangePasswordValues): Promise<void
   });
 }
 
-type ProblemDetailBody = {
-  detail?: string;
-  title?: string;
-};
-
 export function getAuthErrorMessage(error: unknown): string {
-  if (isAxiosError(error)) {
-    if (!error.response) {
-      return "Cannot reach the server. Please try again.";
-    }
-    const data = error.response.data as ProblemDetailBody | undefined;
-    if (data?.detail) {
-      return data.detail;
-    }
-    if (data?.title) {
-      return data.title;
-    }
-  }
-  return "Something went wrong. Please try again.";
+  return getApiErrorMessage(error);
 }

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ProfileView } from "@/features/auth/profile";
+import { AccountView } from "@/features/auth/account";
 import { useAuthStore } from "@/stores/auth-store";
 import type { AuthUser } from "@/lib/api/auth.api";
 
@@ -26,30 +26,30 @@ const storeUser: AuthUser = {
   currentCountry: "FR",
 };
 
-function renderProfile() {
+function renderAccount() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ProfileView />
+      <AccountView />
     </QueryClientProvider>,
   );
 }
 
-describe("ProfileView", () => {
+describe("AccountView", () => {
   beforeEach(() => {
     mockedMe.mockReset();
     useAuthStore.getState().clearAuth();
   });
 
-  it("renders the profile fetched from the server", async () => {
+  it("renders the account fetched from the server", async () => {
     mockedMe.mockResolvedValue({
       ...storeUser,
       currentCity: "Lyon",
     });
 
-    renderProfile();
+    renderAccount();
 
     expect(await screen.findByText("Ada Lovelace")).toBeInTheDocument();
     expect(screen.getByText("Lyon")).toBeInTheDocument();
@@ -65,18 +65,18 @@ describe("ProfileView", () => {
     useAuthStore.getState().setAuth({ token: "jwt-token", user: storeUser });
     mockedMe.mockRejectedValue(new Error("network down"));
 
-    renderProfile();
+    renderAccount();
 
     expect(await screen.findByText("Ada Lovelace")).toBeInTheDocument();
-    expect(await screen.findByText("Profile may be out of date")).toBeInTheDocument();
+    expect(await screen.findByText("Account may be out of date")).toBeInTheDocument();
   });
 
   it("shows a retry state when there is no cached session either", async () => {
     mockedMe.mockRejectedValue(new Error("network down"));
 
-    renderProfile();
+    renderAccount();
 
-    expect(await screen.findByText("Unable to load your profile")).toBeInTheDocument();
+    expect(await screen.findByText("Unable to load your account")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     await waitFor(() => expect(mockedMe).toHaveBeenCalled());
   });

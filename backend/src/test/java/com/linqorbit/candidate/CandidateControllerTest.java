@@ -1,0 +1,200 @@
+package com.linqorbit.candidate;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
+import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import com.linqorbit.candidate.dto.AboutRequest;
+import com.linqorbit.candidate.dto.AboutResponse;
+import com.linqorbit.candidate.dto.CandidateProfileResponse;
+import com.linqorbit.candidate.dto.DegreeOption;
+import com.linqorbit.candidate.dto.LanguageOption;
+import com.linqorbit.candidate.dto.SkillOption;
+import com.linqorbit.candidate.dto.StudyFieldOption;
+import com.linqorbit.candidate.exception.InvalidProfileSectionException;
+import com.linqorbit.candidate.exception.ReferenceNotFoundException;
+import com.linqorbit.config.SecurityConfig;
+
+@WebMvcTest(CandidateController.class)
+@Import(SecurityConfig.class)
+class CandidateControllerTest {
+
+    private static final String PROFILE_PATH = "/api/v1/candidates/me/profile";
+    private static final String ABOUT_JSON = """
+            {
+              "title": "Full-stack Developer",
+              "bio": "Passionné de web",
+              "yearsOfExperience": 5,
+              "searchStatus": "open_to_work"
+            }
+            """;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private CandidateService candidateService;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
+
+    @Test
+    void getProfileRenvoie200AvecLeTauxDeCompletion() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(candidateService.getProfile(userId)).thenReturn(new CandidateProfileResponse(
+                new AboutResponse("Full-stack Developer", "Passionné de web", 5, "open_to_work"),
+                List.of(), List.of(), List.of(), List.of(), List.of(), 16));
+
+        mockMvc.perform(get(PROFILE_PATH)
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.about.title").value("Full-stack Developer"))
+                .andExpect(jsonPath("$.about.searchStatus").value("open_to_work"))
+                .andExpect(jsonPath("$.completionPercentage").value(16));
+    }
+
+    @Test
+    void getProfileRenvoie401SansJeton() throws Exception {
+        mockMvc.perform(get(PROFILE_PATH))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void updateAboutRenvoie204EtTransmetLeUtilisateurDuJeton() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(put(PROFILE_PATH + "/about")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(ABOUT_JSON))
+                .andExpect(status().isNoContent());
+
+        verify(candidateService).updateAbout(eq(userId), any(AboutRequest.class));
+    }
+
+    @Test
+    void updateAboutRenvoie400QuandLesChampsSontInvalides() throws Exception {
+        mockMvc.perform(put(PROFILE_PATH + "/about")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"bio\": \"sans titre\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation failed"))
+                .andExpect(jsonPath("$.detail").value(containsString("title")));
+    }
+
+    @Test
+    void updateSkillsRenvoie400QuandLaCompetenceNExistePas() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID skillId = UUID.randomUUID();
+        doThrow(new ReferenceNotFoundException("Skill", skillId))
+                .when(candidateService).updateSkills(eq(userId), any());
+
+        mockMvc.perform(put(PROFILE_PATH + "/skills")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [{"skillId": "%s", "level": 4}]""".formatted(skillId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Unknown reference"))
+                .andExpect(jsonPath("$.detail").value(containsString("Skill")));
+    }
+
+    @Test
+    void updateLinksRenvoie400QuandLaRegleMetierEstViolée() throws Exception {
+        UUID userId = UUID.randomUUID();
+        doThrow(new InvalidProfileSectionException(
+                        "issuer and issuedAt are only allowed for a certification link"))
+                .when(candidateService).updateLinks(eq(userId), any());
+
+        mockMvc.perform(put(PROFILE_PATH + "/links")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [{"label": "GitHub", "url": "https://github.com/ada", "linkType": "github",
+                                  "issuer": "OpenClassrooms"}]"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid profile section"))
+                .andExpect(jsonPath("$.detail").value(containsString("certification")));
+    }
+
+    @Test
+    void updateSkillsRenvoie400QuandLeNiveauEstHorsBornes() throws Exception {
+        mockMvc.perform(put(PROFILE_PATH + "/skills")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [{"skillId": "11111111-1111-4111-8111-111111111111", "level": 9}]"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(containsString("level")));
+    }
+
+    @Test
+    void skillsSansJetonRenvoie401() throws Exception {
+        mockMvc.perform(put(PROFILE_PATH + "/skills")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[]"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void listeDesCompetencesRenvoie200() throws Exception {
+        UUID skillId = UUID.randomUUID();
+        when(candidateService.getSkillOptions()).thenReturn(List.of(new SkillOption(skillId, "Java", "tech")));
+
+        mockMvc.perform(get("/api/v1/candidates/reference/skills")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("Java"))
+                .andExpect(jsonPath("$[0].skillType").value("tech"));
+    }
+
+    @Test
+    void listeDesLanguesEtDesDiplomesRenvoient200() throws Exception {
+        when(candidateService.getLanguageOptions())
+                .thenReturn(List.of(new LanguageOption(UUID.randomUUID(), "fr", "French")));
+        when(candidateService.getDegreeOptions())
+                .thenReturn(List.of(new DegreeOption(UUID.randomUUID(), "Master")));
+        when(candidateService.getStudyFieldOptions()).thenReturn(
+                List.of(new StudyFieldOption(UUID.randomUUID(), "Computer Science")));
+
+        mockMvc.perform(get("/api/v1/candidates/reference/languages")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].symbol").value("fr"));
+        mockMvc.perform(get("/api/v1/candidates/reference/degrees")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].label").value("Master"));
+        mockMvc.perform(get("/api/v1/candidates/reference/study-fields")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].label").value("Computer Science"));
+    }
+}

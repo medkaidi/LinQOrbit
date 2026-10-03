@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signupSchema, type SignupValues } from "@/lib/validations/auth.schemas";
-import { countryOptions } from "@/features/auth/countries";
+import { countryOptions } from "@/config/countries";
 import { useAuth } from "@/hooks/use-auth";
 import { Logo } from "@/components/brand/logo";
 import { Wordmark } from "@/components/brand/wordmark";

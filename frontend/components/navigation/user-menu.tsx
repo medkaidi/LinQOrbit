@@ -86,13 +86,13 @@ export function UserMenu() {
           </div>
 
           <Link
-            href="/profile"
+            href="/account"
             role="menuitem"
             onClick={() => setOpen(false)}
             className="flex items-center gap-3 px-3 py-2 rounded-xl text-body-md font-body-md text-text-primary hover:bg-canvas-subtle transition-colors"
           >
             <Icon name="person" className="text-[18px] text-text-secondary" />
-            View profile
+            My Account
           </Link>
           <Link
             href="/change-password"

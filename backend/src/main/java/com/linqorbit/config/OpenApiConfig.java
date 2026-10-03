@@ -16,7 +16,7 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 @Configuration
 public class OpenApiConfig {
 
-    static final String BEARER_SCHEME = "bearerAuth";
+    public static final String BEARER_SCHEME = "bearerAuth";
 
     @Bean
     public OpenAPI linqOrbitOpenApi() {

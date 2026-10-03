@@ -39,6 +39,25 @@ class OpenApiDocsTest {
     }
 
     @Test
+    void exposeLeDocumentOpenApiAvecLesEndpointsDuProfilCandidat() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile'].get.summary")
+                        .value("Lire le profil candidat"))
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/about'].put.summary")
+                        .value("Mettre à jour la section À propos"))
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/experiences'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/diplomas'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/skills'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/languages'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/links'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/skills'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/languages'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/degrees'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/study-fields'].get").exists());
+    }
+
+    @Test
     void exposeSwaggerUi() throws Exception {
         MvcResult result = mockMvc.perform(get("/swagger-ui.html")).andReturn();
         assertThat(result.getResponse().getStatus()).isBetween(200, 399);

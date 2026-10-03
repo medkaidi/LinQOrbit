@@ -1,0 +1,452 @@
+"use client";
+
+import type { ReactNode } from "react";
+import Link from "next/link";
+
+import { SEARCH_STATUS_LABELS } from "@/features/candidate/about-section";
+import { LINK_TYPE_LABELS } from "@/features/candidate/links-section";
+import { CEFR_LABELS } from "@/features/candidate/languages-section";
+import {
+  CompletenessCard,
+  ProfileError,
+  ProfileSkeleton,
+  SECTION_DESCRIPTIONS,
+} from "@/features/candidate/profile-shared";
+import { useCandidateProfile } from "@/hooks/use-candidate-profile";
+import { countryOptions } from "@/config/countries";
+import { Icon } from "@/components/ui/icon";
+import { NavPill } from "@/components/ui/nav-pill";
+import { cn } from "@/lib/utils/cn";
+import type {
+  CandidateProfile,
+  DiplomaItem,
+  ExperienceItem,
+  LinkItem,
+  SkillItem,
+} from "@/lib/api/candidate.api";
+
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+const COUNTRY_LABELS = new Map(countryOptions.map((option) => [option.value, option.label]));
+
+const SKILL_LEVEL_LABELS: Record<number, string> = {
+  1: "Beginner",
+  2: "Elementary",
+  3: "Intermediate",
+  4: "Advanced",
+  5: "Expert",
+};
+
+/** Un élément de liste = un conteneur : la séparation se lit d'un coup d'œil. */
+const ITEM_CLASSES = "rounded-2xl border border-slate-border bg-canvas-subtle p-4";
+
+/** Variante compacte (puces de compétences) : mêmes bordures, padding réduit. */
+const CHIP_CLASSES = "rounded-2xl border border-slate-border bg-canvas-subtle px-3 py-1.5";
+
+/** "2023-04-01" → "Apr 2023" (lecture manuelle : aucune dépendance au fuseau). */
+function monthYear(isoDate: string): string {
+  const [year, month] = isoDate.split("-");
+  return `${MONTHS[Number(month) - 1] ?? ""} ${year}`;
+}
+
+function formatPeriod(startDate: string, endDate: string | null): string {
+  return `${monthYear(startDate)} — ${endDate ? monthYear(endDate) : "Present"}`;
+}
+
+function countryLabel(code: string | null): string | null {
+  if (!code) return null;
+  return COUNTRY_LABELS.get(code) ?? code;
+}
+
+function plural(count: number, noun: string): string {
+  const pluralForm = noun.endsWith("y") ? `${noun.slice(0, -1)}ies` : `${noun}s`;
+  return `${count} ${count > 1 ? pluralForm : noun}`;
+}
+
+function linkIcon(linkType: string): string {
+  if (linkType === "certification") return "verified";
+  if (linkType === "website") return "language";
+  if (linkType === "github" || linkType === "gitlab" || linkType === "stack_overflow") {
+    return "code";
+  }
+  return "link";
+}
+
+function linkTypeLabel(linkType: string): string {
+  const labels = LINK_TYPE_LABELS as Record<string, string | undefined>;
+  return labels[linkType] ?? linkType;
+}
+
+function cefrLabel(level: string): string {
+  const labels = CEFR_LABELS as Record<string, string | undefined>;
+  return labels[level] ?? level;
+}
+
+/**
+ * Section d'affichage : même découpage que la carte d'édition (`SectionCard`) —
+ * titre `headline-md`, description dessous, corps de section en `px-6 pb-6`.
+ * Le compteur remplace le badge « Complete / Not started » : texte muet, à droite.
+ */
+function ViewSection({
+  id,
+  title,
+  description,
+  count,
+  children,
+}: {
+  id: string;
+  title: string;
+  description: string;
+  count?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section id={id} className="bg-canvas-white rounded-2xl shadow-sm scroll-mt-24">
+      <header className="p-6 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
+            {title}
+          </h2>
+          <p className="mt-1 text-body-sm font-body-sm text-text-secondary">{description}</p>
+        </div>
+        {count ? (
+          <span className="text-body-sm font-body-sm text-text-tertiary shrink-0">{count}</span>
+        ) : null}
+      </header>
+      <div className="px-6 pb-6">{children}</div>
+    </section>
+  );
+}
+
+function EmptyState({ message, cta }: { message: string; cta: string }) {
+  return (
+    <div className="flex flex-col items-start gap-4">
+      <p className="text-body-sm font-body-sm text-text-secondary max-w-3xl">{message}</p>
+      <NavPill icon="add" label={cta} href="/profile/edit" />
+    </div>
+  );
+}
+
+function AboutSection({ about }: { about: CandidateProfile["about"] }) {
+  const isComplete = Boolean(about.title?.trim() && about.bio?.trim());
+  const statusLabels = SEARCH_STATUS_LABELS as Record<string, string | undefined>;
+  const statusLabel = about.searchStatus ? statusLabels[about.searchStatus] : null;
+
+  return (
+    <ViewSection id="about" title="About" description={SECTION_DESCRIPTIONS.about}>
+      {isComplete ? (
+        <div className="flex flex-col gap-2">
+          <h3 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
+            {about.title}
+          </h3>
+          <p className="text-body-sm font-body-sm text-text-secondary">
+            {[
+              about.yearsOfExperience != null ? plural(about.yearsOfExperience, "year") : null,
+              statusLabel,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+          <p className="text-body-md font-body-md text-text-secondary leading-relaxed whitespace-pre-line max-w-3xl">
+            {about.bio}
+          </p>
+        </div>
+      ) : (
+        <EmptyState
+          message="Your headline and summary are not written yet."
+          cta="Write your about"
+        />
+      )}
+    </ViewSection>
+  );
+}
+
+function ExperienceSection({ experiences }: { experiences: ExperienceItem[] }) {
+  return (
+    <ViewSection
+      id="experiences"
+      title="Experience"
+      description={SECTION_DESCRIPTIONS.experiences}
+      count={experiences.length > 0 ? plural(experiences.length, "entry") : undefined}
+    >
+      {experiences.length === 0 ? (
+        <EmptyState
+          message="No experience added yet. Recruiters look at this section first."
+          cta="Add experience"
+        />
+      ) : (
+        <ol className="flex flex-col gap-3">
+          {experiences.map((item) => {
+            const country = countryLabel(item.companyCountry);
+            return (
+              <li key={item.id} className={ITEM_CLASSES}>
+                <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+                  <div className="min-w-0">
+                    <h3 className="font-label-md text-label-md text-text-primary">
+                      {item.positionTitle}
+                    </h3>
+                    <p className="mt-0.5 text-body-sm font-body-sm text-text-secondary">
+                      {item.companyName}
+                      {country ? ` · ${country}` : ""}
+                    </p>
+                  </div>
+                  <span className="text-body-sm font-body-sm text-text-tertiary whitespace-nowrap">
+                    {formatPeriod(item.startDate, item.endDate)}
+                  </span>
+                </div>
+                {item.description ? (
+                  <p className="mt-2 text-body-sm font-body-sm text-text-secondary leading-relaxed whitespace-pre-line">
+                    {item.description}
+                  </p>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </ViewSection>
+  );
+}
+
+function EducationSection({ diplomas }: { diplomas: DiplomaItem[] }) {
+  return (
+    <ViewSection
+      id="education"
+      title="Education"
+      description={SECTION_DESCRIPTIONS.education}
+      count={diplomas.length > 0 ? plural(diplomas.length, "diploma") : undefined}
+    >
+      {diplomas.length === 0 ? (
+        <EmptyState message="No diploma added yet." cta="Add education" />
+      ) : (
+        <div className="flex flex-col gap-3">
+          {diplomas.map((item) => {
+            const country = countryLabel(item.institutionCountry);
+            const detail = [item.degreeLabel, item.studyFieldLabel].filter(Boolean).join(" · ");
+            return (
+              <article key={item.id} className={ITEM_CLASSES}>
+                <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+                  <div className="min-w-0">
+                    <h3 className="font-label-md text-label-md text-text-primary">{item.title}</h3>
+                    <p className="mt-0.5 text-body-sm font-body-sm text-text-secondary">
+                      {item.institution}
+                      {country ? ` · ${country}` : ""}
+                    </p>
+                    {detail ? (
+                      <p className="mt-0.5 text-body-sm font-body-sm text-text-tertiary">
+                        {detail}
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className="text-body-sm font-body-sm text-text-tertiary whitespace-nowrap">
+                    {formatPeriod(item.startDate, item.endDate)}
+                  </span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </ViewSection>
+  );
+}
+
+function SkillsSection({ skills }: { skills: SkillItem[] }) {
+  return (
+    <ViewSection
+      id="skills"
+      title="Skills"
+      description={SECTION_DESCRIPTIONS.skills}
+      count={skills.length > 0 ? plural(skills.length, "skill") : undefined}
+    >
+      {skills.length === 0 ? (
+        <EmptyState message="No skill added yet." cta="Add skills" />
+      ) : (
+        <ul className="flex flex-wrap gap-2">
+          {skills.map((skill) => (
+            <li key={skill.skillId} className={cn(CHIP_CLASSES, "flex items-center gap-2")}>
+              <span className="font-label-md text-label-md text-text-primary">{skill.name}</span>
+              <span className="text-body-sm font-body-sm text-text-secondary">
+                {SKILL_LEVEL_LABELS[skill.level] ?? `Level ${skill.level}`}
+              </span>
+              {skill.yearsExperience != null ? (
+                <span className="text-body-sm font-body-sm text-text-tertiary">
+                  {plural(skill.yearsExperience, "year")}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </ViewSection>
+  );
+}
+
+function LanguagesSection({ languages }: { languages: CandidateProfile["languages"] }) {
+  return (
+    <ViewSection
+      id="languages"
+      title="Languages"
+      description={SECTION_DESCRIPTIONS.languages}
+      count={languages.length > 0 ? plural(languages.length, "language") : undefined}
+    >
+      {languages.length === 0 ? (
+        <EmptyState message="No language added yet." cta="Add language" />
+      ) : (
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {languages.map((language) => (
+            <li
+              key={language.languageId}
+              className={cn(ITEM_CLASSES, "flex items-center justify-between gap-3")}
+            >
+              <span className="font-label-md text-label-md text-text-primary">
+                {language.name}
+              </span>
+              <span className="text-body-sm font-body-sm text-text-secondary">
+                {cefrLabel(language.level)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </ViewSection>
+  );
+}
+
+function LinksSection({ links }: { links: LinkItem[] }) {
+  return (
+    <ViewSection
+      id="links"
+      title="Links & certifications"
+      description={SECTION_DESCRIPTIONS.links}
+      count={links.length > 0 ? plural(links.length, "link") : undefined}
+    >
+      {links.length === 0 ? (
+        <EmptyState message="No link or certification added yet." cta="Add a link" />
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {links.map((link) => (
+            <li key={link.id} className={ITEM_CLASSES}>
+              <div className="flex items-center gap-2 min-w-0">
+                <Icon
+                  name={linkIcon(link.linkType)}
+                  className="text-[16px] text-text-tertiary shrink-0"
+                />
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="font-label-md text-label-md text-text-primary hover:text-orange-deep transition-colors truncate focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+                >
+                  {link.label}
+                </a>
+                <span aria-hidden="true" className="text-body-sm font-body-sm text-text-tertiary">
+                  ·
+                </span>
+                <span className="text-body-sm font-body-sm text-text-tertiary truncate">
+                  {linkTypeLabel(link.linkType)}
+                </span>
+                <Icon name="arrow_outward" className="text-[14px] text-text-tertiary shrink-0" />
+              </div>
+              {link.linkType === "certification" && (link.issuer || link.issuedAt) ? (
+                <p className="mt-1 text-body-sm font-body-sm text-text-secondary">
+                  {[link.issuer, link.issuedAt ? monthYear(link.issuedAt) : null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </ViewSection>
+  );
+}
+
+function GoalsSection() {
+  return (
+    <ViewSection id="goals" title="Goals & criteria" description={SECTION_DESCRIPTIONS.goals}>
+      <p className="text-body-sm font-body-sm text-text-secondary max-w-3xl">
+        Contract types, salary range, rhythm &amp; presence and geographic scope — coming soon.
+      </p>
+    </ViewSection>
+  );
+}
+
+function Header() {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-4 pb-6 border-b border-slate-border">
+      <div className="min-w-0">
+        <nav
+          aria-label="Breadcrumb"
+          className="flex flex-wrap items-center gap-2 text-body-sm font-body-sm text-text-secondary"
+        >
+          <Link
+            href="/dashboard"
+            className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+          >
+            Candidate space
+          </Link>
+          <span aria-hidden="true" className="text-text-tertiary">
+            /
+          </span>
+          <span className="text-text-primary font-semibold">My professional profile</span>
+        </nav>
+        <h1 className="mt-1 font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
+          My professional profile
+        </h1>
+      </div>
+      <NavPill icon="edit" label="Edit profile" href="/profile/edit" />
+    </div>
+  );
+}
+
+export function ProfileView() {
+  const { data, isLoading, isError, refetch } = useCandidateProfile();
+
+  if (isError && !data) {
+    return (
+      <div className="w-full flex flex-col gap-6">
+        <Header />
+        <ProfileError onRetry={() => void refetch()} />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="w-full flex flex-col gap-6">
+        <Header />
+        {isLoading ? <ProfileSkeleton /> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full flex flex-col gap-6">
+      <Header />
+      <CompletenessCard profile={data} />
+
+      <AboutSection about={data.about} />
+      <ExperienceSection experiences={data.experiences} />
+      <EducationSection diplomas={data.diplomas} />
+      <SkillsSection skills={data.skills} />
+      <LanguagesSection languages={data.languages} />
+      <LinksSection links={data.links} />
+      <GoalsSection />
+    </div>
+  );
+}
