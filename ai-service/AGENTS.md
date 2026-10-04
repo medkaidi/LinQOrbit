@@ -18,7 +18,7 @@ Reçoit des données structurées de Spring Boot (HTTP/JSON) → analyse via Lan
 ```text
 app/
 ├── main.py          # app FastAPI + routers
-├── api/routes/       # HTTP uniquement (health.py ; plus tard normalization.py, matching.py)
+├── api/routes/       # HTTP uniquement (health.py, cv.py ; plus tard normalization.py, matching.py)
 ├── schemas/          # contrats Pydantic API (candidate, job_offer, matching…) — JAMAIS d'ORM
 ├── agents/           # logique des agents
 ├── graphs/           # orchestration LangGraph (workflow des agents)

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api.routes import health
+from app.api.routes import cv, health
 from app.core.config import settings
 
 app = FastAPI(
@@ -10,3 +10,4 @@ app = FastAPI(
 )
 
 app.include_router(health.router)
+app.include_router(cv.router)
