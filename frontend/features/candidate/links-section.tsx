@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 
 import { SectionCard } from "@/features/candidate/section-card";
-import { SECTION_DESCRIPTIONS } from "@/features/candidate/profile-shared";
+import { SECTION_ICONS } from "@/features/candidate/profile-shared";
 import { useUpdateLinks } from "@/hooks/use-candidate-profile";
 import type { LinkItem } from "@/lib/api/candidate.api";
 import { Button } from "@/components/ui/button";
@@ -92,7 +92,7 @@ export function LinksSection({ links }: { links: LinkItem[] }) {
     <SectionCard
       id="links"
       title="Links & certifications"
-      description={SECTION_DESCRIPTIONS.links}
+      icon={SECTION_ICONS.links}
       isComplete={links.length > 0}
       isDirty={isDirty}
       isSaving={mutation.isPending}
@@ -115,7 +115,7 @@ export function LinksSection({ links }: { links: LinkItem[] }) {
             return (
               <div
                 key={field.id}
-                className="rounded-2xl border border-slate-border bg-canvas-subtle p-4 flex flex-col gap-3"
+                className="rounded-2xl border border-slate-border bg-item-surface/50 p-4 flex flex-col gap-3"
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">

@@ -8,12 +8,15 @@
   /* Couleurs */
   --color-success-surface: #ecfdf5;
   --color-success-text: #047857;
+  --color-success-border: #a7f3d0;
   --color-inverse-surface: #213145;
   --color-inverse-on-surface: #eaf1ff;
   --color-inverse-primary: #ffb690;
   --color-background: #f8f9ff;
   --color-canvas-white: #ffffff;
   --color-canvas-subtle: #fafafa;
+  /* Fond des items de section : slate-50 (#f8fafc) à 50% — maquette pro_profile */
+  --color-item-surface: #f8fafc;
   --color-surface: #f8f9ff;
   --color-surface-bright: #f8f9ff;
   --color-surface-dim: #cbdbf5;
@@ -31,6 +34,8 @@
   --color-orange-border-strong: #fdba74;
   --color-blue-deep: #0284c7;
   --color-emerald-deep: #059669;
+  --color-blue-surface: #f0f9ff;
+  --color-blue-border: #bae6fd;
   --color-primary: #9d4300;
   --color-primary-container: #f97316;
   --color-primary-fixed: #ffdbca;
@@ -153,4 +158,16 @@
 
   /* Ombres — équivalence Tailwind v3 du template */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+/*
+ * La feuille Google Fonts des Material Symbols impose `font-size: 24px` et
+ * `font-weight: normal` sur `.material-symbols-outlined` : même spécificité
+ * qu'une utility Tailwind, donc issue dépendante de l'ordre des stylesheets
+ * (dev ≠ prod). On reprend la main avec un sélecteur plus spécifique, mais
+ * uniquement sur les pastilles d'icône des sections de profil.
+ */
+.section-icon .material-symbols-outlined {
+  font-size: 16px;
+  font-weight: 300;
 }

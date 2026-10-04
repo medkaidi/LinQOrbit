@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 
 import { SectionCard } from "@/features/candidate/section-card";
-import { SECTION_DESCRIPTIONS } from "@/features/candidate/profile-shared";
+import { SECTION_ICONS } from "@/features/candidate/profile-shared";
 import { SelectField } from "@/features/candidate/select-field";
 import { useUpdateExperiences } from "@/hooks/use-candidate-profile";
 import type { ExperienceItem } from "@/lib/api/candidate.api";
@@ -74,7 +74,7 @@ export function ExperiencesSection({ experiences }: { experiences: ExperienceIte
     <SectionCard
       id="experiences"
       title="Experience"
-      description={SECTION_DESCRIPTIONS.experiences}
+      icon={SECTION_ICONS.experiences}
       isComplete={experiences.length > 0}
       isDirty={isDirty}
       isSaving={mutation.isPending}
@@ -94,7 +94,7 @@ export function ExperiencesSection({ experiences }: { experiences: ExperienceIte
           {fields.map((field, index) => (
             <div
               key={field.id}
-              className="rounded-2xl border border-slate-border bg-canvas-subtle p-4 flex flex-col gap-3"
+              className="rounded-2xl border border-slate-border bg-item-surface/50 p-4 flex flex-col gap-3"
             >
               <div className="flex items-center justify-between gap-3">
                 <span className="font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">

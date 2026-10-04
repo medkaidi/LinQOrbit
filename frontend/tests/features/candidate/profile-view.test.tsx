@@ -133,12 +133,6 @@ describe("ProfileView", () => {
 
     expect(await screen.findByRole("heading", { name: "About" })).toBeInTheDocument();
 
-    expect(
-      screen.getByText("Your work history, most recent first. Saved as a full list."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Languages you work in, with the CEFR level you would claim."),
-    ).toBeInTheDocument();
     expect(screen.getByText("2 entries")).toBeInTheDocument();
 
     for (const title of ["Experience", "Education", "Skills", "Languages", "Links & certifications"]) {
@@ -147,8 +141,9 @@ describe("ProfileView", () => {
 
     expect(screen.getAllByText("Backend Engineer")).toHaveLength(2);
     expect(screen.getByText("Acme · France")).toBeInTheDocument();
-    expect(screen.getByText("Apr 2023 — Present")).toBeInTheDocument();
-    expect(screen.getByText("Sep 2020 — Mar 2023")).toBeInTheDocument();
+    // Durée affichée uniquement sur les expériences : la période « Present » dépend de la date du jour.
+    expect(screen.getByText(/Apr 2023 — Present \(\d+ yrs?( \d+ mos?)?\)/)).toBeInTheDocument();
+    expect(screen.getByText("Sep 2020 — Mar 2023 (2 yrs 6 mos)")).toBeInTheDocument();
     expect(screen.getByText("Java")).toBeInTheDocument();
     expect(screen.getByText("French")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "GitHub" })).toHaveAttribute(

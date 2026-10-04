@@ -10,7 +10,8 @@ import {
   CompletenessCard,
   ProfileError,
   ProfileSkeleton,
-  SECTION_DESCRIPTIONS,
+  SECTION_ICONS,
+  SectionIcon,
 } from "@/features/candidate/profile-shared";
 import { useCandidateProfile } from "@/hooks/use-candidate-profile";
 import { countryOptions } from "@/config/countries";
@@ -51,10 +52,10 @@ const SKILL_LEVEL_LABELS: Record<number, string> = {
 };
 
 /** Un élément de liste = un conteneur : la séparation se lit d'un coup d'œil. */
-const ITEM_CLASSES = "rounded-2xl border border-slate-border bg-canvas-subtle p-4";
+const ITEM_CLASSES = "rounded-2xl border border-slate-border bg-item-surface/50 p-4";
 
 /** Variante compacte (puces de compétences) : mêmes bordures, padding réduit. */
-const CHIP_CLASSES = "rounded-2xl border border-slate-border bg-canvas-subtle px-3 py-1.5";
+const CHIP_CLASSES = "rounded-2xl border border-slate-border bg-item-surface/50 px-3 py-1.5";
 
 /** "2023-04-01" → "Apr 2023" (lecture manuelle : aucune dépendance au fuseau). */
 function monthYear(isoDate: string): string {
@@ -64,6 +65,25 @@ function monthYear(isoDate: string): string {
 
 function formatPeriod(startDate: string, endDate: string | null): string {
   return `${monthYear(startDate)} — ${endDate ? monthYear(endDate) : "Present"}`;
+}
+
+/** Durée d'une période en années + mois, arrondie au mois complet (fin = aujourd'hui si null). */
+function durationLabel(startDate: string, endDate: string | null): string {
+  const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
+  const end = endDate?.split("-").map(Number);
+  const now = new Date();
+  const endYear = end?.[0] ?? now.getFullYear();
+  const endMonth = end?.[1] ?? now.getMonth() + 1;
+  const endDay = end?.[2] ?? now.getDate();
+  let months = (endYear - startYear) * 12 + (endMonth - startMonth);
+  if (endDay < startDay) months -= 1;
+  if (months < 1) return "< 1 mo";
+  const years = Math.floor(months / 12);
+  const rest = months % 12;
+  const yearsLabel = `${years} yr${years === 1 ? "" : "s"}`;
+  const monthsLabel = `${rest} mo${rest === 1 ? "" : "s"}`;
+  if (years === 0) return monthsLabel;
+  return rest === 0 ? yearsLabel : `${yearsLabel} ${monthsLabel}`;
 }
 
 function countryLabel(code: string | null): string | null {
@@ -103,31 +123,67 @@ function cefrLabel(level: string): string {
 function ViewSection({
   id,
   title,
-  description,
+  icon,
   count,
   children,
 }: {
   id: string;
   title: string;
-  description: string;
+  icon: string;
   count?: string;
   children: ReactNode;
 }) {
   return (
     <section id={id} className="bg-canvas-white rounded-2xl shadow-sm scroll-mt-24">
-      <header className="p-6 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
+      <header className="mx-6 pt-4 pb-4 flex items-start justify-between gap-4 border-b border-slate-border">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <SectionIcon name={icon} />
+          <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight min-w-0">
             {title}
           </h2>
-          <p className="mt-1 text-body-sm font-body-sm text-text-secondary">{description}</p>
         </div>
         {count ? (
           <span className="text-body-sm font-body-sm text-text-tertiary shrink-0">{count}</span>
         ) : null}
       </header>
-      <div className="px-6 pb-6">{children}</div>
+      <div className="px-6 pt-5 pb-6">{children}</div>
     </section>
+  );
+}
+
+/** Pastille numérotée d'un item (expérience / diplôme), plus petite que celle des titres. */
+function ItemIndex({ index }: { index: number }) {
+  return (
+    <span className="w-7 h-7 shrink-0 rounded-full bg-canvas-white border border-slate-border text-blue-deep flex items-center justify-center text-[12px] font-semibold">
+      {index}
+    </span>
+  );
+}
+
+/** Période d'un item : pilule blanche bordée de gris, vert quand le poste est en cours. */
+function PeriodBadge({
+  startDate,
+  endDate,
+  withDuration = false,
+}: {
+  startDate: string;
+  endDate: string | null;
+  withDuration?: boolean;
+}) {
+  const current = endDate === null;
+  const period = formatPeriod(startDate, endDate);
+  const label = withDuration ? `${period} (${durationLabel(startDate, endDate)})` : period;
+  return (
+    <span
+      className={cn(
+        "shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+        current
+          ? "border-success-border bg-success-surface text-success-text"
+          : "border-slate-border bg-canvas-white text-text-secondary",
+      )}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -146,7 +202,11 @@ function AboutSection({ about }: { about: CandidateProfile["about"] }) {
   const statusLabel = about.searchStatus ? statusLabels[about.searchStatus] : null;
 
   return (
-    <ViewSection id="about" title="About" description={SECTION_DESCRIPTIONS.about}>
+    <ViewSection
+      id="about"
+      title="About"
+      icon={SECTION_ICONS.about}
+    >
       {isComplete ? (
         <div className="flex flex-col gap-2">
           <h3 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
@@ -179,7 +239,7 @@ function ExperienceSection({ experiences }: { experiences: ExperienceItem[] }) {
     <ViewSection
       id="experiences"
       title="Experience"
-      description={SECTION_DESCRIPTIONS.experiences}
+      icon={SECTION_ICONS.experiences}
       count={experiences.length > 0 ? plural(experiences.length, "entry") : undefined}
     >
       {experiences.length === 0 ? (
@@ -189,23 +249,24 @@ function ExperienceSection({ experiences }: { experiences: ExperienceItem[] }) {
         />
       ) : (
         <ol className="flex flex-col gap-3">
-          {experiences.map((item) => {
+          {experiences.map((item, index) => {
             const country = countryLabel(item.companyCountry);
             return (
               <li key={item.id} className={ITEM_CLASSES}>
                 <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-                  <div className="min-w-0">
-                    <h3 className="font-label-md text-label-md text-text-primary">
-                      {item.positionTitle}
-                    </h3>
-                    <p className="mt-0.5 text-body-sm font-body-sm text-text-secondary">
-                      {item.companyName}
-                      {country ? ` · ${country}` : ""}
-                    </p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <ItemIndex index={index + 1} />
+                    <div className="min-w-0">
+                      <h3 className="font-label-md text-label-md text-text-primary">
+                        {item.positionTitle}
+                      </h3>
+                      <p className="mt-0.5 text-body-sm font-body-sm text-text-secondary">
+                        {item.companyName}
+                        {country ? ` · ${country}` : ""}
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-body-sm font-body-sm text-text-tertiary whitespace-nowrap">
-                    {formatPeriod(item.startDate, item.endDate)}
-                  </span>
+                  <PeriodBadge startDate={item.startDate} endDate={item.endDate} withDuration />
                 </div>
                 {item.description ? (
                   <p className="mt-2 text-body-sm font-body-sm text-text-secondary leading-relaxed whitespace-pre-line">
@@ -226,34 +287,37 @@ function EducationSection({ diplomas }: { diplomas: DiplomaItem[] }) {
     <ViewSection
       id="education"
       title="Education"
-      description={SECTION_DESCRIPTIONS.education}
+      icon={SECTION_ICONS.education}
       count={diplomas.length > 0 ? plural(diplomas.length, "diploma") : undefined}
     >
       {diplomas.length === 0 ? (
         <EmptyState message="No diploma added yet." cta="Add education" />
       ) : (
         <div className="flex flex-col gap-3">
-          {diplomas.map((item) => {
+          {diplomas.map((item, index) => {
             const country = countryLabel(item.institutionCountry);
             const detail = [item.degreeLabel, item.studyFieldLabel].filter(Boolean).join(" · ");
             return (
               <article key={item.id} className={ITEM_CLASSES}>
                 <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-                  <div className="min-w-0">
-                    <h3 className="font-label-md text-label-md text-text-primary">{item.title}</h3>
-                    <p className="mt-0.5 text-body-sm font-body-sm text-text-secondary">
-                      {item.institution}
-                      {country ? ` · ${country}` : ""}
-                    </p>
-                    {detail ? (
-                      <p className="mt-0.5 text-body-sm font-body-sm text-text-tertiary">
-                        {detail}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <ItemIndex index={index + 1} />
+                    <div className="min-w-0">
+                      <h3 className="font-label-md text-label-md text-text-primary">
+                        {item.title}
+                      </h3>
+                      <p className="mt-0.5 text-body-sm font-body-sm text-text-secondary">
+                        {item.institution}
+                        {country ? ` · ${country}` : ""}
                       </p>
-                    ) : null}
+                      {detail ? (
+                        <p className="mt-0.5 text-body-sm font-body-sm text-text-tertiary">
+                          {detail}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
-                  <span className="text-body-sm font-body-sm text-text-tertiary whitespace-nowrap">
-                    {formatPeriod(item.startDate, item.endDate)}
-                  </span>
+                  <PeriodBadge startDate={item.startDate} endDate={item.endDate} />
                 </div>
               </article>
             );
@@ -269,7 +333,7 @@ function SkillsSection({ skills }: { skills: SkillItem[] }) {
     <ViewSection
       id="skills"
       title="Skills"
-      description={SECTION_DESCRIPTIONS.skills}
+      icon={SECTION_ICONS.skills}
       count={skills.length > 0 ? plural(skills.length, "skill") : undefined}
     >
       {skills.length === 0 ? (
@@ -300,7 +364,7 @@ function LanguagesSection({ languages }: { languages: CandidateProfile["language
     <ViewSection
       id="languages"
       title="Languages"
-      description={SECTION_DESCRIPTIONS.languages}
+      icon={SECTION_ICONS.languages}
       count={languages.length > 0 ? plural(languages.length, "language") : undefined}
     >
       {languages.length === 0 ? (
@@ -331,7 +395,7 @@ function LinksSection({ links }: { links: LinkItem[] }) {
     <ViewSection
       id="links"
       title="Links & certifications"
-      description={SECTION_DESCRIPTIONS.links}
+      icon={SECTION_ICONS.links}
       count={links.length > 0 ? plural(links.length, "link") : undefined}
     >
       {links.length === 0 ? (
@@ -378,7 +442,11 @@ function LinksSection({ links }: { links: LinkItem[] }) {
 
 function GoalsSection() {
   return (
-    <ViewSection id="goals" title="Goals & criteria" description={SECTION_DESCRIPTIONS.goals}>
+    <ViewSection
+      id="goals"
+      title="Goals & criteria"
+      icon={SECTION_ICONS.goals}
+    >
       <p className="text-body-sm font-body-sm text-text-secondary max-w-3xl">
         Contract types, salary range, rhythm &amp; presence and geographic scope — coming soon.
       </p>

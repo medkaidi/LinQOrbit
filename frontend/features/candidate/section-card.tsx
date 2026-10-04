@@ -4,12 +4,13 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { SectionIcon } from "@/features/candidate/profile-shared";
 import { cn } from "@/lib/utils/cn";
 
 export type SectionCardProps = {
   id: string;
   title: string;
-  description: string;
+  icon?: string;
   isComplete: boolean;
   isDirty: boolean;
   isSaving: boolean;
@@ -28,7 +29,7 @@ export type SectionCardProps = {
 export function SectionCard({
   id,
   title,
-  description,
+  icon,
   isComplete,
   isDirty,
   isSaving,
@@ -42,19 +43,19 @@ export function SectionCard({
 
   return (
     <section id={id} className="bg-canvas-white rounded-2xl shadow-sm scroll-mt-24">
-      <header className="p-6 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
+      <header className="mx-6 pt-4 pb-4 flex items-start justify-between gap-4 border-b border-slate-border">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {icon ? <SectionIcon name={icon} /> : null}
+          <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight min-w-0">
             {title}
           </h2>
-          <p className="mt-1 text-body-sm font-body-sm text-text-secondary">{description}</p>
         </div>
         <Badge tone={isComplete ? "success" : "neutral"}>
           {isComplete ? "Complete" : "Not started"}
         </Badge>
       </header>
 
-      <div className="px-6 pb-6">{children}</div>
+      <div className="px-6 pt-5 pb-6">{children}</div>
 
       <footer className="px-6 py-4 border-t border-slate-border flex flex-col gap-3">
         {errorMessage ? (

@@ -6,7 +6,7 @@ import { useFieldArray, useForm, useWatch } from "react-hook-form";
 
 import { ReferenceError } from "@/features/candidate/reference-error";
 import { SectionCard } from "@/features/candidate/section-card";
-import { SECTION_DESCRIPTIONS } from "@/features/candidate/profile-shared";
+import { SECTION_ICONS } from "@/features/candidate/profile-shared";
 import { SelectField } from "@/features/candidate/select-field";
 import { useReferenceLanguages, useUpdateLanguages } from "@/hooks/use-candidate-profile";
 import type { LanguageItem } from "@/lib/api/candidate.api";
@@ -98,7 +98,7 @@ export function LanguagesSection({ languages }: { languages: LanguageItem[] }) {
     <SectionCard
       id="languages"
       title="Languages"
-      description={SECTION_DESCRIPTIONS.languages}
+      icon={SECTION_ICONS.languages}
       isComplete={languages.length > 0}
       isDirty={isDirty}
       isSaving={mutation.isPending}
@@ -122,7 +122,7 @@ export function LanguagesSection({ languages }: { languages: LanguageItem[] }) {
           {fields.map((field, index) => (
             <div
               key={field.id}
-              className="rounded-2xl border border-slate-border bg-canvas-subtle p-4 flex flex-col gap-3"
+              className="rounded-2xl border border-slate-border bg-item-surface/50 p-4 flex flex-col gap-3"
             >
               <div className="flex items-center justify-between gap-3">
                 <span className="font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">

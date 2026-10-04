@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 
 import { SectionCard } from "@/features/candidate/section-card";
-import { SECTION_DESCRIPTIONS } from "@/features/candidate/profile-shared";
+import { SECTION_ICONS } from "@/features/candidate/profile-shared";
 import { SelectField } from "@/features/candidate/select-field";
 import { useUpdateAbout } from "@/hooks/use-candidate-profile";
 import type { AboutSection } from "@/lib/api/candidate.api";
@@ -76,7 +76,7 @@ export function AboutSection({ about }: { about: AboutSection }) {
     <SectionCard
       id="about"
       title="About"
-      description={SECTION_DESCRIPTIONS.about}
+      icon={SECTION_ICONS.about}
       isComplete={isComplete}
       isDirty={isDirty}
       isSaving={mutation.isPending}
