@@ -8,7 +8,7 @@ Reçoit des données structurées de Spring Boot (HTTP/JSON) → analyse via Lan
 
 ## Stack
 
-- **Python ≥ 3.12**, **FastAPI**, **Pydantic** (contrats d'API, pas d'ORM), **LangGraph**, **langchain-openai** (client LLM), **pytest** + httpx
+- **Python ≥ 3.12**, **FastAPI**, **Pydantic** (contrats d'API, pas d'ORM), **langchain** (`create_agent`), **langchain-google-genai** (`ChatGoogleGenerativeAI` → modèle Gemini), **LangGraph**, **pypdf** (extraction texte PDF), **python-dotenv** (export du `.env` dans `os.environ` pour LangChain/LangSmith), **pytest** + httpx
 - Gestion : **uv** — `pyproject.toml` + `uv.lock` (jamais de `requirements.txt`)
 - Port **9082** — lancement : `uv run uvicorn app.main:app --reload --port 9082`
 - Tests : `uv run pytest`
@@ -48,7 +48,7 @@ Concevoir en `async/await` quand pertinent (FastAPI, clients LLM) ; pas de broke
 
 ## Configuration
 
-`app/core/config.py` (pydantic-settings) lit l'environnement / `.env` : `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`. Aucune config dure.
+`app/core/config.py` : `load_dotenv()` exporte le `.env` dans `os.environ` (LangChain/LangSmith lisent `os.environ`), puis pydantic-settings le reparse en `settings` typé — `GOOGLE_API_KEY`, `LLM_MODEL` (+ `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGCHAIN_PROJECT` consommés nativement par LangChain). Aucune config dure, aucune clé réelle dans le repo.
 
 ## Conventions
 
