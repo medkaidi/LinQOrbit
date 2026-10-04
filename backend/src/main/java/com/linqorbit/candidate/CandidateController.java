@@ -6,9 +6,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.linqorbit.candidate.dto.AboutRequest;
 import com.linqorbit.candidate.dto.CandidateProfileResponse;
+import com.linqorbit.candidate.dto.CvParseResponse;
 import com.linqorbit.candidate.dto.DegreeOption;
 import com.linqorbit.candidate.dto.DiplomaRequest;
 import com.linqorbit.candidate.dto.ExperienceRequest;
@@ -28,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class CandidateController implements CandidateApi {
 
     private final CandidateService candidateService;
+    private final CvParseService cvParseService;
 
     @Override
     public ResponseEntity<CandidateProfileResponse> getProfile(Authentication authentication) {
@@ -68,6 +71,11 @@ public class CandidateController implements CandidateApi {
     public ResponseEntity<Void> updateLinks(List<LinkRequest> request, Authentication authentication) {
         candidateService.updateLinks(CurrentUserId.from(authentication), request);
         return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<CvParseResponse> parseCv(MultipartFile file) {
+        return ResponseEntity.ok(cvParseService.parseCv(file));
     }
 
     @Override

@@ -16,6 +16,11 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
 app:
   auth:
     token-ttl-seconds: ${APP_JWT_TTL_SECONDS:86400}
@@ -24,6 +29,8 @@ app:
       secret: ${APP_JWT_SECRET:linqorbit-local-dev-jwt-secret-0123456789abcdef}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3100}
+  ai:
+    base-url: ${AI_SERVICE_BASE_URL:http://localhost:9082}
 
 server:
   port: 9080

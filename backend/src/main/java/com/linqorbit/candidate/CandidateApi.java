@@ -2,11 +2,15 @@ package com.linqorbit.candidate;
 
 import java.util.List;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -18,6 +22,7 @@ import jakarta.validation.Valid;
 
 import com.linqorbit.candidate.dto.AboutRequest;
 import com.linqorbit.candidate.dto.CandidateProfileResponse;
+import com.linqorbit.candidate.dto.CvParseResponse;
 import com.linqorbit.candidate.dto.DegreeOption;
 import com.linqorbit.candidate.dto.DiplomaRequest;
 import com.linqorbit.candidate.dto.ExperienceRequest;
@@ -107,6 +112,22 @@ public interface CandidateApi {
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
     })
     ResponseEntity<Void> updateLinks(@Valid @RequestBody List<LinkRequest> request, Authentication authentication);
+
+    @PostMapping(value = "/me/profile/cv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Analyser un CV importé", description = "Upload d'un PDF envoyé au service IA : titre, résumé, expériences, diplômes, compétences, langues et liens. Rien n'est enregistré : le client prévisualise puis applique les champs retenus.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Extraction structurée renvoyée (rien n'est enregistré)"),
+            @ApiResponse(responseCode = "400", description = "Fichier vide ou illisible"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "413", description = "Fichier trop volumineux (5 Mo maximum)"),
+            @ApiResponse(responseCode = "415", description = "Type de fichier non supporté (PDF uniquement)"),
+            @ApiResponse(responseCode = "422", description = "Aucun texte extractible dans le PDF (scan)"),
+            @ApiResponse(responseCode = "429", description = "Quota du service IA atteint, réessayer plus tard"),
+            @ApiResponse(responseCode = "502", description = "Le service IA n'a pas produit de structure valide"),
+            @ApiResponse(responseCode = "504", description = "Service IA injoignable ou délai dépassé")
+    })
+    ResponseEntity<CvParseResponse> parseCv(@RequestPart("file") MultipartFile file);
 
     @GetMapping("/reference/skills")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)

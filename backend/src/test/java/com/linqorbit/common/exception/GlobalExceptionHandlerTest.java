@@ -13,6 +13,9 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.ErrorResponseException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+
+import com.linqorbit.candidate.exception.AiServiceException;
 
 /**
  * Test de vérification de l'environnement de test (JUnit + AssertJ + Mockito)
@@ -49,5 +52,23 @@ class GlobalExceptionHandlerTest {
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
         assertThat(problem.getDetail()).isEqualTo("boom");
+    }
+
+    @Test
+    void handleAiServiceConserveLeStatutDeLaCoucheIA() {
+        ProblemDetail problem = handler
+                .handleAiService(new AiServiceException(HttpStatus.TOO_MANY_REQUESTS, "quota atteint"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS.value());
+        assertThat(problem.getTitle()).isEqualTo("CV parsing failed");
+        assertThat(problem.getDetail()).isEqualTo("quota atteint");
+    }
+
+    @Test
+    void handleMaxUploadSizeRenvoie413() {
+        ProblemDetail problem = handler.handleMaxUploadSize(new MaxUploadSizeExceededException(5L * 1024 * 1024));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE.value());
+        assertThat(problem.getTitle()).isEqualTo("File too large");
     }
 }

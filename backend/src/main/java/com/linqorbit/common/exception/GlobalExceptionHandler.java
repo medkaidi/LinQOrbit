@@ -10,12 +10,14 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.util.BindErrorUtils;
 
 import com.linqorbit.auth.exception.AccountNotActiveException;
 import com.linqorbit.auth.exception.EmailAlreadyExistsException;
 import com.linqorbit.auth.exception.InvalidCredentialsException;
 import com.linqorbit.auth.exception.WrongCurrentPasswordException;
+import com.linqorbit.candidate.exception.AiServiceException;
 import com.linqorbit.candidate.exception.InvalidProfileSectionException;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
 
@@ -104,6 +106,28 @@ public class GlobalExceptionHandler {
         String errors = BindErrorUtils.resolveAndJoin(ex.getAllErrors());
         problem.setDetail(errors);
         log.warn("Request rejected : validation errors [{}]", errors);
+        return problem;
+    }
+
+    /**
+     * Échec de l'appel au service IA : le statut (415, 422, 429, 502, 504…) est
+     * porté par l'exception elle-même pour refléter la couche qui a échoué.
+     */
+    @ExceptionHandler(AiServiceException.class)
+    public ProblemDetail handleAiService(AiServiceException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(ex.getStatus());
+        problem.setTitle("CV parsing failed");
+        problem.setDetail(ex.getMessage());
+        log.warn("CV parsing rejected : {} {}", ex.getStatus().value(), ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ProblemDetail handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.PAYLOAD_TOO_LARGE);
+        problem.setTitle("File too large");
+        problem.setDetail("File too large: 5 MB maximum (CV upload).");
+        log.warn("Upload rejected : {} bytes", ex.getMaxUploadSize());
         return problem;
     }
 

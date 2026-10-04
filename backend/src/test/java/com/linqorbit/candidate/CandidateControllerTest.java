@@ -7,6 +7,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -18,7 +19,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -27,10 +30,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.linqorbit.candidate.dto.AboutRequest;
 import com.linqorbit.candidate.dto.AboutResponse;
 import com.linqorbit.candidate.dto.CandidateProfileResponse;
+import com.linqorbit.candidate.dto.CvParseResponse;
 import com.linqorbit.candidate.dto.DegreeOption;
 import com.linqorbit.candidate.dto.LanguageOption;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.StudyFieldOption;
+import com.linqorbit.candidate.exception.AiServiceException;
 import com.linqorbit.candidate.exception.InvalidProfileSectionException;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
 import com.linqorbit.config.SecurityConfig;
@@ -54,6 +59,9 @@ class CandidateControllerTest {
 
     @MockitoBean
     private CandidateService candidateService;
+
+    @MockitoBean
+    private CvParseService cvParseService;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -196,5 +204,64 @@ class CandidateControllerTest {
                                 .jwt(j -> j.subject(UUID.randomUUID().toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].label").value("Computer Science"));
+    }
+
+    private static MockMultipartFile cvFile() {
+        return new MockMultipartFile("file", "cv.pdf", MediaType.APPLICATION_PDF_VALUE,
+                "%PDF-1.4 fake".getBytes());
+    }
+
+    @Test
+    void parseCvRenvoie200AvecLExtractionStructuree() throws Exception {
+        when(cvParseService.parseCv(any())).thenReturn(new CvParseResponse(
+                "Backend Engineer", "Focus API",
+                List.of(new CvParseResponse.Experience(
+                        "Backend Engineer", "Acme", "France", "2021-03", null, "API payments")),
+                List.of(),
+                List.of(new CvParseResponse.Skill("Java", 8, 3)),
+                List.of(),
+                List.of()));
+
+        mockMvc.perform(multipart(PROFILE_PATH + "/cv")
+                        .file(cvFile())
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Backend Engineer"))
+                .andExpect(jsonPath("$.experiences[0].positionTitle").value("Backend Engineer"))
+                .andExpect(jsonPath("$.skills[0].name").value("Java"));
+    }
+
+    @Test
+    void parseCvRenvoie415QuandLeFichierNEstPasUnPdf() throws Exception {
+        when(cvParseService.parseCv(any()))
+                .thenThrow(new AiServiceException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Only PDF files are supported."));
+
+        mockMvc.perform(multipart(PROFILE_PATH + "/cv")
+                        .file(cvFile())
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString()))))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.title").value("CV parsing failed"))
+                .andExpect(jsonPath("$.detail").value(containsString("PDF")));
+    }
+
+    @Test
+    void parseCvRenvoie502QuandLeServiceIAEchoue() throws Exception {
+        when(cvParseService.parseCv(any()))
+                .thenThrow(new AiServiceException(HttpStatus.BAD_GATEWAY, "The AI service returned an empty response."));
+
+        mockMvc.perform(multipart(PROFILE_PATH + "/cv")
+                        .file(cvFile())
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString()))))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.title").value("CV parsing failed"));
+    }
+
+    @Test
+    void parseCvRenvoie401SansJeton() throws Exception {
+        mockMvc.perform(multipart(PROFILE_PATH + "/cv").file(cvFile()))
+                .andExpect(status().isUnauthorized());
     }
 }
