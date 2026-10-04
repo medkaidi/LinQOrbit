@@ -1,0 +1,30 @@
+"""Chat model factory: the single place where the LLM is instantiated.
+
+Everything else asks for a model through `get_model()`, so the provider
+(Google Gemini), the model name and the credentials stay in one testable spot.
+"""
+
+from functools import lru_cache
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+from app.core.config import settings
+
+
+@lru_cache(maxsize=1)
+def get_model() -> ChatGoogleGenerativeAI:
+    """Return the process-wide model instance.
+
+    Cached on purpose: building a client per request would rebuild the
+    underlying transport every time. Pass ``None`` when no explicit key is set
+    so the SDK falls back to ``GOOGLE_API_KEY`` exported in the environment.
+    """
+    return ChatGoogleGenerativeAI(
+        model=settings.llm_model,
+        google_api_key=settings.google_api_key or None,
+    )
+
+
+def reset_model_cache() -> None:
+    """Testing hook: drop the cached instance after changing settings or env."""
+    get_model.cache_clear()
