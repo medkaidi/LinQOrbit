@@ -91,8 +91,64 @@ export type LabelReference = {
   label: string;
 };
 
+export type ParsedCvExperience = {
+  positionTitle: string;
+  companyName: string;
+  companyCountry: string | null;
+  startDate: string;
+  endDate: string | null;
+  description: string | null;
+};
+
+export type ParsedCvDiploma = {
+  title: string;
+  institution: string;
+  institutionCountry: string | null;
+  degreeLabel: string | null;
+  studyFieldLabel: string | null;
+  startDate: string;
+  endDate: string | null;
+};
+
+export type ParsedCvSkill = {
+  name: string;
+  level: number | null;
+  yearsExperience: number | null;
+};
+
+export type ParsedCvLanguage = {
+  name: string;
+  level: string | null;
+};
+
+export type ParsedCvLink = {
+  label: string;
+  url: string;
+};
+
+export type ParsedCv = {
+  title: string | null;
+  summary: string | null;
+  experiences: ParsedCvExperience[];
+  diplomas: ParsedCvDiploma[];
+  skills: ParsedCvSkill[];
+  languages: ParsedCvLanguage[];
+  links: ParsedCvLink[];
+};
+
 export async function getProfile(): Promise<CandidateProfile> {
   const response = await api.get<CandidateProfile>(`${BASE}/me/profile`);
+  return response.data;
+}
+
+/**
+ * Envoie le PDF au backend, qui le relaie au service IA. Rien n'est enregistré :
+ * le résultat est prévisualisé puis appliqué au formulaire.
+ */
+export async function parseCv(file: File): Promise<ParsedCv> {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await api.post<ParsedCv>(`${BASE}/me/profile/cv`, body);
   return response.data;
 }
 

@@ -8,8 +8,10 @@ import { ReferenceError } from "@/features/candidate/reference-error";
 import { SectionCard } from "@/features/candidate/section-card";
 import { SECTION_ICONS } from "@/features/candidate/profile-shared";
 import { SelectField } from "@/features/candidate/select-field";
+import { applyCvToLanguages, planCvImport } from "@/features/candidate/cv-parsing";
+import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useReferenceLanguages, useUpdateLanguages } from "@/hooks/use-candidate-profile";
-import type { LanguageItem } from "@/lib/api/candidate.api";
+import type { LanguageItem, ParsedCv } from "@/lib/api/candidate.api";
 import { Button } from "@/components/ui/button";
 import type { SelectOption } from "@/components/ui/select";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
@@ -46,7 +48,13 @@ const toFormItems = (items: LanguageItem[]): LanguageValues[] =>
     level: item.level as LanguageValues["level"],
   }));
 
-export function LanguagesSection({ languages }: { languages: LanguageItem[] }) {
+export function LanguagesSection({
+  languages,
+  cvImport,
+}: {
+  languages: LanguageItem[];
+  cvImport?: ParsedCv | null;
+}) {
   const mutation = useUpdateLanguages();
   const reference = useReferenceLanguages();
   const [saved, setSaved] = useState(false);
@@ -62,6 +70,15 @@ export function LanguagesSection({ languages }: { languages: LanguageItem[] }) {
   });
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const rows = useWatch({ control, name: "items" }) ?? [];
+
+  useApplyCvImport(cvImport, (imported) => {
+    if (reference.isLoading) {
+      return;
+    }
+    const plan = planCvImport(imported, { languages: reference.data ?? [] });
+    reset({ items: applyCvToLanguages(toFormItems(languages), plan) }, { keepDefaultValues: true });
+    setSaved(false);
+  });
 
   const onSubmit = (values: LanguagesValues) => {
     mutation.mutate(values, {

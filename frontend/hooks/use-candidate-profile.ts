@@ -8,6 +8,7 @@ import {
   getReferenceLanguages,
   getReferenceSkills,
   getReferenceStudyFields,
+  parseCv,
   updateAbout,
   updateDiplomas,
   updateExperiences,
@@ -85,6 +86,13 @@ export function useUpdateLinks() {
   return useMutation({
     mutationFn: (values: LinksValues) => updateLinks(values),
     onSuccess: invalidateProfile,
+  });
+}
+
+/** Analyse d'un CV : upload vers le backend puis extraction structurée par l'IA. */
+export function useParseCv() {
+  return useMutation({
+    mutationFn: (file: File) => parseCv(file),
   });
 }
 

@@ -6,8 +6,10 @@ import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 
 import { SectionCard } from "@/features/candidate/section-card";
 import { SECTION_ICONS } from "@/features/candidate/profile-shared";
+import { applyCvToLinks, planCvImport } from "@/features/candidate/cv-parsing";
+import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useUpdateLinks } from "@/hooks/use-candidate-profile";
-import type { LinkItem } from "@/lib/api/candidate.api";
+import type { LinkItem, ParsedCv } from "@/lib/api/candidate.api";
 import { Button } from "@/components/ui/button";
 import { Select, type SelectOption } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
@@ -55,7 +57,13 @@ const toFormItems = (items: LinkItem[]): LinkValues[] =>
     issuedAt: item.issuedAt ?? "",
   }));
 
-export function LinksSection({ links }: { links: LinkItem[] }) {
+export function LinksSection({
+  links,
+  cvImport,
+}: {
+  links: LinkItem[];
+  cvImport?: ParsedCv | null;
+}) {
   const mutation = useUpdateLinks();
   const [saved, setSaved] = useState(false);
 
@@ -72,6 +80,12 @@ export function LinksSection({ links }: { links: LinkItem[] }) {
   });
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const rows = useWatch({ control, name: "items" }) ?? [];
+
+  useApplyCvImport(cvImport, (imported) => {
+    const plan = planCvImport(imported);
+    reset({ items: applyCvToLinks(toFormItems(links), plan) }, { keepDefaultValues: true });
+    setSaved(false);
+  });
 
   const onSubmit = (values: LinksValues) => {
     mutation.mutate(values, {

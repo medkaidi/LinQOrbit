@@ -8,8 +8,10 @@ import { ReferenceError } from "@/features/candidate/reference-error";
 import { SectionCard } from "@/features/candidate/section-card";
 import { SECTION_ICONS } from "@/features/candidate/profile-shared";
 import { SelectField } from "@/features/candidate/select-field";
+import { applyCvToSkills, planCvImport } from "@/features/candidate/cv-parsing";
+import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useReferenceSkills, useUpdateSkills } from "@/hooks/use-candidate-profile";
-import type { SkillItem } from "@/lib/api/candidate.api";
+import type { ParsedCv, SkillItem } from "@/lib/api/candidate.api";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import type { SelectOption } from "@/components/ui/select";
@@ -38,7 +40,13 @@ const toFormItems = (items: SkillItem[]): SkillValues[] =>
     yearsExperience: item.yearsExperience == null ? "" : String(item.yearsExperience),
   }));
 
-export function SkillsSection({ skills }: { skills: SkillItem[] }) {
+export function SkillsSection({
+  skills,
+  cvImport,
+}: {
+  skills: SkillItem[];
+  cvImport?: ParsedCv | null;
+}) {
   const mutation = useUpdateSkills();
   const reference = useReferenceSkills();
   const [saved, setSaved] = useState(false);
@@ -55,6 +63,15 @@ export function SkillsSection({ skills }: { skills: SkillItem[] }) {
   });
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const rows = useWatch({ control, name: "items" }) ?? [];
+
+  useApplyCvImport(cvImport, (imported) => {
+    if (reference.isLoading) {
+      return;
+    }
+    const plan = planCvImport(imported, { skills: reference.data ?? [] });
+    reset({ items: applyCvToSkills(toFormItems(skills), plan) }, { keepDefaultValues: true });
+    setSaved(false);
+  });
 
   const onSubmit = (values: SkillsValues) => {
     mutation.mutate(values, {

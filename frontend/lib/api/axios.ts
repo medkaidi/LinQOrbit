@@ -14,6 +14,12 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // FormData : sans ce retrait, le default Content-Type: application/json
+  // sérialise le FormData en JSON ; le navigateur remet alors le bon
+  // multipart/form-data avec sa boundary.
+  if (config.data instanceof FormData) {
+    config.headers.delete("Content-Type");
+  }
   return config;
 });
 

@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 
 import { AboutSection } from "@/features/candidate/about-section";
+import { CvImportError, CvImportPreview, CvUploadButton } from "@/features/candidate/cv-import";
+import { planCvImport } from "@/features/candidate/cv-parsing";
 import { DiplomasSection } from "@/features/candidate/diplomas-section";
 import { ExperiencesSection } from "@/features/candidate/experiences-section";
 import { LanguagesSection } from "@/features/candidate/languages-section";
@@ -13,10 +16,19 @@ import {
   ProfileError,
   ProfileSkeleton,
 } from "@/features/candidate/profile-shared";
-import { useCandidateProfile } from "@/hooks/use-candidate-profile";
+import {
+  useCandidateProfile,
+  useParseCv,
+  useReferenceDegrees,
+  useReferenceLanguages,
+  useReferenceSkills,
+  useReferenceStudyFields,
+} from "@/hooks/use-candidate-profile";
+import type { ParsedCv } from "@/lib/api/candidate.api";
+import { getApiErrorMessage } from "@/lib/utils/api-error";
 import { Icon } from "@/components/ui/icon";
 
-function Header() {
+function Header({ uploadAction }: { uploadAction: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div>
@@ -35,16 +47,7 @@ function Header() {
         </p>
       </div>
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          disabled
-          aria-disabled="true"
-          title="Coming soon"
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-orange-subtle border border-primary-fixed-dim text-orange-deep font-bold text-xs cursor-not-allowed disabled:opacity-60"
-        >
-          <Icon name="upload_file" className="text-[16px]" />
-          Upload CV
-        </button>
+        {uploadAction}
         <button
           type="button"
           disabled
@@ -62,11 +65,59 @@ function Header() {
 
 export function ProfileEdit() {
   const { data, isLoading, isError, refetch } = useCandidateProfile();
+  const parseCv = useParseCv();
+  const referenceSkills = useReferenceSkills();
+  const referenceLanguages = useReferenceLanguages();
+  const referenceDegrees = useReferenceDegrees();
+  const referenceStudyFields = useReferenceStudyFields();
+
+  const [preview, setPreview] = useState<ParsedCv | null>(null);
+  const [cvImport, setCvImport] = useState<ParsedCv | null>(null);
+
+  const refsReady =
+    !referenceSkills.isLoading &&
+    !referenceLanguages.isLoading &&
+    !referenceDegrees.isLoading &&
+    !referenceStudyFields.isLoading;
+
+  const plan = useMemo(() => {
+    if (!preview || !refsReady) {
+      return null;
+    }
+    return planCvImport(preview, {
+      skills: referenceSkills.data ?? [],
+      languages: referenceLanguages.data ?? [],
+      degrees: referenceDegrees.data ?? [],
+      studyFields: referenceStudyFields.data ?? [],
+    });
+  }, [preview, refsReady, referenceSkills.data, referenceLanguages.data, referenceDegrees.data, referenceStudyFields.data]);
+
+  const onSelectFile = (file: File) => {
+    parseCv.mutate(file, {
+      onSuccess: (parsed) => setPreview(parsed),
+    });
+  };
+
+  const onApply = () => {
+    if (!preview) {
+      return;
+    }
+    setCvImport(preview);
+    setPreview(null);
+    parseCv.reset();
+  };
+
+  const onDiscard = () => {
+    setPreview(null);
+    parseCv.reset();
+  };
+
+  const uploadAction = <CvUploadButton isParsing={parseCv.isPending} onSelect={onSelectFile} />;
 
   if (isError && !data) {
     return (
       <div className="w-full flex flex-col gap-6">
-        <Header />
+        <Header uploadAction={uploadAction} />
         <ProfileError onRetry={() => void refetch()} />
       </div>
     );
@@ -75,7 +126,7 @@ export function ProfileEdit() {
   if (!data) {
     return (
       <div className="w-full flex flex-col gap-6">
-        <Header />
+        <Header uploadAction={uploadAction} />
         {isLoading ? <ProfileSkeleton /> : null}
       </div>
     );
@@ -83,15 +134,29 @@ export function ProfileEdit() {
 
   return (
     <div className="w-full flex flex-col gap-6">
-      <Header />
+      <Header uploadAction={uploadAction} />
+
+      {parseCv.isError ? <CvImportError message={getApiErrorMessage(parseCv.error)} /> : null}
+
+      {preview && plan ? (
+        <CvImportPreview
+          cv={preview}
+          plan={plan}
+          applyDisabled={!refsReady}
+          applyHint={refsReady ? null : "Loading reference lists…"}
+          onApply={onApply}
+          onDiscard={onDiscard}
+        />
+      ) : null}
+
       <CompletenessCard profile={data} />
 
-      <AboutSection about={data.about} />
-      <ExperiencesSection experiences={data.experiences} />
-      <DiplomasSection diplomas={data.diplomas} />
-      <SkillsSection skills={data.skills} />
-      <LanguagesSection languages={data.languages} />
-      <LinksSection links={data.links} />
+      <AboutSection about={data.about} cvImport={cvImport} />
+      <ExperiencesSection experiences={data.experiences} cvImport={cvImport} />
+      <DiplomasSection diplomas={data.diplomas} cvImport={cvImport} />
+      <SkillsSection skills={data.skills} cvImport={cvImport} />
+      <LanguagesSection languages={data.languages} cvImport={cvImport} />
+      <LinksSection links={data.links} cvImport={cvImport} />
     </div>
   );
 }

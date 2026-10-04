@@ -7,8 +7,10 @@ import { useForm, useWatch } from "react-hook-form";
 import { SectionCard } from "@/features/candidate/section-card";
 import { SECTION_ICONS } from "@/features/candidate/profile-shared";
 import { SelectField } from "@/features/candidate/select-field";
+import { applyCvToAbout, planCvImport } from "@/features/candidate/cv-parsing";
+import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useUpdateAbout } from "@/hooks/use-candidate-profile";
-import type { AboutSection } from "@/lib/api/candidate.api";
+import type { AboutSection, ParsedCv } from "@/lib/api/candidate.api";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
 import type { SelectOption } from "@/components/ui/select";
@@ -38,7 +40,13 @@ const toDefaults = (about: AboutSection): AboutValues => ({
   searchStatus: (about.searchStatus ?? "") as AboutValues["searchStatus"],
 });
 
-export function AboutSection({ about }: { about: AboutSection }) {
+export function AboutSection({
+  about,
+  cvImport,
+}: {
+  about: AboutSection;
+  cvImport?: ParsedCv | null;
+}) {
   const mutation = useUpdateAbout();
   const [saved, setSaved] = useState(false);
 
@@ -51,6 +59,14 @@ export function AboutSection({ about }: { about: AboutSection }) {
   } = useForm<AboutValues>({
     resolver: zodResolver(aboutSchema),
     defaultValues: toDefaults(about),
+  });
+
+  useApplyCvImport(cvImport, (imported) => {
+    // keepDefaultValues : l'import rend le formulaire sale pour que Save reste actif.
+    reset(applyCvToAbout(toDefaults(about), planCvImport(imported)), {
+      keepDefaultValues: true,
+    });
+    setSaved(false);
   });
 
   const bio = useWatch({ control, name: "bio" }) ?? "";

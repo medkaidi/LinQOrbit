@@ -6,6 +6,7 @@ import {
   getReferenceLanguages,
   getReferenceSkills,
   getReferenceStudyFields,
+  parseCv,
   updateAbout,
   updateDiplomas,
   updateExperiences,
@@ -15,18 +16,20 @@ import {
 } from "@/lib/api/candidate.api";
 
 vi.mock("@/lib/api/axios", () => ({
-  api: { get: vi.fn(), put: vi.fn() },
+  api: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
 }));
 
 import { api } from "@/lib/api/axios";
 
 const mockedGet = vi.mocked(api.get);
 const mockedPut = vi.mocked(api.put);
+const mockedPost = vi.mocked(api.post);
 
 describe("candidate.api", () => {
   beforeEach(() => {
     mockedGet.mockReset();
     mockedPut.mockReset();
+    mockedPost.mockReset();
   });
 
   it("reads the profile once, without ever creating it", async () => {
@@ -222,5 +225,28 @@ describe("candidate.api", () => {
       "/api/v1/candidates/reference/degrees",
       "/api/v1/candidates/reference/study-fields",
     ]);
+  });
+
+  it("uploads the CV as multipart form data and returns the parsed structure", async () => {
+    const parsed = {
+      title: "Backend Engineer",
+      summary: null,
+      experiences: [],
+      diplomas: [],
+      skills: [],
+      languages: [],
+      links: [],
+    };
+    mockedPost.mockResolvedValue({ data: parsed });
+    const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
+
+    const result = await parseCv(file);
+
+    expect(mockedPost).toHaveBeenCalledTimes(1);
+    const [url, body] = mockedPost.mock.calls[0];
+    expect(url).toBe("/api/v1/candidates/me/profile/cv");
+    expect(body).toBeInstanceOf(FormData);
+    expect((body as FormData).get("file")).toBe(file);
+    expect(result).toEqual(parsed);
   });
 });

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
@@ -7,6 +7,7 @@ vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
   return {
     ...actual,
     getProfile: vi.fn(),
+    parseCv: vi.fn(),
     getReferenceSkills: vi.fn(),
     getReferenceLanguages: vi.fn(),
     getReferenceDegrees: vi.fn(),
@@ -20,11 +21,14 @@ import {
   getReferenceLanguages,
   getReferenceSkills,
   getReferenceStudyFields,
+  parseCv,
   type CandidateProfile,
+  type ParsedCv,
 } from "@/lib/api/candidate.api";
 import { ProfileEdit } from "@/features/candidate/profile-edit";
 
 const mockedGetProfile = vi.mocked(getProfile);
+const mockedParseCv = vi.mocked(parseCv);
 const mockedReferenceQueries = [
   vi.mocked(getReferenceSkills),
   vi.mocked(getReferenceLanguages),
@@ -97,15 +101,55 @@ describe("ProfileEdit", () => {
     expect(screen.getAllByText("Not started")).toHaveLength(4);
   });
 
-  it("keeps the CV and photo actions unavailable", async () => {
+  it("offers the CV upload while the photo action stays unavailable", async () => {
     renderProfile();
 
-    for (const name of ["Upload CV", "Add photo"]) {
-      const button = await screen.findByRole("button", { name });
-      expect(button).toBeDisabled();
-      expect(button).toHaveAttribute("aria-disabled", "true");
-      expect(button).toHaveAttribute("title", "Coming soon");
-    }
+    const uploadButton = await screen.findByRole("button", { name: "Upload CV" });
+    expect(uploadButton).toBeEnabled();
+    expect(uploadButton).not.toHaveAttribute("aria-disabled");
+
+    const photoButton = screen.getByRole("button", { name: "Add photo" });
+    expect(photoButton).toBeDisabled();
+    expect(photoButton).toHaveAttribute("aria-disabled", "true");
+    expect(photoButton).toHaveAttribute("title", "Coming soon");
+  });
+
+  it("previews an uploaded CV, then applies it to the sections", async () => {
+    const parsedCv: ParsedCv = {
+      title: "Staff Engineer",
+      summary: "I design platforms.",
+      experiences: [
+        {
+          positionTitle: "Staff Engineer",
+          companyName: "Globex",
+          companyCountry: "France",
+          startDate: "2022-05",
+          endDate: null,
+          description: null,
+        },
+      ],
+      diplomas: [],
+      skills: [],
+      languages: [],
+      links: [],
+    };
+    mockedParseCv.mockResolvedValue(parsedCv);
+    const { container } = renderProfile();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Upload CV" }));
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: [new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" })] },
+    });
+
+    expect(await screen.findByText("Review your CV import")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Apply to my profile" }));
+
+    expect(await screen.findByLabelText("Professional title")).toHaveValue("Staff Engineer");
+
+    const aboutSection = container.querySelector("#about") as HTMLElement;
+    const saveButton = within(aboutSection).getByRole("button", { name: /save changes/i });
+    expect(saveButton).toBeEnabled();
   });
 
   it("links back to the display page", async () => {

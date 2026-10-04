@@ -7,8 +7,10 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { SectionCard } from "@/features/candidate/section-card";
 import { SECTION_ICONS } from "@/features/candidate/profile-shared";
 import { SelectField } from "@/features/candidate/select-field";
+import { applyCvToExperiences, planCvImport } from "@/features/candidate/cv-parsing";
+import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useUpdateExperiences } from "@/hooks/use-candidate-profile";
-import type { ExperienceItem } from "@/lib/api/candidate.api";
+import type { ExperienceItem, ParsedCv } from "@/lib/api/candidate.api";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,7 +41,13 @@ const toFormItems = (items: ExperienceItem[]): ExperienceValues[] =>
     description: item.description ?? "",
   }));
 
-export function ExperiencesSection({ experiences }: { experiences: ExperienceItem[] }) {
+export function ExperiencesSection({
+  experiences,
+  cvImport,
+}: {
+  experiences: ExperienceItem[];
+  cvImport?: ParsedCv | null;
+}) {
   const mutation = useUpdateExperiences();
   const [saved, setSaved] = useState(false);
 
@@ -54,6 +62,15 @@ export function ExperiencesSection({ experiences }: { experiences: ExperienceIte
     defaultValues: { items: toFormItems(experiences) },
   });
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
+
+  useApplyCvImport(cvImport, (imported) => {
+    const plan = planCvImport(imported);
+    reset(
+      { items: applyCvToExperiences(toFormItems(experiences), plan) },
+      { keepDefaultValues: true },
+    );
+    setSaved(false);
+  });
 
   const onSubmit = (values: ExperiencesValues) => {
     mutation.mutate(values, {
