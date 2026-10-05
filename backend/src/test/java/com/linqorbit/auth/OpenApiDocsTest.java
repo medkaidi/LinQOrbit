@@ -49,6 +49,8 @@ class OpenApiDocsTest {
                         .value("Lire le profil candidat"))
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/about'].put.summary")
                         .value("Mettre à jour la section À propos"))
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/about/target-position'].put.summary")
+                        .value("Mettre à jour le poste recherché"))
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/experiences'].put").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/diplomas'].put").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/skills'].put").exists())

@@ -151,6 +151,39 @@ class CandidateProfileIntegrationTest {
     }
 
     @Test
+    void posteRechercheSeRefloteDansLeProfilEtSurvitALaMajAbout() throws Exception {
+        String token = signup();
+        UUID userId = createdUserIds.get(createdUserIds.size() - 1);
+
+        mockMvc.perform(put(PROFILE_PATH + "/about/target-position")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetPosition\": \"  Staff Engineer  \"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get(PROFILE_PATH).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.about.targetPosition").value("Staff Engineer"));
+
+        mockMvc.perform(put(PROFILE_PATH + "/about")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title": "Full-stack Developer", "bio": "Bio", "yearsOfExperience": 5,
+                                 "searchStatus": "open_to_work"}"""))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get(PROFILE_PATH).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.about.title").value("Full-stack Developer"))
+                .andExpect(jsonPath("$.about.targetPosition").value("Staff Engineer"));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT target_position FROM candidates WHERE id = ?", String.class, userId))
+                .isEqualTo("Staff Engineer");
+    }
+
+    @Test
     void remplacementDExperiencesSupprimeLesAnciennesLignes() throws Exception {
         String token = signup();
 

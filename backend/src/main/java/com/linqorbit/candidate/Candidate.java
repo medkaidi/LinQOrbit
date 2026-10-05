@@ -40,6 +40,9 @@ public class Candidate {
     @Column(name = "title", length = 255)
     private String title;
 
+    @Column(name = "target_position", length = 255)
+    private String targetPosition;
+
     @Column(name = "bio", length = 2000)
     private String bio;
 

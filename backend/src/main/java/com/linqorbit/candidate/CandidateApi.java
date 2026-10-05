@@ -32,6 +32,7 @@ import com.linqorbit.candidate.dto.LinkRequest;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.SkillRequest;
 import com.linqorbit.candidate.dto.StudyFieldOption;
+import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.config.OpenApiConfig;
 
 /**
@@ -59,6 +60,17 @@ public interface CandidateApi {
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
     })
     ResponseEntity<Void> updateAbout(@Valid @RequestBody AboutRequest request, Authentication authentication);
+
+    @PutMapping("/me/profile/about/target-position")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Mettre à jour le poste recherché", description = "Champ isolé du bloc About, utilisé par la carte identité : le PUT /about ne l'écrit jamais. Valeur nulle ou vide efface le poste recherché. Crée le profil candidat s'il n'existe pas encore.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Poste recherché enregistré"),
+            @ApiResponse(responseCode = "400", description = "Corps invalide (validation Bean Validation)"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
+    })
+    ResponseEntity<Void> updateTargetPosition(@Valid @RequestBody TargetPositionRequest request,
+            Authentication authentication);
 
     @PutMapping("/me/profile/experiences")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)

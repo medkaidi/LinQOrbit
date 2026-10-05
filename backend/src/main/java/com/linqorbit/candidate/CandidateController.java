@@ -20,6 +20,7 @@ import com.linqorbit.candidate.dto.LinkRequest;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.SkillRequest;
 import com.linqorbit.candidate.dto.StudyFieldOption;
+import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.common.security.CurrentUserId;
 
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,12 @@ public class CandidateController implements CandidateApi {
     @Override
     public ResponseEntity<Void> updateAbout(AboutRequest request, Authentication authentication) {
         candidateService.updateAbout(CurrentUserId.from(authentication), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> updateTargetPosition(TargetPositionRequest request, Authentication authentication) {
+        candidateService.updateTargetPosition(CurrentUserId.from(authentication), request);
         return ResponseEntity.noContent().build();
     }
 

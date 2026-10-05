@@ -25,7 +25,7 @@ com.linqorbit/
 │   └── exception/     4 exceptions métier
 ├── user/              domaine utilisateur (implémenté)
 ├── candidate/         profil candidat (implémenté) : CandidateApi, CandidateController,
-│   ├── dto/           18 DTOs de l'API profil (About/Experience/Diploma/Skill/Language/Link …)
+│   ├── dto/           19 DTOs de l'API profil (About/Experience/Diploma/Skill/Language/Link/TargetPosition …)
 │   ├── entity/        entités du profil (ProfessionalExperience, Diploma, CandidateSkill …)
 │   ├── repository/    repositories (Diploma, Skill, Language, StudyField …)
 │   ├── mapper/        CandidateMapper (MapStruct)
@@ -65,7 +65,7 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 
 ## Base de données
 
-- **Flyway est le seul responsable du schéma** : `src/main/resources/db/migration/` avec `V1__…sql` … `V4__…sql` (`V3` profil candidat, `V4` listes de référence).
+- **Flyway est le seul responsable du schéma** : `src/main/resources/db/migration/` avec `V1__…sql` … `V5__…sql` (`V3` profil candidat, `V4` listes de référence, `V5` poste recherché).
 - Une migration exécutée est **immuable** ; toute modification du schéma = nouvelle migration.
 - `spring.jpa.hibernate.ddl-auto: validate` — Hibernate ne crée ni ne modifie jamais le schéma, et **compare les types JDBC, pas le SQL** : `INTEGER` ≠ `SMALLINT` (int2), `VARCHAR` ≠ `TEXT`. Chaque colonne doit être déclarée avec le type exact du type Java (`Integer` → `INTEGER`, `String` → `VARCHAR(n)`, `Long` → `BIGINT`) sous peine d'échouer au démarrage du contexte.
 - SQL PostgreSQL strict, pas de dépendance à des dialectes spécifiques dans les migrations.
@@ -77,7 +77,7 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 
 ## Communication
 
-- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,recruiters,companies,job-offers,applications,matchings}` — `auth` et `candidates` existent (`/api/v1/candidates/me/profile` + `/{about,experiences,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}`), les autres sont à venir.
+- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,recruiters,companies,job-offers,applications,matchings}` — `auth` et `candidates` existent (`/api/v1/candidates/me/profile` + `/{about,about/target-position,experiences,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}`), les autres sont à venir. `PUT …/about` n'écrit jamais `targetPosition` (poste recherché isolé sur `PUT …/about/target-position`, utilisé par la carte identité) ; `GET …/profile` renvoie bien `about.targetPosition`.
 - **Service IA Python (FastAPI)** : appelé par ce backend en HTTP (`/ai/...`), jamais par le frontend. Client HTTP à créer quand les endpoints IA existeront — pas de fake AI, pas de client avant le besoin.
 
 ## Erreurs

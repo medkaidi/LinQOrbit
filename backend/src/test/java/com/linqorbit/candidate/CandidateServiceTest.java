@@ -3,6 +3,7 @@ package com.linqorbit.candidate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -29,6 +30,7 @@ import com.linqorbit.candidate.dto.LanguageRequest;
 import com.linqorbit.candidate.dto.LinkRequest;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.SkillRequest;
+import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.candidate.entity.CandidateLanguage;
 import com.linqorbit.candidate.entity.CandidateLink;
 import com.linqorbit.candidate.entity.CandidateSkill;
@@ -107,7 +109,7 @@ class CandidateServiceTest {
         Candidate candidate = Candidate.builder().id(USER_ID).title("Dev").bio("Bio").build();
         when(candidateRepository.findById(USER_ID)).thenReturn(Optional.of(candidate));
         when(candidateMapper.toAboutResponse(candidate))
-                .thenReturn(new AboutResponse("Dev", "Bio", 5, "open_to_work"));
+                .thenReturn(new AboutResponse("Dev", "Staff Engineer", "Bio", 5, "open_to_work"));
         when(experienceRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID))
                 .thenReturn(List.of(mock(ProfessionalExperience.class)));
         when(diplomaRepository.findByCandidateId(USER_ID)).thenReturn(List.of(mock(Diploma.class)));
@@ -120,6 +122,7 @@ class CandidateServiceTest {
         CandidateProfileResponse profile = candidateService.getProfile(USER_ID);
 
         assertThat(profile.about().title()).isEqualTo("Dev");
+        assertThat(profile.about().targetPosition()).isEqualTo("Staff Engineer");
         assertThat(profile.about().searchStatus()).isEqualTo("open_to_work");
         assertThat(profile.completionPercentage()).isEqualTo(100);
     }
@@ -129,7 +132,7 @@ class CandidateServiceTest {
         Candidate candidate = Candidate.builder().id(USER_ID).title("Dev").build();
         when(candidateRepository.findById(USER_ID)).thenReturn(Optional.of(candidate));
         when(candidateMapper.toAboutResponse(candidate))
-                .thenReturn(new AboutResponse("Dev", null, null, "selective"));
+                .thenReturn(new AboutResponse("Dev", null, null, null, "selective"));
         when(experienceRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID)).thenReturn(List.of());
         when(diplomaRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
         when(candidateSkillRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
@@ -166,6 +169,58 @@ class CandidateServiceTest {
                 .isInstanceOf(InvalidProfileSectionException.class)
                 .hasMessageContaining("search status");
         verify(candidateRepository, never()).save(any(Candidate.class));
+    }
+
+    @Test
+    void miseAJourAboutNEffacePasLePosteRecherche() {
+        Candidate candidate = Candidate.builder().id(USER_ID).title("Dev")
+                .targetPosition("Staff Engineer").build();
+        when(candidateRepository.findById(USER_ID)).thenReturn(Optional.of(candidate));
+        when(candidateRepository.save(any(Candidate.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        candidateService.updateAbout(USER_ID,
+                new AboutRequest("Full-stack Developer", "Bio", 5, "open_to_work"));
+
+        verify(candidateRepository).save(candidate);
+        assertThat(candidate.getTargetPosition()).isEqualTo("Staff Engineer");
+    }
+
+    @Test
+    void posteRechercheEstNormaliseAvantEnregistrement() {
+        Candidate candidate = Candidate.builder().id(USER_ID).title("Dev").build();
+        when(candidateRepository.findById(USER_ID)).thenReturn(Optional.of(candidate));
+        when(candidateRepository.save(any(Candidate.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        candidateService.updateTargetPosition(USER_ID, new TargetPositionRequest("  Staff Engineer  "));
+
+        verify(candidateRepository).save(candidate);
+        assertThat(candidate.getTargetPosition()).isEqualTo("Staff Engineer");
+    }
+
+    @Test
+    void posteRechercheVideEffaceLaValeurEnregistree() {
+        Candidate candidate = Candidate.builder().id(USER_ID).targetPosition("Ancien poste").build();
+        when(candidateRepository.findById(USER_ID)).thenReturn(Optional.of(candidate));
+        when(candidateRepository.save(any(Candidate.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        candidateService.updateTargetPosition(USER_ID, new TargetPositionRequest("   "));
+
+        verify(candidateRepository).save(candidate);
+        assertThat(candidate.getTargetPosition()).isNull();
+    }
+
+    @Test
+    void premierPosteRechercheCreeLaLigneCandidates() {
+        when(candidateRepository.findById(USER_ID)).thenReturn(Optional.empty());
+        when(candidateRepository.save(any(Candidate.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        candidateService.updateTargetPosition(USER_ID, new TargetPositionRequest("Staff Engineer"));
+
+        ArgumentCaptor<Candidate> captor = ArgumentCaptor.forClass(Candidate.class);
+        verify(candidateRepository, atLeastOnce()).save(captor.capture());
+        Candidate saved = captor.getValue();
+        assertThat(saved.getId()).isEqualTo(USER_ID);
+        assertThat(saved.getTargetPosition()).isEqualTo("Staff Engineer");
     }
 
     @Test

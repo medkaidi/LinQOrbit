@@ -35,6 +35,7 @@ import com.linqorbit.candidate.dto.DegreeOption;
 import com.linqorbit.candidate.dto.LanguageOption;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.StudyFieldOption;
+import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.candidate.exception.AiServiceException;
 import com.linqorbit.candidate.exception.InvalidProfileSectionException;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
@@ -70,13 +71,14 @@ class CandidateControllerTest {
     void getProfileRenvoie200AvecLeTauxDeCompletion() throws Exception {
         UUID userId = UUID.randomUUID();
         when(candidateService.getProfile(userId)).thenReturn(new CandidateProfileResponse(
-                new AboutResponse("Full-stack Developer", "Passionné de web", 5, "open_to_work"),
+                new AboutResponse("Full-stack Developer", "Staff Engineer", "Passionné de web", 5, "open_to_work"),
                 List.of(), List.of(), List.of(), List.of(), List.of(), 16));
 
         mockMvc.perform(get(PROFILE_PATH)
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.about.title").value("Full-stack Developer"))
+                .andExpect(jsonPath("$.about.targetPosition").value("Staff Engineer"))
                 .andExpect(jsonPath("$.about.searchStatus").value("open_to_work"))
                 .andExpect(jsonPath("$.completionPercentage").value(16));
     }
@@ -110,6 +112,31 @@ class CandidateControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Validation failed"))
                 .andExpect(jsonPath("$.detail").value(containsString("title")));
+    }
+
+    @Test
+    void updateTargetPositionRenvoie204EtTransmetLeUtilisateurDuJeton() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(put(PROFILE_PATH + "/about/target-position")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetPosition\": \"Staff Engineer\"}"))
+                .andExpect(status().isNoContent());
+
+        verify(candidateService).updateTargetPosition(eq(userId), any(TargetPositionRequest.class));
+    }
+
+    @Test
+    void updateTargetPositionRenvoie400QuandLaValeurDepasse255Caracteres() throws Exception {
+        mockMvc.perform(put(PROFILE_PATH + "/about/target-position")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetPosition\": \"" + "a".repeat(256) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation failed"))
+                .andExpect(jsonPath("$.detail").value(containsString("targetPosition")));
     }
 
     @Test

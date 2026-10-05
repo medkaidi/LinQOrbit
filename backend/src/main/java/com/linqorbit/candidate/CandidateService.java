@@ -29,6 +29,7 @@ import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.SkillRequest;
 import com.linqorbit.candidate.dto.SkillResponse;
 import com.linqorbit.candidate.dto.StudyFieldOption;
+import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.candidate.entity.CandidateLanguage;
 import com.linqorbit.candidate.entity.CandidateLink;
 import com.linqorbit.candidate.entity.CandidateSkill;
@@ -114,6 +115,16 @@ public class CandidateService {
         candidate.setSearchStatus(searchStatus);
         candidateRepository.save(candidate);
         log.info("Candidate profile about updated : userId={}, title={}", userId, candidate.getTitle());
+    }
+
+    @Transactional
+    public void updateTargetPosition(UUID userId, TargetPositionRequest request) {
+        log.info("Candidate profile target position update requested : userId={}", userId);
+        Candidate candidate = findOrCreate(userId);
+        candidate.setTargetPosition(trimToNull(request.targetPosition()));
+        candidateRepository.save(candidate);
+        log.info("Candidate profile target position updated : userId={}, targetPosition={}",
+                userId, candidate.getTargetPosition());
     }
 
     @Transactional
@@ -280,7 +291,7 @@ public class CandidateService {
 
     private CandidateProfileResponse emptyProfile() {
         return new CandidateProfileResponse(
-                new AboutResponse(null, null, null, null),
+                new AboutResponse(null, null, null, null, null),
                 List.of(), List.of(), List.of(), List.of(), List.of(),
                 0);
     }
