@@ -10,6 +10,7 @@ import io
 from uuid import uuid4
 
 from langchain_core.messages import HumanMessage
+from langgraph.errors import GraphRecursionError
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
@@ -18,6 +19,11 @@ from app.schemas.cv import ParsedCv
 
 # Below this length the "text layer" is almost certainly absent (scanned PDF).
 MIN_TEXT_LENGTH = 100
+
+# Super-step budget for one agent.invoke: enough for a tool call per section
+# plus the final structured answer, and a bounded worst case when the model
+# degenerates into repeating the same tool call (see SYSTEM_PROMPT rules).
+RECURSION_LIMIT = 16
 
 
 class CVParseError(Exception):
@@ -49,11 +55,17 @@ def parse_cv(pdf_bytes: bytes) -> ParsedCv:
 
     agent = build_cv_agent()
     thread_id = str(uuid4())
-    config = {"configurable": {"thread_id": thread_id}}
-    result = agent.invoke(
-        {"messages": [HumanMessage(content=f"Extract the following CV:\n\n{text}")]},
-        config=config,
-    )
+    config = {"configurable": {"thread_id": thread_id}, "recursion_limit": RECURSION_LIMIT}
+    try:
+        result = agent.invoke(
+            {"messages": [HumanMessage(content=f"Extract the following CV:\n\n{text}")]},
+            config=config,
+        )
+    except GraphRecursionError as exc:
+        raise CVParseError(
+            "no_output",
+            "The agent could not produce a valid structure for this CV.",
+        ) from exc
 
     parsed = result.get("structured_response")
     if isinstance(parsed, ParsedCv):
@@ -61,17 +73,23 @@ def parse_cv(pdf_bytes: bytes) -> ParsedCv:
 
     # One repair turn: the checkpointer keeps the history of this thread, so
     # the model sees its own unfinished answer and can submit the schema now.
-    repair = agent.invoke(
-        {
-            "messages": [
-                HumanMessage(
-                    content="You finished without the structured output. Submit it now, "
-                    "strictly following the schema."
-                )
-            ]
-        },
-        config=config,
-    )
+    try:
+        repair = agent.invoke(
+            {
+                "messages": [
+                    HumanMessage(
+                        content="You finished without the structured output. Submit it now, "
+                        "strictly following the schema."
+                    )
+                ]
+            },
+            config=config,
+        )
+    except GraphRecursionError as exc:
+        raise CVParseError(
+            "no_output",
+            "The agent could not produce a valid structure for this CV.",
+        ) from exc
     parsed = repair.get("structured_response")
     if isinstance(parsed, ParsedCv):
         return parsed

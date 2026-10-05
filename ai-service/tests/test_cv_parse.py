@@ -1,8 +1,9 @@
 """Pipeline tests: pypdf extraction + orchestration. The agent is stubbed."""
 
 import pytest
+from langgraph.errors import GraphRecursionError
 
-from app.agents.cv_parse import CVParseError, extract_text, parse_cv
+from app.agents.cv_parse import RECURSION_LIMIT, CVParseError, extract_text, parse_cv
 from app.schemas.cv import ParsedCv
 
 CV_SAMPLE = (
@@ -22,7 +23,10 @@ class StubAgent:
 
     def invoke(self, payload, config):
         self.calls.append({"payload": payload, "config": config})
-        return self._results.pop(0)
+        result = self._results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
 
 
 def test_extract_text_reads_the_text_layer(make_pdf):
@@ -84,3 +88,25 @@ def test_parse_cv_fails_when_repair_also_fails(make_pdf, monkeypatch):
         parse_cv(make_pdf(CV_SAMPLE))
 
     assert exc.value.code == "no_output"
+
+
+def test_parse_cv_bounds_the_agent_and_maps_recursion_to_no_output(make_pdf, monkeypatch):
+    stub = StubAgent([GraphRecursionError("recursion limit reached")])
+    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda: stub)
+
+    with pytest.raises(CVParseError) as exc:
+        parse_cv(make_pdf(CV_SAMPLE))
+
+    assert exc.value.code == "no_output"
+    assert stub.calls[0]["config"]["recursion_limit"] == RECURSION_LIMIT
+
+
+def test_parse_cv_maps_recursion_during_repair_to_no_output(make_pdf, monkeypatch):
+    stub = StubAgent([{}, GraphRecursionError("recursion limit reached")])
+    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda: stub)
+
+    with pytest.raises(CVParseError) as exc:
+        parse_cv(make_pdf(CV_SAMPLE))
+
+    assert exc.value.code == "no_output"
+    assert len(stub.calls) == 2
