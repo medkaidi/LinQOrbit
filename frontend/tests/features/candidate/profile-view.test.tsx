@@ -25,9 +25,10 @@ import {
   getReferenceLanguages,
   getReferenceSkills,
   getReferenceStudyFields,
-  type CandidateProfile,
 } from "@/lib/api/candidate.api";
-import { me, type AuthUser } from "@/lib/api/auth.api";
+import { me } from "@/lib/api/auth.api";
+import type { CandidateProfile } from "@/types/candidate";
+import type { AuthUser } from "@/types/auth";
 import { ProfileView } from "@/features/candidate/profile-view";
 
 const mockedGetProfile = vi.mocked(getProfile);
@@ -153,7 +154,7 @@ describe("ProfileView", () => {
   it("renders every section as a read-only card", async () => {
     renderProfile();
 
-    expect(await screen.findByRole("heading", { name: "About" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Personal Information" })).toBeInTheDocument();
 
     expect(screen.getByText("2 entries")).toBeInTheDocument();
 
@@ -174,17 +175,30 @@ describe("ProfileView", () => {
     );
   });
 
-  it("shows the identity card above the sections", async () => {
+  it("shows the account identity inside the About section", async () => {
     mockedMe.mockResolvedValue(accountUser);
     renderProfile();
 
     expect(await screen.findByRole("heading", { name: "Personal Information" })).toBeInTheDocument();
 
-    const identity = document.getElementById("identity") as HTMLElement;
-    expect(within(identity).getByText("Ada Lovelace")).toBeInTheDocument();
-    expect(within(identity).getByText("Staff Engineer")).toBeInTheDocument();
-    expect(within(identity).getByText("ada@example.com")).toBeInTheDocument();
-    expect(within(identity).getByText("France")).toBeInTheDocument();
+    const about = document.getElementById("about") as HTMLElement;
+    expect(await within(about).findByText("Ada Lovelace")).toBeInTheDocument();
+    expect(within(about).getByText("ada@example.com")).toBeInTheDocument();
+    // Ville + pays fusionnés en une seule pill « Current location ».
+    expect(within(about).getByText("Current location")).toBeInTheDocument();
+    expect(within(about).getByText("Paris, France")).toBeInTheDocument();
+    expect(within(about).queryByText("Years of experience")).not.toBeInTheDocument();
+    // La photo vit dans le bloc identité de la section (nom + poste à droite).
+    expect(within(about).getByText("AL")).toBeInTheDocument();
+    expect(screen.getAllByText("AL")).toHaveLength(1);
+    expect(within(about).getByText("Backend Engineer")).toBeInTheDocument();
+    // Lien GitHub : pill cliquable avec l'URL sans protocole ; LinkedIn absent → placeholder.
+    expect(within(about).getByRole("link", { name: "github.com/camille" })).toBeInTheDocument();
+    expect(within(about).getByText("LinkedIn")).toBeInTheDocument();
+    // Le poste recherché n'apparaît plus nulle part dans l'affichage.
+    expect(within(about).queryByText("Staff Engineer")).not.toBeInTheDocument();
+    expect(within(about).getByRole("heading", { name: "Personal Information" })).toBeInTheDocument();
+    expect(within(about).getByRole("heading", { name: "About you" })).toBeInTheDocument();
   });
 
   it("offers an edit action that points at the editor", async () => {
@@ -196,7 +210,7 @@ describe("ProfileView", () => {
 
   it("does not fetch reference data in display mode", async () => {
     renderProfile();
-    await screen.findByRole("heading", { name: "About" });
+    await screen.findByRole("heading", { name: "Personal Information" });
 
     await waitFor(() => expect(mockedGetProfile).toHaveBeenCalled());
     mockedReferenceQueries.forEach((query) => expect(query).not.toHaveBeenCalled());

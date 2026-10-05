@@ -27,10 +27,10 @@ import {
   getReferenceSkills,
   getReferenceStudyFields,
   parseCv,
-  type CandidateProfile,
-  type ParsedCv,
 } from "@/lib/api/candidate.api";
-import { me, type AuthUser } from "@/lib/api/auth.api";
+import { me } from "@/lib/api/auth.api";
+import type { CandidateProfile, ParsedCv } from "@/types/candidate";
+import type { AuthUser } from "@/types/auth";
 import { ProfileEdit } from "@/features/candidate/profile-edit";
 
 const mockedGetProfile = vi.mocked(getProfile);
@@ -115,7 +115,7 @@ describe("ProfileEdit", () => {
     const progressbar = screen.getByRole("progressbar", { name: "Profile completeness" });
     expect(progressbar).toHaveAttribute("aria-valuenow", "33");
 
-    for (const title of ["About", "Experience", "Education", "Skills", "Languages", "Links & certifications"]) {
+    for (const title of ["Personal Information", "Experience", "Education", "Skills", "Languages", "Links & certifications"]) {
       expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     }
 
@@ -123,19 +123,21 @@ describe("ProfileEdit", () => {
     expect(screen.getAllByText("Not started")).toHaveLength(4);
   });
 
-  it("offers the identity card above the sections when the account is known", async () => {
+  it("offers the account identity inside About when the account is known", async () => {
     mockedMe.mockResolvedValue(accountUser);
     renderProfile();
 
-    expect(await screen.findByRole("heading", { name: "Personal Information" })).toBeInTheDocument();
+    // Le formulaire fusionné remplace le formulaire About seul une fois le
+    // compte connu : attendre son montage avant de typer la section.
+    expect(await screen.findByLabelText("First name")).toHaveValue("Ada");
+    const about = document.getElementById("about") as HTMLElement;
+    expect(within(about).getByLabelText("Current position")).toHaveValue("Backend Engineer");
+    expect(within(about).getByLabelText("Phone")).toHaveValue("+1 555 000 0000");
+    expect(within(about).getByLabelText("Email")).toHaveValue("ada@example.com");
+    expect(within(about).queryByLabelText("Target position")).not.toBeInTheDocument();
 
-    const identity = document.getElementById("identity") as HTMLElement;
-    expect(within(identity).getByLabelText("First name")).toHaveValue("Ada");
-    expect(within(identity).getByLabelText("Target position")).toHaveValue("Staff Engineer");
-    expect(within(identity).getByText("ada@example.com")).toBeInTheDocument();
-
-    // La carte identité complète s'ajoute aux badges des 6 sections de profil.
-    expect(screen.getAllByText("Complete")).toHaveLength(3);
+    // La fusion n'ajoute pas de section : les badges restent ceux des 6 sections.
+    expect(screen.getAllByText("Complete")).toHaveLength(2);
     expect(screen.getAllByText("Not started")).toHaveLength(4);
   });
 
@@ -183,7 +185,7 @@ describe("ProfileEdit", () => {
     expect(await screen.findByText("Review your CV import")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Apply to my profile" }));
 
-    expect(await screen.findByLabelText("Professional title")).toHaveValue("Staff Engineer");
+    expect(await screen.findByLabelText("Current position")).toHaveValue("Staff Engineer");
 
     const aboutSection = container.querySelector("#about") as HTMLElement;
     const saveButton = within(aboutSection).getByRole("button", { name: /save changes/i });

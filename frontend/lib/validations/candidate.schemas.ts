@@ -57,7 +57,7 @@ const dateOrderCheck = <T extends { startDate?: string; endDate?: string }>(
 };
 
 export const aboutSchema = z.object({
-  title: text(255, "Professional title"),
+  title: text(255, "Current position"),
   bio: z.string().trim().max(2000, "Bio must be 2000 characters or fewer"),
   yearsOfExperience: z
     .number("Years of experience is required")
@@ -68,12 +68,10 @@ export const aboutSchema = z.object({
 });
 
 /**
- * Carte identité : champs du compte (PUT /auth/me) + poste recherché
- * (PUT /candidates/…/about/target-position) dans un seul Save.
+ * Section About fusionnée : champs About + champs du compte (PUT /auth/me)
+ * dans un seul Save. Le chemin dégradé (compte inconnu) utilise `aboutSchema`.
  */
-export const identityCardSchema = updateProfileSchema.extend({
-  targetPosition: optionalText(255, "Target position"),
-});
+export const aboutSectionSchema = aboutSchema.extend(updateProfileSchema.shape);
 
 export const experienceSchema = z
   .object({
@@ -174,7 +172,7 @@ export const linksSchema = z.object({
 });
 
 export type AboutValues = z.infer<typeof aboutSchema>;
-export type IdentityCardValues = z.infer<typeof identityCardSchema>;
+export type AboutSectionValues = z.infer<typeof aboutSectionSchema>;
 export type ExperienceValues = z.infer<typeof experienceSchema>;
 export type DiplomaValues = z.infer<typeof diplomaSchema>;
 export type SkillValues = z.infer<typeof skillSchema>;

@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 
-import type { CandidateProfile } from "@/lib/api/candidate.api";
 import { Alert } from "@/components/ui/alert";
 import { Icon } from "@/components/ui/icon";
+import type { AuthUser } from "@/types/auth";
+import type { CandidateProfile } from "@/types/candidate";
 
 /** Glyphe Material Symbols de chaque section, d'après la maquette pro_profile.html. */
 export const SECTION_ICONS = {
-  identity: "badge",
   about: "person",
   experiences: "work",
   education: "school",
@@ -15,6 +15,65 @@ export const SECTION_ICONS = {
   links: "link",
   goals: "tune",
 } as const;
+
+/** Un élément de liste = un conteneur : la séparation se lit d'un coup d'œil. */
+export const ITEM_CLASSES = "rounded-2xl border border-slate-border bg-item-surface/50 p-4";
+
+/**
+ * Cellule label + valeur (section Personal Information) : le label vit hors du
+ * conteneur, la valeur est logée dans un « input simulé » — même forme que les
+ * champs d'édition (pill h-11), fond des items des sections (`bg-item-surface/50`).
+ */
+export function InfoBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="font-label-md text-label-md text-text-secondary">{label}</span>
+      <div className="flex h-11 items-center rounded-full border border-slate-border bg-item-surface/50 px-4">
+        <p className="truncate text-body-md font-body-md text-text-primary">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+export function fullName(account: AuthUser): string {
+  return `${account.firstName} ${account.lastName}`.trim();
+}
+
+function initialsOf(account: AuthUser): string {
+  return `${account.firstName.charAt(0)}${account.lastName.charAt(0)}`.toUpperCase();
+}
+
+/**
+ * Photo de profil à venir : avatar à initiales ; sur l'édition, le badge caméra
+ * reprend la maquette mais reste désactivé (comme le bouton « Add photo »).
+ */
+export function IdentityAvatar({
+  account,
+  withCameraBadge = false,
+}: {
+  account: AuthUser;
+  withCameraBadge?: boolean;
+}) {
+  return (
+    <div className="relative shrink-0">
+      <span className="w-24 h-24 rounded-full bg-primary-fixed text-on-primary-fixed border-2 border-slate-border flex items-center justify-center text-headline-lg font-bold">
+        {initialsOf(account)}
+      </span>
+      {withCameraBadge ? (
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          aria-label="Change photo"
+          title="Coming soon"
+          className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <Icon name="photo_camera" className="text-[16px]" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 /**
  * Pastille d'icône devant le titre : même bleu (accent secondaire) pour toutes

@@ -2,11 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { me, updateProfile, type AuthUser } from "@/lib/api/auth.api";
-import { updateTargetPosition } from "@/lib/api/candidate.api";
-import type { IdentityCardValues } from "@/lib/validations/candidate.schemas";
+import { me, updateProfile } from "@/lib/api/auth.api";
+import { updateAbout } from "@/lib/api/candidate.api";
+import type { AboutSectionValues } from "@/lib/validations/candidate.schemas";
 import { PROFILE_KEY } from "@/hooks/use-candidate-profile";
 import { useAuthStore } from "@/stores/auth-store";
+import type { AuthUser } from "@/types/auth";
 
 const ACCOUNT_KEY = ["auth", "me"] as const;
 
@@ -38,19 +39,19 @@ export function useAccount(): AccountState {
 }
 
 /**
- * Sauvegarde de la carte identité : champs du compte (PUT /auth/me) + poste
- * recherché (PUT /candidates/…/about/target-position) envoyés en parallèle.
- * Les deux clés sont invalidées quoi qu'il arrive ; l'échec d'une des deux
- * requêtes remonte en erreur sans perdre l'état du formulaire.
+ * Sauvegarde de la section About fusionnée : champs du compte (PUT /auth/me)
+ * + champs About (PUT /candidates/…/about) envoyés en parallèle. Les deux
+ * clés sont invalidées quoi qu'il arrive ; l'échec d'une des deux requêtes
+ * remonte en erreur sans perdre l'état du formulaire.
  */
-export function useSaveIdentity() {
+export function useSaveAboutSection() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (values: IdentityCardValues) => {
-      const { targetPosition, ...account } = values;
+    mutationFn: (values: AboutSectionValues) => {
+      const { title, bio, yearsOfExperience, searchStatus, ...account } = values;
       return Promise.allSettled([
         updateProfile(account),
-        updateTargetPosition(targetPosition),
+        updateAbout({ title, bio, yearsOfExperience, searchStatus }),
       ]).then((results) => {
         const failure = results.find((result) => result.status === "rejected");
         if (failure) {

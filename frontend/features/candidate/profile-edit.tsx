@@ -8,7 +8,6 @@ import { CvImportError, CvImportPreview, CvUploadButton } from "@/features/candi
 import { planCvImport } from "@/features/candidate/cv-parsing";
 import { DiplomasSection } from "@/features/candidate/diplomas-section";
 import { ExperiencesSection } from "@/features/candidate/experiences-section";
-import { IdentitySection } from "@/features/candidate/identity-card";
 import { LanguagesSection } from "@/features/candidate/languages-section";
 import { LinksSection } from "@/features/candidate/links-section";
 import { SkillsSection } from "@/features/candidate/skills-section";
@@ -25,7 +24,7 @@ import {
   useReferenceSkills,
   useReferenceStudyFields,
 } from "@/hooks/use-candidate-profile";
-import type { ParsedCv } from "@/lib/api/candidate.api";
+import type { ParsedCv } from "@/types/candidate";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import { Icon } from "@/components/ui/icon";
 
@@ -152,7 +151,6 @@ export function ProfileEdit() {
 
       <CompletenessCard profile={data} />
 
-      <IdentitySection targetPosition={data.about.targetPosition} />
       <AboutSection about={data.about} cvImport={cvImport} />
       <ExperiencesSection experiences={data.experiences} cvImport={cvImport} />
       <DiplomasSection diplomas={data.diplomas} cvImport={cvImport} />

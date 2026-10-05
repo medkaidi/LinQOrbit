@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   aboutSchema,
+  aboutSectionSchema,
   experienceSchema,
-  identityCardSchema,
   languagesSchema,
   languageSchema,
   linkSchema,
@@ -29,7 +29,7 @@ describe("aboutSchema", () => {
 
   it("requires a title and a search status", () => {
     expect(firstMessage(aboutSchema.safeParse({ title: "", bio: "", yearsOfExperience: 0, searchStatus: "open_to_work" }))).toBe(
-      "Professional title is required",
+      "Current position is required",
     );
     expect(
       firstMessage(
@@ -67,7 +67,7 @@ describe("aboutSchema", () => {
   });
 });
 
-describe("identityCardSchema", () => {
+describe("aboutSectionSchema", () => {
   const account = {
     firstName: "Ada",
     lastName: "Lovelace",
@@ -75,27 +75,42 @@ describe("identityCardSchema", () => {
     currentCity: "Paris",
     currentCountry: "FR",
   };
+  const aboutValues = {
+    title: "Backend Engineer",
+    bio: "I build APIs that scale.",
+    yearsOfExperience: 5,
+    searchStatus: "open_to_work",
+  };
 
-  it("accepts an empty target position and trims a filled one", () => {
-    expect(identityCardSchema.safeParse({ ...account, targetPosition: "" }).success).toBe(true);
-
-    const trimmed = identityCardSchema.safeParse({
-      ...account,
-      targetPosition: "  Staff Engineer  ",
-    });
-    expect(trimmed.success).toBe(true);
-    if (trimmed.success) {
-      expect(trimmed.data.targetPosition).toBe("Staff Engineer");
-    }
+  it("accepts a complete identity and about payload", () => {
+    expect(aboutSectionSchema.safeParse({ ...aboutValues, ...account }).success).toBe(true);
   });
 
-  it("rejects a target position over 255 characters", () => {
-    const result = identityCardSchema.safeParse({
-      ...account,
-      targetPosition: "a".repeat(256),
-    });
+  it("requires every identity field", () => {
+    expect(
+      firstMessage(aboutSectionSchema.safeParse({ ...aboutValues, ...account, firstName: " " })),
+    ).toBe("First name is required");
+    expect(
+      firstMessage(aboutSectionSchema.safeParse({ ...aboutValues, ...account, phone: "" })),
+    ).toBe("Phone number is required");
+    expect(
+      firstMessage(
+        aboutSectionSchema.safeParse({ ...aboutValues, ...account, currentCountry: "" }),
+      ),
+    ).toBe("Current country is required");
+  });
 
-    expect(firstMessage(result)).toBe("Target position must be 255 characters or fewer");
+  it("applies the about rules as well", () => {
+    expect(
+      firstMessage(
+        aboutSectionSchema.safeParse({
+          ...aboutValues,
+          ...account,
+          title: "",
+          searchStatus: "open_to_work",
+        }),
+      ),
+    ).toBe("Current position is required");
   });
 });
 

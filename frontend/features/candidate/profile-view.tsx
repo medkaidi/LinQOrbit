@@ -5,14 +5,18 @@ import Link from "next/link";
 import { SEARCH_STATUS_LABELS } from "@/features/candidate/about-section";
 import { LINK_TYPE_LABELS } from "@/features/candidate/links-section";
 import { CEFR_LABELS } from "@/features/candidate/languages-section";
-import { IdentityCard } from "@/features/candidate/identity-card";
 import {
   CompletenessCard,
+  fullName,
+  IdentityAvatar,
+  InfoBox,
+  ITEM_CLASSES,
   ProfileError,
   ProfileSkeleton,
   SECTION_ICONS,
   ViewSection,
 } from "@/features/candidate/profile-shared";
+import { useAccount } from "@/hooks/use-account";
 import { useCandidateProfile } from "@/hooks/use-candidate-profile";
 import { countryOptions } from "@/config/countries";
 import { Icon } from "@/components/ui/icon";
@@ -24,7 +28,7 @@ import type {
   ExperienceItem,
   LinkItem,
   SkillItem,
-} from "@/lib/api/candidate.api";
+} from "@/types/candidate";
 
 const MONTHS = [
   "Jan",
@@ -50,9 +54,6 @@ const SKILL_LEVEL_LABELS: Record<number, string> = {
   4: "Advanced",
   5: "Expert",
 };
-
-/** Un élément de liste = un conteneur : la séparation se lit d'un coup d'œil. */
-const ITEM_CLASSES = "rounded-2xl border border-slate-border bg-item-surface/50 p-4";
 
 /** Variante compacte (puces de compétences) : mêmes bordures, padding réduit. */
 const CHIP_CLASSES = "rounded-2xl border border-slate-border bg-item-surface/50 px-3 py-1.5";
@@ -160,40 +161,134 @@ function EmptyState({ message, cta }: { message: string; cta: string }) {
   );
 }
 
-function AboutSection({ about }: { about: CandidateProfile["about"] }) {
-  const isComplete = Boolean(about.title?.trim() && about.bio?.trim());
+/** URL affichée dans une pill de lien : sans protocole ni slash final. */
+function displayUrl(url: string): string {
+  return url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "");
+}
+
+/**
+ * Lien du profil (GitHub, LinkedIn…) en « input simulé » : label hors
+ * conteneur, pill cliquable si le lien existe, sinon pill « Not provided »
+ * non cliquable — la structure de la colonne reste visible.
+ */
+function LinkInfoBox({ linkType, links }: { linkType: string; links: LinkItem[] }) {
+  const link = links.find((item) => item.linkType === linkType) ?? null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="font-label-md text-label-md text-text-secondary">
+        {linkTypeLabel(linkType)}
+      </span>
+      <div className="flex h-11 items-center gap-2 rounded-full border border-slate-border bg-item-surface/50 px-4">
+        {link ? (
+          <>
+            <Icon
+              name={linkIcon(linkType)}
+              className="text-[16px] text-text-tertiary shrink-0"
+            />
+            <a
+              href={link.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="truncate text-body-md font-body-md text-text-primary hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+            >
+              {displayUrl(link.url)}
+            </a>
+            <Icon name="arrow_outward" className="ml-auto text-[14px] text-text-tertiary shrink-0" />
+          </>
+        ) : (
+          <p className="truncate text-body-md font-body-md text-text-primary">Not provided</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AboutSection({
+  about,
+  links,
+}: {
+  about: CandidateProfile["about"];
+  links: LinkItem[];
+}) {
+  const { account } = useAccount();
   const statusLabels = SEARCH_STATUS_LABELS as Record<string, string | undefined>;
   const statusLabel = about.searchStatus ? statusLabels[about.searchStatus] : null;
+  const position = about.title?.trim() || "Not provided";
+  const currentLocation =
+    (account
+      ? [account.currentCity.trim(), countryLabel(account.currentCountry)]
+      : []
+    )
+      .filter(Boolean)
+      .join(", ") || "Not provided";
 
   return (
     <ViewSection
       id="about"
-      title="About"
+      title="Personal Information"
       icon={SECTION_ICONS.about}
     >
-      {isComplete ? (
-        <div className="flex flex-col gap-2">
-          <h3 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
-            {about.title}
-          </h3>
-          <p className="text-body-sm font-body-sm text-text-secondary">
-            {[
-              about.yearsOfExperience != null ? plural(about.yearsOfExperience, "year") : null,
-              statusLabel,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-          <p className="text-body-md font-body-md text-text-secondary leading-relaxed whitespace-pre-line max-w-3xl">
-            {about.bio}
-          </p>
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
+          <div className="flex items-center gap-4 lg:col-start-1 lg:row-start-1">
+            {account ? <IdentityAvatar account={account} /> : null}
+            <div className="min-w-0">
+              {account ? (
+                <p className="truncate font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
+                  {fullName(account)}
+                </p>
+              ) : null}
+              <p
+                className={cn(
+                  "truncate text-body-sm font-body-sm text-text-secondary",
+                  account && "mt-1",
+                )}
+              >
+                {position}
+              </p>
+            </div>
+          </div>
+          {account ? (
+            <div className="lg:col-start-1 lg:row-start-2">
+              <InfoBox label="Email" value={account.email} />
+            </div>
+          ) : null}
+          {account ? (
+            <div className="lg:col-start-1 lg:row-start-3">
+              <InfoBox label="Phone" value={account.phone?.trim() || "Not provided"} />
+            </div>
+          ) : null}
+          {account ? (
+            <div className="lg:col-start-1 lg:row-start-4">
+              <InfoBox label="Current location" value={currentLocation} />
+            </div>
+          ) : null}
+          <div className="lg:col-start-2 lg:row-start-2">
+            <InfoBox label="Search status" value={statusLabel ?? "Not provided"} />
+          </div>
+          <div className="lg:col-start-2 lg:row-start-3">
+            <LinkInfoBox linkType="github" links={links} />
+          </div>
+          <div className="lg:col-start-2 lg:row-start-4">
+            <LinkInfoBox linkType="linkedin" links={links} />
+          </div>
         </div>
-      ) : (
-        <EmptyState
-          message="Your headline and summary are not written yet."
-          cta="Write your about"
-        />
-      )}
+        <div className="flex flex-col gap-1.5">
+          <h3 className="font-label-md text-label-md text-text-secondary">About you</h3>
+          {about.bio?.trim() ? (
+            <div className="rounded-lg border border-slate-border bg-item-surface/50 px-4 py-3">
+              <p className="text-body-md font-body-md text-text-primary leading-relaxed whitespace-pre-line">
+                {about.bio}
+              </p>
+            </div>
+          ) : (
+            <EmptyState
+              message="Your headline and summary are not written yet."
+              cta="Write your about"
+            />
+          )}
+        </div>
+      </div>
     </ViewSection>
   );
 }
@@ -472,8 +567,7 @@ export function ProfileView() {
       <Header />
       <CompletenessCard profile={data} />
 
-      <IdentityCard targetPosition={data.about.targetPosition} />
-      <AboutSection about={data.about} />
+      <AboutSection about={data.about} links={data.links} />
       <ExperienceSection experiences={data.experiences} />
       <EducationSection diplomas={data.diplomas} />
       <SkillsSection skills={data.skills} />

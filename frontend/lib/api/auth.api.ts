@@ -6,23 +6,7 @@ import type {
   SignupValues,
   UpdateProfileValues,
 } from "@/lib/validations/auth.schemas";
-
-export type AuthUser = {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  sex: string;
-  phone: string | null;
-  homeCountry: string;
-  currentCity: string;
-  currentCountry: string;
-};
-
-export type AuthResponse = {
-  token: string;
-  user: AuthUser;
-};
+import type { AuthResponse, AuthUser } from "@/types/auth";
 
 export async function signup(values: SignupValues): Promise<AuthResponse> {
   const payload = {

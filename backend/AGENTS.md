@@ -77,7 +77,7 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 
 ## Communication
 
-- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,recruiters,companies,job-offers,applications,matchings}` — `auth` et `candidates` existent (`/api/v1/candidates/me/profile` + `/{about,about/target-position,experiences,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}`), les autres sont à venir. `PUT …/about` n'écrit jamais `targetPosition` (poste recherché isolé sur `PUT …/about/target-position`, utilisé par la carte identité) ; `GET …/profile` renvoie bien `about.targetPosition`.
+- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,recruiters,companies,job-offers,applications,matchings}` — `auth` et `candidates` existent (`/api/v1/candidates/me/profile` + `/{about,about/target-position,experiences,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}`), les autres sont à venir. `PUT …/about` n'écrit jamais `targetPosition` (poste recherché isolé sur `PUT …/about/target-position`, conservé mais non consommé par l'UI actuelle) ; `GET …/profile` renvoie bien `about.targetPosition`.
 - **Service IA Python (FastAPI)** : appelé par ce backend en HTTP (`/ai/...`), jamais par le frontend. Client HTTP à créer quand les endpoints IA existeront — pas de fake AI, pas de client avant le besoin.
 
 ## Erreurs
