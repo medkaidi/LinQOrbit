@@ -46,6 +46,7 @@ const mockedReferenceQueries = [
 const profile: CandidateProfile = {
   about: {
     title: "Backend Engineer",
+    targetPosition: "Staff Engineer",
     bio: "I build APIs that scale.",
     yearsOfExperience: 5,
     searchStatus: "open_to_work",
@@ -126,10 +127,11 @@ describe("ProfileEdit", () => {
     mockedMe.mockResolvedValue(accountUser);
     renderProfile();
 
-    expect(await screen.findByRole("heading", { name: "Identity" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Personal Information" })).toBeInTheDocument();
 
     const identity = document.getElementById("identity") as HTMLElement;
     expect(within(identity).getByLabelText("First name")).toHaveValue("Ada");
+    expect(within(identity).getByLabelText("Target position")).toHaveValue("Staff Engineer");
     expect(within(identity).getByText("ada@example.com")).toBeInTheDocument();
 
     // La carte identité complète s'ajoute aux badges des 6 sections de profil.

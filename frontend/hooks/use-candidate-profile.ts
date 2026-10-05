@@ -25,7 +25,7 @@ import type {
   SkillsValues,
 } from "@/lib/validations/candidate.schemas";
 
-const PROFILE_KEY = ["candidate", "profile"] as const;
+export const PROFILE_KEY = ["candidate", "profile"] as const;
 const REFERENCE_STALE_TIME = 5 * 60_000;
 
 export function useCandidateProfile() {

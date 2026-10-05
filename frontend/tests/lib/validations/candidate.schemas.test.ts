@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   aboutSchema,
   experienceSchema,
+  identityCardSchema,
   languagesSchema,
   languageSchema,
   linkSchema,
@@ -63,6 +64,38 @@ describe("aboutSchema", () => {
         }),
       ),
     ).toBe("Years of experience is required");
+  });
+});
+
+describe("identityCardSchema", () => {
+  const account = {
+    firstName: "Ada",
+    lastName: "Lovelace",
+    phone: "+1 555 000 0000",
+    currentCity: "Paris",
+    currentCountry: "FR",
+  };
+
+  it("accepts an empty target position and trims a filled one", () => {
+    expect(identityCardSchema.safeParse({ ...account, targetPosition: "" }).success).toBe(true);
+
+    const trimmed = identityCardSchema.safeParse({
+      ...account,
+      targetPosition: "  Staff Engineer  ",
+    });
+    expect(trimmed.success).toBe(true);
+    if (trimmed.success) {
+      expect(trimmed.data.targetPosition).toBe("Staff Engineer");
+    }
+  });
+
+  it("rejects a target position over 255 characters", () => {
+    const result = identityCardSchema.safeParse({
+      ...account,
+      targetPosition: "a".repeat(256),
+    });
+
+    expect(firstMessage(result)).toBe("Target position must be 255 characters or fewer");
   });
 });
 

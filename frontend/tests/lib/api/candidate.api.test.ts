@@ -13,6 +13,7 @@ import {
   updateLanguages,
   updateLinks,
   updateSkills,
+  updateTargetPosition,
 } from "@/lib/api/candidate.api";
 
 vi.mock("@/lib/api/axios", () => ({
@@ -57,6 +58,22 @@ describe("candidate.api", () => {
       yearsOfExperience: 5,
       searchStatus: "open_to_work",
     });
+  });
+
+  it("sets the target position on its own endpoint, sending an empty value as null", async () => {
+    await updateTargetPosition("Staff Engineer");
+    await updateTargetPosition("");
+
+    expect(mockedPut).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/candidates/me/profile/about/target-position",
+      { targetPosition: "Staff Engineer" },
+    );
+    expect(mockedPut).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/candidates/me/profile/about/target-position",
+      { targetPosition: null },
+    );
   });
 
   it("sends the whole experience list with empties as null", async () => {

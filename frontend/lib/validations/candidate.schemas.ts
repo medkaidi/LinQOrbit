@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { updateProfileSchema } from "@/lib/validations/auth.schemas";
+
 export const SEARCH_STATUSES = ["open_to_work", "selective", "not_looking"] as const;
 export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 export const LINK_TYPES = [
@@ -63,6 +65,14 @@ export const aboutSchema = z.object({
     .min(0, "Years of experience must be 0 or more")
     .max(60, "Years of experience must be 60 or fewer"),
   searchStatus: z.enum(SEARCH_STATUSES, "Please select a search status"),
+});
+
+/**
+ * Carte identité : champs du compte (PUT /auth/me) + poste recherché
+ * (PUT /candidates/…/about/target-position) dans un seul Save.
+ */
+export const identityCardSchema = updateProfileSchema.extend({
+  targetPosition: optionalText(255, "Target position"),
 });
 
 export const experienceSchema = z
@@ -164,6 +174,7 @@ export const linksSchema = z.object({
 });
 
 export type AboutValues = z.infer<typeof aboutSchema>;
+export type IdentityCardValues = z.infer<typeof identityCardSchema>;
 export type ExperienceValues = z.infer<typeof experienceSchema>;
 export type DiplomaValues = z.infer<typeof diplomaSchema>;
 export type SkillValues = z.infer<typeof skillSchema>;

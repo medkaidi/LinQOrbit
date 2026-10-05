@@ -152,7 +152,7 @@ export function ProfileEdit() {
 
       <CompletenessCard profile={data} />
 
-      <IdentitySection professionalTitle={data.about.title} />
+      <IdentitySection targetPosition={data.about.targetPosition} />
       <AboutSection about={data.about} cvImport={cvImport} />
       <ExperiencesSection experiences={data.experiences} cvImport={cvImport} />
       <DiplomasSection diplomas={data.diplomas} cvImport={cvImport} />

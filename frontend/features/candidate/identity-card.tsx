@@ -7,16 +7,16 @@ import { useForm } from "react-hook-form";
 import { SECTION_ICONS, ViewSection } from "@/features/candidate/profile-shared";
 import { SectionCard } from "@/features/candidate/section-card";
 import { SelectField } from "@/features/candidate/select-field";
-import { useAccount, useUpdateProfile } from "@/hooks/use-account";
+import { useAccount, useSaveIdentity } from "@/hooks/use-account";
 import { countryOptions } from "@/config/countries";
 import { Icon } from "@/components/ui/icon";
 import { TextField } from "@/components/ui/text-field";
 import type { AuthUser } from "@/lib/api/auth.api";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import {
-  updateProfileSchema,
-  type UpdateProfileValues,
-} from "@/lib/validations/auth.schemas";
+  identityCardSchema,
+  type IdentityCardValues,
+} from "@/lib/validations/candidate.schemas";
 
 const COUNTRY_LABELS = new Map(countryOptions.map((option) => [option.value, option.label]));
 
@@ -32,13 +32,14 @@ function initialsOf(account: AuthUser): string {
   return `${account.firstName.charAt(0)}${account.lastName.charAt(0)}`.toUpperCase();
 }
 
-function toDefaults(account: AuthUser): UpdateProfileValues {
+function toDefaults(account: AuthUser, targetPosition: string | null): IdentityCardValues {
   return {
     firstName: account.firstName,
     lastName: account.lastName,
     phone: account.phone ?? "",
     currentCity: account.currentCity,
     currentCountry: account.currentCountry,
+    targetPosition: targetPosition ?? "",
   };
 }
 
@@ -75,7 +76,7 @@ function IdentityAvatar({
 }) {
   return (
     <div className="relative self-center sm:self-start shrink-0">
-      <span className="w-24 h-24 rounded-2xl bg-primary-fixed text-on-primary-fixed border-2 border-slate-border flex items-center justify-center text-headline-lg font-bold">
+      <span className="w-24 h-24 rounded-full bg-primary-fixed text-on-primary-fixed border-2 border-slate-border flex items-center justify-center text-headline-lg font-bold">
         {initialsOf(account)}
       </span>
       {withCameraBadge ? (
@@ -103,7 +104,7 @@ function IdentitySkeleton() {
       className="bg-canvas-white rounded-2xl p-6 shadow-sm animate-pulse motion-reduce:animate-none"
     >
       <div className="flex flex-col sm:flex-row gap-5 items-start">
-        <div className="w-24 h-24 rounded-2xl bg-canvas-subtle shrink-0" />
+        <div className="w-24 h-24 rounded-full bg-canvas-subtle shrink-0" />
         <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
           <div className="h-16 rounded-xl bg-canvas-subtle" />
           <div className="h-16 rounded-xl bg-canvas-subtle" />
@@ -117,7 +118,7 @@ function IdentitySkeleton() {
 }
 
 /** Carte identité en lecture seule (`/profile`) : mêmes cases que l'édition, valeurs fixes. */
-export function IdentityCard({ professionalTitle }: { professionalTitle: string | null }) {
+export function IdentityCard({ targetPosition }: { targetPosition: string | null }) {
   const { account, isLoading } = useAccount();
 
   if (!account) {
@@ -125,14 +126,14 @@ export function IdentityCard({ professionalTitle }: { professionalTitle: string 
   }
 
   return (
-    <ViewSection id="identity" title="Identity" icon={SECTION_ICONS.identity}>
+    <ViewSection id="identity" title="Personal Information" icon={SECTION_ICONS.identity}>
       <div className="flex flex-col sm:flex-row gap-5 items-start">
         <IdentityAvatar account={account} />
         <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
           <InfoField label="Full name" value={fullName(account)} />
           <InfoField
-            label="Professional title"
-            value={professionalTitle?.trim() || "Not provided"}
+            label="Target position"
+            value={targetPosition?.trim() || "Not provided"}
           />
           <InfoField label="Email" value={account.email} />
           <InfoField label="Phone" value={account.phone?.trim() || "Not provided"} />
@@ -144,25 +145,28 @@ export function IdentityCard({ professionalTitle }: { professionalTitle: string 
   );
 }
 
-/** Carte identité éditable (`/profile/edit`) : formulaire autonome, sauvegarde `PUT /auth/me`. */
-export function IdentitySection({ professionalTitle }: { professionalTitle: string | null }) {
+/**
+ * Carte identité éditable (`/profile/edit`) : formulaire autonome, sauvegarde
+ * `PUT /auth/me` + `PUT /candidates/…/about/target-position` en un Save.
+ */
+export function IdentitySection({ targetPosition }: { targetPosition: string | null }) {
   const { account, isLoading } = useAccount();
 
   if (!account) {
     return isLoading ? <IdentitySkeleton /> : null;
   }
   // Le formulaire ne monte qu'une fois le compte connu : défauts corrects dès le premier rendu.
-  return <IdentityForm account={account} professionalTitle={professionalTitle} />;
+  return <IdentityForm account={account} targetPosition={targetPosition} />;
 }
 
 function IdentityForm({
   account,
-  professionalTitle,
+  targetPosition,
 }: {
   account: AuthUser;
-  professionalTitle: string | null;
+  targetPosition: string | null;
 }) {
-  const mutation = useUpdateProfile();
+  const mutation = useSaveIdentity();
   const [saved, setSaved] = useState(false);
 
   const {
@@ -171,12 +175,12 @@ function IdentityForm({
     handleSubmit,
     reset,
     formState: { errors, isDirty },
-  } = useForm<UpdateProfileValues>({
-    resolver: zodResolver(updateProfileSchema),
-    defaultValues: toDefaults(account),
+  } = useForm<IdentityCardValues>({
+    resolver: zodResolver(identityCardSchema),
+    defaultValues: toDefaults(account, targetPosition),
   });
 
-  const onSubmit = (values: UpdateProfileValues) => {
+  const onSubmit = (values: IdentityCardValues) => {
     mutation.mutate(values, {
       onSuccess: () => {
         reset(values);
@@ -188,7 +192,7 @@ function IdentityForm({
   const onDiscard = () => {
     mutation.reset();
     setSaved(false);
-    reset(toDefaults(account));
+    reset(toDefaults(account, targetPosition));
   };
 
   const isComplete = [
@@ -202,7 +206,7 @@ function IdentityForm({
   return (
     <SectionCard
       id="identity"
-      title="Identity"
+      title="Personal Information"
       icon={SECTION_ICONS.identity}
       isComplete={isComplete}
       isDirty={isDirty}
@@ -228,11 +232,15 @@ function IdentityForm({
               error={errors.lastName?.message}
               {...register("lastName")}
             />
-            <InfoField
-              label="Professional title"
-              value={professionalTitle?.trim() || "Not provided"}
-              className="sm:col-span-2"
-            />
+            <div className="sm:col-span-2">
+              <TextField
+                label="Target position"
+                autoComplete="off"
+                placeholder="Staff Backend Engineer"
+                error={errors.targetPosition?.message}
+                {...register("targetPosition")}
+              />
+            </div>
             <InfoField label="Email" value={account.email} />
             <TextField
               label="Phone"

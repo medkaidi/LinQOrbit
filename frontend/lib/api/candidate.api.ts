@@ -12,6 +12,7 @@ const BASE = "/api/v1/candidates";
 
 export type AboutSection = {
   title: string | null;
+  targetPosition: string | null;
   bio: string | null;
   yearsOfExperience: number | null;
   searchStatus: string | null;
@@ -158,6 +159,16 @@ export async function updateAbout(values: AboutValues): Promise<void> {
     bio: values.bio === "" ? null : values.bio,
     yearsOfExperience: values.yearsOfExperience,
     searchStatus: values.searchStatus,
+  });
+}
+
+/**
+ * Poste recherché : champ isolé de la carte identité — le PUT /about ne
+ * l'écrit jamais. "" = efface le poste recherché (null côté API).
+ */
+export async function updateTargetPosition(targetPosition: string): Promise<void> {
+  await api.put(`${BASE}/me/profile/about/target-position`, {
+    targetPosition: targetPosition === "" ? null : targetPosition,
   });
 }
 

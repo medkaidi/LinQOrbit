@@ -7,12 +7,19 @@ vi.mock("@/lib/api/auth.api", async (importOriginal) => {
   return { ...actual, me: vi.fn(), updateProfile: vi.fn() };
 });
 
+vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/candidate.api")>();
+  return { ...actual, updateTargetPosition: vi.fn() };
+});
+
 import { me, updateProfile, type AuthUser } from "@/lib/api/auth.api";
+import { updateTargetPosition } from "@/lib/api/candidate.api";
 import { IdentityCard, IdentitySection } from "@/features/candidate/identity-card";
 import { useAuthStore } from "@/stores/auth-store";
 
 const mockedMe = vi.mocked(me);
 const mockedUpdateProfile = vi.mocked(updateProfile);
+const mockedUpdateTargetPosition = vi.mocked(updateTargetPosition);
 
 const account: AuthUser = {
   id: "3f0a1b2c-0d3e-4f5a-8b6c-7d9e0f1a2b3c",
@@ -32,7 +39,7 @@ function renderCard() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <IdentityCard professionalTitle="Staff Engineer" />
+      <IdentityCard targetPosition="Staff Engineer" />
     </QueryClientProvider>,
   );
 }
@@ -43,7 +50,7 @@ function renderSection() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <IdentitySection professionalTitle="Staff Engineer" />
+      <IdentitySection targetPosition="Staff Engineer" />
     </QueryClientProvider>,
   );
 }
@@ -52,6 +59,7 @@ describe("IdentityCard", () => {
   beforeEach(() => {
     mockedMe.mockReset();
     mockedUpdateProfile.mockReset();
+    mockedUpdateTargetPosition.mockReset();
     useAuthStore.getState().clearAuth();
   });
 
@@ -59,7 +67,9 @@ describe("IdentityCard", () => {
     mockedMe.mockResolvedValue(account);
     renderCard();
 
-    expect(await screen.findByRole("heading", { name: "Identity" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Personal Information" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("AL")).toBeInTheDocument();
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
     expect(screen.getByText("Staff Engineer")).toBeInTheDocument();
@@ -80,14 +90,14 @@ describe("IdentityCard", () => {
     expect(screen.queryByText(/unable to load/i)).not.toBeInTheDocument();
   });
 
-  it("reports a missing professional title instead of an empty value", async () => {
+  it("reports a missing target position instead of an empty value", async () => {
     mockedMe.mockResolvedValue(account);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
     render(
       <QueryClientProvider client={queryClient}>
-        <IdentityCard professionalTitle={null} />
+        <IdentityCard targetPosition={null} />
       </QueryClientProvider>,
     );
 
@@ -99,10 +109,11 @@ describe("IdentitySection", () => {
   beforeEach(() => {
     mockedMe.mockReset();
     mockedUpdateProfile.mockReset();
+    mockedUpdateTargetPosition.mockReset();
     useAuthStore.getState().clearAuth();
   });
 
-  it("prefills the form and keeps email and professional title read-only", async () => {
+  it("prefills the form with an editable target position and a read-only email", async () => {
     mockedMe.mockResolvedValue(account);
     renderSection();
 
@@ -110,10 +121,9 @@ describe("IdentitySection", () => {
     expect(screen.getByLabelText("Last name")).toHaveValue("Lovelace");
     expect(screen.getByLabelText("Phone")).toHaveValue("+1 555 000 0000");
     expect(screen.getByLabelText("Current city")).toHaveValue("Paris");
+    expect(screen.getByLabelText("Target position")).toHaveValue("Staff Engineer");
     expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Professional title")).not.toBeInTheDocument();
     expect(screen.getByText("ada@example.com")).toBeInTheDocument();
-    expect(screen.getByText("Staff Engineer")).toBeInTheDocument();
   });
 
   it("blocks the save while a required field is empty", async () => {
@@ -126,15 +136,19 @@ describe("IdentitySection", () => {
 
     expect(await screen.findByText("First name is required")).toBeInTheDocument();
     expect(mockedUpdateProfile).not.toHaveBeenCalled();
+    expect(mockedUpdateTargetPosition).not.toHaveBeenCalled();
   });
 
-  it("saves the identity payload and confirms the section", async () => {
+  it("saves the account fields and the target position, then confirms the section", async () => {
     mockedMe.mockResolvedValue(account);
     mockedUpdateProfile.mockResolvedValue({ ...account, firstName: "Augusta Ada" });
+    mockedUpdateTargetPosition.mockResolvedValue(undefined);
     renderSection();
 
     const firstName = await screen.findByLabelText("First name");
     fireEvent.change(firstName, { target: { value: "Augusta Ada" } });
+    const targetPosition = await screen.findByLabelText("Target position");
+    fireEvent.change(targetPosition, { target: { value: "Principal Engineer" } });
     fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
 
     expect(await screen.findByText("Section saved")).toBeInTheDocument();
@@ -145,6 +159,7 @@ describe("IdentitySection", () => {
       currentCity: "Paris",
       currentCountry: "FR",
     });
+    expect(mockedUpdateTargetPosition).toHaveBeenCalledWith("Principal Engineer");
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled(),
     );
@@ -174,11 +189,14 @@ describe("IdentitySection", () => {
 
     const city = await screen.findByLabelText("Current city");
     fireEvent.change(city, { target: { value: "Lyon" } });
+    const targetPosition = await screen.findByLabelText("Target position");
+    fireEvent.change(targetPosition, { target: { value: "Principal Engineer" } });
     expect(screen.getByRole("button", { name: /discard/i })).toBeEnabled();
 
     fireEvent.click(screen.getByRole("button", { name: /discard/i }));
 
     expect(screen.getByLabelText("Current city")).toHaveValue("Paris");
+    expect(screen.getByLabelText("Target position")).toHaveValue("Staff Engineer");
     expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled();
   });
 

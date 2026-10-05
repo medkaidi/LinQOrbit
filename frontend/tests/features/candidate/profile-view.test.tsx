@@ -42,6 +42,7 @@ const mockedReferenceQueries = [
 const filledProfile: CandidateProfile = {
   about: {
     title: "Backend Engineer",
+    targetPosition: "Staff Engineer",
     bio: "I build APIs that scale.",
     yearsOfExperience: 5,
     searchStatus: "open_to_work",
@@ -91,7 +92,7 @@ const filledProfile: CandidateProfile = {
 };
 
 const emptyProfile: CandidateProfile = {
-  about: { title: null, bio: null, yearsOfExperience: null, searchStatus: null },
+  about: { title: null, targetPosition: null, bio: null, yearsOfExperience: null, searchStatus: null },
   experiences: [],
   diplomas: [],
   skills: [],
@@ -177,11 +178,11 @@ describe("ProfileView", () => {
     mockedMe.mockResolvedValue(accountUser);
     renderProfile();
 
-    expect(await screen.findByRole("heading", { name: "Identity" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Personal Information" })).toBeInTheDocument();
 
     const identity = document.getElementById("identity") as HTMLElement;
     expect(within(identity).getByText("Ada Lovelace")).toBeInTheDocument();
-    expect(within(identity).getByText("Backend Engineer")).toBeInTheDocument();
+    expect(within(identity).getByText("Staff Engineer")).toBeInTheDocument();
     expect(within(identity).getByText("ada@example.com")).toBeInTheDocument();
     expect(within(identity).getByText("France")).toBeInTheDocument();
   });

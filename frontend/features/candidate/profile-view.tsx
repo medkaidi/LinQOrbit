@@ -472,7 +472,7 @@ export function ProfileView() {
       <Header />
       <CompletenessCard profile={data} />
 
-      <IdentityCard professionalTitle={data.about.title} />
+      <IdentityCard targetPosition={data.about.targetPosition} />
       <AboutSection about={data.about} />
       <ExperienceSection experiences={data.experiences} />
       <EducationSection diplomas={data.diplomas} />

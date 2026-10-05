@@ -14,6 +14,7 @@ const mockedUpdateAbout = vi.mocked(updateAbout);
 
 const about: AboutSectionData = {
   title: "Backend Engineer",
+  targetPosition: null,
   bio: "I build APIs that scale.",
   yearsOfExperience: 5,
   searchStatus: "open_to_work",
