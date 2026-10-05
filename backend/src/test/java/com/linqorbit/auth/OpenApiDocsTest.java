@@ -33,6 +33,9 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.paths['/api/v1/auth/me'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/auth/me'].get.summary")
                         .value("Profil du compte"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/me'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/me'].put.summary")
+                        .value("Mettre à jour le profil du compte"))
                 .andExpect(jsonPath("$.paths['/api/v1/auth/change-password'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/auth/change-password'].post.summary")
                         .value("Changer le mot de passe"));

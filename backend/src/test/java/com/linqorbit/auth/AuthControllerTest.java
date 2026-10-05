@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -164,6 +165,68 @@ class AuthControllerTest {
     @Test
     void meRenvoie401SansJeton() throws Exception {
         mockMvc.perform(get("/api/v1/auth/me"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void updateMeRenvoie200AvecLeProfilMisAJour() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(authService.updateProfile(eq(userId), any())).thenReturn(
+                new UserResponse(userId, "ada@example.com", "Augusta Ada", "King",
+                        "female", "+33 6 11 22 33 44", "FR", "Lyon", "FR"));
+
+        mockMvc.perform(put("/api/v1/auth/me")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "firstName": "Augusta Ada",
+                                  "lastName": "King",
+                                  "phone": "+33 6 11 22 33 44",
+                                  "currentCity": "Lyon",
+                                  "currentCountry": "FR"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(userId.toString()))
+                .andExpect(jsonPath("$.firstName").value("Augusta Ada"))
+                .andExpect(jsonPath("$.currentCity").value("Lyon"));
+
+        verify(authService).updateProfile(eq(userId), any());
+    }
+
+    @Test
+    void updateMeRenvoie400QuandLeCorpsEstInvalide() throws Exception {
+        mockMvc.perform(put("/api/v1/auth/me")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "firstName": "",
+                                  "lastName": "Lovelace",
+                                  "phone": "+1 555 000 0000",
+                                  "currentCity": "Paris",
+                                  "currentCountry": "FR"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation failed"))
+                .andExpect(jsonPath("$.detail").value(containsString("firstName")));
+    }
+
+    @Test
+    void updateMeRenvoie401SansJeton() throws Exception {
+        mockMvc.perform(put("/api/v1/auth/me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "firstName": "Ada",
+                                  "lastName": "Lovelace",
+                                  "phone": "+1 555 000 0000",
+                                  "currentCity": "Paris",
+                                  "currentCountry": "FR"
+                                }
+                                """))
                 .andExpect(status().isUnauthorized());
     }
 

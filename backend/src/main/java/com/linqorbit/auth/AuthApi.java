@@ -4,6 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +18,7 @@ import com.linqorbit.auth.dto.AuthResponse;
 import com.linqorbit.auth.dto.ChangePasswordRequest;
 import com.linqorbit.auth.dto.LoginRequest;
 import com.linqorbit.auth.dto.SignupRequest;
+import com.linqorbit.auth.dto.UpdateProfileRequest;
 import com.linqorbit.auth.dto.UserResponse;
 
 /**
@@ -52,6 +54,16 @@ public interface AuthApi {
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
     })
     ResponseEntity<UserResponse> me(Authentication authentication);
+
+    @PutMapping("/me")
+    @Operation(summary = "Mettre à jour le profil du compte", description = "Met à jour l'identité du compte associé au jeton JWT fourni (prénom, nom, téléphone, localisation actuelle).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Profil mis à jour, profil renvoyé"),
+            @ApiResponse(responseCode = "400", description = "Corps invalide (validation Bean Validation)"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
+    })
+    ResponseEntity<UserResponse> updateMe(@Valid @RequestBody UpdateProfileRequest request,
+            Authentication authentication);
 
     @PostMapping("/change-password")
     @Operation(summary = "Changer le mot de passe", description = "Vérifie le mot de passe actuel puis enregistre le nouveau. Le jeton en cours reste valide jusqu'à son expiration.")

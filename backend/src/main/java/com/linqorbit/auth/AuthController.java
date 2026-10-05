@@ -10,6 +10,7 @@ import com.linqorbit.auth.dto.AuthResponse;
 import com.linqorbit.auth.dto.ChangePasswordRequest;
 import com.linqorbit.auth.dto.LoginRequest;
 import com.linqorbit.auth.dto.SignupRequest;
+import com.linqorbit.auth.dto.UpdateProfileRequest;
 import com.linqorbit.auth.dto.UserResponse;
 import com.linqorbit.common.security.CurrentUserId;
 
@@ -35,6 +36,11 @@ public class AuthController implements AuthApi {
     @Override
     public ResponseEntity<UserResponse> me(Authentication authentication) {
         return ResponseEntity.ok(authService.getProfile(CurrentUserId.from(authentication)));
+    }
+
+    @Override
+    public ResponseEntity<UserResponse> updateMe(UpdateProfileRequest request, Authentication authentication) {
+        return ResponseEntity.ok(authService.updateProfile(CurrentUserId.from(authentication), request));
     }
 
     @Override

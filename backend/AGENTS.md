@@ -21,7 +21,7 @@ com.linqorbit/
 ├── config/            configuration technique (SecurityConfig, OpenApiConfig, …)
 ├── common/            partagé entre domaines (exception/, logging/) — jamais une décharge
 ├── auth/              domaine auth : AuthApi, AuthController, AuthService, UserMapper
-│   ├── dto/           5 DTOs de l'API auth
+│   ├── dto/           6 DTOs de l'API auth
 │   └── exception/     4 exceptions métier
 ├── user/              domaine utilisateur (implémenté)
 ├── candidate/         profil candidat (implémenté) : CandidateApi, CandidateController,

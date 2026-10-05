@@ -3,6 +3,7 @@ package com.linqorbit.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -195,6 +196,45 @@ class AuthFlowIntegrationTest {
                         .content(loginJson(email, "nouveau-mdp-1")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").isNotEmpty());
+    }
+
+    @Test
+    void miseAJourDuProfilSeRefloteDansGetMe() throws Exception {
+        String email = "identity-" + UUID.randomUUID() + "@example.com";
+        MvcResult signup = mockMvc.perform(post("/api/v1/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(signupJson(email, "female")))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode signupBody = objectMapper.readTree(signup.getResponse().getContentAsString());
+        String token = signupBody.get("token").asText();
+        createdUserIds.add(UUID.fromString(signupBody.get("user").get("id").asText()));
+
+        mockMvc.perform(put("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "firstName": "Augusta Ada",
+                                  "lastName": "King",
+                                  "phone": "+33 6 11 22 33 44",
+                                  "currentCity": "Lyon",
+                                  "currentCountry": "FR"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.firstName").value("Augusta Ada"))
+                .andExpect(jsonPath("$.currentCity").value("Lyon"));
+
+        mockMvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.firstName").value("Augusta Ada"))
+                .andExpect(jsonPath("$.lastName").value("King"))
+                .andExpect(jsonPath("$.phone").value("+33 6 11 22 33 44"))
+                .andExpect(jsonPath("$.currentCity").value("Lyon"))
+                .andExpect(jsonPath("$.currentCountry").value("FR"))
+                .andExpect(jsonPath("$.email").value(email));
     }
 
     @Test

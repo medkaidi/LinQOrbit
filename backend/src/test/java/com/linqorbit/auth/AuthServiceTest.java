@@ -23,6 +23,7 @@ import com.linqorbit.auth.dto.AuthResponse;
 import com.linqorbit.auth.dto.ChangePasswordRequest;
 import com.linqorbit.auth.dto.LoginRequest;
 import com.linqorbit.auth.dto.SignupRequest;
+import com.linqorbit.auth.dto.UpdateProfileRequest;
 import com.linqorbit.auth.dto.UserResponse;
 import com.linqorbit.auth.exception.AccountNotActiveException;
 import com.linqorbit.auth.exception.EmailAlreadyExistsException;
@@ -211,6 +212,44 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.changePassword(
                 unknownId, new ChangePasswordRequest("secret123", "nouveau-mdp-1")))
                 .isInstanceOf(InvalidCredentialsException.class);
+    }
+
+    @Test
+    void updateProfileMetAJourLesChampsDuCompte() {
+        User user = userWithId();
+        user.setEmail("ada@example.com");
+        user.setFirstName("Ada");
+        user.setLastName("Lovelace");
+        user.setPhone("+1 555 000 0000");
+        user.setCurrentCity("Paris");
+        user.setCurrentCountry("FR");
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userMapper.toUserResponse(user)).thenReturn(
+                new UserResponse(user.getId(), "ada@example.com", "Augusta Ada", "King",
+                        "female", "+33 6 11 22 33 44", "FR", "Lyon", "FR"));
+
+        UserResponse response = authService.updateProfile(user.getId(),
+                new UpdateProfileRequest("  Augusta Ada  ", "King", "+33 6 11 22 33 44", "  Lyon  ", "FR"));
+
+        assertThat(response.firstName()).isEqualTo("Augusta Ada");
+        assertThat(user.getFirstName()).isEqualTo("Augusta Ada");
+        assertThat(user.getLastName()).isEqualTo("King");
+        assertThat(user.getPhone()).isEqualTo("+33 6 11 22 33 44");
+        assertThat(user.getCurrentCity()).isEqualTo("Lyon");
+        assertThat(user.getCurrentCountry()).isEqualTo("FR");
+        verify(userRepository).save(any(User.class));
+    }
+
+    @Test
+    void updateProfileRejetteUnUtilisateurInconnu() {
+        UUID unknownId = UUID.randomUUID();
+        when(userRepository.findById(unknownId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.updateProfile(unknownId,
+                new UpdateProfileRequest("Ada", "Lovelace", "+1 555 000 0000", "Paris", "FR")))
+                .isInstanceOf(InvalidCredentialsException.class);
+        verify(userRepository, never()).save(any(User.class));
     }
 
     private static User userWithId() {

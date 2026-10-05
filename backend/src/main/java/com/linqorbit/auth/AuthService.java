@@ -20,6 +20,7 @@ import com.linqorbit.auth.dto.AuthResponse;
 import com.linqorbit.auth.dto.ChangePasswordRequest;
 import com.linqorbit.auth.dto.LoginRequest;
 import com.linqorbit.auth.dto.SignupRequest;
+import com.linqorbit.auth.dto.UpdateProfileRequest;
 import com.linqorbit.auth.dto.UserResponse;
 import com.linqorbit.auth.exception.AccountNotActiveException;
 import com.linqorbit.auth.exception.EmailAlreadyExistsException;
@@ -100,6 +101,24 @@ public class AuthService {
             log.warn("Profile lookup failed : user not found, userId={}", userId);
             throw new InvalidCredentialsException();
         }
+        return userMapper.toUserResponse(user);
+    }
+
+    @Transactional
+    public UserResponse updateProfile(UUID userId, UpdateProfileRequest request) {
+        log.info("Profile update requested : userId={}", userId);
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            log.warn("Profile update rejected : user not found, userId={}", userId);
+            throw new InvalidCredentialsException();
+        }
+        user.setFirstName(request.firstName().trim());
+        user.setLastName(request.lastName().trim());
+        user.setPhone(request.phone().trim());
+        user.setCurrentCity(request.currentCity().trim());
+        user.setCurrentCountry(request.currentCountry());
+        user = userRepository.save(user);
+        log.info("Profile updated : userId={}, email={}", user.getId(), user.getEmail());
         return userMapper.toUserResponse(user);
     }
 
