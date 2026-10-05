@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { countryOptions } from "@/config/countries";
-import { me, type AuthUser } from "@/lib/api/auth.api";
-import { useAuthStore } from "@/stores/auth-store";
+import { useAccount } from "@/hooks/use-account";
+import type { AuthUser } from "@/lib/api/auth.api";
 
 const SEX_LABELS: Record<string, string> = {
   male: "Male",
@@ -36,14 +35,7 @@ function initialsOf(user: AuthUser) {
 }
 
 export function AccountView() {
-  const storeUser = useAuthStore((state) => state.user);
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["auth", "me"],
-    queryFn: me,
-    staleTime: 60_000,
-  });
-
-  const account = data ?? storeUser;
+  const { account, isLoading, isError, refetch } = useAccount();
 
   if (!account) {
     return (

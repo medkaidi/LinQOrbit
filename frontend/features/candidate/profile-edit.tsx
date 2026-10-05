@@ -8,6 +8,7 @@ import { CvImportError, CvImportPreview, CvUploadButton } from "@/features/candi
 import { planCvImport } from "@/features/candidate/cv-parsing";
 import { DiplomasSection } from "@/features/candidate/diplomas-section";
 import { ExperiencesSection } from "@/features/candidate/experiences-section";
+import { IdentitySection } from "@/features/candidate/identity-card";
 import { LanguagesSection } from "@/features/candidate/languages-section";
 import { LinksSection } from "@/features/candidate/links-section";
 import { SkillsSection } from "@/features/candidate/skills-section";
@@ -30,7 +31,7 @@ import { Icon } from "@/components/ui/icon";
 
 function Header({ uploadAction }: { uploadAction: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="flex flex-wrap items-start justify-between gap-4 pb-6 border-b border-slate-border">
       <div>
         <Link
           href="/profile"
@@ -151,6 +152,7 @@ export function ProfileEdit() {
 
       <CompletenessCard profile={data} />
 
+      <IdentitySection professionalTitle={data.about.title} />
       <AboutSection about={data.about} cvImport={cvImport} />
       <ExperiencesSection experiences={data.experiences} cvImport={cvImport} />
       <DiplomasSection diplomas={data.diplomas} cvImport={cvImport} />

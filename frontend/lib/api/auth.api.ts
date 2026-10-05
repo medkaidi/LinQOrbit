@@ -4,6 +4,7 @@ import type {
   ChangePasswordValues,
   LoginValues,
   SignupValues,
+  UpdateProfileValues,
 } from "@/lib/validations/auth.schemas";
 
 export type AuthUser = {
@@ -50,6 +51,17 @@ export async function login(values: LoginValues): Promise<AuthResponse> {
 
 export async function me(): Promise<AuthUser> {
   const response = await api.get<AuthUser>("/api/v1/auth/me");
+  return response.data;
+}
+
+export async function updateProfile(values: UpdateProfileValues): Promise<AuthUser> {
+  const response = await api.put<AuthUser>("/api/v1/auth/me", {
+    firstName: values.firstName,
+    lastName: values.lastName,
+    phone: values.phone,
+    currentCity: values.currentCity,
+    currentCountry: values.currentCountry,
+  });
   return response.data;
 }
 

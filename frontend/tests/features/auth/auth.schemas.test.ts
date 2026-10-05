@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loginSchema, signupSchema } from "@/lib/validations/auth.schemas";
+import { loginSchema, signupSchema, updateProfileSchema } from "@/lib/validations/auth.schemas";
 
 describe("loginSchema", () => {
   it("accepts valid credentials", () => {
@@ -127,6 +127,56 @@ describe("signupSchema", () => {
     const missingCurrent = signupSchema.safeParse({ ...validValues, currentCountry: "" });
     expect(missingCurrent.success).toBe(false);
     expect(missingCurrent.error?.issues.map((issue) => issue.message)).toContain(
+      "Current country is required",
+    );
+  });
+});
+
+describe("updateProfileSchema", () => {
+  const validValues = {
+    firstName: "Ada",
+    lastName: "Lovelace",
+    phone: "+1 555 000 0000",
+    currentCity: "Paris",
+    currentCountry: "FR",
+  };
+
+  it("accepts a complete identity", () => {
+    expect(updateProfileSchema.safeParse(validValues).success).toBe(true);
+  });
+
+  it("rejects an empty first name", () => {
+    const result = updateProfileSchema.safeParse({ ...validValues, firstName: "  " });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.message)).toContain(
+      "First name is required",
+    );
+  });
+
+  it("rejects an invalid phone number", () => {
+    const result = updateProfileSchema.safeParse({ ...validValues, phone: "not-a-phone" });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.message)).toContain(
+      "Enter a valid phone number",
+    );
+  });
+
+  it("rejects an empty city", () => {
+    const result = updateProfileSchema.safeParse({ ...validValues, currentCity: "   " });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.message)).toContain(
+      "Current city is required",
+    );
+  });
+
+  it("rejects a missing country", () => {
+    const result = updateProfileSchema.safeParse({ ...validValues, currentCountry: "" });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.message)).toContain(
       "Current country is required",
     );
   });

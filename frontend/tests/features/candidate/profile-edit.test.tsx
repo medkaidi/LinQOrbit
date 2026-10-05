@@ -15,6 +15,11 @@ vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/api/auth.api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/auth.api")>();
+  return { ...actual, me: vi.fn() };
+});
+
 import {
   getProfile,
   getReferenceDegrees,
@@ -25,10 +30,12 @@ import {
   type CandidateProfile,
   type ParsedCv,
 } from "@/lib/api/candidate.api";
+import { me, type AuthUser } from "@/lib/api/auth.api";
 import { ProfileEdit } from "@/features/candidate/profile-edit";
 
 const mockedGetProfile = vi.mocked(getProfile);
 const mockedParseCv = vi.mocked(parseCv);
+const mockedMe = vi.mocked(me);
 const mockedReferenceQueries = [
   vi.mocked(getReferenceSkills),
   vi.mocked(getReferenceLanguages),
@@ -61,6 +68,18 @@ const profile: CandidateProfile = {
   completionPercentage: 33,
 };
 
+const accountUser: AuthUser = {
+  id: "3f0a1b2c-0d3e-4f5a-8b6c-7d9e0f1a2b3c",
+  email: "ada@example.com",
+  firstName: "Ada",
+  lastName: "Lovelace",
+  sex: "female",
+  phone: "+1 555 000 0000",
+  homeCountry: "GB",
+  currentCity: "Paris",
+  currentCountry: "FR",
+};
+
 function renderProfile(options?: { retry?: boolean }) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: options?.retry ?? false } },
@@ -76,6 +95,8 @@ describe("ProfileEdit", () => {
   beforeEach(() => {
     mockedGetProfile.mockReset();
     mockedGetProfile.mockResolvedValue(profile);
+    mockedMe.mockReset();
+    mockedMe.mockRejectedValue(new Error("no account in this test"));
     mockedReferenceQueries.forEach((query) => {
       query.mockReset();
       query.mockResolvedValue([]);
@@ -98,6 +119,21 @@ describe("ProfileEdit", () => {
     }
 
     expect(screen.getAllByText("Complete")).toHaveLength(2);
+    expect(screen.getAllByText("Not started")).toHaveLength(4);
+  });
+
+  it("offers the identity card above the sections when the account is known", async () => {
+    mockedMe.mockResolvedValue(accountUser);
+    renderProfile();
+
+    expect(await screen.findByRole("heading", { name: "Identity" })).toBeInTheDocument();
+
+    const identity = document.getElementById("identity") as HTMLElement;
+    expect(within(identity).getByLabelText("First name")).toHaveValue("Ada");
+    expect(within(identity).getByText("ada@example.com")).toBeInTheDocument();
+
+    // La carte identité complète s'ajoute aux badges des 6 sections de profil.
+    expect(screen.getAllByText("Complete")).toHaveLength(3);
     expect(screen.getAllByText("Not started")).toHaveLength(4);
   });
 

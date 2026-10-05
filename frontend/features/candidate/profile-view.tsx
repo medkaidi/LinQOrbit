@@ -1,17 +1,17 @@
 "use client";
 
-import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { SEARCH_STATUS_LABELS } from "@/features/candidate/about-section";
 import { LINK_TYPE_LABELS } from "@/features/candidate/links-section";
 import { CEFR_LABELS } from "@/features/candidate/languages-section";
+import { IdentityCard } from "@/features/candidate/identity-card";
 import {
   CompletenessCard,
   ProfileError,
   ProfileSkeleton,
   SECTION_ICONS,
-  SectionIcon,
+  ViewSection,
 } from "@/features/candidate/profile-shared";
 import { useCandidateProfile } from "@/hooks/use-candidate-profile";
 import { countryOptions } from "@/config/countries";
@@ -113,42 +113,6 @@ function linkTypeLabel(linkType: string): string {
 function cefrLabel(level: string): string {
   const labels = CEFR_LABELS as Record<string, string | undefined>;
   return labels[level] ?? level;
-}
-
-/**
- * Section d'affichage : même découpage que la carte d'édition (`SectionCard`) —
- * titre `headline-md`, description dessous, corps de section en `px-6 pb-6`.
- * Le compteur remplace le badge « Complete / Not started » : texte muet, à droite.
- */
-function ViewSection({
-  id,
-  title,
-  icon,
-  count,
-  children,
-}: {
-  id: string;
-  title: string;
-  icon: string;
-  count?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section id={id} className="bg-canvas-white rounded-2xl shadow-sm scroll-mt-24">
-      <header className="mx-6 pt-4 pb-4 flex items-start justify-between gap-4 border-b border-slate-border">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <SectionIcon name={icon} />
-          <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight min-w-0">
-            {title}
-          </h2>
-        </div>
-        {count ? (
-          <span className="text-body-sm font-body-sm text-text-tertiary shrink-0">{count}</span>
-        ) : null}
-      </header>
-      <div className="px-6 pt-5 pb-6">{children}</div>
-    </section>
-  );
 }
 
 /** Pastille numérotée d'un item (expérience / diplôme), plus petite que celle des titres. */
@@ -508,6 +472,7 @@ export function ProfileView() {
       <Header />
       <CompletenessCard profile={data} />
 
+      <IdentityCard professionalTitle={data.about.title} />
       <AboutSection about={data.about} />
       <ExperienceSection experiences={data.experiences} />
       <EducationSection diplomas={data.diplomas} />

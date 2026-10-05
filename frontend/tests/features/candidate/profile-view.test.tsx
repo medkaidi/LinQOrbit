@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
@@ -14,6 +14,11 @@ vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/api/auth.api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/auth.api")>();
+  return { ...actual, me: vi.fn() };
+});
+
 import {
   getProfile,
   getReferenceDegrees,
@@ -22,9 +27,11 @@ import {
   getReferenceStudyFields,
   type CandidateProfile,
 } from "@/lib/api/candidate.api";
+import { me, type AuthUser } from "@/lib/api/auth.api";
 import { ProfileView } from "@/features/candidate/profile-view";
 
 const mockedGetProfile = vi.mocked(getProfile);
+const mockedMe = vi.mocked(me);
 const mockedReferenceQueries = [
   vi.mocked(getReferenceSkills),
   vi.mocked(getReferenceLanguages),
@@ -93,6 +100,18 @@ const emptyProfile: CandidateProfile = {
   completionPercentage: 0,
 };
 
+const accountUser: AuthUser = {
+  id: "3f0a1b2c-0d3e-4f5a-8b6c-7d9e0f1a2b3c",
+  email: "ada@example.com",
+  firstName: "Ada",
+  lastName: "Lovelace",
+  sex: "female",
+  phone: "+1 555 000 0000",
+  homeCountry: "GB",
+  currentCity: "Paris",
+  currentCountry: "FR",
+};
+
 function renderProfile() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -108,6 +127,8 @@ describe("ProfileView", () => {
   beforeEach(() => {
     mockedGetProfile.mockReset();
     mockedGetProfile.mockResolvedValue(filledProfile);
+    mockedMe.mockReset();
+    mockedMe.mockRejectedValue(new Error("no account in this test"));
     mockedReferenceQueries.forEach((query) => {
       query.mockReset();
       query.mockResolvedValue([]);
@@ -150,6 +171,19 @@ describe("ProfileView", () => {
       "href",
       "https://github.com/camille",
     );
+  });
+
+  it("shows the identity card above the sections", async () => {
+    mockedMe.mockResolvedValue(accountUser);
+    renderProfile();
+
+    expect(await screen.findByRole("heading", { name: "Identity" })).toBeInTheDocument();
+
+    const identity = document.getElementById("identity") as HTMLElement;
+    expect(within(identity).getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(within(identity).getByText("Backend Engineer")).toBeInTheDocument();
+    expect(within(identity).getByText("ada@example.com")).toBeInTheDocument();
+    expect(within(identity).getByText("France")).toBeInTheDocument();
   });
 
   it("offers an edit action that points at the editor", async () => {

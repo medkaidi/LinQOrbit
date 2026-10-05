@@ -50,6 +50,19 @@ export const changePasswordSchema = z
     path: ["newPassword"],
   });
 
+export const updateProfileSchema = z.object({
+  firstName: z.string().trim().min(1, "First name is required"),
+  lastName: z.string().trim().min(1, "Last name is required"),
+  phone: z
+    .string()
+    .trim()
+    .min(1, "Phone number is required")
+    .regex(/^[+()\-.\s\d]{6,20}$/, "Enter a valid phone number"),
+  currentCity: z.string().trim().min(1, "Current city is required"),
+  currentCountry: z.string().min(1, "Current country is required"),
+});
+
 export type LoginValues = z.infer<typeof loginSchema>;
 export type SignupValues = z.infer<typeof signupSchema>;
 export type ChangePasswordValues = z.infer<typeof changePasswordSchema>;
+export type UpdateProfileValues = z.infer<typeof updateProfileSchema>;

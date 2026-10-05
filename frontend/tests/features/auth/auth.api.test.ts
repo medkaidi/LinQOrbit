@@ -1,14 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { changePassword, getAuthErrorMessage, login, me, signup } from "@/lib/api/auth.api";
+import {
+  changePassword,
+  getAuthErrorMessage,
+  login,
+  me,
+  signup,
+  updateProfile,
+} from "@/lib/api/auth.api";
 
 vi.mock("@/lib/api/axios", () => ({
-  api: { post: vi.fn(), get: vi.fn() },
+  api: { post: vi.fn(), get: vi.fn(), put: vi.fn() },
 }));
 
 import { api } from "@/lib/api/axios";
 
 const mockedPost = vi.mocked(api.post);
 const mockedGet = vi.mocked(api.get);
+const mockedPut = vi.mocked(api.put);
 
 const signupValues = {
   email: "ada@example.com",
@@ -34,6 +42,7 @@ describe("auth.api", () => {
   beforeEach(() => {
     mockedPost.mockReset();
     mockedGet.mockReset();
+    mockedPut.mockReset();
   });
 
   it("posts the signup payload without confirmPassword nor terms", async () => {
@@ -76,6 +85,28 @@ describe("auth.api", () => {
     const result = await me();
 
     expect(mockedGet).toHaveBeenCalledWith("/api/v1/auth/me");
+    expect(result).toEqual(user);
+  });
+
+  it("puts the identity payload to /auth/me", async () => {
+    const user = { id: "1", firstName: "Ada" };
+    mockedPut.mockResolvedValue({ data: user });
+
+    const result = await updateProfile({
+      firstName: "Ada",
+      lastName: "Lovelace",
+      phone: "+1 555 000 0000",
+      currentCity: "Paris",
+      currentCountry: "FR",
+    });
+
+    expect(mockedPut).toHaveBeenCalledWith("/api/v1/auth/me", {
+      firstName: "Ada",
+      lastName: "Lovelace",
+      phone: "+1 555 000 0000",
+      currentCity: "Paris",
+      currentCountry: "FR",
+    });
     expect(result).toEqual(user);
   });
 

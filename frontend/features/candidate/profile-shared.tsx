@@ -1,9 +1,12 @@
+import type { ReactNode } from "react";
+
 import type { CandidateProfile } from "@/lib/api/candidate.api";
 import { Alert } from "@/components/ui/alert";
 import { Icon } from "@/components/ui/icon";
 
 /** Glyphe Material Symbols de chaque section, d'après la maquette pro_profile.html. */
 export const SECTION_ICONS = {
+  identity: "badge",
   about: "person",
   experiences: "work",
   education: "school",
@@ -23,6 +26,41 @@ export function SectionIcon({ name }: { name: string }) {
     <span className="section-icon w-8 h-8 rounded-full bg-blue-surface border border-blue-border text-blue-deep flex items-center justify-center shrink-0">
       <Icon name={name} />
     </span>
+  );
+}
+
+/**
+ * Section d'affichage : même découpage que la carte d'édition (`SectionCard`) —
+ * titre `headline-md`, compteur en texte muet à droite, corps en `px-6 pb-6`.
+ */
+export function ViewSection({
+  id,
+  title,
+  icon,
+  count,
+  children,
+}: {
+  id: string;
+  title: string;
+  icon: string;
+  count?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section id={id} className="bg-canvas-white rounded-2xl shadow-sm scroll-mt-24">
+      <header className="mx-6 pt-4 pb-4 flex items-start justify-between gap-4 border-b border-slate-border">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <SectionIcon name={icon} />
+          <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight min-w-0">
+            {title}
+          </h2>
+        </div>
+        {count ? (
+          <span className="text-body-sm font-body-sm text-text-tertiary shrink-0">{count}</span>
+        ) : null}
+      </header>
+      <div className="px-6 pt-5 pb-6">{children}</div>
+    </section>
   );
 }
 
