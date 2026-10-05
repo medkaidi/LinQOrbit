@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import { CvImportError, CvImportPreview, CvUploadButton } from "@/features/candidate/cv-import";
 import { planCvImport, type CvImportRefs } from "@/features/candidate/cv-parsing";
-import type { ParsedCv } from "@/lib/api/candidate.api";
+import type { ParsedCv } from "@/types/candidate";
 
 const parsedCv: ParsedCv = {
   title: "Staff Engineer",

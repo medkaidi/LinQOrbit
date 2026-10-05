@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { RedirectIfAuthenticated } from "@/features/auth/redirect-if-authenticated";
 import { useAuthStore } from "@/stores/auth-store";
-import type { AuthUser } from "@/lib/api/auth.api";
+import type { AuthUser } from "@/types/auth";
 
 const replaceMock = vi.hoisted(() => vi.fn());
 

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { AUTH_STORAGE_KEY, useAuthStore } from "@/stores/auth-store";
-import type { AuthUser } from "@/lib/api/auth.api";
+import type { AuthUser } from "@/types/auth";
 
 const user: AuthUser = {
   id: "3f0a1b2c-0d3e-4f5a-8b6c-7d9e0f1a2b3c",

@@ -3,7 +3,7 @@ import { screen } from "@testing-library/react";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { renderWithQueryClient } from "@/tests/helpers/test-utils";
 import { useAuthStore } from "@/stores/auth-store";
-import type { AuthUser } from "@/lib/api/auth.api";
+import type { AuthUser } from "@/types/auth";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),

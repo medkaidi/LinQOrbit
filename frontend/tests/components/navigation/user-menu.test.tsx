@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { UserMenu } from "@/components/navigation/user-menu";
 import { renderWithQueryClient } from "@/tests/helpers/test-utils";
 import { useAuthStore } from "@/stores/auth-store";
-import type { AuthUser } from "@/lib/api/auth.api";
+import type { AuthUser } from "@/types/auth";
 
 const pushMock = vi.hoisted(() => vi.fn());
 

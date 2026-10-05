@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { countryOptions } from "@/config/countries";
 import { useAccount } from "@/hooks/use-account";
-import type { AuthUser } from "@/lib/api/auth.api";
+import type { AuthUser } from "@/types/auth";
 
 const SEX_LABELS: Record<string, string> = {
   male: "Male",

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AccountView } from "@/features/auth/account";
 import { useAuthStore } from "@/stores/auth-store";
-import type { AuthUser } from "@/lib/api/auth.api";
+import type { AuthUser } from "@/types/auth";
 
 vi.mock("@/lib/api/auth.api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/auth.api")>();

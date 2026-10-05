@@ -9,7 +9,7 @@ import { SECTION_ICONS } from "@/features/candidate/profile-shared";
 import { applyCvToLinks, planCvImport } from "@/features/candidate/cv-parsing";
 import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useUpdateLinks } from "@/hooks/use-candidate-profile";
-import type { LinkItem, ParsedCv } from "@/lib/api/candidate.api";
+import type { LinkItem, ParsedCv } from "@/types/candidate";
 import { Button } from "@/components/ui/button";
 import { Select, type SelectOption } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";

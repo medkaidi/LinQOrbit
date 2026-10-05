@@ -11,7 +11,7 @@ import { SelectField } from "@/features/candidate/select-field";
 import { applyCvToSkills, planCvImport } from "@/features/candidate/cv-parsing";
 import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useReferenceSkills, useUpdateSkills } from "@/hooks/use-candidate-profile";
-import type { ParsedCv, SkillItem } from "@/lib/api/candidate.api";
+import type { ParsedCv, SkillItem } from "@/types/candidate";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import type { SelectOption } from "@/components/ui/select";

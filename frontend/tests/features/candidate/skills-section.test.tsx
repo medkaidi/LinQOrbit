@@ -11,7 +11,8 @@ vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
 });
 
 import { SkillsSection } from "@/features/candidate/skills-section";
-import { getReferenceSkills, updateSkills, type SkillItem } from "@/lib/api/candidate.api";
+import { getReferenceSkills, updateSkills } from "@/lib/api/candidate.api";
+import type { SkillItem } from "@/types/candidate";
 import { renderWithQueryClient } from "@/tests/helpers/test-utils";
 
 const mockedGetReferenceSkills = vi.mocked(getReferenceSkills);

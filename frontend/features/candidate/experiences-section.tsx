@@ -10,7 +10,7 @@ import { SelectField } from "@/features/candidate/select-field";
 import { applyCvToExperiences, planCvImport } from "@/features/candidate/cv-parsing";
 import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useUpdateExperiences } from "@/hooks/use-candidate-profile";
-import type { ExperienceItem, ParsedCv } from "@/lib/api/candidate.api";
+import type { ExperienceItem, ParsedCv } from "@/types/candidate";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";

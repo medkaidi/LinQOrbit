@@ -11,7 +11,7 @@ import { SelectField } from "@/features/candidate/select-field";
 import { applyCvToDiplomas, planCvImport } from "@/features/candidate/cv-parsing";
 import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useReferenceDegrees, useReferenceStudyFields, useUpdateDiplomas } from "@/hooks/use-candidate-profile";
-import type { DiplomaItem, ParsedCv } from "@/lib/api/candidate.api";
+import type { DiplomaItem, ParsedCv } from "@/types/candidate";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { countryOptions } from "@/config/countries";

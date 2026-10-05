@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import type { ParsedCv } from "@/lib/api/candidate.api";
+import type { ParsedCv } from "@/types/candidate";
 
 /**
  * Applique un import de CV au formulaire de la section au moment où il est

@@ -1,14 +1,9 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import type { AuthUser } from "@/lib/api/auth.api";
+import type { AuthSession, AuthUser } from "@/types/auth";
 
 export const AUTH_STORAGE_KEY = "linqorbit.auth";
-
-export type AuthSession = {
-  token: string;
-  user: AuthUser;
-};
 
 type AuthState = {
   token: string | null;

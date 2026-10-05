@@ -15,7 +15,8 @@ vi.mock("@/lib/api/auth.api", async (importOriginal) => {
   return { ...actual, signup: vi.fn(), login: vi.fn() };
 });
 
-import { login as loginApi, signup as signupApi, type AuthResponse } from "@/lib/api/auth.api";
+import { login as loginApi, signup as signupApi } from "@/lib/api/auth.api";
+import type { AuthResponse } from "@/types/auth";
 
 const mockedLogin = vi.mocked(loginApi);
 const mockedSignup = vi.mocked(signupApi);

@@ -6,10 +6,10 @@ import {
   getAuthErrorMessage,
   login as loginRequest,
   signup as signupRequest,
-  type AuthResponse,
 } from "@/lib/api/auth.api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { LoginValues, SignupValues } from "@/lib/validations/auth.schemas";
+import type { AuthResponse } from "@/types/auth";
 
 export function useAuth() {
   const router = useRouter();

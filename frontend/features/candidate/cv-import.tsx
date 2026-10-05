@@ -5,7 +5,7 @@ import { useRef } from "react";
 
 import type { CvImportPlan } from "@/features/candidate/cv-parsing";
 import { SectionIcon } from "@/features/candidate/profile-shared";
-import type { ParsedCv } from "@/lib/api/candidate.api";
+import type { ParsedCv } from "@/types/candidate";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 

@@ -7,7 +7,7 @@ import {
   planCvImport,
   type CvImportRefs,
 } from "@/features/candidate/cv-parsing";
-import type { ParsedCv } from "@/lib/api/candidate.api";
+import type { ParsedCv } from "@/types/candidate";
 import type { AboutValues } from "@/lib/validations/candidate.schemas";
 
 const refs: CvImportRefs = {

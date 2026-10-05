@@ -4,7 +4,7 @@ import type {
   LanguageReference,
   ParsedCv,
   SkillReference,
-} from "@/lib/api/candidate.api";
+} from "@/types/candidate";
 import type {
   AboutValues,
   DiplomaValues,
