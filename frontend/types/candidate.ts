@@ -69,6 +69,7 @@ export type SkillReference = {
   id: string;
   name: string;
   skillType: string;
+  category: string;
 };
 
 export type LanguageReference = {

@@ -28,7 +28,7 @@ const parsedCv: ParsedCv = {
 };
 
 const refs: CvImportRefs = {
-  skills: [{ id: "skill-java", name: "Java", skillType: "tech" }],
+  skills: [{ id: "skill-java", name: "Java", skillType: "tech", category: "Programming Languages" }],
   languages: [],
   degrees: [],
   studyFields: [],
@@ -110,5 +110,37 @@ describe("CvImportPreview", () => {
 
     expect(screen.getByRole("button", { name: "Apply to my profile" })).toBeDisabled();
     expect(screen.getByText("Loading reference lists…")).toBeInTheDocument();
+  });
+
+  it("offers a searchable mapping select for skills outside the catalog", () => {
+    const onMappingChange = vi.fn();
+    render(
+      <CvImportPreview
+        cv={parsedCv}
+        plan={plan}
+        skillOptions={refs.skills}
+        mappings={{}}
+        onMappingChange={onMappingChange}
+        onApply={() => {}}
+        onDiscard={() => {}}
+      />,
+    );
+
+    // La compétence hors catalogue quitte la liste « skipped » pour la zone de mapping.
+    expect(screen.getByText("Unmapped skills")).toBeInTheDocument();
+    expect(screen.queryByText(/COBOL — Not in your skill list/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Skipped from this import")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "COBOL" }));
+    fireEvent.click(screen.getByRole("option", { name: "Java" }));
+
+    expect(onMappingChange).toHaveBeenCalledWith("COBOL", "skill-java");
+  });
+
+  it("keeps the plain skipped list when no mapping is offered", () => {
+    render(<CvImportPreview cv={parsedCv} plan={plan} onApply={() => {}} onDiscard={() => {}} />);
+
+    expect(screen.queryByText("Unmapped skills")).not.toBeInTheDocument();
+    expect(screen.getByText(/COBOL — Not in your skill list/)).toBeInTheDocument();
   });
 });

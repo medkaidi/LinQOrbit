@@ -4,6 +4,7 @@ import {
   applyCvToAbout,
   applyCvToExperiences,
   applyCvToSkills,
+  applySkillMappings,
   planCvImport,
   type CvImportRefs,
 } from "@/features/candidate/cv-parsing";
@@ -12,8 +13,8 @@ import type { AboutValues } from "@/lib/validations/candidate.schemas";
 
 const refs: CvImportRefs = {
   skills: [
-    { id: "skill-java", name: "Java", skillType: "tech" },
-    { id: "skill-k8s", name: "Kubernetes", skillType: "tech" },
+    { id: "skill-java", name: "Java", skillType: "tech", category: "Programming Languages" },
+    { id: "skill-k8s", name: "Kubernetes", skillType: "tech", category: "Cloud & DevOps" },
   ],
   languages: [{ id: "lang-fr", symbol: "fr", name: "French" }],
   degrees: [{ id: "degree-master", label: "Master" }],
@@ -208,5 +209,53 @@ describe("applyCvTo…", () => {
       },
     ];
     expect(applyCvToExperiences(currentExperiences, plan)).toEqual(currentExperiences);
+  });
+});
+
+describe("applySkillMappings", () => {
+  const cv: ParsedCv = {
+    ...emptyCv,
+    skills: [
+      { name: "Java", level: 4, yearsExperience: 5 },
+      { name: "COBOL", level: 3, yearsExperience: 2 },
+      { name: "JCL", level: 2, yearsExperience: null },
+    ],
+  };
+
+  it("renames mapped skills to the chosen catalog wording", () => {
+    const mapped = applySkillMappings(
+      cv,
+      { COBOL: "skill-java", JCL: "skill-k8s" },
+      refs.skills,
+    );
+
+    expect(mapped.skills.map((skill) => skill.name)).toEqual(["Java", "Java", "Kubernetes"]);
+    // Les niveaux et années du CV survivent au mapping.
+    expect(mapped.skills[1]).toEqual({ name: "Java", level: 3, yearsExperience: 2 });
+  });
+
+  it("keeps unmapped skills and their wording untouched", () => {
+    const mapped = applySkillMappings(cv, { COBOL: "skill-java" }, refs.skills);
+
+    expect(mapped.skills[0]).toEqual({ name: "Java", level: 4, yearsExperience: 5 });
+    expect(mapped.skills[2]).toEqual({ name: "JCL", level: 2, yearsExperience: null });
+  });
+
+  it("returns the same object when there is no effective mapping", () => {
+    expect(applySkillMappings(cv, {}, refs.skills)).toBe(cv);
+    expect(applySkillMappings(cv, { COBOL: "" }, refs.skills)).toBe(cv);
+    expect(applySkillMappings(cv, { COBOL: "unknown-id" }, refs.skills)).toBe(cv);
+  });
+
+  it("turns a mapped skill into an importable row through planCvImport", () => {
+    const mapped = applySkillMappings(cv, { COBOL: "skill-k8s" }, refs.skills);
+
+    const plan = planCvImport(mapped, refs);
+
+    expect(plan.skills).toEqual([
+      { skillId: "skill-java", level: 4, yearsExperience: "5" },
+      { skillId: "skill-k8s", level: 3, yearsExperience: "2" },
+    ]);
+    expect(plan.skipped).toEqual([{ label: "JCL", reason: "Not in your skill list" }]);
   });
 });

@@ -192,6 +192,47 @@ describe("ProfileEdit", () => {
     expect(saveButton).toBeEnabled();
   });
 
+  it("blocks the page behind a parsing dialog until the result arrives", async () => {
+    mockedParseCv.mockReturnValue(new Promise(() => {}));
+    const { container } = renderProfile();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Upload CV" }));
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" })] },
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("status")).toHaveTextContent("Parsing in progress…");
+
+    // Échap sans effet pendant l'analyse.
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("reports a failed CV analysis inside the dialog, which closes on demand", async () => {
+    mockedParseCv.mockRejectedValue(
+      Object.assign(new Error("request failed"), {
+        isAxiosError: true,
+        response: { data: { detail: "The AI service is unreachable." } },
+      }),
+    );
+    const { container } = renderProfile();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Upload CV" }));
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" })] },
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    const alert = within(dialog).getByRole("alert");
+    expect(alert).toHaveTextContent("The AI service is unreachable.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
   it("links back to the display page", async () => {
     renderProfile();
 

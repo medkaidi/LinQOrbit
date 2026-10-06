@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AboutSection } from "@/features/candidate/about-section";
-import { CvImportError, CvImportPreview, CvUploadButton } from "@/features/candidate/cv-import";
+import { CvUploadButton } from "@/features/candidate/cv-import";
+import { CvImportDialog, type CvImportDialogStatus } from "@/features/candidate/cv-import-dialog";
 import { planCvImport } from "@/features/candidate/cv-parsing";
 import { DiplomasSection } from "@/features/candidate/diplomas-section";
 import { ExperiencesSection } from "@/features/candidate/experiences-section";
@@ -98,11 +99,8 @@ export function ProfileEdit() {
     });
   };
 
-  const onApply = () => {
-    if (!preview) {
-      return;
-    }
-    setCvImport(preview);
+  const onApply = (imported: ParsedCv) => {
+    setCvImport(imported);
     setPreview(null);
     parseCv.reset();
   };
@@ -112,12 +110,40 @@ export function ProfileEdit() {
     parseCv.reset();
   };
 
+  // La fenêtre s'ouvre dès l'analyse, reste bloquée jusqu'au résultat.
+  const dialogStatus: CvImportDialogStatus | null = parseCv.isPending
+    ? "parsing"
+    : parseCv.isError
+      ? "error"
+      : preview
+        ? plan
+          ? "ready"
+          : "parsing"
+        : null;
+
   const uploadAction = <CvUploadButton isParsing={parseCv.isPending} onSelect={onSelectFile} />;
+
+  const importDialog = dialogStatus ? (
+    <CvImportDialog
+      status={dialogStatus}
+      statusLabel={
+        parseCv.isPending || !preview ? "Parsing in progress…" : "Loading reference lists…"
+      }
+      cv={preview}
+      plan={plan}
+      skillOptions={referenceSkills.data ?? []}
+      refsReady={refsReady}
+      errorMessage={parseCv.isError ? getApiErrorMessage(parseCv.error) : null}
+      onApply={onApply}
+      onClose={onDiscard}
+    />
+  ) : null;
 
   if (isError && !data) {
     return (
       <div className="w-full flex flex-col gap-6">
         <Header uploadAction={uploadAction} />
+        {importDialog}
         <ProfileError onRetry={() => void refetch()} />
       </div>
     );
@@ -127,6 +153,7 @@ export function ProfileEdit() {
     return (
       <div className="w-full flex flex-col gap-6">
         <Header uploadAction={uploadAction} />
+        {importDialog}
         {isLoading ? <ProfileSkeleton /> : null}
       </div>
     );
@@ -136,18 +163,7 @@ export function ProfileEdit() {
     <div className="w-full flex flex-col gap-6">
       <Header uploadAction={uploadAction} />
 
-      {parseCv.isError ? <CvImportError message={getApiErrorMessage(parseCv.error)} /> : null}
-
-      {preview && plan ? (
-        <CvImportPreview
-          cv={preview}
-          plan={plan}
-          applyDisabled={!refsReady}
-          applyHint={refsReady ? null : "Loading reference lists…"}
-          onApply={onApply}
-          onDiscard={onDiscard}
-        />
-      ) : null}
+      {importDialog}
 
       <CompletenessCard profile={data} />
 

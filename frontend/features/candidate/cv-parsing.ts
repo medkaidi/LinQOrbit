@@ -28,6 +28,9 @@ export type CvImportSkip = {
   reason: string;
 };
 
+/** Motif d'une compétence absente du catalogue : candidate à un mapping manuel. */
+export const SKILL_NOT_IN_LIST = "Not in your skill list";
+
 export type CvImportPlan = {
   about: { title: string | null; summary: string | null };
   experiences: ExperienceValues[];
@@ -124,7 +127,7 @@ export function planCvImport(cv: ParsedCv, refs: Partial<CvImportRefs> = {}): Cv
   for (const skill of cv.skills) {
     const skillId = findByLowerName(skills, skill.name);
     if (!skillId) {
-      skipped.push({ label: skill.name, reason: "Not in your skill list" });
+      skipped.push({ label: skill.name, reason: SKILL_NOT_IN_LIST });
       continue;
     }
     if (skill.level == null) {
@@ -232,6 +235,38 @@ export function planCvImport(cv: ParsedCv, refs: Partial<CvImportRefs> = {}): Cv
     languages: planLanguages,
     links: planLinks,
     skipped,
+  };
+}
+
+/**
+ * Mapping manuel des compétences hors catalogue : le nom du CV devient le nom
+ * du catalogue choisi, pour que `planCvImport` le résolve par son libellé
+ * canonique. Aucun mapping -> le CV est retourné tel quel.
+ */
+export function applySkillMappings(
+  cv: ParsedCv,
+  mappings: Record<string, string>,
+  skills: SkillReference[],
+): ParsedCv {
+  const active = Object.entries(mappings).filter(([, skillId]) => skillId !== "");
+  if (active.length === 0) {
+    return cv;
+  }
+  const nameById = new Map(skills.map((skill) => [skill.id, skill.name]));
+  const rename = new Map(
+    active
+      .map(([label, skillId]) => [label, nameById.get(skillId)] as const)
+      .filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
+  if (rename.size === 0) {
+    return cv;
+  }
+  return {
+    ...cv,
+    skills: cv.skills.map((skill) => {
+      const target = rename.get(skill.name);
+      return target && target !== skill.name ? { ...skill, name: target } : skill;
+    }),
   };
 }
 

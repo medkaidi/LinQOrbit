@@ -4,10 +4,12 @@ import type { ReactNode } from "react";
 import { useRef } from "react";
 
 import type { CvImportPlan } from "@/features/candidate/cv-parsing";
+import { SKILL_NOT_IN_LIST } from "@/features/candidate/cv-parsing";
 import { SectionIcon } from "@/features/candidate/profile-shared";
-import type { ParsedCv } from "@/types/candidate";
+import type { ParsedCv, SkillReference } from "@/types/candidate";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { Select, type SelectOption } from "@/components/ui/select";
 
 const UPLOAD_BUTTON_CLASSES =
   "flex items-center gap-2 px-4 py-2 rounded-full bg-orange-subtle border border-primary-fixed-dim text-orange-deep font-bold text-xs cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed";
@@ -112,12 +114,18 @@ const emptyListLabel = <p className="text-body-sm font-body-sm text-text-tertiar
 /**
  * Aperçu de l'import : montre ce que le CV contient et ce qui sera écarté,
  * avant tout remplissage du formulaire (Apply) ou abandon (Discard).
+ * Quand le catalogue et les handlers de mapping sont fournis, les
+ * compétences hors catalogue passent dans la zone « Unmapped skills »
+ * (sélect searchable) au lieu de la liste « skipped ».
  */
 export function CvImportPreview({
   cv,
   plan,
   applyDisabled = false,
   applyHint = null,
+  skillOptions = null,
+  mappings = {},
+  onMappingChange = null,
   onApply,
   onDiscard,
 }: {
@@ -125,9 +133,32 @@ export function CvImportPreview({
   plan: CvImportPlan;
   applyDisabled?: boolean;
   applyHint?: string | null;
+  skillOptions?: SkillReference[] | null;
+  mappings?: Record<string, string>;
+  onMappingChange?: ((label: string, skillId: string) => void) | null;
   onApply: () => void;
   onDiscard: () => void;
 }) {
+  const zoneActive = skillOptions !== null && onMappingChange !== null;
+  const unmapped = zoneActive
+    ? plan.skipped.filter((skip) => skip.reason === SKILL_NOT_IN_LIST)
+    : [];
+  const skipped = zoneActive
+    ? plan.skipped.filter((skip) => skip.reason !== SKILL_NOT_IN_LIST)
+    : plan.skipped;
+
+  /** Plusieurs mappings ne peuvent pas viser la même compétence du catalogue. */
+  const optionsFor = (label: string): SelectOption[] => {
+    const used = new Set(
+      Object.entries(mappings)
+        .filter(([mappedLabel]) => mappedLabel !== label)
+        .map(([, skillId]) => skillId),
+    );
+    return (skillOptions ?? [])
+      .filter((skill) => !used.has(skill.id))
+      .map((skill) => ({ value: skill.id, label: skill.name }));
+  };
+
   return (
     <section
       aria-label="CV import preview"
@@ -223,13 +254,38 @@ export function CvImportPreview({
         </PreviewList>
       ) : null}
 
-      {plan.skipped.length > 0 ? (
+      {unmapped.length > 0 ? (
+        <div className="rounded-lg bg-orange-subtle p-3 flex flex-col gap-2">
+          <span className="font-label-md text-label-md text-primary-container">
+            Unmapped skills
+          </span>
+          <p className="text-body-sm font-body-sm text-on-surface-variant">
+            Map each skill to your catalog, or leave it empty to skip it.
+          </p>
+          <ul className="flex flex-col gap-3">
+            {unmapped.map((row) => (
+              <li key={row.label}>
+                <Select
+                  label={row.label}
+                  options={optionsFor(row.label)}
+                  placeholder="Map to a skill…"
+                  value={mappings[row.label] ?? ""}
+                  onValueChange={(skillId) => onMappingChange?.(row.label, skillId)}
+                  searchable
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {skipped.length > 0 ? (
         <div className="rounded-lg bg-orange-subtle p-3 flex flex-col gap-1">
           <span className="font-label-md text-label-md text-primary-container">
             Skipped from this import
           </span>
           <ul className="flex flex-col gap-0.5">
-            {plan.skipped.map((skip) => (
+            {skipped.map((skip) => (
               <li key={`${skip.label}-${skip.reason}`} className="text-body-sm font-body-sm text-on-surface-variant">
                 {skip.label} — {skip.reason}
               </li>

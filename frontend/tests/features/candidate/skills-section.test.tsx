@@ -22,8 +22,8 @@ const JAVA = "3f0a1b2c-0d3e-4f5a-8b6c-7d9e0f1a2b3c";
 const COMMUNICATION = "3f0a1b2c-0d3e-4f5a-8b6c-7d9e0f1a2b3d";
 
 const reference = [
-  { id: JAVA, name: "Java", skillType: "hard" },
-  { id: COMMUNICATION, name: "Communication", skillType: "soft" },
+  { id: JAVA, name: "Java", skillType: "hard", category: "Programming Languages" },
+  { id: COMMUNICATION, name: "Communication", skillType: "soft", category: "Soft Skills" },
 ];
 
 const existingSkill: SkillItem = {
