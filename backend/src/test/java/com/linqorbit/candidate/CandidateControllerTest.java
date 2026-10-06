@@ -197,14 +197,15 @@ class CandidateControllerTest {
     @Test
     void listeDesCompetencesRenvoie200() throws Exception {
         UUID skillId = UUID.randomUUID();
-        when(candidateService.getSkillOptions()).thenReturn(List.of(new SkillOption(skillId, "Java", "tech")));
+        when(candidateService.getSkillOptions()).thenReturn(List.of(new SkillOption(skillId, "Java", "tech", "Programming Languages")));
 
         mockMvc.perform(get("/api/v1/candidates/reference/skills")
                         .with(SecurityMockMvcRequestPostProcessors.jwt()
                                 .jwt(j -> j.subject(UUID.randomUUID().toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].name").value("Java"))
-                .andExpect(jsonPath("$[0].skillType").value("tech"));
+                .andExpect(jsonPath("$[0].skillType").value("tech"))
+                .andExpect(jsonPath("$[0].category").value("Programming Languages"));
     }
 
     @Test

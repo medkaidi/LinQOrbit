@@ -356,7 +356,7 @@ class CandidateServiceTest {
     void lectureDesListesDeReferenceRetourneLesOptionsMappees() {
         Skill java = Skill.builder().id(UUID.randomUUID()).name("Java").skillType(SkillType.TECH).build();
         when(skillRepository.findAllByOrderBySkillTypeAscNameAsc()).thenReturn(List.of(java));
-        when(candidateMapper.toSkillOption(java)).thenReturn(new SkillOption(java.getId(), "Java", "tech"));
+        when(candidateMapper.toSkillOption(java)).thenReturn(new SkillOption(java.getId(), "Java", "tech", "Programming Languages"));
 
         assertThat(candidateService.getSkillOptions())
                 .extracting(SkillOption::skillType)

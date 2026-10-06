@@ -4,8 +4,8 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
-from app.graphs.cv_agent import MODEL_CALL_LIMIT, SYSTEM_PROMPT, build_cv_agent
-from app.schemas.cv import ParsedCv
+from app.graphs.cv_agent import MODEL_CALL_LIMIT, SYSTEM_PROMPT, build_cv_agent, render_system_prompt
+from app.schemas.cv import ParsedCv, ReferenceContext
 
 
 class FakeBindableModel(GenericFakeChatModel):
@@ -67,6 +67,37 @@ def test_system_prompt_sets_the_hr_role_and_the_output_format():
     assert "'YYYY-MM'" in SYSTEM_PROMPT
     assert '"summary"' in SYSTEM_PROMPT
     assert ParsedCv.model_json_schema()["title"] == "ParsedCv"
+
+
+def test_render_system_prompt_without_context_is_the_default_prompt():
+    assert render_system_prompt(None) == SYSTEM_PROMPT
+
+
+def test_render_system_prompt_injects_the_reference_lists():
+    context = ReferenceContext(
+        languages=["Arabic", "French"],
+        degrees=["Bachelor's degree"],
+        study_fields=["Computer Science"],
+        skills={"Software": ["Microsoft Excel"], "Programming Languages": ["Java", "Python"]},
+    )
+
+    prompt = render_system_prompt(context)
+
+    assert "Reference lists (the platform database is the source of truth)" in prompt
+    assert "- Languages: Arabic, French" in prompt
+    assert "- Degrees: Bachelor's degree" in prompt
+    assert "- Study fields: Computer Science" in prompt
+    assert "* Programming Languages: Java, Python" in prompt
+    assert "* Software: Microsoft Excel" in prompt
+    # Canonicalisation rules ride along and the example stays last.
+    assert "'Français' -> 'French'" in prompt
+    assert prompt.index("Software: Microsoft Excel") < prompt.index("Example of the expected result")
+
+
+def test_build_cv_agent_accepts_a_reference_context():
+    agent = build_cv_agent(model=_fake_model(), context=ReferenceContext(languages=["French"]))
+
+    assert type(agent).__name__ == "CompiledStateGraph"
 
 
 def test_json_schema_exposes_camel_case_fields_to_the_model():

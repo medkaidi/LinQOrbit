@@ -18,6 +18,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import com.linqorbit.candidate.dto.CvParseResponse;
+import com.linqorbit.candidate.dto.ParseContext;
 import com.linqorbit.candidate.exception.AiServiceException;
 
 import lombok.RequiredArgsConstructor;
@@ -35,13 +36,15 @@ public class CvParseClient {
     private final RestClient aiRestClient;
     private final ObjectMapper objectMapper;
 
-    public CvParseResponse parse(MultipartFile file) {
+    public CvParseResponse parse(MultipartFile file, ParseContext context) {
         try {
             MultipartBodyBuilder body = new MultipartBodyBuilder();
             String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "cv.pdf";
             // The content type must reach the AI service: it validates application/pdf.
             body.part("file", file.getBytes(), MediaType.parseMediaType(file.getContentType()))
                     .filename(filename);
+            // Reference vocabulary as a JSON part (no filename -> plain form field).
+            body.part("context", objectMapper.writeValueAsBytes(context), MediaType.APPLICATION_JSON);
 
             CvParseResponse response = aiRestClient.post()
                     .uri("/cv/parse")

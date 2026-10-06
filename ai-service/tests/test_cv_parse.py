@@ -5,7 +5,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
 
 from app.agents.cv_parse import RECURSION_LIMIT, CVParseError, extract_text, parse_cv
-from app.schemas.cv import ParsedCv
+from app.schemas.cv import ParsedCv, ReferenceContext
 
 CV_SAMPLE = (
     "Camille Martin, Backend Engineer based in Lyon. Seven years of experience "
@@ -54,7 +54,7 @@ def test_parse_cv_rejects_pdf_without_text(make_pdf):
 def test_parse_cv_returns_structured_response(make_pdf, monkeypatch):
     expected = ParsedCv(title="Backend Engineer", summary="I build APIs.")
     stub = StubAgent([{"structured_response": expected}])
-    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda: stub)
+    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda **_: stub)
 
     parsed = parse_cv(make_pdf(CV_SAMPLE))
 
@@ -70,7 +70,7 @@ def test_parse_cv_repairs_a_missing_output(make_pdf, monkeypatch):
     expected = ParsedCv(title="Backend Engineer")
     first_turn = {"messages": [HumanMessage(content="Extract the following CV:\n\nCamille Martin")]}
     stub = StubAgent([first_turn, {"structured_response": expected}])
-    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda: stub)
+    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda **_: stub)
 
     parsed = parse_cv(make_pdf(CV_SAMPLE))
 
@@ -85,7 +85,7 @@ def test_parse_cv_repairs_a_missing_output(make_pdf, monkeypatch):
 
 def test_parse_cv_fails_when_repair_also_fails(make_pdf, monkeypatch):
     stub = StubAgent([{"messages": []}, {"messages": []}])
-    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda: stub)
+    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda **_: stub)
 
     with pytest.raises(CVParseError) as exc:
         parse_cv(make_pdf(CV_SAMPLE))
@@ -95,7 +95,7 @@ def test_parse_cv_fails_when_repair_also_fails(make_pdf, monkeypatch):
 
 def test_parse_cv_bounds_the_agent_and_maps_recursion_to_no_output(make_pdf, monkeypatch):
     stub = StubAgent([GraphRecursionError("recursion limit reached")])
-    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda: stub)
+    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda **_: stub)
 
     with pytest.raises(CVParseError) as exc:
         parse_cv(make_pdf(CV_SAMPLE))
@@ -106,10 +106,26 @@ def test_parse_cv_bounds_the_agent_and_maps_recursion_to_no_output(make_pdf, mon
 
 def test_parse_cv_maps_recursion_during_repair_to_no_output(make_pdf, monkeypatch):
     stub = StubAgent([{"messages": []}, GraphRecursionError("recursion limit reached")])
-    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda: stub)
+    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda **_: stub)
 
     with pytest.raises(CVParseError) as exc:
         parse_cv(make_pdf(CV_SAMPLE))
 
     assert exc.value.code == "no_output"
     assert len(stub.calls) == 2
+
+
+def test_parse_cv_forwards_the_reference_context(make_pdf, monkeypatch):
+    captured = {}
+
+    def fake_build(context=None):
+        captured["context"] = context
+        return StubAgent([{"structured_response": ParsedCv(title="Backend Engineer")}])
+
+    monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", fake_build)
+    reference = ReferenceContext(languages=["French"], skills={"Software": ["Microsoft Excel"]})
+
+    parsed = parse_cv(make_pdf(CV_SAMPLE), reference)
+
+    assert parsed.title == "Backend Engineer"
+    assert captured["context"] is reference

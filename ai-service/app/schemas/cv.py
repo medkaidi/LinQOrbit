@@ -97,3 +97,19 @@ class ParsedCv(CvModel):
     skills: list[CvSkill] = Field(default_factory=list)
     languages: list[CvLanguage] = Field(default_factory=list)
     links: list[CvLink] = Field(default_factory=list)
+
+
+class ReferenceContext(CvModel):
+    """Reference vocabulary sent by Spring Boot with each PDF (optional part).
+
+    Source of truth is the platform database: the prompt tells the model to
+    canonicalise languages, degrees, study fields and skills against these
+    lists while keeping the candidate's own wording everywhere else.
+    """
+
+    languages: list[str] = Field(default_factory=list, description="English language names, e.g. 'French'")
+    degrees: list[str] = Field(default_factory=list, description="Degree labels, e.g. \"Bachelor's degree\"")
+    study_fields: list[str] = Field(default_factory=list, description="Field of study labels")
+    skills: dict[str, list[str]] = Field(
+        default_factory=dict, description="Skill families -> skill names, grouped by the backend"
+    )

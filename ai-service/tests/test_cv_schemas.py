@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.cv import CvExperience, CvLanguage, CvSkill, ParsedCv
+from app.schemas.cv import CvExperience, CvLanguage, CvSkill, ParsedCv, ReferenceContext
 
 
 def test_empty_payload_is_valid():
@@ -78,3 +78,28 @@ def test_json_wire_format_is_camel_case():
     assert dumped["skills"][0]["yearsExperience"] == 7
     # Python access stays snake_case and snake_case input stays accepted.
     assert parsed.experiences[0].start_date == "2021-03"
+
+
+def test_reference_context_parses_the_camel_case_wire_payload():
+    """Spring Boot sends camelCase: the part must parse without renaming keys."""
+    context = ReferenceContext.model_validate(
+        {
+            "languages": ["French"],
+            "degrees": ["Master's degree"],
+            "studyFields": ["Computer Science"],
+            "skills": {"Software": ["Microsoft Excel"]},
+        }
+    )
+
+    assert context.languages == ["French"]
+    assert context.study_fields == ["Computer Science"]
+    assert context.skills == {"Software": ["Microsoft Excel"]}
+
+
+def test_reference_context_defaults_to_empty_lists():
+    context = ReferenceContext()
+
+    assert context.languages == []
+    assert context.degrees == []
+    assert context.study_fields == []
+    assert context.skills == {}

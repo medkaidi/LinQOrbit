@@ -2,6 +2,8 @@ package com.linqorbit.candidate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
@@ -9,6 +11,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +24,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import com.linqorbit.candidate.dto.CvParseResponse;
+import com.linqorbit.candidate.dto.ParseContext;
 import com.linqorbit.candidate.exception.AiServiceException;
 
 import tools.jackson.databind.json.JsonMapper;
@@ -47,6 +52,28 @@ class CvParseClientTest {
                 "%PDF-1.4 fake".getBytes(StandardCharsets.UTF_8));
     }
 
+    private static ParseContext context() {
+        return new ParseContext(List.of("French"), List.of("Bachelor's degree"),
+                List.of("Computer Science"), Map.of("Programming Languages", List.of("Java")));
+    }
+
+    @Test
+    void parseEnvoieLeContexteDeReferenceEnPartJson() {
+        server.expect(requestTo(PARSE_URL))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().string(containsString("name=\"context\"")))
+                .andExpect(content().string(containsString("\"studyFields\"")))
+                .andExpect(content().string(containsString("Programming Languages")))
+                .andRespond(withSuccess("""
+                        {"title": "Dev", "summary": null, "experiences": [], "diplomas": [],
+                         "skills": [], "languages": [], "links": []}
+                        """, MediaType.APPLICATION_JSON));
+
+        cvParseClient.parse(pdf(), context());
+
+        server.verify();
+    }
+
     @Test
     void parseMappeLaReponseJsonDuServiceIA() {
         server.expect(requestTo(PARSE_URL))
@@ -67,7 +94,7 @@ class CvParseClientTest {
                         }
                         """, MediaType.APPLICATION_JSON));
 
-        CvParseResponse response = cvParseClient.parse(pdf());
+        CvParseResponse response = cvParseClient.parse(pdf(), context());
 
         assertThat(response.title()).isEqualTo("Backend Engineer");
         assertThat(response.experiences()).hasSize(1);
@@ -84,7 +111,7 @@ class CvParseClientTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("{\"detail\": \"quota reached\"}"));
 
-        assertThatThrownBy(() -> cvParseClient.parse(pdf()))
+        assertThatThrownBy(() -> cvParseClient.parse(pdf(), context()))
                 .isInstanceOf(AiServiceException.class)
                 .satisfies(ex -> {
                     AiServiceException ai = (AiServiceException) ex;
@@ -99,7 +126,7 @@ class CvParseClientTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("{\"detail\": \"no text could be extracted from the PDF\"}"));
 
-        assertThatThrownBy(() -> cvParseClient.parse(pdf()))
+        assertThatThrownBy(() -> cvParseClient.parse(pdf(), context()))
                 .isInstanceOf(AiServiceException.class)
                 .satisfies(ex -> {
                     AiServiceException ai = (AiServiceException) ex;
@@ -112,7 +139,7 @@ class CvParseClientTest {
     void parseTraduitUneErreurServeurIAEn502() {
         server.expect(requestTo(PARSE_URL)).andRespond(withServerError());
 
-        assertThatThrownBy(() -> cvParseClient.parse(pdf()))
+        assertThatThrownBy(() -> cvParseClient.parse(pdf(), context()))
                 .isInstanceOf(AiServiceException.class)
                 .satisfies(ex -> assertThat(((AiServiceException) ex).getStatus())
                         .isEqualTo(HttpStatus.BAD_GATEWAY));

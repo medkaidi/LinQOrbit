@@ -19,7 +19,7 @@ def _upload(monkeypatch, content: bytes, content_type: str = "application/pdf", 
 def test_parse_endpoint_returns_the_structured_cv(monkeypatch):
     received = {}
 
-    def fake_parse(data: bytes) -> ParsedCv:
+    def fake_parse(data: bytes, context=None) -> ParsedCv:
         received["data"] = data
         return ParsedCv(title="Backend Engineer")
 
@@ -30,8 +30,43 @@ def test_parse_endpoint_returns_the_structured_cv(monkeypatch):
     assert received["data"] == b"%PDF-fake-bytes"
 
 
+def test_parse_endpoint_forwards_the_reference_context(monkeypatch):
+    received = {}
+
+    def fake_parse(data: bytes, context=None) -> ParsedCv:
+        received["context"] = context
+        return ParsedCv(title="Backend Engineer")
+
+    monkeypatch.setattr("app.api.routes.cv.parse_cv", fake_parse)
+    response = client.post(
+        "/cv/parse",
+        files={"file": ("cv.pdf", b"%PDF-fake-bytes", "application/pdf")},
+        data={
+            "context": '{"languages": ["French"], "studyFields": ["Computer Science"],'
+            ' "skills": {"Software": ["Microsoft Excel"]}}'
+        },
+    )
+
+    assert response.status_code == 200
+    reference = received["context"]
+    assert reference.languages == ["French"]
+    assert reference.study_fields == ["Computer Science"]
+    assert reference.skills == {"Software": ["Microsoft Excel"]}
+
+
+def test_parse_endpoint_rejects_invalid_context_json():
+    response = client.post(
+        "/cv/parse",
+        files={"file": ("cv.pdf", b"%PDF-fake", "application/pdf")},
+        data={"context": "not json at all"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid reference context."
+
+
 def test_parse_endpoint_serialises_the_camel_case_contract(monkeypatch):
-    def fake_parse(data: bytes) -> ParsedCv:
+    def fake_parse(data: bytes, context=None) -> ParsedCv:
         return ParsedCv(
             title="Backend Engineer",
             experiences=[
@@ -74,7 +109,7 @@ def test_parse_endpoint_rejects_files_over_the_limit(monkeypatch):
     [("invalid_pdf", 400), ("no_text", 422), ("no_output", 502)],
 )
 def test_parse_endpoint_maps_pipeline_errors(monkeypatch, code, expected_status):
-    def failing_parse(data: bytes) -> ParsedCv:
+    def failing_parse(data: bytes, context=None) -> ParsedCv:
         raise CVParseError(code, f"message for {code}")
 
     response = _upload(monkeypatch, b"%PDF-fake", pipeline=failing_parse)

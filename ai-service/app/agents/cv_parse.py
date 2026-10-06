@@ -14,7 +14,7 @@ from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
 from app.graphs.cv_agent import build_cv_agent
-from app.schemas.cv import ParsedCv
+from app.schemas.cv import ParsedCv, ReferenceContext
 
 # Below this length the "text layer" is almost certainly absent (scanned PDF).
 MIN_TEXT_LENGTH = 100
@@ -44,8 +44,12 @@ def extract_text(pdf_bytes: bytes) -> str:
         raise CVParseError("invalid_pdf", "The uploaded file is not a readable PDF.") from exc
 
 
-def parse_cv(pdf_bytes: bytes) -> ParsedCv:
-    """Extract the CV text, run the agent and return a validated ParsedCv."""
+def parse_cv(pdf_bytes: bytes, context: ReferenceContext | None = None) -> ParsedCv:
+    """Extract the CV text, run the agent and return a validated ParsedCv.
+
+    ``context`` is the backend's reference vocabulary (DB truth): it is
+    rendered into the system prompt as canonicalisation lists.
+    """
     text = extract_text(pdf_bytes)
     if len(text) < MIN_TEXT_LENGTH:
         raise CVParseError(
@@ -53,7 +57,7 @@ def parse_cv(pdf_bytes: bytes) -> ParsedCv:
             "No extractable text found in this PDF. Scanned documents are not supported yet.",
         )
 
-    agent = build_cv_agent()
+    agent = build_cv_agent(context=context)
     config = {"recursion_limit": RECURSION_LIMIT}
     try:
         result = agent.invoke(

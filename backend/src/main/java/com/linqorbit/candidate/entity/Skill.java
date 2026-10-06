@@ -43,4 +43,8 @@ public class Skill {
     @Convert(converter = SkillTypeConverter.class)
     @Column(name = "skill_type", nullable = false)
     private SkillType skillType;
+
+    /** Libellé EN affichable ('Software', 'Cloud & DevOps'…) : grouping V0. */
+    @Column(name = "category", nullable = false, length = 50)
+    private String category;
 }
