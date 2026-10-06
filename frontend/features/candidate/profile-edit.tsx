@@ -27,6 +27,7 @@ import {
 } from "@/hooks/use-candidate-profile";
 import type { ParsedCv } from "@/types/candidate";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
+import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 
 function Header({ uploadAction }: { uploadAction: React.ReactNode }) {
@@ -49,16 +50,10 @@ function Header({ uploadAction }: { uploadAction: React.ReactNode }) {
       </div>
       <div className="flex items-center gap-2">
         {uploadAction}
-        <button
-          type="button"
-          disabled
-          aria-disabled="true"
-          title="Coming soon"
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-orange-subtle border border-primary-fixed-dim text-orange-deep font-bold text-xs cursor-not-allowed disabled:opacity-60"
-        >
+        <Button variant="soft" type="button" disabled aria-disabled="true" title="Coming soon">
           <Icon name="add_a_photo" className="text-[16px]" />
           Add photo
-        </button>
+        </Button>
       </div>
     </div>
   );

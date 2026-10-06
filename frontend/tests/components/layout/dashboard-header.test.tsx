@@ -26,21 +26,32 @@ describe("DashboardHeader", () => {
     useAuthStore.getState().setAuth({ token: "jwt-token", user });
   });
 
-  it("keeps backend-less controls inert", () => {
+  it("keeps the notifications control inert", () => {
     renderWithQueryClient(<DashboardHeader />);
 
-    expect(
-      screen.getByLabelText("Search candidates, jobs, or ask the AI"),
-    ).toBeDisabled();
-    expect(screen.getByRole("button", { name: /ai sourcing/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Notifications" })).toBeDisabled();
   });
 
-  it("renders New Job and New Campaign as enabled CTAs", () => {
+  it("exposes an active Search jobs field", () => {
     renderWithQueryClient(<DashboardHeader />);
 
-    expect(screen.getByRole("button", { name: /new job/i })).not.toBeDisabled();
-    expect(screen.getByRole("button", { name: /new campaign/i })).not.toBeDisabled();
+    const search = screen.getByLabelText("Search jobs");
+    expect(search).not.toBeDisabled();
+    expect(search).toHaveAttribute("placeholder", "Search jobs");
+  });
+
+  it("renders the profile mode toggle defaulting to Candidate", () => {
+    renderWithQueryClient(<DashboardHeader />);
+
+    expect(screen.getByRole("group", { name: "Profile mode" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Candidate" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Recruiter" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("shows the signed-in user in the trigger", () => {

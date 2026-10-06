@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 
 import { SectionCard } from "@/features/candidate/section-card";
-import { SECTION_ICONS } from "@/features/candidate/profile-shared";
+import { RemoveButton, SECTION_ICONS } from "@/features/candidate/profile-shared";
 import { applyCvToLinks, planCvImport } from "@/features/candidate/cv-parsing";
 import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useUpdateLinks } from "@/hooks/use-candidate-profile";
@@ -135,13 +135,7 @@ export function LinksSection({
                   <span className="font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
                     Link {index + 1}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => remove(index)}
-                    className="font-body-sm text-body-sm text-error hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error"
-                  >
-                    Remove
-                  </button>
+                  <RemoveButton onClick={() => remove(index)} />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

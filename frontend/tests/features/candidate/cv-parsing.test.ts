@@ -71,10 +71,12 @@ describe("planCvImport", () => {
       refs,
     );
 
-    expect(plan.skills).toEqual([{ skillId: "skill-java", level: 4, yearsExperience: "7" }]);
-    expect(plan.skipped).toEqual([
-      { label: "Kubernetes", reason: "No proficiency level in the CV" },
+    expect(plan.skills).toEqual([
+      { skillId: "skill-java", level: 4, yearsExperience: "7" },
+      // Pas de niveau dans le CV : importée au niveau le plus bas.
+      { skillId: "skill-k8s", level: 1, yearsExperience: "3" },
     ]);
+    expect(plan.skipped).toEqual([]);
   });
 
   it("skips a skill that is not in the predefined list and deduplicates the rest", () => {
@@ -94,7 +96,7 @@ describe("planCvImport", () => {
     expect(plan.skipped).toEqual([{ label: "COBOL", reason: "Not in your skill list" }]);
   });
 
-  it("imports a language only with a known reference and a CEFR level", () => {
+  it("imports a language only with a known reference, deduplicating by id", () => {
     const plan = planCvImport(
       {
         ...emptyCv,
@@ -108,10 +110,14 @@ describe("planCvImport", () => {
     );
 
     expect(plan.languages).toEqual([{ languageId: "lang-fr", level: "C1" }]);
-    expect(plan.skipped).toEqual([
-      { label: "German", reason: "Not in your language list" },
-      { label: "French", reason: "No CEFR level in the CV" },
-    ]);
+    expect(plan.skipped).toEqual([{ label: "German", reason: "Not in your language list" }]);
+  });
+
+  it("defaults a language without a CEFR level to A1", () => {
+    const plan = planCvImport({ ...emptyCv, languages: [{ name: "French", level: null }] }, refs);
+
+    expect(plan.languages).toEqual([{ languageId: "lang-fr", level: "A1" }]);
+    expect(plan.skipped).toEqual([]);
   });
 
   it("resolves degree labels against the catalogues and leaves unknown ones empty", () => {

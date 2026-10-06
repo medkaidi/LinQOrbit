@@ -82,6 +82,30 @@ describe("CvImportPreview", () => {
     expect(screen.getAllByText(/\d+ found/)).toHaveLength(5);
   });
 
+  it("marks skills and languages without a stated level as defaulted", () => {
+    const cvWithoutLevels: ParsedCv = {
+      ...parsedCv,
+      skills: [{ name: "Java", level: null, yearsExperience: 7 }],
+      languages: [{ name: "French", level: null }],
+    };
+    const refsPartial: CvImportRefs = {
+      ...refs,
+      languages: [{ id: "lang-fr", symbol: "fr", name: "French" }],
+    };
+
+    render(
+      <CvImportPreview
+        cv={cvWithoutLevels}
+        plan={planCvImport(cvWithoutLevels, refsPartial)}
+        onApply={() => {}}
+        onDiscard={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("Java · Level 1 (not stated in CV) · 7 yrs")).toBeInTheDocument();
+    expect(screen.getByText("French · A1 (not stated in CV)")).toBeInTheDocument();
+  });
+
   it("applies or discards the import through its buttons", () => {
     const onApply = vi.fn();
     const onDiscard = vi.fn();

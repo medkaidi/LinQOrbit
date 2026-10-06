@@ -7,12 +7,9 @@ import type { CvImportPlan } from "@/features/candidate/cv-parsing";
 import { SKILL_NOT_IN_LIST } from "@/features/candidate/cv-parsing";
 import { SectionIcon } from "@/features/candidate/profile-shared";
 import type { ParsedCv, SkillReference } from "@/types/candidate";
-import { Button } from "@/components/ui/button";
+import { Button, CtaButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Select, type SelectOption } from "@/components/ui/select";
-
-const UPLOAD_BUTTON_CLASSES =
-  "flex items-center gap-2 px-4 py-2 rounded-full bg-orange-subtle border border-primary-fixed-dim text-orange-deep font-bold text-xs cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed";
 
 /** Bouton « Upload CV » du header : ouvre le sélecteur de fichier PDF. */
 export function CvUploadButton({
@@ -26,16 +23,15 @@ export function CvUploadButton({
 
   return (
     <>
-      <button
+      <CtaButton
         type="button"
+        icon="upload_file"
         disabled={isParsing}
         aria-busy={isParsing}
         onClick={() => inputRef.current?.click()}
-        className={UPLOAD_BUTTON_CLASSES}
       >
-        <Icon name="upload_file" className="text-[16px]" />
         {isParsing ? "Analyzing…" : "Upload CV"}
-      </button>
+      </CtaButton>
       <input
         ref={inputRef}
         type="file"
@@ -236,7 +232,9 @@ export function CvImportPreview({
             : cv.skills.map((skill) => (
                 <p key={skill.name} className="text-body-sm font-body-sm text-text-primary">
                   {skill.name}
-                  {skill.level != null ? ` · Level ${skill.level}` : ""}
+                  {skill.level != null
+                    ? ` · Level ${skill.level}`
+                    : " · Level 1 (not stated in CV)"}
                   {skill.yearsExperience != null ? ` · ${skill.yearsExperience} yrs` : ""}
                 </p>
               ))}
@@ -248,7 +246,7 @@ export function CvImportPreview({
             : cv.languages.map((language) => (
                 <p key={language.name} className="text-body-sm font-body-sm text-text-primary">
                   {language.name}
-                  {language.level ? ` · ${language.level}` : ""}
+                  {language.level ? ` · ${language.level}` : " · A1 (not stated in CV)"}
                 </p>
               ))}
         </PreviewList>
@@ -332,12 +330,12 @@ export function CvImportPreview({
         {applyHint ? (
           <span className="mr-auto text-body-sm font-body-sm text-text-secondary">{applyHint}</span>
         ) : null}
-        <Button variant="outline" type="button" onClick={onDiscard}>
+        <Button variant="outline-sm" type="button" onClick={onDiscard}>
           Discard
         </Button>
-        <Button variant="cta" type="button" onClick={onApply} disabled={applyDisabled}>
+        <CtaButton type="button" icon="check" onClick={onApply} disabled={applyDisabled}>
           Apply to my profile
-        </Button>
+        </CtaButton>
       </footer>
     </section>
   );

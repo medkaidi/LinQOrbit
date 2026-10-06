@@ -113,7 +113,9 @@ const isCefrLevel = (level: string | null): level is (typeof CEFR_LEVELS)[number
  * Convertit un CV analysé en valeurs de formulaire, en résolvant les libellés
  * de l'IA contre les listes de référence (compétences, langues, diplômes,
  * domaines d'étude, pays). Ce qui ne peut pas être résolu est écarté et
- * listé dans `skipped` — jamais de valeur inventée.
+ * listé dans `skipped` — jamais de valeur inventée. Une compétence ou une
+ * langue résolue mais sans niveau dans le CV est importée au niveau le plus
+ * bas (1 / A1) : l'utilisateur l'ajuste ensuite.
  */
 export function planCvImport(cv: ParsedCv, refs: Partial<CvImportRefs> = {}): CvImportPlan {
   const skills = refs.skills ?? [];
@@ -130,17 +132,13 @@ export function planCvImport(cv: ParsedCv, refs: Partial<CvImportRefs> = {}): Cv
       skipped.push({ label: skill.name, reason: SKILL_NOT_IN_LIST });
       continue;
     }
-    if (skill.level == null) {
-      skipped.push({ label: skill.name, reason: "No proficiency level in the CV" });
-      continue;
-    }
     if (seenSkillIds.has(skillId)) {
       continue;
     }
     seenSkillIds.add(skillId);
     planSkills.push({
       skillId,
-      level: skill.level,
+      level: skill.level ?? 1,
       yearsExperience: skill.yearsExperience == null ? "" : String(skill.yearsExperience),
     });
   }
@@ -153,15 +151,11 @@ export function planCvImport(cv: ParsedCv, refs: Partial<CvImportRefs> = {}): Cv
       skipped.push({ label: language.name, reason: "Not in your language list" });
       continue;
     }
-    if (!isCefrLevel(language.level)) {
-      skipped.push({ label: language.name, reason: "No CEFR level in the CV" });
-      continue;
-    }
     if (seenLanguageIds.has(languageId)) {
       continue;
     }
     seenLanguageIds.add(languageId);
-    planLanguages.push({ languageId, level: language.level });
+    planLanguages.push({ languageId, level: isCefrLevel(language.level) ? language.level : "A1" });
   }
 
   const planExperiences: ExperienceValues[] = [];

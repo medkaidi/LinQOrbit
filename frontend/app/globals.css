@@ -64,6 +64,8 @@
   --color-error-container: #ffdad6;
   --color-on-error: #ffffff;
   --color-on-error-container: #93000a;
+  --color-danger: #f43f2e;
+  --color-danger-container: #fee7e5;
   --color-outline: #8c7164;
   --color-outline-variant: #e0c0b1;
   --color-slate-border: #e2e8f0;
@@ -161,11 +163,9 @@
 }
 
 /*
- * La feuille Google Fonts des Material Symbols impose `font-size: 24px` et
- * `font-weight: normal` sur `.material-symbols-outlined` : même spécificité
- * qu'une utility Tailwind, donc issue dépendante de l'ordre des stylesheets
- * (dev ≠ prod). On reprend la main avec un sélecteur plus spécifique, mais
- * uniquement sur les pastilles d'icône des sections de profil.
+ * Pastilles d'icône des sections de profil : taille/graisse explicites
+ * (16px/300), indépendantes de la taille du texte environnant. Le socle des
+ * icônes vit dans `material-symbols.css` (@layer base, poids 300).
  */
 .section-icon .material-symbols-outlined {
   font-size: 16px;

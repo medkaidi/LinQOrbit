@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Alert } from "@/components/ui/alert";
+import { CtaButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import type { AuthUser } from "@/types/auth";
 import type { CandidateProfile } from "@/types/candidate";
@@ -18,6 +19,19 @@ export const SECTION_ICONS = {
 
 /** Un élément de liste = un conteneur : la séparation se lit d'un coup d'œil. */
 export const ITEM_CLASSES = "rounded-2xl border border-slate-border bg-item-surface/50 p-4";
+
+/**
+ * Suppression d'une ligne de formulaire (Expérience, Éducation, Skill,
+ * Language, Link) : CTA compact au tone `neutral` (badge gris, libellé sombre,
+ * hover clair façon Discard), identique dans les 5 sections d'édition.
+ */
+export function RemoveButton({ onClick }: { onClick: () => void }) {
+  return (
+    <CtaButton type="button" icon="delete" tone="neutral" onClick={onClick}>
+      Remove
+    </CtaButton>
+  );
+}
 
 /**
  * Cellule label + valeur (section Personal Information) : le label vit hors du
@@ -78,7 +92,7 @@ export function IdentityAvatar({
 /**
  * Pastille d'icône devant le titre : même bleu (accent secondaire) pour toutes
  * les sections. La taille et la graisse du glyphe viennent de la règle
- * `.section-icon` de globals.css — la feuille Google impose 24px/400.
+ * `.section-icon` de globals.css (16px/300).
  */
 export function SectionIcon({ name }: { name: string }) {
   return (

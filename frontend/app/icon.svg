@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="298 353 204 204" width="204" height="204">
   <g transform="translate(400, 455)">
-    <ellipse rx="112" ry="60" transform="rotate(-42)" stroke="#94A3B8" stroke-width="10" stroke-linecap="round" fill="none"/>
-    <ellipse rx="112" ry="60" transform="rotate(42)" stroke="#334155" stroke-width="10" stroke-linecap="round" fill="none"/>
+    <ellipse rx="112" ry="60" transform="rotate(-44)" stroke="#94A3B8" stroke-width="10" stroke-linecap="round" fill="none"/>
+    <ellipse rx="112" ry="60" transform="rotate(44)" stroke="#334155" stroke-width="10" stroke-linecap="round" fill="none"/>
     <circle r="28" stroke="#F97316" stroke-width="15" fill="none"/>
   </g>
 </svg>

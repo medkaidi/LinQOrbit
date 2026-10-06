@@ -33,4 +33,20 @@ describe("NavPill", () => {
 
     expect(screen.getByRole("link")).toHaveAccessibleName("Edit profile");
   });
+
+  it("renders no trailing navigation arrow", () => {
+    render(<NavPill icon="edit" label="Edit profile" href="/profile/edit" />);
+
+    expect(screen.getByRole("link").textContent).not.toContain("north_east");
+  });
+
+  it("keeps the primary orange accents by default and swaps them for a tone", () => {
+    const { rerender } = render(<NavPill icon="edit" label="Edit profile" href="/profile/edit" />);
+    expect(screen.getByRole("link").className).toContain("hover:border-orange-border-strong");
+
+    rerender(<NavPill icon="edit" label="Edit profile" href="/profile/edit" tone="danger" />);
+    const link = screen.getByRole("link", { name: "Edit profile" });
+    expect(link.className).toContain("hover:border-danger");
+    expect(link.className).not.toContain("orange");
+  });
 });

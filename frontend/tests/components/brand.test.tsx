@@ -21,4 +21,20 @@ describe("brand assets", () => {
 
     expect(screen.getByRole("img", { name: "LinQOrbit recruitment platform" })).toBeInTheDocument();
   });
+
+  it("rotates the two orbits ±44 by default and honours orbitRotation", () => {
+    const { container } = render(<Logo />);
+    const [slateOrbit, darkOrbit] = Array.from(container.querySelectorAll("ellipse"));
+
+    expect(slateOrbit).toHaveAttribute("transform", "rotate(-44)");
+    expect(darkOrbit).toHaveAttribute("transform", "rotate(44)");
+
+    const overridden = render(<Logo orbitRotation={30} />);
+    const [slateOverridden, darkOverridden] = Array.from(
+      overridden.container.querySelectorAll("ellipse"),
+    );
+
+    expect(slateOverridden).toHaveAttribute("transform", "rotate(-30)");
+    expect(darkOverridden).toHaveAttribute("transform", "rotate(30)");
+  });
 });

@@ -2,9 +2,15 @@ export type LogoProps = {
   className?: string;
   title?: string;
   strokeScale?: number;
+  orbitRotation?: number;
 };
 
-export function Logo({ className, title = "LinQOrbit", strokeScale = 1 }: LogoProps) {
+export function Logo({
+  className,
+  title = "LinQOrbit",
+  strokeScale = 1,
+  orbitRotation = 44,
+}: LogoProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -19,7 +25,7 @@ export function Logo({ className, title = "LinQOrbit", strokeScale = 1 }: LogoPr
         <ellipse
           rx="112"
           ry="60"
-          transform="rotate(-42)"
+          transform={`rotate(${-orbitRotation})`}
           stroke="#94A3B8"
           strokeWidth={5 * strokeScale}
           strokeLinecap="round"
@@ -28,7 +34,7 @@ export function Logo({ className, title = "LinQOrbit", strokeScale = 1 }: LogoPr
         <ellipse
           rx="112"
           ry="60"
-          transform="rotate(42)"
+          transform={`rotate(${orbitRotation})`}
           stroke="#334155"
           strokeWidth={5 * strokeScale}
           strokeLinecap="round"

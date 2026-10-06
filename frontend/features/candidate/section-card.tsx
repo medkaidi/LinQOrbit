@@ -2,10 +2,8 @@ import type { ReactNode } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
+import { Button, CtaButton } from "@/components/ui/button";
 import { SectionIcon } from "@/features/candidate/profile-shared";
-import { cn } from "@/lib/utils/cn";
 
 export type SectionCardProps = {
   id: string;
@@ -77,17 +75,15 @@ export function SectionCard({
           >
             Discard
           </Button>
-          <Button variant="cta" type="button" onClick={onSave} disabled={!canSave}>
-            <span className="w-6 h-6 rounded-full bg-primary-container group-hover:bg-canvas-white text-canvas-white group-hover:text-primary-container flex items-center justify-center shrink-0 transition-colors duration-200">
-              <Icon
-                name={isSaving ? "refresh" : "save"}
-                className={cn("text-[16px]", isSaving && "animate-spin")}
-              />
-            </span>
-            <span className="leading-none transition-colors duration-200">
-              {isSaving ? "Saving…" : "Save changes"}
-            </span>
-          </Button>
+          <CtaButton
+            type="button"
+            icon={isSaving ? "refresh" : "save"}
+            iconClassName={isSaving ? "animate-spin" : undefined}
+            onClick={onSave}
+            disabled={!canSave}
+          >
+            {isSaving ? "Saving…" : "Save changes"}
+          </CtaButton>
         </div>
       </footer>
     </section>
