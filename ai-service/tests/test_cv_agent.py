@@ -2,55 +2,77 @@
 
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 
-from app.agents.tools import CV_TOOLS
-from app.graphs.cv_agent import SYSTEM_PROMPT, build_cv_agent
+from app.graphs.cv_agent import MODEL_CALL_LIMIT, SYSTEM_PROMPT, build_cv_agent
 from app.schemas.cv import ParsedCv
 
 
-class FakeToolModel(GenericFakeChatModel):
-    """GenericFakeChatModel does not implement bind_tools; the agent node calls it."""
+class FakeBindableModel(GenericFakeChatModel):
+    """Stands in for Gemini: records calls, never produces the structured output.
+
+    create_agent calls bind_tools at run time even when no tools are bound, and
+    every call must yield a *fresh* AIMessage — the same id twice would collapse
+    in langgraph's add_messages reducer instead of appending.
+    """
+
+    replies: tuple[str, ...] = ()
+    call_count: int = 0
 
     def bind_tools(self, tools, **kwargs):  # noqa: ANN001 - signature mirrors the real API
         return self
 
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):  # noqa: ANN001
+        self.call_count += 1
+        reply = AIMessage(content=self.replies[(self.call_count - 1) % len(self.replies)])
+        return ChatResult(generations=[ChatGeneration(message=reply)])
 
-def _fake_model(*replies: str) -> FakeToolModel:
-    return FakeToolModel(messages=iter([AIMessage(content=reply) for reply in replies]))
+
+def _fake_model(*replies: str) -> FakeBindableModel:
+    return FakeBindableModel(replies=replies, messages=iter([]))
 
 
-def test_agent_compiles_into_a_react_loop():
+def test_agent_compiles_into_a_structured_extraction_loop():
     agent = build_cv_agent(model=_fake_model())
 
     assert type(agent).__name__ == "CompiledStateGraph"
-    assert set(agent.nodes) == {"__start__", "model", "tools"}
+    assert set(agent.nodes) == {
+        "__start__",
+        "model",
+        "ModelCallLimitMiddleware.before_model",
+        "ModelCallLimitMiddleware.after_model",
+    }
     assert "structured_response" in agent.stream_channels
 
 
-def test_agent_binds_every_cv_tool():
-    agent = build_cv_agent(model=_fake_model())
-
-    bound_tool_names = set(agent.nodes["tools"].bound.tools_by_name)
-    assert bound_tool_names == {tool.name for tool in CV_TOOLS}
-
-
 def test_agent_loop_runs_offline_with_a_fake_model():
-    """The compiled ReAct loop executes without any network call."""
-    agent = build_cv_agent(model=_fake_model("Nothing more to extract."))
+    """The compiled loop executes without any network call and stops at the call limit."""
+    model = _fake_model("Nothing more to extract.")
+    agent = build_cv_agent(model=model)
 
     result = agent.invoke(
-        {"messages": [HumanMessage(content="Extract the following CV: Camille, engineer at Acme.")]},
-        config={"configurable": {"thread_id": "offline-loop"}},
+        {"messages": [HumanMessage(content="Extract the following CV: Camille, engineer at Acme.")]}
     )
 
-    assert [message.type for message in result["messages"]] == ["human", "ai"]
-    # The fake model never called the structured-output tool: no typed result,
-    # which is exactly the case parse_cv handles with its repair turn.
+    assert result["messages"][0].type == "human"
+    # The fake never produced the structured output: the run ends at the model
+    # call ceiling, which is exactly the case parse_cv handles with its repair turn.
+    assert model.call_count == MODEL_CALL_LIMIT
     assert result.get("structured_response") is None
 
 
-def test_system_prompt_sets_the_hr_role_and_the_output_example():
+def test_system_prompt_sets_the_hr_role_and_the_output_format():
     assert "HR assistant" in SYSTEM_PROMPT
-    assert '"start_date": "2021-03"' in SYSTEM_PROMPT
+    assert '"startDate": "2021-03"' in SYSTEM_PROMPT
+    assert "'YYYY-MM'" in SYSTEM_PROMPT
     assert '"summary"' in SYSTEM_PROMPT
     assert ParsedCv.model_json_schema()["title"] == "ParsedCv"
+
+
+def test_json_schema_exposes_camel_case_fields_to_the_model():
+    """The schema sent to the LLM and the wire format share one casing."""
+    schema = ParsedCv.model_json_schema()
+    experience_props = schema["$defs"]["CvExperience"]["properties"]
+
+    assert "startDate" in experience_props
+    assert "start_date" not in experience_props

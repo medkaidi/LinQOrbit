@@ -30,6 +30,30 @@ def test_parse_endpoint_returns_the_structured_cv(monkeypatch):
     assert received["data"] == b"%PDF-fake-bytes"
 
 
+def test_parse_endpoint_serialises_the_camel_case_contract(monkeypatch):
+    def fake_parse(data: bytes) -> ParsedCv:
+        return ParsedCv(
+            title="Backend Engineer",
+            experiences=[
+                {
+                    "position_title": "Backend Engineer",
+                    "company_name": "Acme",
+                    "start_date": "2021-03",
+                    "end_date": None,
+                    "description": "API payments",
+                }
+            ],
+        )
+
+    response = _upload(monkeypatch, b"%PDF-fake-bytes", pipeline=fake_parse)
+
+    assert response.status_code == 200
+    experience = response.json()["experiences"][0]
+    assert experience["positionTitle"] == "Backend Engineer"
+    assert experience["startDate"] == "2021-03"
+    assert "start_date" not in experience
+
+
 def test_parse_endpoint_rejects_non_pdf_content_type(monkeypatch):
     response = _upload(monkeypatch, b"hello", content_type="text/plain")
 

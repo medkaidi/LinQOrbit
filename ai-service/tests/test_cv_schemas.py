@@ -64,3 +64,17 @@ def test_language_level_must_be_cefr():
 def test_skill_level_is_bounded():
     with pytest.raises(ValidationError):
         CvSkill(name="Java", level=9)
+
+
+def test_json_wire_format_is_camel_case():
+    parsed = ParsedCv(
+        experiences=[{"position_title": "Dev", "company_name": "Acme", "start_date": "2021-03"}],
+        skills=[{"name": "Java", "years_experience": 7}],
+    )
+
+    dumped = parsed.model_dump(by_alias=True)
+    assert dumped["experiences"][0]["positionTitle"] == "Dev"
+    assert "start_date" not in dumped["experiences"][0]
+    assert dumped["skills"][0]["yearsExperience"] == 7
+    # Python access stays snake_case and snake_case input stays accepted.
+    assert parsed.experiences[0].start_date == "2021-03"

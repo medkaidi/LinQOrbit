@@ -7,7 +7,6 @@ Step 2 (understanding and structuring) is the LangGraph agent.
 from __future__ import annotations
 
 import io
-from uuid import uuid4
 
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
@@ -20,10 +19,11 @@ from app.schemas.cv import ParsedCv
 # Below this length the "text layer" is almost certainly absent (scanned PDF).
 MIN_TEXT_LENGTH = 100
 
-# Super-step budget for one agent.invoke: enough for a tool call per section
-# plus the final structured answer, and a bounded worst case when the model
-# degenerates into repeating the same tool call (see SYSTEM_PROMPT rules).
-RECURSION_LIMIT = 16
+# Graph-level backstop (super-steps), deliberately above what the model-call
+# ceiling allows: ModelCallLimitMiddleware (MODEL_CALL_LIMIT) should end the
+# run first with a clean structured_response=None, which is what gives the
+# repair turn its chance to run.
+RECURSION_LIMIT = 32
 
 
 class CVParseError(Exception):
@@ -54,8 +54,7 @@ def parse_cv(pdf_bytes: bytes) -> ParsedCv:
         )
 
     agent = build_cv_agent()
-    thread_id = str(uuid4())
-    config = {"configurable": {"thread_id": thread_id}, "recursion_limit": RECURSION_LIMIT}
+    config = {"recursion_limit": RECURSION_LIMIT}
     try:
         result = agent.invoke(
             {"messages": [HumanMessage(content=f"Extract the following CV:\n\n{text}")]},
@@ -71,16 +70,17 @@ def parse_cv(pdf_bytes: bytes) -> ParsedCv:
     if isinstance(parsed, ParsedCv):
         return parsed
 
-    # One repair turn: the checkpointer keeps the history of this thread, so
-    # the model sees its own unfinished answer and can submit the schema now.
+    # One repair turn, replaying this run's history explicitly (no checkpointer)
+    # so the model sees its own unfinished answer and can submit the schema now.
     try:
         repair = agent.invoke(
             {
                 "messages": [
+                    *result["messages"],
                     HumanMessage(
                         content="You finished without the structured output. Submit it now, "
                         "strictly following the schema."
-                    )
+                    ),
                 ]
             },
             config=config,

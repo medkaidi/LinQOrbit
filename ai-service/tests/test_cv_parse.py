@@ -1,6 +1,7 @@
 """Pipeline tests: pypdf extraction + orchestration. The agent is stubbed."""
 
 import pytest
+from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
 
 from app.agents.cv_parse import RECURSION_LIMIT, CVParseError, extract_text, parse_cv
@@ -62,26 +63,28 @@ def test_parse_cv_returns_structured_response(make_pdf, monkeypatch):
     sent = stub.calls[0]["payload"]["messages"][0].content
     assert "Extract the following CV" in sent
     assert "Camille Martin" in sent
-    assert stub.calls[0]["config"]["configurable"]["thread_id"]
+    assert stub.calls[0]["config"] == {"recursion_limit": RECURSION_LIMIT}
 
 
 def test_parse_cv_repairs_a_missing_output(make_pdf, monkeypatch):
     expected = ParsedCv(title="Backend Engineer")
-    stub = StubAgent([{}, {"structured_response": expected}])
+    first_turn = {"messages": [HumanMessage(content="Extract the following CV:\n\nCamille Martin")]}
+    stub = StubAgent([first_turn, {"structured_response": expected}])
     monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda: stub)
 
     parsed = parse_cv(make_pdf(CV_SAMPLE))
 
     assert parsed == expected
     assert len(stub.calls) == 2
-    repair_message = stub.calls[1]["payload"]["messages"][0].content
-    assert "structured output" in repair_message
-    # Same thread: the checkpointer carries the history across both calls.
-    assert stub.calls[0]["config"] == stub.calls[1]["config"]
+    # History replayed explicitly: original CV turn, then the repair nudge.
+    repair_messages = stub.calls[1]["payload"]["messages"]
+    assert repair_messages[0].content == first_turn["messages"][0].content
+    assert "structured output" in repair_messages[-1].content
+    assert stub.calls[1]["config"] == {"recursion_limit": RECURSION_LIMIT}
 
 
 def test_parse_cv_fails_when_repair_also_fails(make_pdf, monkeypatch):
-    stub = StubAgent([{}, {}])
+    stub = StubAgent([{"messages": []}, {"messages": []}])
     monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda: stub)
 
     with pytest.raises(CVParseError) as exc:
@@ -102,7 +105,7 @@ def test_parse_cv_bounds_the_agent_and_maps_recursion_to_no_output(make_pdf, mon
 
 
 def test_parse_cv_maps_recursion_during_repair_to_no_output(make_pdf, monkeypatch):
-    stub = StubAgent([{}, GraphRecursionError("recursion limit reached")])
+    stub = StubAgent([{"messages": []}, GraphRecursionError("recursion limit reached")])
     monkeypatch.setattr("app.agents.cv_parse.build_cv_agent", lambda: stub)
 
     with pytest.raises(CVParseError) as exc:
