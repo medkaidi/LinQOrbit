@@ -1,9 +1,29 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { CvImportDialog } from "@/features/candidate/cv-import-dialog";
 import { planCvImport, type CvImportRefs } from "@/features/candidate/cv-parsing";
 import type { ParsedCv } from "@/types/candidate";
+
+const { suggestState } = vi.hoisted(() => ({
+  suggestState: {
+    mutate: vi.fn(),
+    isPending: false,
+    isError: false,
+    error: null as unknown,
+  },
+}));
+
+vi.mock("@/hooks/use-candidate-profile", () => ({
+  useSuggestSkills: () => suggestState,
+}));
+
+beforeEach(() => {
+  suggestState.mutate.mockReset();
+  suggestState.isPending = false;
+  suggestState.isError = false;
+  suggestState.error = null;
+});
 
 const cv: ParsedCv = {
   title: "Staff Engineer",
@@ -106,5 +126,32 @@ describe("CvImportDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Apply to my profile" }));
 
     expect(onApply).toHaveBeenCalledWith(cv);
+  });
+
+  it("sends the unmapped skills for review and confirms once the server accepts", () => {
+    suggestState.mutate.mockImplementation(
+      (_names: string[], options?: { onSuccess?: () => void }) => {
+        options?.onSuccess?.();
+      },
+    );
+    renderDialog();
+
+    fireEvent.click(screen.getByRole("button", { name: "Send 1 unresolved skill for review" }));
+
+    expect(suggestState.mutate).toHaveBeenCalledWith(["COBOL"], expect.anything());
+    expect(screen.getByText(/Sent for review/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Send 1 unresolved skill/ })).not.toBeInTheDocument();
+  });
+
+  it("surfaces the backend error while keeping the send action available", () => {
+    suggestState.isError = true;
+    suggestState.error = {
+      isAxiosError: true,
+      response: { data: { detail: "Too many suggestions per request." } },
+    };
+    renderDialog();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Too many suggestions per request.");
+    expect(screen.getByRole("button", { name: "Send 1 unresolved skill for review" })).toBeEnabled();
   });
 });

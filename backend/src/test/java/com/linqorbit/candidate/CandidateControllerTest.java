@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -34,6 +35,7 @@ import com.linqorbit.candidate.dto.CvParseResponse;
 import com.linqorbit.candidate.dto.DegreeOption;
 import com.linqorbit.candidate.dto.LanguageOption;
 import com.linqorbit.candidate.dto.SkillOption;
+import com.linqorbit.candidate.dto.SkillSuggestionRequest;
 import com.linqorbit.candidate.dto.StudyFieldOption;
 import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.candidate.exception.AiServiceException;
@@ -232,6 +234,43 @@ class CandidateControllerTest {
                                 .jwt(j -> j.subject(UUID.randomUUID().toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].label").value("Computer Science"));
+    }
+
+    @Test
+    void suggestionsDeCompetencesRenvoie204EtTransmetLeUtilisateurDuJeton() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post(PROFILE_PATH + "/skill-suggestions")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"names":["Kustom","CSS Grid"]}
+                                """))
+                .andExpect(status().isNoContent());
+
+        verify(candidateService).suggestSkills(eq(userId), any(SkillSuggestionRequest.class));
+    }
+
+    @Test
+    void suggestionsDeCompetencesRenvoie400QuandUnNomEstVide() throws Exception {
+        mockMvc.perform(post(PROFILE_PATH + "/skill-suggestions")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"names":["Kustom","   "]}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void suggestionsSansJetonRenvoie401() throws Exception {
+        mockMvc.perform(post(PROFILE_PATH + "/skill-suggestions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"names":["Kustom"]}
+                                """))
+                .andExpect(status().isUnauthorized());
     }
 
     private static MockMultipartFile cvFile() {

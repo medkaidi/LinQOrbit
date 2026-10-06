@@ -19,6 +19,7 @@ import com.linqorbit.candidate.dto.LanguageRequest;
 import com.linqorbit.candidate.dto.LinkRequest;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.SkillRequest;
+import com.linqorbit.candidate.dto.SkillSuggestionRequest;
 import com.linqorbit.candidate.dto.StudyFieldOption;
 import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.common.security.CurrentUserId;
@@ -77,6 +78,12 @@ public class CandidateController implements CandidateApi {
     @Override
     public ResponseEntity<Void> updateLinks(List<LinkRequest> request, Authentication authentication) {
         candidateService.updateLinks(CurrentUserId.from(authentication), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> suggestSkills(SkillSuggestionRequest request, Authentication authentication) {
+        candidateService.suggestSkills(CurrentUserId.from(authentication), request);
         return ResponseEntity.noContent().build();
     }
 

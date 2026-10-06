@@ -125,3 +125,8 @@ export async function getReferenceStudyFields(): Promise<LabelReference[]> {
   const response = await api.get<LabelReference[]>(`${BASE}/reference/study-fields`);
   return response.data;
 }
+
+/** Compétences absentes du catalogue, envoyées en revue manuelle. */
+export async function suggestSkills(names: string[]): Promise<void> {
+  await api.post(`${BASE}/me/profile/skill-suggestions`, { names });
+}

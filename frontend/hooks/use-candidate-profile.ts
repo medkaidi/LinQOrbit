@@ -9,6 +9,7 @@ import {
   getReferenceSkills,
   getReferenceStudyFields,
   parseCv,
+  suggestSkills,
   updateAbout,
   updateDiplomas,
   updateExperiences,
@@ -93,6 +94,13 @@ export function useUpdateLinks() {
 export function useParseCv() {
   return useMutation({
     mutationFn: (file: File) => parseCv(file),
+  });
+}
+
+/** Compétences hors catalogue envoyées en revue manuelle (aucune invalidation : le profil ne change pas). */
+export function useSuggestSkills() {
+  return useMutation({
+    mutationFn: (names: string[]) => suggestSkills(names),
   });
 }
 

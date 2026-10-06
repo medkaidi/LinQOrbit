@@ -143,4 +143,67 @@ describe("CvImportPreview", () => {
     expect(screen.queryByText("Unmapped skills")).not.toBeInTheDocument();
     expect(screen.getByText(/COBOL — Not in your skill list/)).toBeInTheDocument();
   });
+
+  it("counts and sends the still-unmapped skills for review", () => {
+    const cv2: ParsedCv = {
+      ...parsedCv,
+      skills: [
+        { name: "COBOL", level: 3, yearsExperience: 1 },
+        { name: "Fortran", level: 2, yearsExperience: 4 },
+      ],
+    };
+    const onSendUnresolved = vi.fn();
+    render(
+      <CvImportPreview
+        cv={cv2}
+        plan={planCvImport(cv2, refs)}
+        skillOptions={refs.skills}
+        mappings={{}}
+        onMappingChange={() => {}}
+        onSendUnresolved={onSendUnresolved}
+        onApply={() => {}}
+        onDiscard={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Send 2 unresolved skills for review" }));
+    expect(onSendUnresolved).toHaveBeenCalledWith(["COBOL", "Fortran"]);
+  });
+
+  it("hides the send action once every unmapped skill has been mapped", () => {
+    render(
+      <CvImportPreview
+        cv={parsedCv}
+        plan={plan}
+        skillOptions={refs.skills}
+        mappings={{ COBOL: "skill-java" }}
+        onMappingChange={() => {}}
+        onSendUnresolved={vi.fn()}
+        onApply={() => {}}
+        onDiscard={() => {}}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: /Send \d+ unresolved skill/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Sent for review")).not.toBeInTheDocument();
+  });
+
+  it("replaces the send action with a confirmation once the skills were accepted", () => {
+    render(
+      <CvImportPreview
+        cv={parsedCv}
+        plan={plan}
+        skillOptions={refs.skills}
+        mappings={{}}
+        onMappingChange={() => {}}
+        onSendUnresolved={vi.fn()}
+        unresolvedSent
+        onApply={() => {}}
+        onDiscard={() => {}}
+      />,
+    );
+
+    expect(screen.getByText(/Sent for review/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Send \d+ unresolved skill/ })).not.toBeInTheDocument();
+  });
 });

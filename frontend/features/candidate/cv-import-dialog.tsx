@@ -5,9 +5,11 @@ import { useEffect, useState } from "react";
 import { CvImportError, CvImportPreview } from "@/features/candidate/cv-import";
 import type { CvImportPlan } from "@/features/candidate/cv-parsing";
 import { applySkillMappings } from "@/features/candidate/cv-parsing";
+import { useSuggestSkills } from "@/hooks/use-candidate-profile";
 import type { ParsedCv, SkillReference } from "@/types/candidate";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { getApiErrorMessage } from "@/lib/utils/api-error";
 
 export type CvImportDialogStatus = "parsing" | "ready" | "error";
 
@@ -49,6 +51,20 @@ export function CvImportDialog({
       return;
     }
     setMappingState({ cv, mappings: { ...mappings, [label]: skillId } });
+  };
+
+  // Confirmation d'envoi en revue : rattachée à son CV, remise à zéro au
+  // prochain CV (même logique dérivée que les mappings).
+  const [sentState, setSentState] = useState<{ cv: ParsedCv } | null>(null);
+  const unresolvedSent = sentState !== null && sentState.cv === cv;
+  const sendSuggestions = useSuggestSkills();
+  const sendUnresolved = (names: string[]) => {
+    if (!cv) {
+      return;
+    }
+    sendSuggestions.mutate(names, {
+      onSuccess: () => setSentState({ cv }),
+    });
   };
 
   const locked = status !== "ready";
@@ -116,6 +132,12 @@ export function CvImportDialog({
             skillOptions={skillOptions}
             mappings={mappings}
             onMappingChange={mapSkill}
+            onSendUnresolved={sendUnresolved}
+            sendingUnresolved={sendSuggestions.isPending}
+            unresolvedSent={unresolvedSent}
+            sendErrorMessage={
+              sendSuggestions.isError ? getApiErrorMessage(sendSuggestions.error) : null
+            }
             onApply={() => onApply(applySkillMappings(cv, mappings, skillOptions))}
             onDiscard={onClose}
           />

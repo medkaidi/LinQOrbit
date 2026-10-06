@@ -116,7 +116,8 @@ const emptyListLabel = <p className="text-body-sm font-body-sm text-text-tertiar
  * avant tout remplissage du formulaire (Apply) ou abandon (Discard).
  * Quand le catalogue et les handlers de mapping sont fournis, les
  * compétences hors catalogue passent dans la zone « Unmapped skills »
- * (sélect searchable) au lieu de la liste « skipped ».
+ * (sélect searchable) au lieu de la liste « skipped », et celles qui restent
+ * non mappées peuvent être envoyées en revue manuelle (onSendUnresolved).
  */
 export function CvImportPreview({
   cv,
@@ -126,6 +127,10 @@ export function CvImportPreview({
   skillOptions = null,
   mappings = {},
   onMappingChange = null,
+  onSendUnresolved = null,
+  sendingUnresolved = false,
+  unresolvedSent = false,
+  sendErrorMessage = null,
   onApply,
   onDiscard,
 }: {
@@ -136,6 +141,10 @@ export function CvImportPreview({
   skillOptions?: SkillReference[] | null;
   mappings?: Record<string, string>;
   onMappingChange?: ((label: string, skillId: string) => void) | null;
+  onSendUnresolved?: ((names: string[]) => void) | null;
+  sendingUnresolved?: boolean;
+  unresolvedSent?: boolean;
+  sendErrorMessage?: string | null;
   onApply: () => void;
   onDiscard: () => void;
 }) {
@@ -146,6 +155,8 @@ export function CvImportPreview({
   const skipped = zoneActive
     ? plan.skipped.filter((skip) => skip.reason !== SKILL_NOT_IN_LIST)
     : plan.skipped;
+  // Reste à envoyer en revue : hors catalogue et toujours sans mapping manuel.
+  const unresolved = unmapped.filter((row) => !mappings[row.label]);
 
   /** Plusieurs mappings ne peuvent pas viser la même compétence du catalogue. */
   const optionsFor = (label: string): SelectOption[] => {
@@ -276,6 +287,29 @@ export function CvImportPreview({
               </li>
             ))}
           </ul>
+          {unresolvedSent ? (
+            <p role="status" className="text-body-sm font-body-sm text-success-text">
+              Sent for review. We&apos;ll consider adding them to your catalog.
+            </p>
+          ) : onSendUnresolved && unresolved.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                type="button"
+                disabled={sendingUnresolved}
+                onClick={() => onSendUnresolved(unresolved.map((row) => row.label))}
+              >
+                {sendingUnresolved
+                  ? "Sending…"
+                  : `Send ${unresolved.length} unresolved skill${unresolved.length > 1 ? "s" : ""} for review`}
+              </Button>
+              {sendErrorMessage ? (
+                <p role="alert" className="text-body-sm font-body-sm text-on-error-container">
+                  {sendErrorMessage}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

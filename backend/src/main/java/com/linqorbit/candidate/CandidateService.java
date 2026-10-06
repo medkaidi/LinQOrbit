@@ -4,8 +4,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,7 @@ import com.linqorbit.candidate.dto.LinkResponse;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.SkillRequest;
 import com.linqorbit.candidate.dto.SkillResponse;
+import com.linqorbit.candidate.dto.SkillSuggestionRequest;
 import com.linqorbit.candidate.dto.StudyFieldOption;
 import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.candidate.entity.CandidateLanguage;
@@ -38,6 +41,7 @@ import com.linqorbit.candidate.entity.Degree;
 import com.linqorbit.candidate.entity.Language;
 import com.linqorbit.candidate.entity.ProfessionalExperience;
 import com.linqorbit.candidate.entity.Skill;
+import com.linqorbit.candidate.entity.SkillSuggestion;
 import com.linqorbit.candidate.entity.StudyField;
 import com.linqorbit.candidate.exception.InvalidProfileSectionException;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
@@ -50,6 +54,7 @@ import com.linqorbit.candidate.repository.DiplomaRepository;
 import com.linqorbit.candidate.repository.LanguageRepository;
 import com.linqorbit.candidate.repository.ProfessionalExperienceRepository;
 import com.linqorbit.candidate.repository.SkillRepository;
+import com.linqorbit.candidate.repository.SkillSuggestionRepository;
 import com.linqorbit.candidate.repository.StudyFieldRepository;
 
 /**
@@ -74,6 +79,7 @@ public class CandidateService {
     private final LanguageRepository languageRepository;
     private final DegreeRepository degreeRepository;
     private final StudyFieldRepository studyFieldRepository;
+    private final SkillSuggestionRepository skillSuggestionRepository;
     private final CandidateMapper candidateMapper;
 
     @Transactional(readOnly = true)
@@ -250,6 +256,43 @@ public class CandidateService {
         candidateLinkRepository.deleteAllByCandidateId(userId);
         candidateLinkRepository.saveAll(links);
         log.info("Candidate profile links updated : userId={}, count={}", userId, links.size());
+    }
+
+    @Transactional
+    public void suggestSkills(UUID userId, SkillSuggestionRequest request) {
+        log.info("Skill suggestions requested : userId={}, count={}", userId, request.names().size());
+        Set<String> catalog = skillRepository.findAll().stream()
+                .map(skill -> skill.getName().toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+        Set<String> seen = skillSuggestionRepository.findByCandidateId(userId).stream()
+                .map(suggestion -> suggestion.getName().toLowerCase(Locale.ROOT))
+                .collect(Collectors.toCollection(HashSet::new));
+        List<String> stored = new ArrayList<>(request.names().size());
+        for (String raw : request.names()) {
+            String name = raw == null ? "" : raw.trim();
+            if (name.isEmpty()) {
+                continue;
+            }
+            String key = name.toLowerCase(Locale.ROOT);
+            if (catalog.contains(key)) {
+                log.warn("Skill suggestion ignored, already in catalogue : userId={}, name={}", userId, name);
+                continue;
+            }
+            if (seen.add(key)) {
+                stored.add(name);
+            }
+        }
+        if (!stored.isEmpty()) {
+            UUID candidateId = findOrCreate(userId).getId();
+            skillSuggestionRepository.saveAll(stored.stream()
+                    .map(name -> SkillSuggestion.builder()
+                            .candidateId(candidateId)
+                            .name(name)
+                            .build())
+                    .toList());
+        }
+        log.info("Skill suggestions stored : userId={}, stored={}, requested={}",
+                userId, stored.size(), request.names().size());
     }
 
     @Transactional(readOnly = true)

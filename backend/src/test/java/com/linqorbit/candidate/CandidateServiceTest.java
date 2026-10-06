@@ -30,6 +30,7 @@ import com.linqorbit.candidate.dto.LanguageRequest;
 import com.linqorbit.candidate.dto.LinkRequest;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.SkillRequest;
+import com.linqorbit.candidate.dto.SkillSuggestionRequest;
 import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.candidate.entity.CandidateLanguage;
 import com.linqorbit.candidate.entity.CandidateLink;
@@ -38,6 +39,7 @@ import com.linqorbit.candidate.entity.Diploma;
 import com.linqorbit.candidate.entity.Language;
 import com.linqorbit.candidate.entity.ProfessionalExperience;
 import com.linqorbit.candidate.entity.Skill;
+import com.linqorbit.candidate.entity.SkillSuggestion;
 import com.linqorbit.candidate.exception.InvalidProfileSectionException;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
 import com.linqorbit.candidate.mapper.CandidateMapper;
@@ -49,6 +51,7 @@ import com.linqorbit.candidate.repository.DiplomaRepository;
 import com.linqorbit.candidate.repository.LanguageRepository;
 import com.linqorbit.candidate.repository.ProfessionalExperienceRepository;
 import com.linqorbit.candidate.repository.SkillRepository;
+import com.linqorbit.candidate.repository.SkillSuggestionRepository;
 import com.linqorbit.candidate.repository.StudyFieldRepository;
 
 class CandidateServiceTest {
@@ -65,6 +68,7 @@ class CandidateServiceTest {
     private LanguageRepository languageRepository;
     private DegreeRepository degreeRepository;
     private StudyFieldRepository studyFieldRepository;
+    private SkillSuggestionRepository skillSuggestionRepository;
     private CandidateMapper candidateMapper;
     private CandidateService candidateService;
 
@@ -80,10 +84,12 @@ class CandidateServiceTest {
         languageRepository = mock(LanguageRepository.class);
         degreeRepository = mock(DegreeRepository.class);
         studyFieldRepository = mock(StudyFieldRepository.class);
+        skillSuggestionRepository = mock(SkillSuggestionRepository.class);
         candidateMapper = mock(CandidateMapper.class);
         candidateService = new CandidateService(candidateRepository, experienceRepository, diplomaRepository,
                 candidateSkillRepository, candidateLanguageRepository, candidateLinkRepository,
-                skillRepository, languageRepository, degreeRepository, studyFieldRepository, candidateMapper);
+                skillRepository, languageRepository, degreeRepository, studyFieldRepository,
+                skillSuggestionRepository, candidateMapper);
     }
 
     @Test
@@ -362,6 +368,53 @@ class CandidateServiceTest {
                 .extracting(SkillOption::skillType)
                 .containsExactly("tech");
         verify(languageRepository, never()).findAllByOrderByNameAsc();
+    }
+
+    @Test
+    void suggestionsEnregistreesTrimeesEtDedupliqueesSansLesNomsConnus() {
+        Skill react = Skill.builder().id(UUID.randomUUID()).name("React").skillType(SkillType.TECH).build();
+        when(skillRepository.findAll()).thenReturn(List.of(react));
+        when(skillSuggestionRepository.findByCandidateId(USER_ID))
+                .thenReturn(List.of(SkillSuggestion.builder().name("n8n").build()));
+        when(candidateRepository.findById(USER_ID)).thenReturn(Optional.of(candidate()));
+
+        candidateService.suggestSkills(USER_ID,
+                new SkillSuggestionRequest(List.of("  Kustom ", "kustom", "CSS Grid", "n8n", "React")));
+
+        ArgumentCaptor<List<SkillSuggestion>> captor = ArgumentCaptor.forClass(List.class);
+        verify(skillSuggestionRepository).saveAll(captor.capture());
+        assertThat(captor.getValue())
+                .extracting(SkillSuggestion::getName)
+                .containsExactly("Kustom", "CSS Grid");
+        assertThat(captor.getValue())
+                .extracting(SkillSuggestion::getCandidateId)
+                .containsOnly(USER_ID);
+        verify(candidateRepository).findById(USER_ID);
+    }
+
+    @Test
+    void suggestionsToutDejaConnuNecritRienEtNenregistrePasDeCandidat() {
+        Skill react = Skill.builder().id(UUID.randomUUID()).name("React").skillType(SkillType.TECH).build();
+        when(skillRepository.findAll()).thenReturn(List.of(react));
+        when(skillSuggestionRepository.findByCandidateId(USER_ID))
+                .thenReturn(List.of(SkillSuggestion.builder().name("n8n").build()));
+
+        candidateService.suggestSkills(USER_ID,
+                new SkillSuggestionRequest(List.of("react", "N8N", "n8n")));
+
+        verify(skillSuggestionRepository, never()).saveAll(any());
+        verifyNoInteractions(candidateRepository);
+    }
+
+    @Test
+    void suggestionsSansNomValideNecritRien() {
+        when(skillRepository.findAll()).thenReturn(List.of());
+        when(skillSuggestionRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
+
+        candidateService.suggestSkills(USER_ID, new SkillSuggestionRequest(List.of("   ", "")));
+
+        verify(skillSuggestionRepository, never()).saveAll(any());
+        verifyNoInteractions(candidateRepository);
     }
 
     private Candidate candidate() {

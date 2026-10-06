@@ -56,6 +56,7 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/skills'].put").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/languages'].put").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/links'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/skill-suggestions'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/skills'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/languages'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/degrees'].get").exists())

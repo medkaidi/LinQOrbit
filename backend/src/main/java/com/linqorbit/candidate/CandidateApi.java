@@ -31,6 +31,7 @@ import com.linqorbit.candidate.dto.LanguageRequest;
 import com.linqorbit.candidate.dto.LinkRequest;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.SkillRequest;
+import com.linqorbit.candidate.dto.SkillSuggestionRequest;
 import com.linqorbit.candidate.dto.StudyFieldOption;
 import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.config.OpenApiConfig;
@@ -124,6 +125,17 @@ public interface CandidateApi {
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
     })
     ResponseEntity<Void> updateLinks(@Valid @RequestBody List<LinkRequest> request, Authentication authentication);
+
+    @PostMapping("/me/profile/skill-suggestions")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Suggérer des compétences manquantes", description = "Envoie jusqu'à 50 noms de compétences absentes du catalogue pour revue manuelle. Les noms déjà présents dans le catalogue ou déjà suggérés sont ignorés sans erreur.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Suggestions enregistrées (noms déjà connus ignorés sans erreur)"),
+            @ApiResponse(responseCode = "400", description = "Corps invalide (plus de 50 noms ou nom vide)"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
+    })
+    ResponseEntity<Void> suggestSkills(@Valid @RequestBody SkillSuggestionRequest request,
+            Authentication authentication);
 
     @PostMapping(value = "/me/profile/cv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
