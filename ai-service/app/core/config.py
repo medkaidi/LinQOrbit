@@ -21,6 +21,9 @@ class Settings(BaseSettings):
 
     version: str = "0.1.0"
 
+    # Logging — consumed by app.core.logging.configure_logging (see app/main.py).
+    log_level: str = "INFO"
+
     # Google Gemini — consumed by ChatGoogleGenerativeAI (see app/llm/client.py).
     google_api_key: str = ""
     llm_model: str = "gemini-3.1-flash-lite"

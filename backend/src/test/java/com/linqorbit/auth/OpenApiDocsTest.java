@@ -56,11 +56,31 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/skills'].put").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/languages'].put").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/links'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/validate'].post.summary")
+                        .value("Valider le profil et lancer la normalisation"))
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/skill-suggestions'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/skills'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/languages'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/degrees'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/study-fields'].get").exists());
+    }
+
+    @Test
+    void exposeLeDocumentOpenApiAvecLesEndpointsDAdministration() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/users'].get.summary")
+                        .value("Lister les comptes"))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/users/{userId}/status'].patch.summary")
+                        .value("Activer ou désactiver un compte"))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/skill-suggestions'].get.summary")
+                        .value("Lister les suggestions de compétences"))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/skill-suggestions/{id}/approve'].post.summary")
+                        .value("Approuver une suggestion de compétence"))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/skill-suggestions/{id}/link'].post.summary")
+                        .value("Relier une suggestion à une compétence existante"))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/skill-suggestions/{id}/reject'].post.summary")
+                        .value("Rejeter une suggestion de compétence"));
     }
 
     @Test

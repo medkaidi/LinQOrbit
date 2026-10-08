@@ -1,5 +1,7 @@
 package com.linqorbit.auth;
 
+import java.util.List;
+
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
@@ -12,7 +14,8 @@ import com.linqorbit.user.UserSex;
 public interface UserMapper {
 
     @Mapping(target = "sex", qualifiedByName = "sexToApi")
-    UserResponse toUserResponse(User user);
+    @Mapping(target = "roles", source = "roles")
+    UserResponse toUserResponse(User user, List<Short> roles);
 
     @Named("sexToApi")
     default String sexToApi(UserSex sex) {

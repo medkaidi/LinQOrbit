@@ -8,7 +8,7 @@ import { applySkillMappings } from "@/features/candidate/cv-parsing";
 import { useSuggestSkills } from "@/hooks/use-candidate-profile";
 import type { ParsedCv, SkillReference } from "@/types/candidate";
 import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
+import { Spinner } from "@/components/ui/spinner";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 
 export type CvImportDialogStatus = "parsing" | "ready" | "error";
@@ -105,7 +105,7 @@ export function CvImportDialog({
       >
         {status === "parsing" ? (
           <div className="p-10 flex flex-col items-center gap-4">
-            <Icon name="progress_activity" className="text-[32px] animate-spin text-orange-deep" />
+            <Spinner className="text-[32px] text-orange-deep" />
             <p role="status" className="font-label-md text-label-md text-text-secondary">
               {statusLabel}
             </p>

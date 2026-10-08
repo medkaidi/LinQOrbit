@@ -4,7 +4,7 @@ Service indépendant spécialisé IA pour LinQOrbit. **Spring Boot reste le back
 
 ## Rôle
 
-Reçoit des données structurées de Spring Boot (HTTP/JSON) → analyse via LangGraph/agents/LLM → renvoie un résultat structuré. À terme : `POST /ai/normalize/candidate`, `POST /ai/normalize/job-offer`, `POST /ai/matching/analyze`, `POST /ai/matching/clarify`.
+Reçoit des données structurées de Spring Boot (HTTP/JSON) → analyse via LangGraph/agents/LLM → renvoie un résultat structuré. Existant : `POST /cv/parse` (import de CV), `POST /profile/normalize` (normalisation de profil, appelée par le worker Spring Boot). À terme : normalisation d'offre, `POST /ai/matching/analyze`, `POST /ai/matching/clarify`.
 
 ## Stack
 
@@ -18,8 +18,8 @@ Reçoit des données structurées de Spring Boot (HTTP/JSON) → analyse via Lan
 ```text
 app/
 ├── main.py          # app FastAPI + routers
-├── api/routes/       # HTTP uniquement (health.py, cv.py ; plus tard normalization.py, matching.py)
-├── schemas/          # contrats Pydantic API (candidate, job_offer, matching…) — JAMAIS d'ORM
+├── api/routes/       # HTTP uniquement (health.py, cv.py, normalize.py ; plus tard matching.py)
+├── schemas/          # contrats Pydantic API (cv.py, normalize.py ; plus tard job_offer, matching…) — JAMAIS d'ORM
 ├── agents/           # logique des agents
 ├── graphs/           # orchestration LangGraph (workflow des agents)
 ├── llm/              # config et appels LLM centralisés (jamais dispersés dans les routes)
@@ -45,6 +45,16 @@ Concevoir en `async/await` quand pertinent (FastAPI, clients LLM) ; pas de broke
 - `uv run pytest` — priorité aux tests unitaires : schemas Pydantic, transformations, logique agents, nodes LangGraph, parsing, routes.
 - **Aucun appel LLM réel dans les tests** : mocker (le health-check actuel est le seul test de vérification d'environnement).
 - Une fonctionnalité n'est pas terminée parce qu'elle compile : elle doit venir avec ses tests.
+
+## Logging
+
+Miroir de la politique du backend (Spring Boot, `backend/AGENTS.md` § Logging) :
+
+- **Configuration unique** : `app/core/logging.py` — `configure_logging(settings.log_level)` appelé au démarrage de `app/main.py` (format console : date, level, `[correlationId]`, logger, message — même forme que le pattern `%d … %-5level [%X{correlationId:-}] %logger{40} - %msg%n` ; niveau via `LOG_LEVEL`, défaut `INFO`, idempotent : sous pytest il ne reconfigure rien).
+- **Corrélation requête** : middleware dans `main.py` — lit l'en-tête `X-Request-Id` (sinon `uuid4`), le porte dans un contextvar (`correlationId`, défaut `-`), logue `HTTP <méthode> <chemin>` à l'entrée puis statut + durée à la sortie (**INFO < 400, WARNING ≥ 400, ERROR ≥ 500**, exactement comme le backend), ré-émet l'en-tête sur la réponse. Jamais de query string, de header ni de corps.
+- **Étapes métier** : `routes/cv.py` et `routes/normalize.py` loguent la réception (compteurs/métadonnées seulement), chaque refus (WARNING : code/statut — **jamais le contenu**) et le succès (compteurs) ; `agents/cv_parse.py` et `agents/profile_normalize.py` signalent la passe de réparation (WARNING) puis sa réussite (INFO) ; `llm/client.py` logue l'init du modèle une fois (INFO, **jamais la clé**).
+- **Interdit dans les logs** : texte de CV, prompts, corps de requête/réponse, en-têtes autres que `X-Request-Id`, clés API (`GOOGLE_API_KEY`).
+- Pas de tests de plumbing sur le formatage ; `tests/test_logging.py` vérifie les **comportements** (seuils de niveau, écho de `X-Request-Id`, forme de la ligne).
 
 ## Configuration
 

@@ -23,13 +23,29 @@ com.linqorbit/
 ├── auth/              domaine auth : AuthApi, AuthController, AuthService, UserMapper
 │   ├── dto/           6 DTOs de l'API auth
 │   └── exception/     4 exceptions métier
-├── user/              domaine utilisateur (implémenté)
+├── user/              domaine utilisateur (implémenté) : User, UserStatus, UserSex (+ converters),
+│                      UserRepository, Role, UserRole, UserRoleRepository (rôles de capacité)
+├── admin/             administration (rôle ADMIN) : AdminApi, AdminController, AdminService,
+│   ├── dto/           AdminUserResponse, UpdateUserStatusRequest, AdminSkillSuggestionResponse,
+│   │                  ApproveSkillSuggestionRequest, LinkSkillSuggestionRequest
+│   └── exception/     InvalidUserStatusException, SelfStatusChangeException, UserNotFoundException,
+│                      SuggestionNotFoundException, InvalidSkillCategoryException, InvalidSkillTypeException
+│                      + AdminBootstrap (garant du rôle ADMIN au démarrage)
+│                      Revue des suggestions : approbation (crée au catalogue + insère au profil des
+│                      auteurs), lien vers un skill existant, rejet — la décision frappe le groupe
+│                      homonyme (`findAllByNameIgnoreCase`), insertion profil = niveau 1, aucun V9
 ├── candidate/         profil candidat (implémenté) : CandidateApi, CandidateController,
-│   ├── dto/           19 DTOs de l'API profil (About/Experience/Diploma/Skill/Language/Link/TargetPosition …)
+│   ├──                CandidateService, NormalizationService, NormalizationWorker,
+│   ├──                ProfileNormalizeClient, ReferenceContextBuilder
+│   ├── dto/           21 DTOs de l'API profil (About/Experience/Diploma/Skill/Language/Link/
+│   │                  TargetPosition, CandidateProfileResponse, NormalizeRequest …)
 │   ├── entity/        entités du profil (ProfessionalExperience, Diploma, CandidateSkill …)
+│   │                  + NormalizedProfile, NormalizedProfileCandidate, NormalizationJob
 │   ├── repository/    repositories (Diploma, Skill, Language, StudyField …)
+│   │                  + NormalizedProfile(Candidate), NormalizationJob (claim CAS, supersede)
 │   ├── mapper/        CandidateMapper (MapStruct)
-│   └── exception/     InvalidProfileSectionException, ReferenceNotFoundException
+│   └── exception/     InvalidProfileSectionException, ReferenceNotFoundException,
+│                      EmptyProfileException, AiServiceException
 ├── application/ attachment/ company/ joboffer/ matching/ recruiter/
 │                      domaines roadmap — pré-créés (exception), vides jusqu'à leur 1re classe
 ```
@@ -65,36 +81,61 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 
 ## Base de données
 
-- **Flyway est le seul responsable du schéma** : `src/main/resources/db/migration/` avec `V1__…sql` … `V5__…sql` (`V3` profil candidat, `V4` listes de référence, `V5` poste recherché).
+- **Flyway est le seul responsable du schéma** : `src/main/resources/db/migration/` avec `V1__…sql` … `V9__…sql` (`V3` profil candidat, `V4` listes de référence, `V5` poste recherché, `V6` contexte CV, `V7` suggestions de compétences, `V8` rôles `user_roles`, `V9` profil normalisé + jobs de normalisation).
 - Une migration exécutée est **immuable** ; toute modification du schéma = nouvelle migration.
 - `spring.jpa.hibernate.ddl-auto: validate` — Hibernate ne crée ni ne modifie jamais le schéma, et **compare les types JDBC, pas le SQL** : `INTEGER` ≠ `SMALLINT` (int2), `VARCHAR` ≠ `TEXT`. Chaque colonne doit être déclarée avec le type exact du type Java (`Integer` → `INTEGER`, `String` → `VARCHAR(n)`, `Long` → `BIGINT`) sous peine d'échouer au démarrage du contexte.
 - SQL PostgreSQL strict, pas de dépendance à des dialectes spécifiques dans les migrations.
 
 ## Sécurité
 
-- `config/SecurityConfig` : stateless, CSRF off, `permitAll` (infrastructure seule).
-- Pas de `USER.type`, pas de tables ROLE/USER_ROLE/PERMISSION en V0 : `CANDIDATE` et `RECRUITER` sont des entités métier distinctes du compte `USER` (un utilisateur peut être les deux).
+- `config/SecurityConfig` : stateless, CSRF off, `permitAll` (infrastructure seule), `/api/v1/admin/**` = `hasRole("ADMIN")`.
+- **Modèle en deux couches (décision d'équipe)** : les rôles (`user_roles`, colonne `role` SMALLINT = capacité : `ADMIN(1)` via enum `Role`) disent ce qu'un compte **peut faire** ; l'identité reste dans `candidates`/`recruiters` (cumul natif, un utilisateur peut être les deux). **Jamais** dupliquer un membership en rôle, jamais de `USER.type`, pas de PERMISSIONS.
+- JWT : claim **`roles`** = codes SMALLINT (`AuthService.roleCodes`) ; `config/JwtRoleAuthoritiesConverter` les transforme en autorités `ROLE_*` (code inconnu ignoré).
+- `admin/AdminBootstrap` (`CommandLineRunner`) garantit au moins un compte ADMIN à chaque démarrage (idempotent, `app.admin.*` / env `ADMIN_EMAIL`, `ADMIN_PASSWORD`).
+- Piège JPA : **pas d'`AttributeConverter` sur un champ `@Id`** (interdit) — `UserRole.role` porte donc le code `Short` brut, conversion vers `Role` aux bords (`UserRole.of` / `roleEnum`).
 
 ## Communication
 
-- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,recruiters,companies,job-offers,applications,matchings}` — `auth` et `candidates` existent (`/api/v1/candidates/me/profile` + `/{about,about/target-position,experiences,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}`), les autres sont à venir. `PUT …/about` n'écrit jamais `targetPosition` (poste recherché isolé sur `PUT …/about/target-position`, conservé mais non consommé par l'UI actuelle) ; `GET …/profile` renvoie bien `about.targetPosition`.
-- **Service IA Python (FastAPI)** : appelé par ce backend en HTTP (`/ai/...`), jamais par le frontend. Client HTTP à créer quand les endpoints IA existeront — pas de fake AI, pas de client avant le besoin.
+- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,admin,recruiters,companies,job-offers,applications,matchings}` — `auth`, `candidates` et `admin` existent (`/api/v1/candidates/me/profile` + `/{about,about/target-position,experiences,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}` ; `POST /api/v1/candidates/me/profile/validate` déclenche la normalisation — voir « Normalisation du profil » ; `/api/v1/admin/{users,users/{userId}/status,skill-suggestions,skill-suggestions/{id}/{approve,link,reject}}` sous rôle ADMIN), les autres sont à venir. `PUT …/about` n'écrit jamais `targetPosition` (poste recherché isolé sur `PUT …/about/target-position`, conservé mais non consommé par l'UI actuelle) ; `GET …/profile` renvoie bien `about.targetPosition` et le signal `hasUnvalidatedChanges`.
+- **Service IA Python (FastAPI)** : appelé par ce backend en HTTP, jamais par le frontend. Deux clients dans `candidate/` : `CvParseClient` (`POST /cv/parse`, import de CV) et `ProfileNormalizeClient` (`POST /profile/normalize`, normalisation de profil — appelé par le worker) — pas de fake AI.
+
+## Normalisation du profil
+
+Profil candidat → objet canonique JSON, en **async durable** (11 décisions actées ; format et pipeline modifiables ensuite) :
+
+- **Déclencheur = validation explicite** : `POST …/me/profile/validate` — les 7 écritures de section ne déclenchent rien. Même tx, sous lock pessimiste de la ligne candidat (`CandidateRepository.findByIdForUpdate`) : dirty-check → version = max+1 → jobs `PENDING` du candidat → `SUPERSEDED` → INSERT `normalized_profile` (content NULL) + association + job `PENDING`. No-op si rien n'a changé (sauf relance d'un job `FAILED`) ; 409 `EmptyProfileException` s'il n'y a pas de ligne candidat.
+- **Dirty-flag** : `hasUnvalidatedChanges` sur `GET …/profile` = `candidates.updated_at` (heartbeat : les 5 sections filles appellent `touchUpdatedAt`) vs `max(normalized_profile.validated_at)` ; `false` tant qu'aucune validation. Pas de colonne `is_current` : dérivé à la volée.
+- **Tables (V9)** : `normalized_profile` (PK dédiée, version, schema_version, content JSONB nullable, validated_at), `normalized_profile_candidate` (liaison candidat — table des offres plus tard), `normalization_job` (shared PK `job_id ≡ normalized_profile_id`, la PK porte la FK ; statuts `PENDING|RUNNING|DONE|FAILED|SUPERSEDED`). Version courante = dernière version avec `content IS NOT NULL`, dérivée. Pas de `UNIQUE(candidate_id, version)` ni trigger (décision : le lock pessimiste suffit).
+- **Worker** (`NormalizationWorker`) : `@EnableScheduling` sur l'application, poll `app.normalization.poll-interval-ms` (défaut 5 s, poller garé dans les tests par `src/test/resources/application.properties` — `.properties` prime sur le `.yml`). Claim CAS `PENDING→RUNNING` en tx courte via `TransactionTemplate` (jamais d'auto-invoque `@Transactional`), snapshot `CandidateService.getProfile` + contexte `ReferenceContextBuilder`, appel `ProfileNormalizeClient`, écriture `content` + `DONE` en une tx. Échec → backoff 60 s, 3 essais max → `FAILED` (relance possible par l'utilisateur) ; jobs `RUNNING` > 10 min récupérés (worker mort). MDC `correlationId` = id du job pendant l'exécution.
+- **Format canonique v1** : JSON camelCase validé par le service IA (`app/schemas/normalize.py` : schemaVersion `1`, dates `YYYY-MM`, CEFR, niveaux 1–5, rien inventé, jamais d'UUID dans le contenu).
 
 ## Erreurs
 
-`common/exception/GlobalExceptionHandler` (`@RestControllerAdvice`) : format ProblemDetail (RFC 7807). Étendre progressivement, sans système d'exceptions surdimensionné.
+`common/exception/GlobalExceptionHandler` (`@RestControllerAdvice`) : format ProblemDetail (RFC 7807). **Invariant : le frontend affiche `detail` tel quel (`getApiErrorMessage`) — donc `detail` ne contient jamais de message brut de framework ni de code interne.**
 
-Deux pièges déjà rencontrés :
+**Règle A — erreur métier** : classe dans `*/exception/` + lancement **explicite** par le code applicatif (`throw new XxxException(…)` ou `orElseThrow`) + handler dédié dans `GlobalExceptionHandler` dont nous construisons le `detail` (affiché tel quel). Étendre progressivement, sans système d'exceptions surdimensionné.
+
+**Règle B — tout le reste** : framework sans handler, `IllegalArgumentException`, inattendu → catch-all `handleUnexpected` : `detail` **générique** (5xx = « An unexpected error occurred. It has been logged for our team. », 4xx = « The request could not be processed. ») + classe + message + stack en logs (`log.error`). **Jamais `ex.getMessage()` dans une réponse.**
+
+Autorisations :
+- exceptions framework avec handler uniquement si on **réécrit** un message sûr (validation « champ : message », `MaxUploadSizeExceededException` hardcodé) ;
+- **jamais** de handler pour `NoResourceFoundException` (route morte → corps `/error` Boot sans message, `server.error.include-message` = défaut `never`) ;
+- **401/403** : `config/ProblemSecurityHandler` (entry point + access denied, branchés dans `SecurityConfig`) écrit le corps ProblemDetail directement (pas de `sendError` → pas de dispatch `/error`), détail sûr constant ; déclaré en `@Bean` dans `SecurityConfig` (les slices `@WebMvcTest` ne scannent pas les `@Component`) avec l'`ObjectMapper` **Jackson 3** (`tools.jackson`) — le bean `com.fasterxml` n'existe pas sous Boot 4 ;
+- exception assumée : `AiClientErrors.extractDetail` (partagé par `CvParseClient` et `ProfileNormalizeClient`) relit le `detail` des 4xx du service IA (nos propres messages) ; les 5xx IA sont déjà mappées en génériques.
+
+Trois pièges déjà rencontrés :
 - un corps `List<…>` validé par méthode (`@Valid @RequestBody List<…>`) est traité par Spring 7 via `HandlerMethodValidationException`, pas par `MethodArgumentNotValidException` → handler dédié sinon 500 ;
-- la validation d'un champ `String` vide (`""`) par Bean Validation n'atteint pas toujours le même handler : vérifier le flux complet d'un 400.
+- la validation d'un champ `String` vide (`""`) par Bean Validation n'atteint pas toujours le même handler : vérifier le flux complet d'un 400 ;
+- `assertThat(generic.getClaim(...))` sur une méthode à retour générique (`<T> T`) rend l'overload AssertJ ambigu : typer en `Object` dans une variable locale avant l'assertion.
 
 ## Logging (SLF4J)
 
 - **Point d'entrée standard : `@Slf4j`** (Lombok) — le champ `log` remplace toute déclaration manuelle (`log.info` / `log.warn` / `log.error`, pas de niveau `alert` en SLF4J) ; SLF4J/Logback reste le moteur (fourni par Spring Boot) — jamais de `System.out`, aucune librairie concurrente.
 - **Corrélation requête** : `common/logging/RequestLoggingFilter` crée un `X-Request-Id` (MDC `correlationId`, affiché par le pattern console) et logue chaque requête — méthode + URI à l'entrée, statut + durée à la sortie (WARN si ≥ 400, ERROR si ≥ 500).
+- **Propagation sortante** : `common/logging/CorrelationIdInterceptor` renvoie ce `X-Request-Id` en en-tête sur chaque appel `RestClient` sortant (branché sur `aiRestClient` dans `config/AiClientConfig`) — les logs du service IA portent alors le même identifiant que la requête qui l'a déclenché. Sans MDC (hors requête) : aucun en-tête. Fonctionne car l'appel IA est **synchrone sur le thread de la requête** ; le thread planifié du worker (`NormalizationWorker`) pose lui-même le MDC `correlationId` = id du job avant l'appel et le retire en finally (`RequestLoggingFilter.CORRELATION_ID` est public pour ça). Le service IA lit et ré-émet déjà l'en-tête (`ai-service/AGENTS.md` § Corrélation) ; tout **nouveau client sortant** devra porter le même interceptor (comportement : `CorrelationIdInterceptorTest`, wiring : `AiClientConfigTest`).
 - **Étapes métier** : chaque service logue ses étapes clés — INFO pour la réception et le succès (identifiants, statut), WARN pour chaque refus (motif + email/id concerné).
 - **Interdit dans les logs** : mots de passe, hash, jetons JWT, corps de requête. Les données utiles (email, userId, statut) sont loggées champ par champ, jamais le payload brut.
-- Configuration : `application.yml` (`logging.pattern.console`, `logging.level`). Pas de tests de plumbing sur le logging.
+- Configuration : `application.yml` (`logging.pattern.console`, `logging.level`). Pas de tests de plumbing sur le logging du filtre lui-même.
 
 ## Tests
 
@@ -102,6 +143,7 @@ Deux pièges déjà rencontrés :
 - **Unit tests** (priorité) : la logique métier des Services, avec Mockito pour Repository / API externes / dépendances. Rapides et isolés — aucun PostgreSQL requis.
 - **Tests d'intégration** : `@WebMvcTest` / `@DataJpaTest` / `@SpringBootTest` au cas par cas quand les fonctionnalités existent (nécessitent PostgreSQL, voir `.env.example`).
 - `@SpringBootTest` contexte = requis PostgreSQL actif (`docker start linqorbit-pg`).
+- Si le contexte échoue avec `No qualifying bean of type 'long'` (ou un `@Value` ignoré côté `AuthService`) : compilation incrémentale ayant sauté l'annotation processing Lombok → `./mvnw clean test`.
 - Sécurité : `spring-security-test` est prêt (MockMvc + `SecurityMockMvcRequestPostProcessors`) — l'utiliser dès que l'auth arrivera, sans créer de faux système d'auth pour un test. Tout endpoint sous `.authenticated()` doit recevoir `jwt()` dans ses tests : sans jeton, le test échoue en 403 et non par la validation métier attendue.
 - MapStruct : ne tester que les mappings avec logique/transformations réelles, jamais les getters/setters générés.
 - Philosophie : couverture des comportements importants (règles métier, validations, transformations, erreurs, cas limites), pas 100 % à tout prix, pas de tests de plumbing.

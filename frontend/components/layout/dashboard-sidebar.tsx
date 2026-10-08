@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/brand/logo";
 import { Wordmark } from "@/components/brand/wordmark";
 import { Icon } from "@/components/ui/icon";
+import { isAdmin } from "@/lib/utils/roles";
+import { useAuthStore } from "@/stores/auth-store";
 
 const NAV_ITEMS = [
   { icon: "view_kanban", label: "Offers & Pipelines" },
@@ -59,6 +61,7 @@ function SidebarLink({ href, icon, label, active }: SidebarLinkProps) {
 
 export function DashboardSidebar() {
   const pathname = usePathname();
+  const user = useAuthStore((state) => state.user);
 
   return (
     <aside className="hidden lg:flex fixed left-0 top-0 h-full w-64 bg-canvas-white border-r border-slate-border z-50 flex-col justify-between pb-5">
@@ -121,6 +124,17 @@ export function DashboardSidebar() {
             );
           })}
         </nav>
+
+        {isAdmin(user) && (
+          <div className="mx-3 mt-4 pt-4 border-t border-slate-border">
+            <SidebarLink
+              href="/admin"
+              icon="admin_panel_settings"
+              label="Administration"
+              active={pathname.startsWith("/admin")}
+            />
+          </div>
+        )}
       </div>
 
       <div className="px-3 flex flex-col gap-2">

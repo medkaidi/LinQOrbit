@@ -11,6 +11,7 @@ vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
     getReferenceLanguages: vi.fn(),
     getReferenceDegrees: vi.fn(),
     getReferenceStudyFields: vi.fn(),
+    validateProfile: vi.fn(),
   };
 });
 
@@ -25,6 +26,7 @@ import {
   getReferenceLanguages,
   getReferenceSkills,
   getReferenceStudyFields,
+  validateProfile,
 } from "@/lib/api/candidate.api";
 import { me } from "@/lib/api/auth.api";
 import type { CandidateProfile } from "@/types/candidate";
@@ -32,6 +34,7 @@ import type { AuthUser } from "@/types/auth";
 import { ProfileView } from "@/features/candidate/profile-view";
 
 const mockedGetProfile = vi.mocked(getProfile);
+const mockedValidateProfile = vi.mocked(validateProfile);
 const mockedMe = vi.mocked(me);
 const mockedReferenceQueries = [
   vi.mocked(getReferenceSkills),
@@ -90,6 +93,8 @@ const filledProfile: CandidateProfile = {
     },
   ],
   completionPercentage: 83,
+  hasUnvalidatedChanges: false,
+  normalizationFailed: false,
 };
 
 const emptyProfile: CandidateProfile = {
@@ -100,6 +105,8 @@ const emptyProfile: CandidateProfile = {
   languages: [],
   links: [],
   completionPercentage: 0,
+  hasUnvalidatedChanges: false,
+  normalizationFailed: false,
 };
 
 const accountUser: AuthUser = {
@@ -112,6 +119,7 @@ const accountUser: AuthUser = {
   homeCountry: "GB",
   currentCity: "Paris",
   currentCountry: "FR",
+  roles: [],
 };
 
 function renderProfile() {
@@ -129,6 +137,8 @@ describe("ProfileView", () => {
   beforeEach(() => {
     mockedGetProfile.mockReset();
     mockedGetProfile.mockResolvedValue(filledProfile);
+    mockedValidateProfile.mockReset();
+    mockedValidateProfile.mockResolvedValue(undefined);
     mockedMe.mockReset();
     mockedMe.mockRejectedValue(new Error("no account in this test"));
     mockedReferenceQueries.forEach((query) => {
@@ -149,6 +159,10 @@ describe("ProfileView", () => {
       await screen.findByText("5 of 6 sections complete. A profile with substance gets more replies."),
     ).toBeInTheDocument();
     expect(screen.getByText("83%")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit profile" })).toHaveAttribute(
+      "href",
+      "/profile/edit",
+    );
   });
 
   it("renders every section as a read-only card", async () => {
@@ -201,6 +215,30 @@ describe("ProfileView", () => {
     expect(within(about).getByRole("heading", { name: "About you" })).toBeInTheDocument();
   });
 
+  it("renders an account without location fields without crashing", async () => {
+    // Compte créé sans profil de localisation (ex. AdminBootstrap) : /me renvoie null.
+    mockedMe.mockResolvedValue({
+      ...accountUser,
+      sex: null,
+      phone: null,
+      homeCountry: null,
+      currentCity: null,
+      currentCountry: null,
+    });
+    renderProfile();
+
+    expect(
+      await screen.findByRole("heading", { name: "Personal Information" }),
+    ).toBeInTheDocument();
+    const about = document.getElementById("about") as HTMLElement;
+    // L'identité attend la résolution de /me avant d'afficher les champs du compte.
+    expect(await within(about).findByText("Ada Lovelace")).toBeInTheDocument();
+    expect(within(about).getByText("Current location").parentElement).toHaveTextContent(
+      "Not provided",
+    );
+    expect(within(about).getByText("Phone").parentElement).toHaveTextContent("Not provided");
+  });
+
   it("offers an edit action that points at the editor", async () => {
     renderProfile();
 
@@ -232,6 +270,19 @@ describe("ProfileView", () => {
       "/profile/edit",
     );
     expect(screen.getByRole("link", { name: "Add skills" })).toHaveAttribute("href", "/profile/edit");
+  });
+
+  it("validates the profile from the banner, then refreshes it", async () => {
+    mockedGetProfile.mockResolvedValueOnce({ ...filledProfile, hasUnvalidatedChanges: true });
+    renderProfile();
+
+    fireEvent.click(await screen.findByRole("button", { name: /validate profile/i }));
+
+    await waitFor(() => expect(mockedValidateProfile).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Profile validated")).toBeInTheDocument();
+    // L'invalidation re-fetch le profil : le drapeau retombe à false.
+    await waitFor(() => expect(mockedGetProfile).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Profile changes pending")).not.toBeInTheDocument();
   });
 
   it("shows a skeleton while the profile is loading", () => {

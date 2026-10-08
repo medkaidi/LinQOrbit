@@ -16,6 +16,7 @@ import {
   updateLanguages,
   updateLinks,
   updateSkills,
+  validateProfile,
 } from "@/lib/api/candidate.api";
 import type {
   AboutValues,
@@ -86,6 +87,15 @@ export function useUpdateLinks() {
   const invalidateProfile = useInvalidateProfile();
   return useMutation({
     mutationFn: (values: LinksValues) => updateLinks(values),
+    onSuccess: invalidateProfile,
+  });
+}
+
+/** Validation explicite du profil : lance le job de normalisation puis rafraîchit le profil. */
+export function useValidateProfile() {
+  const invalidateProfile = useInvalidateProfile();
+  return useMutation({
+    mutationFn: validateProfile,
     onSuccess: invalidateProfile,
   });
 }

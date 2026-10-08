@@ -24,6 +24,7 @@ const storeUser: AuthUser = {
   homeCountry: "FR",
   currentCity: "Paris",
   currentCountry: "FR",
+  roles: [],
 };
 
 function renderAccount() {
@@ -69,6 +70,27 @@ describe("AccountView", () => {
 
     expect(await screen.findByText("Ada Lovelace")).toBeInTheDocument();
     expect(await screen.findByText("Account may be out of date")).toBeInTheDocument();
+  });
+
+  it("shows placeholders when the account has no location data", async () => {
+    // Compte créé sans profil (ex. AdminBootstrap) : champs de localisation null.
+    mockedMe.mockResolvedValue({
+      ...storeUser,
+      sex: null,
+      phone: null,
+      homeCountry: null,
+      currentCity: null,
+      currentCountry: null,
+    });
+
+    renderAccount();
+
+    expect(await screen.findByText("Ada Lovelace")).toBeInTheDocument();
+    expect(screen.getByText("Current city").parentElement).toHaveTextContent("Not provided");
+    expect(screen.getByText("Current country").parentElement).toHaveTextContent("Not provided");
+    expect(screen.getByText("Country of origin").parentElement).toHaveTextContent("Not provided");
+    expect(screen.getByText("Sex").parentElement).toHaveTextContent("Not provided");
+    expect(screen.getByText("Phone").parentElement).toHaveTextContent("Not provided");
   });
 
   it("shows a retry state when there is no cached session either", async () => {

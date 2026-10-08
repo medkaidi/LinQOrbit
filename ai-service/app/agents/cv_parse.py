@@ -7,6 +7,7 @@ Step 2 (understanding and structuring) is the LangGraph agent.
 from __future__ import annotations
 
 import io
+import logging
 
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
@@ -15,6 +16,8 @@ from pypdf.errors import PdfReadError
 
 from app.graphs.cv_agent import build_cv_agent
 from app.schemas.cv import ParsedCv, ReferenceContext
+
+logger = logging.getLogger(__name__)
 
 # Below this length the "text layer" is almost certainly absent (scanned PDF).
 MIN_TEXT_LENGTH = 100
@@ -76,6 +79,7 @@ def parse_cv(pdf_bytes: bytes, context: ReferenceContext | None = None) -> Parse
 
     # One repair turn, replaying this run's history explicitly (no checkpointer)
     # so the model sees its own unfinished answer and can submit the schema now.
+    logger.warning("CV parse : structured output missing, running repair turn")
     try:
         repair = agent.invoke(
             {
@@ -96,6 +100,7 @@ def parse_cv(pdf_bytes: bytes, context: ReferenceContext | None = None) -> Parse
         ) from exc
     parsed = repair.get("structured_response")
     if isinstance(parsed, ParsedCv):
+        logger.info("CV parse : repair turn recovered the structured output")
         return parsed
 
     raise CVParseError(

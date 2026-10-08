@@ -1,11 +1,18 @@
 import type { ComponentPropsWithRef } from "react";
 import { Icon } from "@/components/ui/icon";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils/cn";
 
 export type ButtonVariant = "primary" | "outline" | "outline-sm" | "ghost" | "soft" | "cta";
 
 export type ButtonProps = ComponentPropsWithRef<"button"> & {
   variant?: ButtonVariant;
+  /**
+   * Opération en cours (mutation, envoi…) : le bouton affiche le Spinner
+   * partagé, se désactive et expose `aria-busy` — un seul geste (`busy={…}`)
+   * au lieu de recopier spinner + `disabled` + `aria-busy` à chaque appelant.
+   */
+  busy?: boolean;
 };
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -49,14 +56,31 @@ const ctaToneClasses: Record<CtaTone, { button: string; badge: string }> = {
   },
 };
 
-export function Button({ variant = "primary", className, ...props }: ButtonProps) {
-  return <button className={cn(variantClasses[variant], className)} {...props} />;
+export function Button({
+  variant = "primary",
+  className,
+  busy = false,
+  disabled,
+  children,
+  ...props
+}: ButtonProps) {
+  return (
+    <button
+      aria-busy={busy || undefined}
+      disabled={disabled || busy}
+      {...props}
+      className={cn(variantClasses[variant], className)}
+    >
+      {busy ? <Spinner /> : null}
+      {children}
+    </button>
+  );
 }
 
 export type CtaButtonProps = ButtonProps & {
   /** Glyphe Material Symbols du badge circulaire. */
   icon: string;
-  /** Classes d'effet sur l'icône (ex. `animate-spin` pendant l'enregistrement). */
+  /** Classes d'effet sur l'icône du badge (taille, teinte — jamais `animate-spin`, voir `busy`). */
   iconClassName?: string;
   /** Couleur de la pilule et du badge (défaut `primary` = orange). */
   tone?: CtaTone;
@@ -67,6 +91,7 @@ export type CtaButtonProps = ButtonProps & {
  * survol, coloré par `tone` (« Save changes », « Upload CV »,
  * « Apply to my profile », « Remove »).
  * Une seule définition du badge — jamais recopiée par les appelants.
+ * Pendant une opération (`busy`), le badge affiche le Spinner partagé.
  */
 export function CtaButton({
   icon,
@@ -74,18 +99,30 @@ export function CtaButton({
   tone = "primary",
   className,
   children,
+  busy = false,
+  disabled,
   ...props
 }: CtaButtonProps) {
   const toneClasses = ctaToneClasses[tone];
   return (
-    <Button variant="cta" className={cn(toneClasses.button, className)} {...props}>
+    <Button
+      variant="cta"
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
+      {...props}
+      className={cn(toneClasses.button, className)}
+    >
       <span
         className={cn(
           "w-6 h-6 -ml-1.5 rounded-full flex items-center justify-center shrink-0 transition-colors duration-200",
           toneClasses.badge,
         )}
       >
-        <Icon name={icon} className={cn("text-[14px]", iconClassName)} />
+        {busy ? (
+          <Spinner className="text-[14px]" />
+        ) : (
+          <Icon name={icon} className={cn("text-[14px]", iconClassName)} />
+        )}
       </span>
       <span className="leading-none transition-colors duration-200">{children}</span>
     </Button>

@@ -1,5 +1,6 @@
 package com.linqorbit.auth.dto;
 
+import java.util.List;
 import java.util.UUID;
 
 public record UserResponse(
@@ -11,5 +12,6 @@ public record UserResponse(
         String phone,
         String homeCountry,
         String currentCity,
-        String currentCountry) {
+        String currentCountry,
+        List<Short> roles) {
 }

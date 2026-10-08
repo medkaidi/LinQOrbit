@@ -25,7 +25,7 @@ import jakarta.servlet.http.HttpServletResponse;
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
-    static final String CORRELATION_ID = "correlationId";
+    public static final String CORRELATION_ID = "correlationId";
     static final String REQUEST_ID_HEADER = "X-Request-Id";
 
     @Override

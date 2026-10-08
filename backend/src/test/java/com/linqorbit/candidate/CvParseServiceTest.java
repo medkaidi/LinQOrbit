@@ -3,39 +3,28 @@ package com.linqorbit.candidate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 
 import com.linqorbit.candidate.dto.CvParseResponse;
 import com.linqorbit.candidate.dto.ParseContext;
-import com.linqorbit.candidate.entity.Degree;
-import com.linqorbit.candidate.entity.Language;
-import com.linqorbit.candidate.entity.Skill;
-import com.linqorbit.candidate.entity.StudyField;
 import com.linqorbit.candidate.exception.AiServiceException;
-import com.linqorbit.candidate.repository.DegreeRepository;
-import com.linqorbit.candidate.repository.LanguageRepository;
-import com.linqorbit.candidate.repository.SkillRepository;
-import com.linqorbit.candidate.repository.StudyFieldRepository;
 
 class CvParseServiceTest {
 
     private final CvParseClient cvParseClient = mock(CvParseClient.class);
-    private final LanguageRepository languageRepository = mock(LanguageRepository.class);
-    private final DegreeRepository degreeRepository = mock(DegreeRepository.class);
-    private final StudyFieldRepository studyFieldRepository = mock(StudyFieldRepository.class);
-    private final SkillRepository skillRepository = mock(SkillRepository.class);
-    private final CvParseService cvParseService = new CvParseService(
-            cvParseClient, languageRepository, degreeRepository, studyFieldRepository, skillRepository);
+    private final ReferenceContextBuilder referenceContextBuilder = mock(ReferenceContextBuilder.class);
+    private final CvParseService cvParseService = new CvParseService(cvParseClient, referenceContextBuilder);
 
     private static MockMultipartFile pdf() {
         return new MockMultipartFile("file", "cv.pdf", "application/pdf",
@@ -53,30 +42,16 @@ class CvParseServiceTest {
     }
 
     @Test
-    void parseCvEnvoieLeContexteDeReferenceGroupeParFamille() {
+    void parseCvPasseLeContexteDeReferenceAuServiceIA() {
+        ParseContext context = new ParseContext(List.of("French"), List.of("Bachelor's degree"),
+                List.of("Computer Science"), Map.of("Programming Languages", List.of("Java")));
+        when(referenceContextBuilder.build()).thenReturn(context);
         when(cvParseClient.parse(any(), any())).thenReturn(new CvParseResponse(
                 "Backend Engineer", "Summary", List.of(), List.of(), List.of(), List.of(), List.of()));
-        when(languageRepository.findAllByOrderByNameAsc())
-                .thenReturn(List.of(Language.builder().name("Arabic").build(), Language.builder().name("French").build()));
-        when(degreeRepository.findAllByOrderByLabelAsc())
-                .thenReturn(List.of(Degree.builder().label("Bachelor's degree").build()));
-        when(studyFieldRepository.findAllByOrderByLabelAsc())
-                .thenReturn(List.of(StudyField.builder().label("Computer Science").build()));
-        when(skillRepository.findAllByOrderBySkillTypeAscNameAsc()).thenReturn(List.of(
-                Skill.builder().name("Microsoft Excel").category("Software").build(),
-                Skill.builder().name("Java").category("Programming Languages").build()));
 
         cvParseService.parseCv(pdf());
 
-        ArgumentCaptor<ParseContext> captor = ArgumentCaptor.forClass(ParseContext.class);
-        verify(cvParseClient).parse(any(), captor.capture());
-        ParseContext context = captor.getValue();
-        assertThat(context.languages()).containsExactly("Arabic", "French");
-        assertThat(context.degrees()).containsExactly("Bachelor's degree");
-        assertThat(context.studyFields()).containsExactly("Computer Science");
-        assertThat(context.skills())
-                .containsEntry("Programming Languages", List.of("Java"))
-                .containsEntry("Software", List.of("Microsoft Excel"));
+        verify(cvParseClient).parse(any(), same(context));
     }
 
     @Test

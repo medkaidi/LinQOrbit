@@ -44,14 +44,18 @@ class GlobalExceptionHandlerTest {
         ProblemDetail problem = handler.handleUnexpected(new ErrorResponseException(HttpStatus.NOT_FOUND));
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
+        // Détail générique : le message framework brut ne part jamais chez le client.
+        assertThat(problem.getDetail()).isEqualTo("The request could not be processed.");
     }
 
     @Test
-    void handleUnexpectedProduitUn500PourLesAutresExceptions() {
+    void handleUnexpectedProduitUn500AvecUnDetailGenerique() {
         ProblemDetail problem = handler.handleUnexpected(new IllegalStateException("boom"));
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
-        assertThat(problem.getDetail()).isEqualTo("boom");
+        assertThat(problem.getDetail())
+                .isEqualTo("An unexpected error occurred. It has been logged for our team.");
+        assertThat(problem.getDetail()).doesNotContain("boom");
     }
 
     @Test

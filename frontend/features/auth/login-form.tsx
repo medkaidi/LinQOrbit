@@ -77,7 +77,7 @@ export function LoginForm() {
             Forgot password?
           </a>
         </div>
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" busy={isPending}>
           <span>Sign in to your workspace</span>
           <Icon name="arrow_forward" className="text-[20px] transition-transform group-hover:translate-x-1" />
         </Button>

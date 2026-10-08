@@ -15,7 +15,8 @@ const SEX_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-function countryLabel(code: string): string {
+function countryLabel(code: string | null): string | null {
+  if (!code) return null;
   return countryOptions.find((option) => option.value === code)?.label ?? code;
 }
 
@@ -104,7 +105,10 @@ export function AccountView() {
             <Field label="First name" value={account.firstName} />
             <Field label="Last name" value={account.lastName} />
             <Field label="Phone" value={account.phone?.trim() || "Not provided"} />
-            <Field label="Sex" value={SEX_LABELS[account.sex] ?? account.sex} />
+            <Field
+              label="Sex"
+              value={account.sex ? (SEX_LABELS[account.sex] ?? account.sex) : "Not provided"}
+            />
           </dl>
         </div>
 
@@ -113,9 +117,9 @@ export function AccountView() {
             Location
           </h2>
           <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            <Field label="Current city" value={account.currentCity} />
-            <Field label="Current country" value={countryLabel(account.currentCountry)} />
-            <Field label="Country of origin" value={countryLabel(account.homeCountry)} />
+            <Field label="Current city" value={account.currentCity || "Not provided"} />
+            <Field label="Current country" value={countryLabel(account.currentCountry) ?? "Not provided"} />
+            <Field label="Country of origin" value={countryLabel(account.homeCountry) ?? "Not provided"} />
           </dl>
         </div>
 

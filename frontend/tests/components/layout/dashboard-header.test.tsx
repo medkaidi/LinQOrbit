@@ -19,6 +19,7 @@ const user: AuthUser = {
   homeCountry: "FR",
   currentCity: "Paris",
   currentCountry: "FR",
+  roles: [],
 };
 
 describe("DashboardHeader", () => {

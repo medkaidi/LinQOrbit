@@ -21,4 +21,7 @@ public interface CandidateSkillRepository extends JpaRepository<CandidateSkill, 
     @Modifying
     @Query("delete from CandidateSkill cs where cs.candidate.id = :candidateId")
     void deleteAllByCandidateId(UUID candidateId);
+
+    /** Le couple (candidat, compétence) est unique — insertion idempotente. */
+    boolean existsByCandidateIdAndSkillId(UUID candidateId, UUID skillId);
 }

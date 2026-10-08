@@ -62,6 +62,10 @@ export type CandidateProfile = {
   languages: LanguageItem[];
   links: LinkItem[];
   completionPercentage: number;
+  /** True tant que le profil a changé depuis la dernière normalisation validée. */
+  hasUnvalidatedChanges: boolean;
+  /** True si la dernière tentative de validation a échoué définitivement (3 essais). */
+  normalizationFailed: boolean;
 };
 
 /** Listes de référence (skills, languages, degrees, study-fields). */

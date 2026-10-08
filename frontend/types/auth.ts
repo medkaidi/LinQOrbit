@@ -4,11 +4,14 @@ export type AuthUser = {
   email: string;
   firstName: string;
   lastName: string;
-  sex: string;
+  /** `null` sur un compte qui n'a encore rien renseigné (ex. AdminBootstrap). */
+  sex: string | null;
   phone: string | null;
-  homeCountry: string;
-  currentCity: string;
-  currentCountry: string;
+  homeCountry: string | null;
+  currentCity: string | null;
+  currentCountry: string | null;
+  /** Codes SMALLINT des rôles de capacité (1 = ADMIN ; vide = compte simple). */
+  roles: number[];
 };
 
 /** Réponse de signup / login : jeton + compte. */

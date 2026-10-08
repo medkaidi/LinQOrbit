@@ -97,7 +97,7 @@ export function ChangePasswordForm() {
             You will stay signed in on this device after changing your password.
           </p>
 
-          <Button type="submit" disabled={isPending}>
+          <Button type="submit" busy={isPending}>
             <span>Update password</span>
           </Button>
         </form>

@@ -55,9 +55,9 @@ export function Alert({ variant = "info", title, children, className }: AlertPro
       >
         <Icon name={classes.icon} className="text-[17px]" />
       </div>
-      <div className="flex flex-col min-w-0">
+      <div className="flex flex-col min-w-0 flex-1">
         <span className={cn("font-label-md text-label-md truncate", classes.label)}>{title}</span>
-        <span className="font-body-sm text-body-sm text-on-surface-variant truncate">
+        <span className="font-body-sm text-body-sm text-on-surface-variant">
           {children}
         </span>
       </div>

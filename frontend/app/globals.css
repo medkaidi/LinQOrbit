@@ -171,3 +171,19 @@
   font-size: 16px;
   font-weight: 300;
 }
+
+/*
+ * Mouvement réduit (règle globale validée) : la préférence système neutralise
+ * les animations et transitions — spinner figé, fondus instantanés. Les
+ * variants `motion-reduce:` locaux restent valables pour un effacement ciblé.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

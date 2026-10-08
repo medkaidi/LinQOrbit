@@ -13,6 +13,7 @@ import {
   updateLanguages,
   updateLinks,
   updateSkills,
+  validateProfile,
 } from "@/lib/api/candidate.api";
 
 vi.mock("@/lib/api/axios", () => ({
@@ -33,7 +34,13 @@ describe("candidate.api", () => {
   });
 
   it("reads the profile once, without ever creating it", async () => {
-    const profile = { about: { title: null }, experiences: [], completionPercentage: 0 };
+    const profile = {
+      about: { title: null },
+      experiences: [],
+      completionPercentage: 0,
+      hasUnvalidatedChanges: false,
+      normalizationFailed: false,
+    };
     mockedGet.mockResolvedValue({ data: profile });
 
     const result = await getProfile();
@@ -225,6 +232,16 @@ describe("candidate.api", () => {
       "/api/v1/candidates/reference/degrees",
       "/api/v1/candidates/reference/study-fields",
     ]);
+  });
+
+  it("triggers the normalization job on explicit validation", async () => {
+    mockedPost.mockResolvedValue({ data: undefined });
+
+    await validateProfile();
+
+    expect(mockedPost).toHaveBeenCalledWith("/api/v1/candidates/me/profile/validate");
+    expect(mockedPut).not.toHaveBeenCalled();
+    expect(mockedGet).not.toHaveBeenCalled();
   });
 
   it("uploads the CV as multipart form data and returns the parsed structure", async () => {

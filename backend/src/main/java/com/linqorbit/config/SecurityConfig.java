@@ -11,22 +11,26 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import tools.jackson.databind.ObjectMapper;
+
 /**
  * API stateless, CSRF off. Les endpoints d'authentification sont ouverts
  * (permitAll) ; le profil, le changement de mot de passe et le profil candidat
- * exigent un jeton JWT valide (authenticated). Les ressources protégées seront
- * restreintes avec les fonctionnalités qui les accompagneront.
+ * exigent un jeton JWT valide (authenticated) ; l'administration exige en plus
+ * le rôle ADMIN (claim « roles » converti en autorités ROLE_*).
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource,
+            JwtAuthenticationConverter jwtAuthenticationConverter, ProblemSecurityHandler problemSecurityHandler)
             throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -36,10 +40,33 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/me", "/api/v1/auth/change-password").authenticated()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/candidates/**").authenticated()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().permitAll())
-                .oauth2ResourceServer(rs -> rs.jwt(jwt -> {
-                }));
+                // 401/403 au format ProblemDetail (détail sûr construit par l'application),
+                // jamais le corps vide ni un message brut de la filter chain.
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(problemSecurityHandler)
+                        .accessDeniedHandler(problemSecurityHandler))
+                .oauth2ResourceServer(rs -> rs
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
+                        .authenticationEntryPoint(problemSecurityHandler));
         return http.build();
+    }
+
+    @Bean
+    public ProblemSecurityHandler problemSecurityHandler(ObjectMapper objectMapper) {
+        return new ProblemSecurityHandler(objectMapper);
+    }
+
+    /**
+     * Authentication du jeton : sujet (userId) + autorités issues du claim
+     * « roles » (voir {@link JwtRoleAuthoritiesConverter}).
+     */
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(new JwtRoleAuthoritiesConverter());
+        return converter;
     }
 
     @Bean

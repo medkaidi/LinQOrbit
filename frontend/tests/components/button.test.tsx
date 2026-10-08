@@ -32,6 +32,21 @@ describe("CtaButton", () => {
     fireEvent.click(screen.getByRole("button", { name: "New Job" }));
     expect(clicked).toBe(1);
   });
+
+  it("swaps the badge glyph for the spinner while busy", () => {
+    render(
+      <CtaButton icon="save" busy>
+        Saving…
+      </CtaButton>,
+    );
+
+    const button = screen.getByRole("button", { name: "Saving…" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button.querySelector(".material-symbols-outlined")?.textContent).toBe(
+      "progress_activity",
+    );
+  });
 });
 
 describe("CtaButton tones", () => {
@@ -69,6 +84,38 @@ describe("CtaButton tones", () => {
     const badge = button.querySelector("span");
     expect(badge?.className).toContain("bg-slate-surface");
     expect(badge?.className).not.toContain("orange");
+  });
+});
+
+describe("Button busy", () => {
+  it("shows the shared spinner, disables itself and exposes aria-busy", () => {
+    render(<Button busy>Sign in to your workspace</Button>);
+
+    const button = screen.getByRole("button", { name: "Sign in to your workspace" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button.querySelector(".material-symbols-outlined")?.textContent).toBe(
+      "progress_activity",
+    );
+  });
+
+  it("stays idle without the spinner when busy is false", () => {
+    render(<Button busy={false}>Discard</Button>);
+
+    const button = screen.getByRole("button", { name: "Discard" });
+    expect(button).not.toBeDisabled();
+    expect(button).not.toHaveAttribute("aria-busy");
+    expect(button.querySelector(".material-symbols-outlined")).toBeNull();
+  });
+
+  it("combines an explicit disabled with busy", () => {
+    render(
+      <Button busy disabled>
+        Save changes
+      </Button>,
+    );
+
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
   });
 });
 

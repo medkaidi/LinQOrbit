@@ -12,6 +12,7 @@ import { ExperiencesSection } from "@/features/candidate/experiences-section";
 import { LanguagesSection } from "@/features/candidate/languages-section";
 import { LinksSection } from "@/features/candidate/links-section";
 import { SkillsSection } from "@/features/candidate/skills-section";
+import { ValidateProfileBanner } from "@/features/candidate/validate-profile-banner";
 import {
   CompletenessCard,
   ProfileError,
@@ -159,6 +160,8 @@ export function ProfileEdit() {
       <Header uploadAction={uploadAction} />
 
       {importDialog}
+
+      <ValidateProfileBanner profile={data} />
 
       <CompletenessCard profile={data} />
 

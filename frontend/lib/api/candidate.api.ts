@@ -33,6 +33,14 @@ export async function parseCv(file: File): Promise<ParsedCv> {
   return response.data;
 }
 
+/**
+ * Valide explicitement le profil : crée (ou relance) le job de normalisation
+ * côté backend. Seul déclencheur de l'analyse IA.
+ */
+export async function validateProfile(): Promise<void> {
+  await api.post(`${BASE}/me/profile/validate`);
+}
+
 export async function updateAbout(values: AboutValues): Promise<void> {
   await api.put(`${BASE}/me/profile/about`, {
     title: values.title,

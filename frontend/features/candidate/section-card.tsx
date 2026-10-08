@@ -77,8 +77,8 @@ export function SectionCard({
           </Button>
           <CtaButton
             type="button"
-            icon={isSaving ? "refresh" : "save"}
-            iconClassName={isSaving ? "animate-spin" : undefined}
+            icon="save"
+            busy={isSaving}
             onClick={onSave}
             disabled={!canSave}
           >

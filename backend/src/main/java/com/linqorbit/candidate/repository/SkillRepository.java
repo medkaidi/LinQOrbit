@@ -1,6 +1,7 @@
 package com.linqorbit.candidate.repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,4 +15,7 @@ public interface SkillRepository extends JpaRepository<Skill, UUID> {
      * (techniques d'abord), puis sur le nom.
      */
     List<Skill> findAllByOrderBySkillTypeAscNameAsc();
+
+    /** Présence au catalogue indifféremment de la casse (revue des suggestions). */
+    Optional<Skill> findByNameIgnoreCase(String name);
 }

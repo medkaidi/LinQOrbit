@@ -126,6 +126,17 @@ public interface CandidateApi {
     })
     ResponseEntity<Void> updateLinks(@Valid @RequestBody List<LinkRequest> request, Authentication authentication);
 
+    @PostMapping("/me/profile/validate")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Valider le profil et lancer la normalisation",
+            description = "Clôture les modifications du profil : crée une nouvelle version normalisée (contenu à remplir) et déclenche le job d'analyse asynchrone auprès du service IA. Sans effet si le profil n'a pas changé depuis la dernière validation, sauf pour relancer une analyse en échec.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Validation enregistrée, analyse en file d'attente (ou profil déjà à jour)"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "409", description = "Profil sans contenu à valider")
+    })
+    ResponseEntity<Void> validateProfile(Authentication authentication);
+
     @PostMapping("/me/profile/skill-suggestions")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Suggérer des compétences manquantes", description = "Envoie jusqu'à 50 noms de compétences absentes du catalogue pour revue manuelle. Les noms déjà présents dans le catalogue ou déjà suggérés sont ignorés sans erreur.")

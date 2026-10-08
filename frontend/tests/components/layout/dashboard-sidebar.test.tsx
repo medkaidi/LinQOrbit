@@ -1,6 +1,22 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { DashboardSidebar } from "@/components/layout/dashboard-sidebar";
+import { ROLE } from "@/lib/utils/roles";
+import { useAuthStore } from "@/stores/auth-store";
+import type { AuthUser } from "@/types/auth";
+
+const adminUser: AuthUser = {
+  id: "3f0a1b2c-0d3e-4f5a-8b6c-7d9e0f1a2b3c",
+  email: "admin@linqorbit.local",
+  firstName: "Platform",
+  lastName: "Admin",
+  sex: "female",
+  phone: null,
+  homeCountry: "FR",
+  currentCity: "Paris",
+  currentCountry: "FR",
+  roles: [ROLE.ADMIN],
+};
 
 const pathnameMock = vi.hoisted(() => vi.fn(() => "/dashboard"));
 
@@ -11,6 +27,11 @@ vi.mock("next/navigation", () => ({
 describe("DashboardSidebar", () => {
   beforeEach(() => {
     pathnameMock.mockReturnValue("/dashboard");
+    useAuthStore.getState().clearAuth();
+  });
+
+  afterEach(() => {
+    useAuthStore.getState().clearAuth();
   });
 
   it("marks Overview as the active destination", () => {
@@ -77,5 +98,35 @@ describe("DashboardSidebar", () => {
     expect(
       screen.getByText("3 agents actively sourcing and ranking in real time."),
     ).toBeInTheDocument();
+  });
+
+  it("hides Administration for accounts without the admin role", () => {
+    useAuthStore.getState().setAuth({ token: "jwt-token", user: { ...adminUser, roles: [] } });
+
+    render(<DashboardSidebar />);
+
+    expect(screen.queryByRole("link", { name: /administration/i })).not.toBeInTheDocument();
+  });
+
+  it("links Administration for admin accounts and marks it active on /admin", () => {
+    pathnameMock.mockReturnValue("/admin");
+    useAuthStore.getState().setAuth({ token: "jwt-token", user: adminUser });
+
+    render(<DashboardSidebar />);
+
+    const link = screen.getByRole("link", { name: /administration/i });
+    expect(link).toHaveAttribute("href", "/admin");
+    expect(link).toHaveAttribute("aria-current", "page");
+  });
+
+  it("keeps Administration inactive on other routes", () => {
+    useAuthStore.getState().setAuth({ token: "jwt-token", user: adminUser });
+
+    render(<DashboardSidebar />);
+
+    expect(screen.getByRole("link", { name: /administration/i })).not.toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 });

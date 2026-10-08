@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,8 +30,11 @@ import com.linqorbit.auth.exception.AccountNotActiveException;
 import com.linqorbit.auth.exception.EmailAlreadyExistsException;
 import com.linqorbit.auth.exception.InvalidCredentialsException;
 import com.linqorbit.auth.exception.WrongCurrentPasswordException;
+import com.linqorbit.user.Role;
 import com.linqorbit.user.User;
 import com.linqorbit.user.UserRepository;
+import com.linqorbit.user.UserRole;
+import com.linqorbit.user.UserRoleRepository;
 import com.linqorbit.user.UserSex;
 import com.linqorbit.user.UserStatus;
 
@@ -40,6 +44,7 @@ class AuthServiceTest {
     private UserMapper userMapper;
     private PasswordEncoder passwordEncoder;
     private JwtEncoder jwtEncoder;
+    private UserRoleRepository userRoleRepository;
     private AuthService authService;
 
     @BeforeEach
@@ -48,7 +53,9 @@ class AuthServiceTest {
         userMapper = mock(UserMapper.class);
         passwordEncoder = mock(PasswordEncoder.class);
         jwtEncoder = mock(JwtEncoder.class);
-        authService = new AuthService(userRepository, userMapper, passwordEncoder, jwtEncoder, 3600L);
+        userRoleRepository = mock(UserRoleRepository.class);
+        authService = new AuthService(userRepository, userMapper, passwordEncoder, jwtEncoder, userRoleRepository,
+                3600L);
     }
 
     @Test
@@ -58,9 +65,9 @@ class AuthServiceTest {
         User saved = userWithId();
         saved.setEmail("ada@example.com");
         when(userRepository.save(any(User.class))).thenReturn(saved);
-        when(userMapper.toUserResponse(saved)).thenReturn(
+        when(userMapper.toUserResponse(saved, List.of())).thenReturn(
                 new UserResponse(saved.getId(), "ada@example.com", "Ada", "Lovelace",
-                        "female", "+1 555 000 0000", "FR", "Paris", "FR"));
+                        "female", "+1 555 000 0000", "FR", "Paris", "FR", List.of()));
         Jwt token = token("jwt-token");
         when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(token);
 
@@ -84,6 +91,32 @@ class AuthServiceTest {
     }
 
     @Test
+    void signupEmetLesRolesDansLeClaimEtLaReponse() {
+        when(userRepository.existsByEmail("ada@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("secret123")).thenReturn("hash-bcrypt");
+        User saved = userWithId();
+        saved.setEmail("ada@example.com");
+        when(userRepository.save(any(User.class))).thenReturn(saved);
+        when(userRoleRepository.findByUserId(saved.getId())).thenReturn(
+                List.of(UserRole.of(saved.getId(), Role.ADMIN)));
+        when(userMapper.toUserResponse(saved, List.of((short) 1))).thenReturn(
+                new UserResponse(saved.getId(), "ada@example.com", "Ada", "Lovelace",
+                        "female", "+1 555 000 0000", "FR", "Paris", "FR", List.of((short) 1)));
+        Jwt token = token("jwt-token");
+        when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(token);
+
+        AuthResponse response = authService.signup(new SignupRequest(
+                "ada@example.com", "secret123", "Ada", "Lovelace",
+                "+1 555 000 0000", "female", "FR", "Paris", "FR"));
+
+        assertThat(response.user().roles()).containsExactly((short) 1);
+        ArgumentCaptor<JwtEncoderParameters> captor = ArgumentCaptor.forClass(JwtEncoderParameters.class);
+        verify(jwtEncoder).encode(captor.capture());
+        Object rolesClaim = captor.getValue().getClaims().getClaim("roles");
+        assertThat(rolesClaim).isEqualTo(List.of((short) 1));
+    }
+
+    @Test
     void signupRejetteUnEmailDejaUtilise() {
         when(userRepository.existsByEmail("ada@example.com")).thenReturn(true);
 
@@ -102,9 +135,9 @@ class AuthServiceTest {
         user.setStatus(UserStatus.ACTIVE);
         when(userRepository.findByEmail("ada@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("secret123", "hash-bcrypt")).thenReturn(true);
-        when(userMapper.toUserResponse(user)).thenReturn(
+        when(userMapper.toUserResponse(user, List.of())).thenReturn(
                 new UserResponse(user.getId(), "ada@example.com", "Ada", "Lovelace",
-                        "male", "+1 555 000 0000", "FR", "Paris", "FR"));
+                        "male", "+1 555 000 0000", "FR", "Paris", "FR", List.of()));
         Jwt token = token("jwt-token");
         when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(token);
 
@@ -154,9 +187,9 @@ class AuthServiceTest {
         User user = userWithId();
         user.setEmail("ada@example.com");
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
-        when(userMapper.toUserResponse(user)).thenReturn(
+        when(userMapper.toUserResponse(user, List.of())).thenReturn(
                 new UserResponse(user.getId(), "ada@example.com", "Ada", "Lovelace",
-                        "female", "+1 555 000 0000", "FR", "Paris", "FR"));
+                        "female", "+1 555 000 0000", "FR", "Paris", "FR", List.of()));
 
         UserResponse response = authService.getProfile(user.getId());
 
@@ -225,9 +258,9 @@ class AuthServiceTest {
         user.setCurrentCountry("FR");
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(userMapper.toUserResponse(user)).thenReturn(
+        when(userMapper.toUserResponse(user, List.of())).thenReturn(
                 new UserResponse(user.getId(), "ada@example.com", "Augusta Ada", "King",
-                        "female", "+33 6 11 22 33 44", "FR", "Lyon", "FR"));
+                        "female", "+33 6 11 22 33 44", "FR", "Lyon", "FR", List.of()));
 
         UserResponse response = authService.updateProfile(user.getId(),
                 new UpdateProfileRequest("  Augusta Ada  ", "King", "+33 6 11 22 33 44", "  Lyon  ", "FR"));

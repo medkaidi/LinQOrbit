@@ -82,7 +82,7 @@ PROMPT_EXAMPLE = """Example of the expected result (shape only, not content):
 SYSTEM_PROMPT = "\n\n".join((PROMPT_RULES, PROMPT_EXAMPLE))
 
 
-def _render_reference(context: ReferenceContext) -> str:
+def render_reference(context: ReferenceContext) -> str:
     """Reference block: the DB vocabulary, one section per list (only if non-empty)."""
     lines = ["Reference lists (the platform database is the source of truth):"]
     if context.languages:
@@ -105,7 +105,7 @@ def render_system_prompt(context: ReferenceContext | None = None) -> str:
     """
     if context is None:
         return SYSTEM_PROMPT
-    return "\n\n".join((PROMPT_RULES, _render_reference(context), PROMPT_EXAMPLE))
+    return "\n\n".join((PROMPT_RULES, render_reference(context), PROMPT_EXAMPLE))
 
 
 def build_cv_agent(model: BaseChatModel | None = None, context: ReferenceContext | None = None):

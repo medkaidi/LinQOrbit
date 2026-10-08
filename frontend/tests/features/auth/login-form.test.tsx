@@ -32,6 +32,7 @@ const authResponse: AuthResponse = {
     homeCountry: "FR",
     currentCity: "Paris",
     currentCountry: "FR",
+    roles: [],
   },
 };
 

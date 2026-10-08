@@ -18,6 +18,7 @@ import {
 } from "@/features/candidate/profile-shared";
 import { useAccount } from "@/hooks/use-account";
 import { useCandidateProfile } from "@/hooks/use-candidate-profile";
+import { ValidateProfileBanner } from "@/features/candidate/validate-profile-banner";
 import { countryOptions } from "@/config/countries";
 import { Icon } from "@/components/ui/icon";
 import { NavPill } from "@/components/ui/nav-pill";
@@ -216,7 +217,7 @@ function AboutSection({
   const position = about.title?.trim() || "Not provided";
   const currentLocation =
     (account
-      ? [account.currentCity.trim(), countryLabel(account.currentCountry)]
+      ? [account.currentCity?.trim(), countryLabel(account.currentCountry)]
       : []
     )
       .filter(Boolean)
@@ -515,7 +516,7 @@ function GoalsSection() {
 
 function Header() {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4 pb-6 border-b border-slate-border">
+    <div className="pb-6 border-b border-slate-border">
       <div className="min-w-0">
         <nav
           aria-label="Breadcrumb"
@@ -536,7 +537,6 @@ function Header() {
           My professional profile
         </h1>
       </div>
-      <NavPill icon="edit" label="Edit profile" href="/profile/edit" />
     </div>
   );
 }
@@ -565,7 +565,11 @@ export function ProfileView() {
   return (
     <div className="w-full flex flex-col gap-6">
       <Header />
-      <CompletenessCard profile={data} />
+      <ValidateProfileBanner profile={data} />
+      <CompletenessCard
+        profile={data}
+        action={<NavPill icon="edit" label="Edit profile" href="/profile/edit" />}
+      />
 
       <AboutSection about={data.about} links={data.links} />
       <ExperienceSection experiences={data.experiences} />

@@ -1,6 +1,7 @@
 package com.linqorbit.auth;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -28,6 +29,8 @@ import com.linqorbit.auth.exception.InvalidCredentialsException;
 import com.linqorbit.auth.exception.WrongCurrentPasswordException;
 import com.linqorbit.user.User;
 import com.linqorbit.user.UserRepository;
+import com.linqorbit.user.UserRole;
+import com.linqorbit.user.UserRoleRepository;
 import com.linqorbit.user.UserSex;
 import com.linqorbit.user.UserStatus;
 
@@ -40,6 +43,7 @@ public class AuthService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtEncoder jwtEncoder;
+    private final UserRoleRepository userRoleRepository;
 
     @Value("${app.auth.token-ttl-seconds:86400}")
     private final long tokenTtlSeconds;
@@ -101,7 +105,7 @@ public class AuthService {
             log.warn("Profile lookup failed : user not found, userId={}", userId);
             throw new InvalidCredentialsException();
         }
-        return userMapper.toUserResponse(user);
+        return userMapper.toUserResponse(user, roleCodes(userId));
     }
 
     @Transactional
@@ -119,7 +123,7 @@ public class AuthService {
         user.setCurrentCountry(request.currentCountry());
         user = userRepository.save(user);
         log.info("Profile updated : userId={}, email={}", user.getId(), user.getEmail());
-        return userMapper.toUserResponse(user);
+        return userMapper.toUserResponse(user, roleCodes(userId));
     }
 
     @Transactional
@@ -140,15 +144,27 @@ public class AuthService {
     }
 
     private AuthResponse buildResponse(User user) {
-        return new AuthResponse(issueToken(user), userMapper.toUserResponse(user));
+        List<Short> roles = roleCodes(user.getId());
+        return new AuthResponse(issueToken(user, roles), userMapper.toUserResponse(user, roles));
     }
 
-    private String issueToken(User user) {
+    /**
+     * Rôles de capacité du compte (RBAC) : codes SMALLINT envoyés dans le claim
+     * « roles » du JWT et dans la réponse du profil (voir Role).
+     */
+    private List<Short> roleCodes(UUID userId) {
+        return userRoleRepository.findByUserId(userId).stream()
+                .map(UserRole::getRole)
+                .toList();
+    }
+
+    private String issueToken(User user, List<Short> roles) {
         Instant now = Instant.now();
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer("linqorbit")
                 .subject(user.getId().toString())
                 .claim("email", user.getEmail())
+                .claim("roles", roles)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(tokenTtlSeconds))
                 .build();

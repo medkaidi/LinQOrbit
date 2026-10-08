@@ -10,4 +10,9 @@ import com.linqorbit.candidate.entity.SkillSuggestion;
 public interface SkillSuggestionRepository extends JpaRepository<SkillSuggestion, UUID> {
 
     List<SkillSuggestion> findByCandidateId(UUID candidateId);
+
+    List<SkillSuggestion> findAllByOrderByCreatedAtDesc();
+
+    /** Groupe homonyme d'une décision (approbation / lien / rejet), cas insensible. */
+    List<SkillSuggestion> findAllByNameIgnoreCase(String name);
 }

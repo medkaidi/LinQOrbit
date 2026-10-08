@@ -1,6 +1,7 @@
 package com.linqorbit.candidate;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -81,6 +82,7 @@ public class CandidateService {
     private final StudyFieldRepository studyFieldRepository;
     private final SkillSuggestionRepository skillSuggestionRepository;
     private final CandidateMapper candidateMapper;
+    private final NormalizationService normalizationService;
 
     @Transactional(readOnly = true)
     public CandidateProfileResponse getProfile(UUID userId) {
@@ -105,8 +107,12 @@ public class CandidateService {
                 .map(candidateMapper::toLinkResponse).toList();
 
         int completion = computeCompletion(about, experiences, diplomas, skills, languages, links);
-        log.info("Candidate profile read succeeded : userId={}, completion={}%", userId, completion);
-        return new CandidateProfileResponse(about, experiences, diplomas, skills, languages, links, completion);
+        boolean hasUnvalidatedChanges = normalizationService.hasUnvalidatedChanges(candidate);
+        boolean normalizationFailed = normalizationService.hasFailedLatestJob(userId);
+        log.info("Candidate profile read succeeded : userId={}, completion={}%, normalizationFailed={}",
+                userId, completion, normalizationFailed);
+        return new CandidateProfileResponse(about, experiences, diplomas, skills, languages, links,
+                completion, hasUnvalidatedChanges, normalizationFailed);
     }
 
     @Transactional
@@ -154,6 +160,7 @@ public class CandidateService {
         }
         experienceRepository.deleteAllByCandidateId(userId);
         experienceRepository.saveAll(experiences);
+        touchUpdatedAt(candidate);
         log.info("Candidate profile experiences updated : userId={}, count={}", userId, experiences.size());
     }
 
@@ -179,6 +186,7 @@ public class CandidateService {
         }
         diplomaRepository.deleteAllByCandidateId(userId);
         diplomaRepository.saveAll(diplomas);
+        touchUpdatedAt(candidate);
         log.info("Candidate profile diplomas updated : userId={}, count={}", userId, diplomas.size());
     }
 
@@ -203,6 +211,7 @@ public class CandidateService {
         }
         candidateSkillRepository.deleteAllByCandidateId(userId);
         candidateSkillRepository.saveAll(skills);
+        touchUpdatedAt(candidate);
         log.info("Candidate profile skills updated : userId={}, count={}", userId, skills.size());
     }
 
@@ -226,6 +235,7 @@ public class CandidateService {
         }
         candidateLanguageRepository.deleteAllByCandidateId(userId);
         candidateLanguageRepository.saveAll(languages);
+        touchUpdatedAt(candidate);
         log.info("Candidate profile languages updated : userId={}, count={}", userId, languages.size());
     }
 
@@ -255,6 +265,7 @@ public class CandidateService {
         }
         candidateLinkRepository.deleteAllByCandidateId(userId);
         candidateLinkRepository.saveAll(links);
+        touchUpdatedAt(candidate);
         log.info("Candidate profile links updated : userId={}, count={}", userId, links.size());
     }
 
@@ -332,11 +343,22 @@ public class CandidateService {
         });
     }
 
+    /**
+     * Heartbeat : les sections filles (expériences, diplômes, compétences,
+     * langues, liens) ne modifient jamais la ligne candidates — son
+     * updated_at ne bougerait pas, or c'est le signal du dirty-flag
+     * (updated_at &gt; max(normalized_profile.validated_at)).
+     */
+    private void touchUpdatedAt(Candidate candidate) {
+        candidate.setUpdatedAt(LocalDateTime.now());
+        candidateRepository.save(candidate);
+    }
+
     private CandidateProfileResponse emptyProfile() {
         return new CandidateProfileResponse(
                 new AboutResponse(null, null, null, null, null),
                 List.of(), List.of(), List.of(), List.of(), List.of(),
-                0);
+                0, false, false);
     }
 
     private int computeCompletion(AboutResponse about, List<ExperienceResponse> experiences,

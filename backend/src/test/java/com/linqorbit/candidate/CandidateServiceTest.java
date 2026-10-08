@@ -70,6 +70,7 @@ class CandidateServiceTest {
     private StudyFieldRepository studyFieldRepository;
     private SkillSuggestionRepository skillSuggestionRepository;
     private CandidateMapper candidateMapper;
+    private NormalizationService normalizationService;
     private CandidateService candidateService;
 
     @BeforeEach
@@ -86,10 +87,11 @@ class CandidateServiceTest {
         studyFieldRepository = mock(StudyFieldRepository.class);
         skillSuggestionRepository = mock(SkillSuggestionRepository.class);
         candidateMapper = mock(CandidateMapper.class);
+        normalizationService = mock(NormalizationService.class);
         candidateService = new CandidateService(candidateRepository, experienceRepository, diplomaRepository,
                 candidateSkillRepository, candidateLanguageRepository, candidateLinkRepository,
                 skillRepository, languageRepository, degreeRepository, studyFieldRepository,
-                skillSuggestionRepository, candidateMapper);
+                skillSuggestionRepository, candidateMapper, normalizationService);
     }
 
     @Test
@@ -106,8 +108,29 @@ class CandidateServiceTest {
         assertThat(profile.languages()).isEmpty();
         assertThat(profile.links()).isEmpty();
         assertThat(profile.completionPercentage()).isZero();
+        assertThat(profile.hasUnvalidatedChanges()).isFalse();
+        assertThat(profile.normalizationFailed()).isFalse();
         verifyNoInteractions(candidateMapper, experienceRepository, diplomaRepository,
                 candidateSkillRepository, candidateLanguageRepository, candidateLinkRepository);
+    }
+
+    @Test
+    void lectureExposeLEchecDeLaDerniereNormalisation() {
+        Candidate candidate = Candidate.builder().id(USER_ID).build();
+        when(candidateRepository.findById(USER_ID)).thenReturn(Optional.of(candidate));
+        when(candidateMapper.toAboutResponse(candidate))
+                .thenReturn(new AboutResponse(null, null, null, null, null));
+        when(experienceRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID)).thenReturn(List.of());
+        when(diplomaRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
+        when(candidateSkillRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
+        when(candidateLanguageRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
+        when(candidateLinkRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID)).thenReturn(List.of());
+        when(normalizationService.hasFailedLatestJob(USER_ID)).thenReturn(true);
+
+        CandidateProfileResponse profile = candidateService.getProfile(USER_ID);
+
+        assertThat(profile.normalizationFailed()).isTrue();
+        verify(normalizationService).hasFailedLatestJob(USER_ID);
     }
 
     @Test
@@ -124,6 +147,7 @@ class CandidateServiceTest {
                 .thenReturn(List.of(mock(CandidateLanguage.class)));
         when(candidateLinkRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID))
                 .thenReturn(List.of(mock(CandidateLink.class)));
+        when(normalizationService.hasUnvalidatedChanges(candidate)).thenReturn(true);
 
         CandidateProfileResponse profile = candidateService.getProfile(USER_ID);
 
@@ -131,6 +155,7 @@ class CandidateServiceTest {
         assertThat(profile.about().targetPosition()).isEqualTo("Staff Engineer");
         assertThat(profile.about().searchStatus()).isEqualTo("open_to_work");
         assertThat(profile.completionPercentage()).isEqualTo(100);
+        assertThat(profile.hasUnvalidatedChanges()).isTrue();
     }
 
     @Test

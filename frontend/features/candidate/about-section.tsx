@@ -49,8 +49,8 @@ const toAccountDefaults = (account: AuthUser) => ({
   firstName: account.firstName,
   lastName: account.lastName,
   phone: account.phone ?? "",
-  currentCity: account.currentCity,
-  currentCountry: account.currentCountry,
+  currentCity: account.currentCity ?? "",
+  currentCountry: account.currentCountry ?? "",
 });
 
 /**

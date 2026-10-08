@@ -33,6 +33,7 @@ public class CandidateController implements CandidateApi {
 
     private final CandidateService candidateService;
     private final CvParseService cvParseService;
+    private final NormalizationService normalizationService;
 
     @Override
     public ResponseEntity<CandidateProfileResponse> getProfile(Authentication authentication) {
@@ -78,6 +79,12 @@ public class CandidateController implements CandidateApi {
     @Override
     public ResponseEntity<Void> updateLinks(List<LinkRequest> request, Authentication authentication) {
         candidateService.updateLinks(CurrentUserId.from(authentication), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> validateProfile(Authentication authentication) {
+        normalizationService.validateProfile(CurrentUserId.from(authentication));
         return ResponseEntity.noContent().build();
     }
 

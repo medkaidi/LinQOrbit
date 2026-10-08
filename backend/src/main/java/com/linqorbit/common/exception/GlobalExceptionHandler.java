@@ -13,11 +13,18 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.util.BindErrorUtils;
 
+import com.linqorbit.admin.exception.InvalidSkillCategoryException;
+import com.linqorbit.admin.exception.InvalidSkillTypeException;
+import com.linqorbit.admin.exception.InvalidUserStatusException;
+import com.linqorbit.admin.exception.SelfStatusChangeException;
+import com.linqorbit.admin.exception.SuggestionNotFoundException;
+import com.linqorbit.admin.exception.UserNotFoundException;
 import com.linqorbit.auth.exception.AccountNotActiveException;
 import com.linqorbit.auth.exception.EmailAlreadyExistsException;
 import com.linqorbit.auth.exception.InvalidCredentialsException;
 import com.linqorbit.auth.exception.WrongCurrentPasswordException;
 import com.linqorbit.candidate.exception.AiServiceException;
+import com.linqorbit.candidate.exception.EmptyProfileException;
 import com.linqorbit.candidate.exception.InvalidProfileSectionException;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
 
@@ -86,12 +93,75 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(EmptyProfileException.class)
+    public ProblemDetail handleEmptyProfile(EmptyProfileException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setTitle("Empty profile");
+        problem.setDetail("Your profile has no content yet. Add profile information before validating it.");
+        log.warn("Candidate profile validation rejected : {}", ex.getMessage());
+        return problem;
+    }
+
     @ExceptionHandler(ReferenceNotFoundException.class)
     public ProblemDetail handleReferenceNotFound(ReferenceNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
         problem.setTitle("Unknown reference");
         problem.setDetail(ex.getMessage());
         log.warn("Candidate profile update rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidUserStatusException.class)
+    public ProblemDetail handleInvalidUserStatus(InvalidUserStatusException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Unsupported status");
+        problem.setDetail("Only ACTIVE and INACTIVE can be set through this endpoint.");
+        log.warn("Admin status update rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(SelfStatusChangeException.class)
+    public ProblemDetail handleSelfStatusChange(SelfStatusChangeException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Cannot change own status");
+        problem.setDetail("An administrator cannot activate or deactivate their own account.");
+        log.warn("Admin status update rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ProblemDetail handleUserNotFound(UserNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("User not found");
+        problem.setDetail("No account matches this identifier.");
+        log.warn("Admin status update rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(SuggestionNotFoundException.class)
+    public ProblemDetail handleSuggestionNotFound(SuggestionNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Skill suggestion not found");
+        problem.setDetail("No suggestion matches this identifier.");
+        log.warn("Admin suggestion review rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidSkillCategoryException.class)
+    public ProblemDetail handleInvalidSkillCategory(InvalidSkillCategoryException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Unknown skill category");
+        problem.setDetail("Pick one of the existing skill categories.");
+        log.warn("Admin suggestion review rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidSkillTypeException.class)
+    public ProblemDetail handleInvalidSkillType(InvalidSkillTypeException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Invalid skill type");
+        problem.setDetail("Only 'tech' and 'soft' are supported.");
+        log.warn("Admin suggestion review rejected : {}", ex.getMessage());
         return problem;
     }
 
@@ -131,6 +201,16 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    /**
+     * Filet de sécurité pour tout ce qui n'a pas de handler dédié : exceptions
+     * framework (route morte,405, JSON illisible…), erreurs de programme
+     * (IllegalArgumentException…), bugs inattendus.
+     *
+     * <p>Règle : le message brut d'une exception n'est <strong>jamais</strong> renvoyé
+     * au client — le détail est générique, le détail réel (classe + message + stack)
+     * part dans les logs. Seules les exceptions métier (handler dédié ci-dessus) ont un
+     * message affichable, construit par nos soins.
+     */
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleUnexpected(Exception ex) {
         // Les exceptions typées de Spring (404, 405, 400…) gardent leur statut d'origine.
@@ -142,11 +222,13 @@ public class GlobalExceptionHandler {
         }
         ProblemDetail problem = ProblemDetail.forStatus(status);
         problem.setTitle(status.is5xxServerError() ? "Internal server error" : status.getReasonPhrase());
-        problem.setDetail(ex.getMessage());
+        problem.setDetail(status.is5xxServerError()
+                ? "An unexpected error occurred. It has been logged for our team."
+                : "The request could not be processed.");
         if (status.is5xxServerError()) {
-            log.error("Request failed : {} {}", status.value(), ex.getMessage(), ex);
+            log.error("Request failed : {} {} : {}", status.value(), ex.getClass().getSimpleName(), ex.getMessage(), ex);
         } else {
-            log.warn("Request rejected : {} {}", status.value(), ex.getMessage());
+            log.warn("Request rejected : {} {} : {}", status.value(), ex.getClass().getSimpleName(), ex.getMessage());
         }
         return problem;
     }

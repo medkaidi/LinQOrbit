@@ -39,6 +39,7 @@ import com.linqorbit.candidate.dto.SkillSuggestionRequest;
 import com.linqorbit.candidate.dto.StudyFieldOption;
 import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.candidate.exception.AiServiceException;
+import com.linqorbit.candidate.exception.EmptyProfileException;
 import com.linqorbit.candidate.exception.InvalidProfileSectionException;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
 import com.linqorbit.config.SecurityConfig;
@@ -67,6 +68,9 @@ class CandidateControllerTest {
     private CvParseService cvParseService;
 
     @MockitoBean
+    private NormalizationService normalizationService;
+
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @Test
@@ -74,7 +78,7 @@ class CandidateControllerTest {
         UUID userId = UUID.randomUUID();
         when(candidateService.getProfile(userId)).thenReturn(new CandidateProfileResponse(
                 new AboutResponse("Full-stack Developer", "Staff Engineer", "Passionné de web", 5, "open_to_work"),
-                List.of(), List.of(), List.of(), List.of(), List.of(), 16));
+                List.of(), List.of(), List.of(), List.of(), List.of(), 16, false, false));
 
         mockMvc.perform(get(PROFILE_PATH)
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
@@ -82,7 +86,9 @@ class CandidateControllerTest {
                 .andExpect(jsonPath("$.about.title").value("Full-stack Developer"))
                 .andExpect(jsonPath("$.about.targetPosition").value("Staff Engineer"))
                 .andExpect(jsonPath("$.about.searchStatus").value("open_to_work"))
-                .andExpect(jsonPath("$.completionPercentage").value(16));
+                .andExpect(jsonPath("$.completionPercentage").value(16))
+                .andExpect(jsonPath("$.hasUnvalidatedChanges").value(false))
+                .andExpect(jsonPath("$.normalizationFailed").value(false));
     }
 
     @Test
@@ -194,6 +200,35 @@ class CandidateControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("[]"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validateProfileRenvoie204EtDelegueAuService() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post(PROFILE_PATH + "/validate")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isNoContent());
+
+        verify(normalizationService).validateProfile(userId);
+    }
+
+    @Test
+    void validateProfileRenvoie401SansJeton() throws Exception {
+        mockMvc.perform(post(PROFILE_PATH + "/validate"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void validateProfileRenvoie409QuandLeProfilEstVide() throws Exception {
+        UUID userId = UUID.randomUUID();
+        doThrow(new EmptyProfileException()).when(normalizationService).validateProfile(userId);
+
+        mockMvc.perform(post(PROFILE_PATH + "/validate")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Empty profile"))
+                .andExpect(jsonPath("$.detail").value(containsString("no content yet")));
     }
 
     @Test

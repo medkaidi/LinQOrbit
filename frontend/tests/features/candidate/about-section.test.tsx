@@ -40,6 +40,7 @@ const accountUser: AuthUser = {
   homeCountry: "GB",
   currentCity: "Paris",
   currentCountry: "FR",
+  roles: [],
 };
 
 function renderSection(data: AboutSectionData = about, cvImport?: ParsedCv) {

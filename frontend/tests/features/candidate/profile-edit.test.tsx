@@ -67,6 +67,8 @@ const profile: CandidateProfile = {
   languages: [],
   links: [],
   completionPercentage: 33,
+  hasUnvalidatedChanges: false,
+  normalizationFailed: false,
 };
 
 const accountUser: AuthUser = {
@@ -79,6 +81,7 @@ const accountUser: AuthUser = {
   homeCountry: "GB",
   currentCity: "Paris",
   currentCountry: "FR",
+  roles: [],
 };
 
 function renderProfile(options?: { retry?: boolean }) {
@@ -139,6 +142,23 @@ describe("ProfileEdit", () => {
     // La fusion n'ajoute pas de section : les badges restent ceux des 6 sections.
     expect(screen.getAllByText("Complete")).toHaveLength(2);
     expect(screen.getAllByText("Not started")).toHaveLength(4);
+  });
+
+  it("leaves the account fields empty when the account has no location data", async () => {
+    // Compte créé sans profil (ex. AdminBootstrap) : null → champs vides, pas de crash.
+    mockedMe.mockResolvedValue({
+      ...accountUser,
+      phone: null,
+      currentCity: null,
+      currentCountry: null,
+    });
+    renderProfile();
+
+    expect(await screen.findByLabelText("First name")).toHaveValue("Ada");
+    const about = document.getElementById("about") as HTMLElement;
+    expect(within(about).getByLabelText("Phone")).toHaveValue("");
+    expect(within(about).getByLabelText("Current city")).toHaveValue("");
+    expect(within(about).getByLabelText("Current country")).toHaveValue("");
   });
 
   it("offers the CV upload while the photo action stays unavailable", async () => {

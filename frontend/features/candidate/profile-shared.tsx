@@ -157,7 +157,13 @@ export function countCompletedSections(profile: CandidateProfile): number {
 const GAUGE_RADIUS = 27;
 const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS;
 
-export function CompletenessCard({ profile }: { profile: CandidateProfile }) {
+export function CompletenessCard({
+  profile,
+  action,
+}: {
+  profile: CandidateProfile;
+  action?: ReactNode;
+}) {
   const completedSections = countCompletedSections(profile);
   const completion = profile.completionPercentage;
   const dashOffset = GAUGE_CIRCUMFERENCE * (1 - completion / 100);
@@ -203,7 +209,7 @@ export function CompletenessCard({ profile }: { profile: CandidateProfile }) {
             </span>
           </div>
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
             Profile completeness
           </h2>
@@ -212,6 +218,7 @@ export function CompletenessCard({ profile }: { profile: CandidateProfile }) {
             replies.
           </p>
         </div>
+        {action ? <div className="shrink-0 ml-auto">{action}</div> : null}
       </div>
     </section>
   );

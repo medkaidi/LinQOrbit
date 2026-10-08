@@ -14,6 +14,7 @@ const user: AuthUser = {
   homeCountry: "FR",
   currentCity: "Paris",
   currentCountry: "FR",
+  roles: [],
 };
 
 /** Adaptateur contrôlé : reproduce le settle() des adaptateurs natifs (rejet si statut >= 400). */

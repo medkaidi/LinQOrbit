@@ -26,8 +26,7 @@ export function CvUploadButton({
       <CtaButton
         type="button"
         icon="upload_file"
-        disabled={isParsing}
-        aria-busy={isParsing}
+        busy={isParsing}
         onClick={() => inputRef.current?.click()}
       >
         {isParsing ? "Analyzing…" : "Upload CV"}
@@ -294,7 +293,7 @@ export function CvImportPreview({
               <Button
                 variant="outline"
                 type="button"
-                disabled={sendingUnresolved}
+                busy={sendingUnresolved}
                 onClick={() => onSendUnresolved(unresolved.map((row) => row.label))}
               >
                 {sendingUnresolved
