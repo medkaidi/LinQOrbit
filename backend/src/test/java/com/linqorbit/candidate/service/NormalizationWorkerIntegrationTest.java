@@ -122,6 +122,9 @@ class NormalizationWorkerIntegrationTest {
     @Test
     void echecIaReplanifieDeuxRetriesPuisAbandonneSansQuatriemeTentative() throws Exception {
         UUID jobId = seedValidatedCandidate();
+        // La validation HTTP a déjà soumis le job au pool (mock inert) : on ne
+        // gère ici que les soumissions des retries.
+        clearInvocations(normalizationExecutor);
         when(profileNormalizeClient.normalize(any()))
                 .thenThrow(new AiServiceException(HttpStatus.BAD_GATEWAY, "The AI service call failed."));
 
@@ -131,12 +134,12 @@ class NormalizationWorkerIntegrationTest {
         assertThat((Integer) first.get("attempts")).isEqualTo(1);
         assertThat(first.get("error")).isEqualTo("The AI service call failed.");
         assertThat(nextAttemptIsInFuture(jobId)).isTrue();
-        takeScheduled().run();
+        runScheduledToCompletion();
 
         Map<String, Object> second = jobRow(jobId);
         assertThat(second.get("status")).isEqualTo("PENDING");
         assertThat((Integer) second.get("attempts")).isEqualTo(2);
-        takeScheduled().run();
+        runScheduledToCompletion();
 
         Map<String, Object> abandoned = jobRow(jobId);
         assertThat(abandoned.get("status")).isEqualTo("FAILED");
@@ -164,6 +167,9 @@ class NormalizationWorkerIntegrationTest {
     @Test
     void recupereUnRunningPerimeEtReplanifie() throws Exception {
         UUID jobId = seedValidatedCandidate();
+        // La validation HTTP a déjà soumis le job au pool (mock inert) : on ne
+        // gère ici que la soumission du retry.
+        clearInvocations(normalizationExecutor);
         jdbcTemplate.update("UPDATE normalization_job SET status = 'RUNNING', started_at = ? WHERE job_id = ?",
                 LocalDateTime.now().minusMinutes(11), jobId);
 
@@ -173,7 +179,7 @@ class NormalizationWorkerIntegrationTest {
         assertThat(recovered.get("status")).isEqualTo("PENDING");
         assertThat((Integer) recovered.get("attempts")).isEqualTo(1);
         assertThat(recovered.get("error")).isEqualTo(STALE_ERROR);
-        takeScheduled().run();
+        runScheduledToCompletion();
         assertThat(jobRow(jobId).get("status")).isEqualTo("DONE");
     }
 
@@ -206,13 +212,19 @@ class NormalizationWorkerIntegrationTest {
                 .isAfterOrEqualTo(scheduledAt.plusSeconds(29 * 60))
                 .isBeforeOrEqualTo(scheduledAt.plusSeconds(31 * 60));
         scheduleCaptor.getValue().run();
+        takeDispatched().run();
         assertThat(jobRow(futureJobId).get("status")).isEqualTo("DONE");
     }
 
     @Test
     void soumissionExecuteurRejeteePlanifieUneReSoumission() throws Exception {
         UUID jobId = seedValidatedCandidate();
+        // 1re soumission rejetée (queue saturée) ; la re-soumission planifiée réussit.
         doThrow(new RejectedExecutionException("queue saturée"))
+                .doAnswer(invocation -> {
+                    ((Runnable) invocation.getArgument(0)).run();
+                    return null;
+                })
                 .when(normalizationExecutor).execute(any(Runnable.class));
 
         normalizationWorker.onProfileValidated(new ProfileValidatedEvent(jobId));
@@ -237,6 +249,12 @@ class NormalizationWorkerIntegrationTest {
         verify(normalizationExecutor).execute(dispatchCaptor.capture());
         clearInvocations(normalizationExecutor);
         return dispatchCaptor.getValue();
+    }
+
+    /** Le runnable planifié ne soumet qu'au pool : il faut encore lancer la soumission capturée. */
+    private void runScheduledToCompletion() {
+        takeScheduled().run();
+        takeDispatched().run();
     }
 
     private Runnable takeScheduled() {

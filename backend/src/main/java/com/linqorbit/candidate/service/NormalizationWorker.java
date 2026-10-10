@@ -158,8 +158,19 @@ public class NormalizationWorker {
         }
     }
 
+    /**
+     * One-shot à l'échéance : le scheduler ne fait que soumettre au pool dédié
+     * (jamais l'appel IA de ~20 s sur son thread unique, qui bloquerait les
+     * autres retries planifiés) ; le claim CAS garantit qu'une exécution
+     * tardive d'un job terminal reste sans effet.
+     */
     private void scheduleAt(UUID jobId, LocalDateTime at) {
-        normalizationTaskScheduler.schedule(() -> executeJob(jobId), instantOf(at));
+        try {
+            normalizationTaskScheduler.schedule(() -> dispatch(jobId), instantOf(at));
+        } catch (RuntimeException ex) {
+            log.error("Normalization scheduling failed : jobId={} — job stays PENDING, "
+                    + "boot recovery will pick it up", jobId, ex);
+        }
     }
 
     /** Claim CAS puis exécution : appel IA hors tx, fin de vie en txs courtes. */
@@ -244,12 +255,7 @@ public class NormalizationWorker {
                         NormalizationJobStatus.PENDING, attempts, nextAttemptAt, error));
         log.info("Profile normalization scheduled for retry : jobId={}, attempt={}, nextAttemptAt={}",
                 job.getId(), attempts, nextAttemptAt);
-        try {
-            normalizationTaskScheduler.schedule(() -> executeJob(job.getId()), instantOf(nextAttemptAt));
-        } catch (RuntimeException ex) {
-            log.error("Normalization retry scheduling failed : jobId={} — job stays PENDING, "
-                    + "boot recovery will pick it up", job.getId(), ex);
-        }
+        scheduleAt(job.getId(), nextAttemptAt);
     }
 
     private static Instant instantOf(LocalDateTime at) {
