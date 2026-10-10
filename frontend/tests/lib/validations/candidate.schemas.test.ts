@@ -7,6 +7,7 @@ import {
   languagesSchema,
   languageSchema,
   linkSchema,
+  projectSchema,
   skillSchema,
   skillsSchema,
 } from "@/lib/validations/candidate.schemas";
@@ -152,6 +153,56 @@ describe("experienceSchema", () => {
     });
 
     expect(firstMessage(result)).toBe("Start date is required");
+  });
+});
+
+describe("projectSchema", () => {
+  it("accepts an ongoing project with an empty end date", () => {
+    const result = projectSchema.safeParse({
+      name: "Portfolio",
+      role: "",
+      startDate: "2023-01-01",
+      endDate: "",
+      description: "",
+      technologies: "Next.js, TypeScript",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an end date before the start date", () => {
+    const result = projectSchema.safeParse({
+      name: "Portfolio",
+      role: "",
+      startDate: "2023-01-01",
+      endDate: "2022-01-01",
+      description: "",
+      technologies: "",
+    });
+
+    expect(firstMessage(result)).toBe("End date must be on or after the start date");
+  });
+
+  it("requires a name and a start date", () => {
+    const missingName = projectSchema.safeParse({
+      name: "",
+      role: "",
+      startDate: "2023-01-01",
+      endDate: "",
+      description: "",
+      technologies: "",
+    });
+    expect(firstMessage(missingName)).toBe("Project name is required");
+
+    const missingStart = projectSchema.safeParse({
+      name: "Portfolio",
+      role: "",
+      startDate: "",
+      endDate: "",
+      description: "",
+      technologies: "",
+    });
+    expect(firstMessage(missingStart)).toBe("Start date is required");
   });
 });
 

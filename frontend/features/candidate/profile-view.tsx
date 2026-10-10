@@ -28,6 +28,7 @@ import type {
   DiplomaItem,
   ExperienceItem,
   LinkItem,
+  ProjectItem,
   SkillItem,
 } from "@/types/candidate";
 
@@ -342,6 +343,55 @@ function ExperienceSection({ experiences }: { experiences: ExperienceItem[] }) {
   );
 }
 
+function ProjectsSection({ projects }: { projects: ProjectItem[] }) {
+  return (
+    <ViewSection
+      id="projects"
+      title="Projects"
+      icon={SECTION_ICONS.projects}
+      count={projects.length > 0 ? plural(projects.length, "project") : undefined}
+    >
+      {projects.length === 0 ? (
+        <EmptyState
+          message="No project added yet. Side projects and open-source work show what you can build."
+          cta="Add project"
+        />
+      ) : (
+        <ol className="flex flex-col gap-3">
+          {projects.map((item, index) => (
+            <li key={item.id} className={ITEM_CLASSES}>
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+                <div className="flex items-center gap-3 min-w-0">
+                  <ItemIndex index={index + 1} />
+                  <div className="min-w-0">
+                    <h3 className="font-label-md text-label-md text-text-primary">{item.name}</h3>
+                    {item.role ? (
+                      <p className="mt-0.5 text-body-sm font-body-sm text-text-secondary">
+                        {item.role}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                <PeriodBadge startDate={item.startDate} endDate={item.endDate} />
+              </div>
+              {item.description ? (
+                <p className="mt-2 text-body-sm font-body-sm text-text-secondary leading-relaxed whitespace-pre-line">
+                  {item.description}
+                </p>
+              ) : null}
+              {item.technologies ? (
+                <p className="mt-2 text-body-sm font-body-sm text-text-tertiary">
+                  {item.technologies}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      )}
+    </ViewSection>
+  );
+}
+
 function EducationSection({ diplomas }: { diplomas: DiplomaItem[] }) {
   return (
     <ViewSection
@@ -573,6 +623,7 @@ export function ProfileView() {
 
       <AboutSection about={data.about} links={data.links} />
       <ExperienceSection experiences={data.experiences} />
+      <ProjectsSection projects={data.projects} />
       <EducationSection diplomas={data.diplomas} />
       <SkillsSection skills={data.skills} />
       <LanguagesSection languages={data.languages} />

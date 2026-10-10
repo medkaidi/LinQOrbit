@@ -17,6 +17,17 @@ export type ExperienceItem = {
   companyCountry: string | null;
 };
 
+export type ProjectItem = {
+  id: string;
+  name: string;
+  role: string | null;
+  description: string | null;
+  startDate: string;
+  endDate: string | null;
+  /** Liste libre séparée par des virgules (saisie utilisateur, pas de canonicalisation). */
+  technologies: string | null;
+};
+
 export type DiplomaItem = {
   id: string;
   title: string;
@@ -57,6 +68,7 @@ export type LinkItem = {
 export type CandidateProfile = {
   about: AboutSection;
   experiences: ExperienceItem[];
+  projects: ProjectItem[];
   diplomas: DiplomaItem[];
   skills: SkillItem[];
   languages: LanguageItem[];

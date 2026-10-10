@@ -12,6 +12,7 @@ import {
   updateExperiences,
   updateLanguages,
   updateLinks,
+  updateProjects,
   updateSkills,
   validateProfile,
 } from "@/lib/api/candidate.api";
@@ -105,6 +106,48 @@ describe("candidate.api", () => {
         startDate: "2022-01-01",
         endDate: "2022-06-30",
         description: "Shipped features.",
+      },
+    ]);
+  });
+
+  it("sends the whole project list with empties as null", async () => {
+    await updateProjects({
+      items: [
+        {
+          name: "Portfolio",
+          role: "",
+          startDate: "2023-01-01",
+          endDate: "",
+          description: "",
+          technologies: "Next.js, TypeScript",
+        },
+        {
+          name: "Bot Discord",
+          role: "Author",
+          startDate: "2024-01-01",
+          endDate: "2024-06-01",
+          description: "Moderation bot.",
+          technologies: "",
+        },
+      ],
+    });
+
+    expect(mockedPut).toHaveBeenCalledWith("/api/v1/candidates/me/profile/projects", [
+      {
+        name: "Portfolio",
+        role: null,
+        startDate: "2023-01-01",
+        endDate: null,
+        description: null,
+        technologies: "Next.js, TypeScript",
+      },
+      {
+        name: "Bot Discord",
+        role: "Author",
+        startDate: "2024-01-01",
+        endDate: "2024-06-01",
+        description: "Moderation bot.",
+        technologies: null,
       },
     ]);
   });

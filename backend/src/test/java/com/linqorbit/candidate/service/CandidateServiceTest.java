@@ -28,12 +28,14 @@ import com.linqorbit.candidate.dto.DiplomaRequest;
 import com.linqorbit.candidate.dto.ExperienceRequest;
 import com.linqorbit.candidate.dto.LanguageRequest;
 import com.linqorbit.candidate.dto.LinkRequest;
+import com.linqorbit.candidate.dto.ProjectRequest;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.SkillRequest;
 import com.linqorbit.candidate.dto.SkillSuggestionRequest;
 import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.candidate.entity.CandidateLanguage;
 import com.linqorbit.candidate.entity.CandidateLink;
+import com.linqorbit.candidate.entity.CandidateProject;
 import com.linqorbit.candidate.entity.CandidateSkill;
 import com.linqorbit.candidate.entity.Diploma;
 import com.linqorbit.candidate.entity.Language;
@@ -45,6 +47,7 @@ import com.linqorbit.candidate.exception.ReferenceNotFoundException;
 import com.linqorbit.candidate.mapper.CandidateMapper;
 import com.linqorbit.candidate.repository.CandidateLanguageRepository;
 import com.linqorbit.candidate.repository.CandidateLinkRepository;
+import com.linqorbit.candidate.repository.CandidateProjectRepository;
 import com.linqorbit.candidate.repository.CandidateSkillRepository;
 import com.linqorbit.candidate.repository.DegreeRepository;
 import com.linqorbit.candidate.repository.DiplomaRepository;
@@ -65,6 +68,7 @@ class CandidateServiceTest {
 
     private CandidateRepository candidateRepository;
     private ProfessionalExperienceRepository experienceRepository;
+    private CandidateProjectRepository projectRepository;
     private DiplomaRepository diplomaRepository;
     private CandidateSkillRepository candidateSkillRepository;
     private CandidateLanguageRepository candidateLanguageRepository;
@@ -82,6 +86,7 @@ class CandidateServiceTest {
     void setUp() {
         candidateRepository = mock(CandidateRepository.class);
         experienceRepository = mock(ProfessionalExperienceRepository.class);
+        projectRepository = mock(CandidateProjectRepository.class);
         diplomaRepository = mock(DiplomaRepository.class);
         candidateSkillRepository = mock(CandidateSkillRepository.class);
         candidateLanguageRepository = mock(CandidateLanguageRepository.class);
@@ -93,8 +98,8 @@ class CandidateServiceTest {
         skillSuggestionRepository = mock(SkillSuggestionRepository.class);
         candidateMapper = mock(CandidateMapper.class);
         normalizationService = mock(NormalizationService.class);
-        candidateService = new CandidateService(candidateRepository, experienceRepository, diplomaRepository,
-                candidateSkillRepository, candidateLanguageRepository, candidateLinkRepository,
+        candidateService = new CandidateService(candidateRepository, experienceRepository, projectRepository,
+                diplomaRepository, candidateSkillRepository, candidateLanguageRepository, candidateLinkRepository,
                 skillRepository, languageRepository, degreeRepository, studyFieldRepository,
                 skillSuggestionRepository, candidateMapper, normalizationService);
     }
@@ -108,6 +113,7 @@ class CandidateServiceTest {
         assertThat(profile.about().title()).isNull();
         assertThat(profile.about().searchStatus()).isNull();
         assertThat(profile.experiences()).isEmpty();
+        assertThat(profile.projects()).isEmpty();
         assertThat(profile.diplomas()).isEmpty();
         assertThat(profile.skills()).isEmpty();
         assertThat(profile.languages()).isEmpty();
@@ -116,7 +122,7 @@ class CandidateServiceTest {
         assertThat(profile.hasUnvalidatedChanges()).isFalse();
         assertThat(profile.normalizationFailed()).isFalse();
         assertThat(profile.normalizationInProgress()).isFalse();
-        verifyNoInteractions(candidateMapper, experienceRepository, diplomaRepository,
+        verifyNoInteractions(candidateMapper, experienceRepository, projectRepository, diplomaRepository,
                 candidateSkillRepository, candidateLanguageRepository, candidateLinkRepository);
     }
 
@@ -127,6 +133,7 @@ class CandidateServiceTest {
         when(candidateMapper.toAboutResponse(candidate))
                 .thenReturn(new AboutResponse(null, null, null, null, null));
         when(experienceRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID)).thenReturn(List.of());
+        when(projectRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID)).thenReturn(List.of());
         when(diplomaRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
         when(candidateSkillRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
         when(candidateLanguageRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
@@ -146,6 +153,7 @@ class CandidateServiceTest {
         when(candidateMapper.toAboutResponse(candidate))
                 .thenReturn(new AboutResponse(null, null, null, null, null));
         when(experienceRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID)).thenReturn(List.of());
+        when(projectRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID)).thenReturn(List.of());
         when(diplomaRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
         when(candidateSkillRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
         when(candidateLanguageRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
@@ -166,6 +174,8 @@ class CandidateServiceTest {
                 .thenReturn(new AboutResponse("Dev", "Staff Engineer", "Bio", 5, "open_to_work"));
         when(experienceRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID))
                 .thenReturn(List.of(mock(ProfessionalExperience.class)));
+        when(projectRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID))
+                .thenReturn(List.of(mock(CandidateProject.class)));
         when(diplomaRepository.findByCandidateId(USER_ID)).thenReturn(List.of(mock(Diploma.class)));
         when(candidateSkillRepository.findByCandidateId(USER_ID)).thenReturn(List.of(mock(CandidateSkill.class)));
         when(candidateLanguageRepository.findByCandidateId(USER_ID))
@@ -190,6 +200,7 @@ class CandidateServiceTest {
         when(candidateMapper.toAboutResponse(candidate))
                 .thenReturn(new AboutResponse("Dev", null, null, null, "selective"));
         when(experienceRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID)).thenReturn(List.of());
+        when(projectRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID)).thenReturn(List.of());
         when(diplomaRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
         when(candidateSkillRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
         when(candidateLanguageRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
@@ -310,6 +321,40 @@ class CandidateServiceTest {
                 .isInstanceOf(InvalidProfileSectionException.class)
                 .hasMessageContaining("start date");
         verify(experienceRepository, never()).deleteAllByCandidateId(any());
+    }
+
+    @Test
+    void projectsRemplaceLintegraleteDeLaListeDansLOrdreFourni() {
+        Candidate candidate = Candidate.builder().id(USER_ID).title("Dev").build();
+        when(candidateRepository.findById(USER_ID)).thenReturn(Optional.of(candidate));
+
+        candidateService.updateProjects(USER_ID, List.of(
+                project("Portfolio", "2023-01-01", "2024-01-01"),
+                project("Open Source Lib", "2024-01-01", null)));
+
+        ArgumentCaptor<List<CandidateProject>> captor = ArgumentCaptor.forClass(List.class);
+        InOrder inOrder = inOrder(projectRepository);
+        inOrder.verify(projectRepository).deleteAllByCandidateId(USER_ID);
+        inOrder.verify(projectRepository).saveAll(captor.capture());
+
+        List<CandidateProject> saved = captor.getValue();
+        assertThat(saved).hasSize(2);
+        assertThat(saved.get(0).getSortOrder()).isZero();
+        assertThat(saved.get(1).getSortOrder()).isEqualTo(1);
+        assertThat(saved.get(0).getCandidate()).isSameAs(candidate);
+        assertThat(saved.get(0).getName()).isEqualTo("Portfolio");
+        assertThat(saved.get(1).getEndDate()).isNull();
+    }
+
+    @Test
+    void projectsRejetteUneDateDeFinAvantLeDebut() {
+        when(candidateRepository.findById(USER_ID)).thenReturn(Optional.of(candidate()));
+
+        assertThatThrownBy(() -> candidateService.updateProjects(USER_ID, List.of(
+                project("Portfolio", "2024-01-01", "2023-01-01"))))
+                .isInstanceOf(InvalidProfileSectionException.class)
+                .hasMessageContaining("start date");
+        verify(projectRepository, never()).deleteAllByCandidateId(any());
     }
 
     @Test
@@ -474,5 +519,10 @@ class CandidateServiceTest {
     private static ExperienceRequest experience(String title, String start, String end) {
         return new ExperienceRequest(title, null, LocalDate.parse(start),
                 end == null ? null : LocalDate.parse(end), "Acme", "fr");
+    }
+
+    private static ProjectRequest project(String name, String start, String end) {
+        return new ProjectRequest(name, "Author", null, LocalDate.parse(start),
+                end == null ? null : LocalDate.parse(end), "Next.js");
     }
 }

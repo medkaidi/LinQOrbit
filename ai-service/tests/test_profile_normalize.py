@@ -11,7 +11,12 @@ from app.agents.profile_normalize import (
     normalize_profile,
 )
 from app.schemas.cv import ReferenceContext
-from app.schemas.normalize import CandidateProfile, NormalizedProfile, ProfileAbout
+from app.schemas.normalize import (
+    CandidateProfile,
+    NormalizedProfile,
+    ProfileAbout,
+    ProfileLocation,
+)
 
 
 class StubAgent:
@@ -33,12 +38,14 @@ def _profile() -> CandidateProfile:
     return CandidateProfile(
         about=ProfileAbout(title="Full Stack Developer", bio="Six years of APIs."),
         skills=[{"name": "Java", "level": 4, "years_experience": 6}],
+        projects=[{"name": "Portfolio", "start_date": "2023-01-01"}],
     )
 
 
 def test_has_content_detects_about_and_sections():
     assert has_content(CandidateProfile(about=ProfileAbout(title="Dev")))
     assert has_content(CandidateProfile(skills=[{"name": "Java"}]))
+    assert has_content(CandidateProfile(projects=[{"name": "Portfolio"}]))
     assert not has_content(CandidateProfile())
     assert not has_content(CandidateProfile(about=ProfileAbout()))
 
@@ -72,7 +79,7 @@ def test_normalize_profile_forces_the_schema_version(monkeypatch):
 
     result = normalize_profile(_profile())
 
-    assert result.schema_version == "1"
+    assert result.schema_version == "2"
 
 
 def test_normalize_profile_forwards_the_reference_context(monkeypatch):
@@ -85,9 +92,29 @@ def test_normalize_profile_forwards_the_reference_context(monkeypatch):
     monkeypatch.setattr("app.agents.profile_normalize.build_normalize_agent", fake_build)
     reference = ReferenceContext(languages=["French"])
 
-    normalize_profile(_profile(), reference)
+    normalize_profile(_profile(), context=reference)
 
     assert captured["context"] is reference
+
+
+def test_normalize_profile_includes_the_location_in_the_payload(monkeypatch):
+    stub = StubAgent([{"structured_response": NormalizedProfile(title="Dev")}])
+    monkeypatch.setattr("app.agents.profile_normalize.build_normalize_agent", lambda **_: stub)
+
+    normalize_profile(_profile(), location=ProfileLocation(current_city="Paris", current_country="FR"))
+
+    sent = stub.calls[0]["payload"]["messages"][0].content
+    assert "Paris" in sent
+
+
+def test_normalize_profile_omits_a_null_location_from_the_payload(monkeypatch):
+    stub = StubAgent([{"structured_response": NormalizedProfile(title="Dev")}])
+    monkeypatch.setattr("app.agents.profile_normalize.build_normalize_agent", lambda **_: stub)
+
+    normalize_profile(_profile(), location=None)
+
+    sent = stub.calls[0]["payload"]["messages"][0].content
+    assert "Paris" not in sent
 
 
 def test_normalize_profile_repairs_a_missing_output(monkeypatch):

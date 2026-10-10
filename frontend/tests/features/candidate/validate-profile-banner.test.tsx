@@ -27,6 +27,7 @@ function buildProfile(
       searchStatus: null,
     },
     experiences: [],
+    projects: [],
     diplomas: [],
     skills: [],
     languages: [],

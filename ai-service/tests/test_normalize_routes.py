@@ -20,8 +20,17 @@ PROFILE_BODY = {
                 "companyName": "A2S",
             }
         ],
+        "projects": [
+            {
+                "name": "Portfolio",
+                "startDate": "2023-01-01",
+                "endDate": None,
+                "technologies": "Next.js",
+            }
+        ],
         "skills": [{"name": "Java", "skillType": "Programming Languages", "level": 4}],
     },
+    "location": {"currentCity": "Paris", "currentCountry": "FR"},
     "context": {"languages": ["French"], "studyFields": ["Computer Science"]},
 }
 
@@ -33,8 +42,9 @@ def _post(body=None):
 def test_normalize_endpoint_returns_the_canonical_profile(monkeypatch):
     received = {}
 
-    def fake_normalize(profile, context=None) -> NormalizedProfile:
+    def fake_normalize(profile, location=None, context=None) -> NormalizedProfile:
         received["profile"] = profile
+        received["location"] = location
         received["context"] = context
         return NormalizedProfile(title="Full Stack Developer", summary="I build APIs.")
 
@@ -43,13 +53,14 @@ def test_normalize_endpoint_returns_the_canonical_profile(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["title"] == "Full Stack Developer"
-    assert response.json()["schemaVersion"] == "1"
+    assert response.json()["schemaVersion"] == "2"
     assert isinstance(received["profile"], CandidateProfile)
+    assert received["location"].current_city == "Paris"
     assert received["context"].study_fields == ["Computer Science"]
 
 
 def test_normalize_endpoint_serialises_the_camel_case_contract(monkeypatch):
-    def fake_normalize(profile, context=None) -> NormalizedProfile:
+    def fake_normalize(profile, location=None, context=None) -> NormalizedProfile:
         return NormalizedProfile(
             title="Full Stack Developer",
             experiences=[
@@ -60,7 +71,25 @@ def test_normalize_endpoint_serialises_the_camel_case_contract(monkeypatch):
                     "end_date": None,
                 }
             ],
-            skills=[{"name": "Java", "level": 4, "years_experience": 6}],
+            projects=[
+                {
+                    "name": "Portfolio",
+                    "start_date": "2023-01",
+                    "end_date": None,
+                    "context": "personal",
+                }
+            ],
+            skills=[
+                {
+                    "name": "Java",
+                    "category": "programming_language",
+                    "level": 4,
+                    "level_source": "declared",
+                    "years_experience": 6,
+                    "origin": "declared",
+                    "evidence": [{"source": "experience", "index": 0}],
+                }
+            ],
         )
 
     monkeypatch.setattr("app.api.routes.normalize.normalize_profile", fake_normalize)
@@ -72,13 +101,17 @@ def test_normalize_endpoint_serialises_the_camel_case_contract(monkeypatch):
     assert experience["positionTitle"] == "Developer"
     assert experience["startDate"] == "2024-01"
     assert "start_date" not in experience
+    assert body["projects"][0]["name"] == "Portfolio"
+    assert body["projects"][0]["context"] == "personal"
     assert body["skills"][0]["yearsExperience"] == 6
+    assert body["skills"][0]["levelSource"] == "declared"
+    assert body["skills"][0]["evidence"][0]["source"] == "experience"
 
 
-def test_normalize_endpoint_accepts_a_body_without_context(monkeypatch):
+def test_normalize_endpoint_accepts_a_body_without_context_or_location(monkeypatch):
     monkeypatch.setattr(
         "app.api.routes.normalize.normalize_profile",
-        lambda profile, context=None: NormalizedProfile(title="Dev"),
+        lambda profile, location=None, context=None: NormalizedProfile(title="Dev"),
     )
     response = _post({"profile": {"about": {"title": "Dev"}}})
 
@@ -96,7 +129,7 @@ def test_normalize_endpoint_rejects_a_body_without_profile():
     [("empty_profile", 422), ("no_output", 502)],
 )
 def test_normalize_endpoint_maps_pipeline_errors(monkeypatch, code, expected_status):
-    def failing_normalize(profile, context=None) -> NormalizedProfile:
+    def failing_normalize(profile, location=None, context=None) -> NormalizedProfile:
         raise ProfileNormalizeError(code, f"message for {code}")
 
     monkeypatch.setattr("app.api.routes.normalize.normalize_profile", failing_normalize)

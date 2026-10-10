@@ -5,6 +5,7 @@ import type {
   ExperiencesValues,
   LanguagesValues,
   LinksValues,
+  ProjectsValues,
   SkillsValues,
 } from "@/lib/validations/candidate.schemas";
 import type {
@@ -60,6 +61,20 @@ export async function updateExperiences(values: ExperiencesValues): Promise<void
       endDate: item.endDate === "" ? null : item.endDate,
       companyName: item.companyName,
       companyCountry: item.companyCountry === "" ? null : item.companyCountry,
+    })),
+  );
+}
+
+export async function updateProjects(values: ProjectsValues): Promise<void> {
+  await api.put(
+    `${BASE}/me/profile/projects`,
+    values.items.map((item) => ({
+      name: item.name,
+      role: item.role === "" ? null : item.role,
+      description: item.description === "" ? null : item.description,
+      startDate: item.startDate,
+      endDate: item.endDate === "" ? null : item.endDate,
+      technologies: item.technologies === "" ? null : item.technologies,
     })),
   );
 }

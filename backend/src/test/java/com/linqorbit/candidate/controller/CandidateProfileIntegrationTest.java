@@ -61,6 +61,7 @@ class CandidateProfileIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.about").exists())
                 .andExpect(jsonPath("$.experiences").isEmpty())
+                .andExpect(jsonPath("$.projects").isEmpty())
                 .andExpect(jsonPath("$.completionPercentage").value(0));
         assertThat(countCandidates(userId)).isZero();
 
@@ -94,7 +95,19 @@ class CandidateProfileIntegrationTest {
                 .andExpect(jsonPath("$.about.searchStatus").value("open_to_work"))
                 .andExpect(jsonPath("$.experiences.length()").value(2))
                 .andExpect(jsonPath("$.experiences[0].positionTitle").value("Developer"))
-                .andExpect(jsonPath("$.completionPercentage").value(33));
+                .andExpect(jsonPath("$.completionPercentage").value(28));
+
+        mockMvc.perform(put(PROFILE_PATH + "/projects")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [{"name": "Portfolio", "role": "Author", "description": "Site personnel",
+                                  "startDate": "2023-01-01", "endDate": null,
+                                  "technologies": "Next.js, TypeScript"}]"""))
+                .andExpect(status().isNoContent());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT end_date FROM candidate_projects WHERE candidate_id = ? AND sort_order = 0",
+                String.class, userId)).isNull();
 
         String degreeId = firstId(degreesJson);
         String studyFieldId = firstId(studyFieldsJson);
@@ -134,6 +147,8 @@ class CandidateProfileIntegrationTest {
 
         mockMvc.perform(get(PROFILE_PATH).header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.projects.length()").value(1))
+                .andExpect(jsonPath("$.projects[0].name").value("Portfolio"))
                 .andExpect(jsonPath("$.diplomas[0].degreeLabel").isNotEmpty())
                 .andExpect(jsonPath("$.diplomas[0].studyFieldLabel").isNotEmpty())
                 .andExpect(jsonPath("$.skills[0].name").isNotEmpty())
@@ -208,6 +223,34 @@ class CandidateProfileIntegrationTest {
         UUID userId = createdUserIds.get(createdUserIds.size() - 1);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM professional_experiences WHERE candidate_id = ?", Integer.class, userId))
+                .isEqualTo(2);
+    }
+
+    @Test
+    void remplacementDeProjetsSupprimeLesAnciennesLignes() throws Exception {
+        String token = signup();
+
+        mockMvc.perform(put(PROFILE_PATH + "/projects")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [{"name": "Portfolio", "startDate": "2023-01-01"}]"""))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(put(PROFILE_PATH + "/projects")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [{"name": "Bot Discord", "startDate": "2024-01-01"},
+                                 {"name": "Jeu en C++", "startDate": "2020-01-01", "endDate": "2021-06-01"}]"""))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get(PROFILE_PATH).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.projects.length()").value(2))
+                .andExpect(jsonPath("$.projects[0].name").value("Bot Discord"));
+        UUID userId = createdUserIds.get(createdUserIds.size() - 1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM candidate_projects WHERE candidate_id = ?", Integer.class, userId))
                 .isEqualTo(2);
     }
 

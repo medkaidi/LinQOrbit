@@ -29,6 +29,7 @@ import com.linqorbit.candidate.dto.ExperienceRequest;
 import com.linqorbit.candidate.dto.LanguageOption;
 import com.linqorbit.candidate.dto.LanguageRequest;
 import com.linqorbit.candidate.dto.LinkRequest;
+import com.linqorbit.candidate.dto.ProjectRequest;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.SkillRequest;
 import com.linqorbit.candidate.dto.SkillSuggestionRequest;
@@ -45,7 +46,7 @@ public interface CandidateApi {
 
     @GetMapping("/me/profile")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
-    @Operation(summary = "Lire le profil candidat", description = "Vue agrégée du profil (6 sections) avec le taux de complétion. Renvoie un profil vide si le candidat n'a encore rien renseigné.")
+    @Operation(summary = "Lire le profil candidat", description = "Vue agrégée du profil (7 sections) avec le taux de complétion. Renvoie un profil vide si le candidat n'a encore rien renseigné.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Profil renvoyé"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
@@ -82,6 +83,17 @@ public interface CandidateApi {
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
     })
     ResponseEntity<Void> updateExperiences(@Valid @RequestBody List<ExperienceRequest> request,
+            Authentication authentication);
+
+    @PutMapping("/me/profile/projects")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Remplacer les projets", description = "Le tableau reçu remplace intégralement la liste existante, dans l'ordre fourni. end_date nulle = projet en cours.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Section enregistrée"),
+            @ApiResponse(responseCode = "400", description = "Corps invalide (validation Bean Validation ou règle métier)"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
+    })
+    ResponseEntity<Void> updateProjects(@Valid @RequestBody List<ProjectRequest> request,
             Authentication authentication);
 
     @PutMapping("/me/profile/diplomas")

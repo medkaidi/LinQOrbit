@@ -28,6 +28,8 @@ import com.linqorbit.candidate.dto.LanguageRequest;
 import com.linqorbit.candidate.dto.LanguageResponse;
 import com.linqorbit.candidate.dto.LinkRequest;
 import com.linqorbit.candidate.dto.LinkResponse;
+import com.linqorbit.candidate.dto.ProjectRequest;
+import com.linqorbit.candidate.dto.ProjectResponse;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.SkillRequest;
 import com.linqorbit.candidate.dto.SkillResponse;
@@ -36,6 +38,7 @@ import com.linqorbit.candidate.dto.StudyFieldOption;
 import com.linqorbit.candidate.dto.TargetPositionRequest;
 import com.linqorbit.candidate.entity.CandidateLanguage;
 import com.linqorbit.candidate.entity.CandidateLink;
+import com.linqorbit.candidate.entity.CandidateProject;
 import com.linqorbit.candidate.entity.CandidateSkill;
 import com.linqorbit.candidate.entity.Diploma;
 import com.linqorbit.candidate.entity.Degree;
@@ -49,6 +52,7 @@ import com.linqorbit.candidate.exception.ReferenceNotFoundException;
 import com.linqorbit.candidate.mapper.CandidateMapper;
 import com.linqorbit.candidate.repository.CandidateLanguageRepository;
 import com.linqorbit.candidate.repository.CandidateLinkRepository;
+import com.linqorbit.candidate.repository.CandidateProjectRepository;
 import com.linqorbit.candidate.repository.CandidateSkillRepository;
 import com.linqorbit.candidate.repository.DegreeRepository;
 import com.linqorbit.candidate.repository.DiplomaRepository;
@@ -72,10 +76,11 @@ import com.linqorbit.candidate.repository.CandidateRepository;
 @RequiredArgsConstructor
 public class CandidateService {
 
-    private static final int COMPLETION_SECTIONS = 6;
+    private static final int COMPLETION_SECTIONS = 7;
 
     private final CandidateRepository candidateRepository;
     private final ProfessionalExperienceRepository experienceRepository;
+    private final CandidateProjectRepository projectRepository;
     private final DiplomaRepository diplomaRepository;
     private final CandidateSkillRepository candidateSkillRepository;
     private final CandidateLanguageRepository candidateLanguageRepository;
@@ -101,6 +106,8 @@ public class CandidateService {
         List<ExperienceResponse> experiences = experienceRepository
                 .findByCandidateIdOrderBySortOrderAsc(userId).stream()
                 .map(candidateMapper::toExperienceResponse).toList();
+        List<ProjectResponse> projects = projectRepository.findByCandidateIdOrderBySortOrderAsc(userId).stream()
+                .map(candidateMapper::toProjectResponse).toList();
         List<DiplomaResponse> diplomas = diplomaRepository.findByCandidateId(userId).stream()
                 .map(candidateMapper::toDiplomaResponse).toList();
         List<SkillResponse> skills = candidateSkillRepository.findByCandidateId(userId).stream()
@@ -110,14 +117,14 @@ public class CandidateService {
         List<LinkResponse> links = candidateLinkRepository.findByCandidateIdOrderBySortOrderAsc(userId).stream()
                 .map(candidateMapper::toLinkResponse).toList();
 
-        int completion = computeCompletion(about, experiences, diplomas, skills, languages, links);
+        int completion = computeCompletion(about, experiences, projects, diplomas, skills, languages, links);
         boolean hasUnvalidatedChanges = normalizationService.hasUnvalidatedChanges(candidate);
         boolean normalizationFailed = normalizationService.hasFailedLatestJob(userId);
         boolean normalizationInProgress = normalizationService.hasInProgressLatestJob(userId);
         log.info("Candidate profile read succeeded : userId={}, completion={}%, normalizationFailed={},"
                         + " normalizationInProgress={}",
                 userId, completion, normalizationFailed, normalizationInProgress);
-        return new CandidateProfileResponse(about, experiences, diplomas, skills, languages, links,
+        return new CandidateProfileResponse(about, experiences, projects, diplomas, skills, languages, links,
                 completion, hasUnvalidatedChanges, normalizationFailed, normalizationInProgress);
     }
 
@@ -168,6 +175,31 @@ public class CandidateService {
         experienceRepository.saveAll(experiences);
         touchUpdatedAt(candidate);
         log.info("Candidate profile experiences updated : userId={}, count={}", userId, experiences.size());
+    }
+
+    @Transactional
+    public void updateProjects(UUID userId, List<ProjectRequest> requests) {
+        log.info("Candidate profile projects update requested : userId={}, count={}", userId, requests.size());
+        Candidate candidate = findOrCreate(userId);
+        List<CandidateProject> projects = new ArrayList<>(requests.size());
+        for (int i = 0; i < requests.size(); i++) {
+            ProjectRequest request = requests.get(i);
+            validateDates(request.startDate(), request.endDate(), "project");
+            projects.add(CandidateProject.builder()
+                    .candidate(candidate)
+                    .name(request.name().trim())
+                    .role(trimToNull(request.role()))
+                    .description(trimToNull(request.description()))
+                    .startDate(request.startDate())
+                    .endDate(request.endDate())
+                    .technologies(trimToNull(request.technologies()))
+                    .sortOrder(i)
+                    .build());
+        }
+        projectRepository.deleteAllByCandidateId(userId);
+        projectRepository.saveAll(projects);
+        touchUpdatedAt(candidate);
+        log.info("Candidate profile projects updated : userId={}, count={}", userId, projects.size());
     }
 
     @Transactional
@@ -363,18 +395,21 @@ public class CandidateService {
     private CandidateProfileResponse emptyProfile() {
         return new CandidateProfileResponse(
                 new AboutResponse(null, null, null, null, null),
-                List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
                 0, false, false, false);
     }
 
     private int computeCompletion(AboutResponse about, List<ExperienceResponse> experiences,
-            List<DiplomaResponse> diplomas, List<SkillResponse> skills, List<LanguageResponse> languages,
-            List<LinkResponse> links) {
+            List<ProjectResponse> projects, List<DiplomaResponse> diplomas, List<SkillResponse> skills,
+            List<LanguageResponse> languages, List<LinkResponse> links) {
         int filled = 0;
         if (isFilled(about.title()) && isFilled(about.bio())) {
             filled++;
         }
         if (!experiences.isEmpty()) {
+            filled++;
+        }
+        if (!projects.isEmpty()) {
             filled++;
         }
         if (!diplomas.isEmpty()) {

@@ -1,10 +1,12 @@
 """Profile normalization agent: LangGraph harness with ``create_agent``.
 
 Unlike CV parsing (raw text -> structure), the input is already structured:
-the loop is a canonicalisation pass — reshape to the schema, normalise dates,
-levels and vocabulary against the reference lists, never invent.
-``response_format=NormalizedProfile`` drives that contract: Pydantic validates
-every response and feeds validation errors back to the model.
+the loop mines it hard — every free text (bio, experience and project
+descriptions) is mined for implicit capabilities — then reshapes everything to
+the canonical v2 schema, normalising dates, levels and vocabulary against the
+reference lists. ``response_format=NormalizedProfile`` drives that contract:
+Pydantic validates every response and feeds validation errors back to the
+model.
 """
 
 from __future__ import annotations
@@ -25,19 +27,54 @@ MODEL_CALL_LIMIT = 6
 PROMPT_RULES = """You are an experienced HR assistant working for LinQOrbit, a recruitment platform.
 
 You receive the current profile of a candidate (sections as the user wrote
-them) and you must return it in the structured schema provided to you
-(NormalizedProfile).
+them) and you must return the canonical profile in the structured schema
+provided to you (NormalizedProfile).
+
+Your mission: make the candidate look as capable as they truly are. Mine
+EVERY free text — the bio, every experience description, every project
+description and role — for skills, responsibilities, achievements, domains
+and technologies the candidate demonstrated but did not list as formal
+skills. A candidate who never ticked a "React" checkbox but wrote "rebuilt
+our dashboard in React" HAS React: it goes in the skills index with
+origin "inferred" and evidence pointing to that item. This deep extraction is
+the product's differentiator: the platform must answer "what can this person
+really do", not just restate keywords.
 
 Rules:
-- Never invent anything: only reshape, clean and canonicalise what is there.
+- Never invent anything: only reshape, clean, mine and canonicalise what is
+  there. An inferred fact must be directly supported by the profile's words.
+- Three-way discipline for every derived value: "declared" (the candidate
+  wrote it), "inferred" (mined from texts, clearly supported), or null (not
+  supported — never guess).
+- A skill the candidate declared in the skills section keeps its declared
+  level verbatim: never recompute, never adjust it. For inferred skills,
+  report a level only when the texts strongly support one, else null.
+- yearsOfExperience on a skill is the sum of the non-overlapping periods of
+  its evidence items, computed only when that sum is meaningful; else null.
+- Evidence entries point to items of THIS response by 0-based index into the
+  matching output array ("experience" -> experiences[], "project" ->
+  projects[], "diploma" -> diplomas[], "certification" -> certifications[]).
+  Never invent evidence for an item that does not exist.
 - Dates must come back as 'YYYY-MM': '2021-03-05' and 'March 2021' both give
-  '2021-03'. end_date is null when the position is current.
+  '2021-03'. end_date is null when the position or project is current.
 - Language levels are CEFR grades ('A1' to 'C2'); map a free-form level only
-  when it is clearly equivalent, otherwise null. Skill levels are integers
-  from 1 (beginner) to 5 (expert). Only report a level the profile actually
-  supports.
+  when it is clearly equivalent, otherwise null.
 - Keep the candidate's own wording for job titles, companies, schools,
-  descriptions and summary. Never invent or embellish anything.
+  descriptions and summary. You may split long descriptions into
+  responsibilities/achievements lists, but the original description text is
+  kept verbatim alongside.
+- Skill category must be one of: programming_language, framework, library,
+  tool, methodology, business_domain, soft_skill, technical_skill,
+  regulatory_knowledge, other. Pick the most specific true category.
+- Project context must be one of: personal, academic, open_source,
+  professional, volunteer, other — infer it from the wording.
+- Links whose linkType is "certification" become certifications[] (label =
+  name, keep issuer and issuedAt); all other links stay in links[].
+- location is the account location: pass city/country through unchanged,
+  never invent, null when absent.
+- targetRole is the stored target position, verbatim; searchStatus is passed
+  through unchanged; seniority is inferred from years and titles only when
+  clearly supported, else null.
 - When reference lists are provided below, normalise languages, degrees,
   study fields and skills to their exact wording: 'Français' -> 'French',
   'Excel' -> 'Microsoft Excel'. Anything they do not cover keeps its wording.
@@ -45,20 +82,26 @@ Rules:
   professional summary written in first person, drawn only from the profile's
   own bio and content.
 - Never include identifiers of any kind: no UUIDs, no database ids.
-- Leave 'schemaVersion' at "1".
-- Order experiences and diplomas most recent first.
+- Leave 'schemaVersion' at "2".
+- Order experiences, projects and diplomas most recent first; list declared
+  skills before inferred ones.
 - Missing field -> null. If a section is empty in the input, return [] for
-  it: never create experiences, diplomas, skills, languages or links the
-  input does not already list — only 'title' and 'summary' may be recomposed
-  from the profile's own wording."""
+  it: never create experiences, projects, diplomas, languages, certifications
+  or links the input does not already list — only 'title', 'summary',
+  'seniority' and the skills index may be recomposed from the profile's own
+  content."""
 
 PROMPT_EXAMPLE = """Example of the expected result (shape only, not content):
 
 {
-  "schemaVersion": "1",
+  "schemaVersion": "2",
   "title": "Senior Backend Engineer",
   "summary": "I design and operate high-throughput APIs. I enjoy mentoring and pragmatic testing.",
   "yearsOfExperience": 7,
+  "seniority": "senior",
+  "targetRole": "Staff Engineer",
+  "searchStatus": "open_to_work",
+  "location": {"city": "Paris", "country": "FR"},
   "experiences": [
     {
       "positionTitle": "Backend Engineer",
@@ -66,7 +109,25 @@ PROMPT_EXAMPLE = """Example of the expected result (shape only, not content):
       "companyCountry": "France",
       "startDate": "2021-03",
       "endDate": null,
-      "description": "Owned the public API and its on-call rotation."
+      "description": "Owned the public API and its on-call rotation.",
+      "domain": "fintech payments",
+      "responsibilities": ["Public API ownership", "On-call rotation"],
+      "technologies": ["Java", "PostgreSQL"],
+      "achievements": []
+    }
+  ],
+  "projects": [
+    {
+      "name": "Portfolio",
+      "role": "Author",
+      "description": "Personal site built with Next.js.",
+      "startDate": "2023-01",
+      "endDate": null,
+      "context": "personal",
+      "domain": "web development",
+      "responsibilities": [],
+      "technologies": ["Next.js", "TypeScript"],
+      "achievements": []
     }
   ],
   "diplomas": [
@@ -80,14 +141,20 @@ PROMPT_EXAMPLE = """Example of the expected result (shape only, not content):
       "endDate": "2018-06"
     }
   ],
-  "skills": [
-    {"name": "Java", "level": 4, "yearsExperience": 7}
-  ],
   "languages": [
     {"name": "English", "level": "C1"}
   ],
+  "certifications": [
+    {"name": "AWS SAA", "issuer": "Amazon Web Services", "issuedAt": "2024-05", "url": "https://aws.example.com/123"}
+  ],
   "links": [
     {"label": "GitHub", "url": "https://github.com/camille"}
+  ],
+  "skills": [
+    {"name": "Java", "category": "programming_language", "level": 4, "levelSource": "declared",
+     "yearsExperience": 7, "origin": "declared", "evidence": [{"source": "experience", "index": 0}]},
+    {"name": "AWS", "category": "tool", "level": null, "levelSource": null,
+     "yearsExperience": null, "origin": "inferred", "evidence": [{"source": "certification", "index": 0}]}
   ]
 }"""
 

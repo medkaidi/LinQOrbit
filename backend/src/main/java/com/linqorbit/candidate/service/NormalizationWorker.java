@@ -23,12 +23,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.linqorbit.candidate.dto.CandidateProfileResponse;
 import com.linqorbit.candidate.dto.NormalizeRequest;
 import com.linqorbit.candidate.dto.ParseContext;
+import com.linqorbit.candidate.dto.ProfileLocation;
 import com.linqorbit.candidate.entity.NormalizationJob;
 import com.linqorbit.candidate.exception.AiServiceException;
 import com.linqorbit.candidate.repository.NormalizationJobRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileCandidateRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.common.logging.RequestLoggingFilter;
+import com.linqorbit.user.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -79,6 +81,7 @@ public class NormalizationWorker {
     private final CandidateService candidateService;
     private final ReferenceContextBuilder referenceContextBuilder;
     private final ProfileNormalizeClient profileNormalizeClient;
+    private final UserRepository userRepository;
     @Value("${app.normalization.retry-delay-seconds}")
     private final int retryDelaySeconds;
 
@@ -203,8 +206,11 @@ public class NormalizationWorker {
                 .findCandidateIdByNormalizedProfileId(job.getId())
                 .orElseThrow(() -> new IllegalStateException("Job without candidate link"));
         CandidateProfileResponse profile = candidateService.getProfile(candidateId);
+        ProfileLocation location = userRepository.findById(candidateId)
+                .map(user -> new ProfileLocation(user.getCurrentCity(), user.getCurrentCountry()))
+                .orElseGet(() -> new ProfileLocation(null, null));
         ParseContext context = referenceContextBuilder.build();
-        String canonical = profileNormalizeClient.normalize(new NormalizeRequest(profile, context));
+        String canonical = profileNormalizeClient.normalize(new NormalizeRequest(profile, location, context));
         LocalDateTime now = LocalDateTime.now();
         transactionTemplate.executeWithoutResult(txStatus -> {
             normalizedProfileRepository.setContent(job.getId(), canonical, now);

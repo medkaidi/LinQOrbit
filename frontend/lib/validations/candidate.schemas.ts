@@ -84,6 +84,17 @@ export const experienceSchema = z
   })
   .superRefine(dateOrderCheck);
 
+export const projectSchema = z
+  .object({
+    name: text(255, "Project name"),
+    role: optionalText(255, "Role"),
+    startDate: z.iso.date("Start date is required"),
+    endDate: dateOrEmpty,
+    description: optionalText(2000, "Description"),
+    technologies: optionalText(1000, "Technologies"),
+  })
+  .superRefine(dateOrderCheck);
+
 export const diplomaSchema = z
   .object({
     title: text(255, "Degree title"),
@@ -151,6 +162,10 @@ export const experiencesSchema = z.object({
   items: z.array(experienceSchema),
 });
 
+export const projectsSchema = z.object({
+  items: z.array(projectSchema),
+});
+
 export const diplomasSchema = z.object({
   items: z.array(diplomaSchema),
 });
@@ -174,12 +189,14 @@ export const linksSchema = z.object({
 export type AboutValues = z.infer<typeof aboutSchema>;
 export type AboutSectionValues = z.infer<typeof aboutSectionSchema>;
 export type ExperienceValues = z.infer<typeof experienceSchema>;
+export type ProjectValues = z.infer<typeof projectSchema>;
 export type DiplomaValues = z.infer<typeof diplomaSchema>;
 export type SkillValues = z.infer<typeof skillSchema>;
 export type LanguageValues = z.infer<typeof languageSchema>;
 export type LinkValues = z.infer<typeof linkSchema>;
 
 export type ExperiencesValues = z.infer<typeof experiencesSchema>;
+export type ProjectsValues = z.infer<typeof projectsSchema>;
 export type DiplomasValues = z.infer<typeof diplomasSchema>;
 export type SkillsValues = z.infer<typeof skillsSchema>;
 export type LanguagesValues = z.infer<typeof languagesSchema>;

@@ -25,6 +25,7 @@ import org.springframework.web.client.RestClient;
 import com.linqorbit.candidate.dto.CandidateProfileResponse;
 import com.linqorbit.candidate.dto.NormalizeRequest;
 import com.linqorbit.candidate.dto.ParseContext;
+import com.linqorbit.candidate.dto.ProfileLocation;
 import com.linqorbit.candidate.exception.AiServiceException;
 
 import tools.jackson.databind.json.JsonMapper;
@@ -49,10 +50,12 @@ class ProfileNormalizeClientTest {
 
     private static NormalizeRequest request() {
         CandidateProfileResponse profile = new CandidateProfileResponse(null,
-                List.of(), List.of(), List.of(), List.of(), List.of(), 42, true, false, false);
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                42, true, false, false);
+        ProfileLocation location = new ProfileLocation("Paris", "FR");
         ParseContext context = new ParseContext(List.of("French"), List.of("Bachelor's degree"),
                 List.of("Computer Science"), Map.of("Programming Languages", List.of("Java")));
-        return new NormalizeRequest(profile, context);
+        return new NormalizeRequest(profile, location, context);
     }
 
     @Test

@@ -6,6 +6,7 @@ pipeline is the agent plus one repair turn, mirroring ``cv_parse``.
 
 from __future__ import annotations
 
+import json
 import logging
 
 from langchain_core.messages import HumanMessage
@@ -13,7 +14,12 @@ from langgraph.errors import GraphRecursionError
 
 from app.graphs.normalize_agent import build_normalize_agent
 from app.schemas.cv import ReferenceContext
-from app.schemas.normalize import SCHEMA_VERSION, CandidateProfile, NormalizedProfile
+from app.schemas.normalize import (
+    SCHEMA_VERSION,
+    CandidateProfile,
+    NormalizedProfile,
+    ProfileLocation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +46,7 @@ def has_content(profile: CandidateProfile) -> bool:
     return any(
         (
             profile.experiences,
+            profile.projects,
             profile.diplomas,
             profile.skills,
             profile.languages,
@@ -49,12 +56,15 @@ def has_content(profile: CandidateProfile) -> bool:
 
 
 def normalize_profile(
-    profile: CandidateProfile, context: ReferenceContext | None = None
+    profile: CandidateProfile,
+    location: ProfileLocation | None = None,
+    context: ReferenceContext | None = None,
 ) -> NormalizedProfile:
     """Run the agent over the stored profile and return a validated object.
 
-    ``context`` is the backend's reference vocabulary (DB truth): it is
-    rendered into the system prompt as canonicalisation lists.
+    ``location`` is the account location from the users table; ``context`` is
+    the backend's reference vocabulary (DB truth), rendered into the system
+    prompt as canonicalisation lists.
     """
     if not has_content(profile):
         raise ProfileNormalizeError(
@@ -62,14 +72,20 @@ def normalize_profile(
             "The profile has no content to normalize.",
         )
 
-    payload = profile.model_dump_json(by_alias=True, exclude_none=True)
+    payload = {
+        "profile": profile.model_dump(by_alias=True, exclude_none=True),
+        "location": location.model_dump(by_alias=True, exclude_none=True) if location else None,
+    }
     agent = build_normalize_agent(context=context)
     config = {"recursion_limit": RECURSION_LIMIT}
     try:
         result = agent.invoke(
             {
                 "messages": [
-                    HumanMessage(content=f"Normalize the following candidate profile:\n\n{payload}")
+                    HumanMessage(
+                        content="Normalize the following candidate profile:\n\n"
+                        + json.dumps(payload, ensure_ascii=False)
+                    )
                 ]
             },
             config=config,

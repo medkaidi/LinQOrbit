@@ -71,6 +71,7 @@ const filledProfile: CandidateProfile = {
       companyCountry: "DE",
     },
   ],
+  projects: [],
   diplomas: [],
   skills: [
     {
@@ -92,7 +93,7 @@ const filledProfile: CandidateProfile = {
       issuedAt: null,
     },
   ],
-  completionPercentage: 83,
+  completionPercentage: 71,
   hasUnvalidatedChanges: false,
   normalizationFailed: false,
   normalizationInProgress: false,
@@ -101,6 +102,7 @@ const filledProfile: CandidateProfile = {
 const emptyProfile: CandidateProfile = {
   about: { title: null, targetPosition: null, bio: null, yearsOfExperience: null, searchStatus: null },
   experiences: [],
+  projects: [],
   diplomas: [],
   skills: [],
   languages: [],
@@ -158,9 +160,9 @@ describe("ProfileView", () => {
     expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Candidate space" })).toHaveAttribute("href", "/dashboard");
     expect(
-      await screen.findByText("5 of 6 sections complete. A profile with substance gets more replies."),
+      await screen.findByText("5 of 7 sections complete. A profile with substance gets more replies."),
     ).toBeInTheDocument();
-    expect(screen.getByText("83%")).toBeInTheDocument();
+    expect(screen.getByText("71%")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Edit profile" })).toHaveAttribute(
       "href",
       "/profile/edit",
@@ -174,7 +176,7 @@ describe("ProfileView", () => {
 
     expect(screen.getByText("2 entries")).toBeInTheDocument();
 
-    for (const title of ["Experience", "Education", "Skills", "Languages", "Links & certifications"]) {
+    for (const title of ["Experience", "Projects", "Education", "Skills", "Languages", "Links & certifications"]) {
       expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     }
 

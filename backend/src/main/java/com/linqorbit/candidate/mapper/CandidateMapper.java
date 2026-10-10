@@ -13,6 +13,7 @@ import com.linqorbit.candidate.dto.DegreeOption;
 import com.linqorbit.candidate.dto.DiplomaResponse;
 import com.linqorbit.candidate.dto.ExperienceResponse;
 import com.linqorbit.candidate.dto.LanguageOption;
+import com.linqorbit.candidate.dto.ProjectResponse;
 import com.linqorbit.candidate.dto.LanguageResponse;
 import com.linqorbit.candidate.dto.LinkResponse;
 import com.linqorbit.candidate.dto.SkillOption;
@@ -20,6 +21,7 @@ import com.linqorbit.candidate.dto.SkillResponse;
 import com.linqorbit.candidate.dto.StudyFieldOption;
 import com.linqorbit.candidate.entity.CandidateLanguage;
 import com.linqorbit.candidate.entity.CandidateLink;
+import com.linqorbit.candidate.entity.CandidateProject;
 import com.linqorbit.candidate.entity.CandidateSkill;
 import com.linqorbit.candidate.entity.Diploma;
 import com.linqorbit.candidate.entity.Degree;
@@ -39,6 +41,8 @@ public interface CandidateMapper {
     AboutResponse toAboutResponse(Candidate candidate);
 
     ExperienceResponse toExperienceResponse(ProfessionalExperience experience);
+
+    ProjectResponse toProjectResponse(CandidateProject project);
 
     @Mapping(target = "degreeId", source = "degree.id")
     @Mapping(target = "degreeLabel", source = "degree.label")

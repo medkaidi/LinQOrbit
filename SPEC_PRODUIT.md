@@ -108,7 +108,7 @@ Champs disponibles : nom, prénom, email, téléphone, sexe, pays d'origine, vil
 ### 4.1 Cycle de vie complet
 
 ```
-PUT …/section ×7          → 204, AUCUNE normalisation, heartbeat updated_at
+PUT …/section ×8          → 204, AUCUNE normalisation, heartbeat updated_at
         │
         ▼  dirty-flag = true
 GET …/profile             → hasUnvalidatedChanges = true
@@ -144,18 +144,26 @@ GET …/profile             → bandeau masqué ; fiche = version courante (cont
 
 `PENDING → RUNNING → DONE` (succès) ; `RUNNING → PENDING → …` (retry) ; `RUNNING → FAILED` (terminal après 3 échecs) ; `PENDING → SUPERSEDED` (re-validation). Toutes les transitions = **CAS** `WHERE status = :expected` (multi-instances sûr). `SUPERSEDED` inéxécutable (claim exige `PENDING`).
 
-### 4.3 Format canonique v1 (`schemaVersion="1"`)
+### 4.3 Format canonique v2 (`schemaVersion="2"`)
 
-CamelCase, dates `YYYY-MM`, CEFR, niveaux 1–5, **rien inventé**, jamais d'UUID :
+CamelCase, dates `YYYY-MM`, CEFR, niveaux 1–5, **rien inventé**, jamais d'UUID (les `evidence` d'un skill référencent les sections par **index 0-based**) :
 
 ```
-schemaVersion, title, summary, yearsOfExperience
-experiences[] : positionTitle, companyName, companyCountry, startDate, endDate, description
-diplomas[]    : title, institution, institutionCountry, degreeLabel, studyFieldLabel, dates
-skills[]      : name, level (1–5), yearsExperience
-languages[]   : name, level (CEFR)
-links[]       : label, url
+schemaVersion ("2"), title, summary, yearsOfExperience, seniority (nullable : junior|mid|senior|lead|principal),
+targetRole, searchStatus, location (currentCity, currentCountry)
+experiences[]     : positionTitle, companyName, companyCountry, startDate, endDate, description (verbatim),
+                    domain, responsibilities[], technologies[], achievements[]
+projects[]        : name, role, startDate, endDate, description, technologies, context
+                    (personal|academic|open_source|professional|volunteer|other)
+diplomas[]        : title, institution, institutionCountry, degreeLabel, studyFieldLabel, dates
+certifications[]  : name, issuer, issuedAt  (extraite des liens CERTIFICATION)
+languages[]       : name, level (CEFR)
+links[]           : label, url, linkType, issuedAt  (liens non-certificats)
+skills[]          : name, category (taxonomie §7.2), level (1–5), levelSource (declared|inferred|null),
+                    yearsExperience, origin (declared|inferred), evidence[] : {source, index}
 ```
+
+Règles du modèle de preuve : le **niveau déclaré n'est jamais recalculé** ; `yearsExperience` = somme des périodes non-chevauchantes des `evidence` ; discipline déclarée / inférée / null ; `evidence.index` = position 0-based dans le tableau source (expériences, projets…). Extraction **maximale** : le system prompt IA réécrit tous les textes (bio, descriptions expériences/projets) pour en tirer titre, rôle, séniorité, technologies, réalisations — le texte source reste verbatim en plus de la version structurée.
 
 Stocké en `normalized_profile.content` (JSONB). **Aucun endpoint ne l'expose** (Q7 — provisoire, à réévaluer au matching, D5).
 
@@ -174,11 +182,12 @@ Stocké en `normalized_profile.content` (JSONB). **Aucun endpoint ne l'expose** 
 
 ### 5.1 Sections éditables (implémenté)
 
-6 sections (`/profile/edit`) : **Personal Information** (title, bio, yearsOfExperience, searchStatus + identité compte), **Experience**, **Education**, **Skills** (catalogue 226 + niveau 1–5 + années), **Languages** (47 + CEFR), **Links & certifications** (11 types dont `CERTIFICATION` + issuer/issued_at).
+7 sections (`/profile/edit`) : **Personal Information** (title, bio, yearsOfExperience, searchStatus + identité compte), **Experience**, **Projects**, **Education**, **Skills** (catalogue 226 + niveau 1–5 + années), **Languages** (47 + CEFR), **Links & certifications** (11 types dont `CERTIFICATION` + issuer/issued_at).
+- Section **Projects** (D3 levée, modèle autonome) : Nom, Rôle, Période, Description, Technologies en **texte libre** (liste libre côté saisie ; la canonicalisation est un travail de la fiche v2 côté IA). `PUT …/profile/projects` remplace la liste entière et régénère les UUIDs.
 - `target_position` : colonne backend + API, **sortie de l'UI** (décision actée).
 - **Save** : `PUT /auth/me` + `PUT …/about` en `Promise.allSettled` (About fusionné).
-- **CV import** : `POST …/cv` → aperçu → Apply remplit les 6 sections (`keepDefaultValues`) ; **rien persisté côté serveur**.
-- Jauge de complétion : 6 sections (titre + bio comptés comme About).
+- **CV import** : `POST …/cv` → aperçu → Apply remplit les sections hors Projects (`keepDefaultValues`) ; **rien persisté côté serveur**.
+- Jauge de complétion : 7 sections (titre + bio comptés comme About, tous les autres blocs vides = 2/7).
 
 ### 5.2 Écarts vs profil candidat du CDC (§10-16)
 
@@ -186,11 +195,11 @@ Stocké en `normalized_profile.content` (JSONB). **Aucun endpoint ne l'expose** 
 |---|---|---|
 | §11 **Type de contrat recherché**, **mobilité** | Absents | **Retenus au scope** (D2) |
 | §11 Disponibilité (date, préavis), pays acceptés | Seul `search_status` (3 valeurs) ; placeholder UI « Goals & criteria » | Pays à trancher avec l'UI |
-| §11 Domaine, niveau professionnel / séniorité | Seul `title` + `targetPosition` (mort UI) | À étendre avec D2 |
-| §12 Compétences : catégorie, dernière utilisation, projets associés, **sources** | Catégorie en DB, absente du contenu normalisé ; reste absent | Catégorie en schema v2 |
-| §13 Expériences : technologies, projets, domaine, compétences mobilisées | Seul `description` libre | Enjeu matching — v2 |
-| §14 **Projets** | Absent | **Étude préalable** (D3) — transverse, pas seulement IT |
-| §15 Certifications dédiées | Via `candidate_links` | Simplification assumée (D6) |
+| §11 Domaine, niveau professionnel / séniorité | `title` + `seniority` (inféré par IA, nullable) | `targetPosition` toujours mort UI ; D2 ouvre contrat/mobilité |
+| §12 Compétences : catégorie, dernière utilisation, projets associés, **sources** | **Category, levelSource, origin, yearsExperience, evidence** en schema v2 | ✅ Livré |
+| §13 Expériences : technologies, projets, domaine, compétences mobilisées | `domain`, `responsibilities[]`, `technologies[]`, `achievements[]` + description verbatim en v2 | ✅ Livré (v2) |
+| §14 **Projets** | Section Projects (7ᵉ) + contenu `projects[]` en v2 | ✅ Livré (D3 levée — D7/D8) |
+| §15 Certifications dédiées | Via `candidate_links` + table `certifications[]` (issuer/issuedAt) en v2 | Simplification assumée (D6) |
 | §16 Langues : déclaré vs évalué + contexte | Un seul niveau CEFR | « Évalué » = matching futur |
 | §17 Auto-évaluation (IA vs candidat + commentaire) | Proxy : `candidate_skills.level` | Dépend du matching (§11) |
 
@@ -467,19 +476,22 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 |---|---|---|
 | **D1** | **La validation/clarification de la fiche se passe au matching** : à la validation du profil, la fiche est générée en arrière-plan, **référence immédiate, sans écran de révision**. Transparence + clarification = fonctions du matching (§11.3), quand le moteur d'évaluation existera. | Valide l'implémentation actuelle ; conditionne le matching. |
 | **D2** | **Ajouts retenus au profil candidat** : **type de contrat recherché**, **mobilité**. | §5.2, schema v1 ou v2. |
-| **D3** | **Projets : étude préalable obligatoire** — transverse (pas seulement IT : campagnes, audits, chantiers…), taxonomie des champs universels, modèle (imbriqué vs autonome), extraction IA, consommation par matching. `schemaVersion` gère l'évolution du contenu ; seule l'entrée éditable (table+UI+API) demande une décision ferme. **Ne pas implémenter avant l'étude.** | §5.2. |
+| **D3** | ~~**Projets : étude préalable obligatoire**~~ → **levée le 2026-10-10** : implémentée comme 7ᵉ section + contenu v2 (voir D7/D8). | §5.1. |
 | **D4** | **Normalisation d'offre avec le profil recruteur** : recruteur crée company (owner) ou y est affecté ; offre = `recruiter_id` + `company_id` ; validation de l'offre → normalisation → fiche → matching. | §6.1. |
 | **D5** | **Q7 à réévaluer au matching** : l'affichage « comment mon profil a été évalué » nécessitera de lire la fiche — décider alors de la forme du endpoint. | §4.3, §11.1. |
 | **D6** | **Certifications** via `candidate_links` (simplification assumée : pas d'expiration/vérification/rattachement compétence). | §5.2. |
+| **D7** | **Modèle Projets = section autonome** (miroir Experiences, aucun FK) : le `PUT …/profile/projects` remplace la liste entière et régénère les UUIDs. Champs v1 minimaux + texte libre : Nom, Rôle, Période, Description, Technologies en texte libre (liste libre à la saisie ; canonicalisation = travail de la fiche v2 côté IA). | §5.1. |
+| **D8** | **Périmètre = extraction maximale** : le system prompt IA réécrit tous les textes (bio, descriptions expériences/projets) pour en tirer titre, rôle, séniorité, technologies, réalisations — différenciateur produit. | §4.3. |
+| **D9** | **Modèle de preuve v2** : `skills[]` index `{name, category, level, levelSource, yearsExperience, origin, evidence:[{source, index}]}` — niveau déclaré jamais recalculé, `yearsExperience` = somme des périodes non-chevauchantes des evidence, evidence = index 0-based (zéro identifiant), discipline déclarée/inférée/null. | §4.3. |
 
 ---
 
 ## 15. Modèle de données
 
-### 15.1 Existant (migrations V1–V9)
+### 15.1 Existant (migrations V1–V10)
 
 **Comptes** : `users` (identité + géo + `updated_at` heartbeat), `candidates` (title, bio, years_of_experience, search_status, target_position), `recruiters` (vide), `user_roles`.
-**Profil** : `professional_experiences` (dont FK morte `job_position_id`), `diplomas`, `candidate_skills` (level 1–5, years_experience), `candidate_languages` (CEFR), `candidate_links` (dont `CERTIFICATION`).
+**Profil** : `professional_experiences` (dont FK morte `job_position_id`), `candidate_projects` (V10 — Nom, Rôle, Période, Description, Technologies libre), `diplomas`, `candidate_skills` (level 1–5, years_experience), `candidate_languages` (CEFR), `candidate_links` (dont `CERTIFICATION`).
 **Références** : `skills` (226, 10 catégories libres), `languages` (47), `degrees` (6), `study_fields` (24), `job_positions` (vide, sans entité).
 **Suggestions** : `skill_suggestions` (pas de workflow persistant — résolution = suppression du groupe).
 **Normalisation (V9)** :
@@ -504,15 +516,15 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 
 ### 16.1 Livré et testé
 
-- Comptes, auth, admin, rôles ; profil candidat 6 sections + import CV + suggestions ; **normalisation du profil candidat complète** (push async, dirty-flag, versioning, retries, recovery, bandeau) ; service IA extraction + normalisation.
-- **192 tests backend / 284 frontend au vert.**
+- Comptes, auth, admin, rôles ; profil candidat **7 sections** + import CV + suggestions ; **normalisation du profil candidat complète** (push async, dirty-flag, versioning, retries, recovery, bandeau) ; service IA extraction + normalisation (**schema v2** : Projets, séniorité, catégories, modèle de preuve, certifications, location).
+- **197 tests backend / 76 ai-service / 292 frontend au vert.**
 
 ### 16.2 Écarts (audit 2026-10)
 
 | # | Écart | Nature | Priorité | Décision |
 |---|---|---|---|---|
-| 1 | Contenu normalisé ≈ 50 % du §10-17 (séniorité, dispo, mobilité, technologies absents) | Écart réel (chaîne profil → fiche) | **importante** | D2 ouvre ; schemaVersion gère |
-| 2 | Section Projets absente | Oubli réel (CDC : « importante ») | **importante** | D3 : étude d'abord |
+| 1 | Contenu normalisé ≈ 50 % du §10-17 (séniorité, dispo, mobilité, technologies absents) | Écart réel (chaîne profil → fiche) | ~~importante~~ → **partiellement résolu** (v2 : séniorité, catégories, technologies, réalisations, certifications, location ; mobilité/contrat restent D2) | D2 ouvre ; schemaVersion gère |
+| 2 | Section Projets absente | Oubli réel (CDC : « importante ») | ~~importante~~ → **✅ résolu** | D3 levée (D7/D8) |
 | 3 | Contrat / mobilité / pays acceptés absents | Écart réel (placeholder UI) | **importante** | D2 (contrat + mobilité) |
 | 4 | Normalisation offre : 0 % | Volontaire (roadmap) | importante | D4 |
 | 5 | Fiche jamais lue ni exposée | Décision Q7 | mineure → importante au matching | D5 |
@@ -532,8 +544,8 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 
 | Phase | Contenu | État |
 |---|---|---|
-| **0 — Profil candidat** | Comptes, 6 sections, import CV, **normalisation profil** (push, dirty-flag, bandeau) | ✅ **Livré** |
-| **0+ — Extensions profil** | Contrat recherché + mobilité (D2) ; catégorie en contenu normalisé ; étude Projets (D3) | Décisions prêtes |
+| **0 — Profil candidat** | Comptes, 7 sections (dont **Projects**), import CV, **normalisation profil v2** (push, dirty-flag, bandeau, modèle de preuve) | ✅ **Livré** |
+| **0+ — Extensions profil** | Contrat recherché + mobilité (D2) | Décision prête |
 | **1 — Entreprise / recruteur / offre** | Company (owner/membre), recruteur, CRUD offre, validation → **normalisation offre** (D4), analyse IA offre (§9) | À venir |
 | **1 — Matching** | Moteur unique : critères pondérés (§7), score par critère, similarité sémantique (embeddings), « info insuffisante » (§19) | À venir |
 | **1 — Transparence & clarification** | Vue d'évaluation, auto-évaluation (§11.2), clarification & réévaluation (§11.3, D1), historique, Q7 (D5) | À venir |

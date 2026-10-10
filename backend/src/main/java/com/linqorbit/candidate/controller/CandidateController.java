@@ -17,6 +17,7 @@ import com.linqorbit.candidate.dto.ExperienceRequest;
 import com.linqorbit.candidate.dto.LanguageOption;
 import com.linqorbit.candidate.dto.LanguageRequest;
 import com.linqorbit.candidate.dto.LinkRequest;
+import com.linqorbit.candidate.dto.ProjectRequest;
 import com.linqorbit.candidate.dto.SkillOption;
 import com.linqorbit.candidate.dto.SkillRequest;
 import com.linqorbit.candidate.dto.SkillSuggestionRequest;
@@ -58,6 +59,12 @@ public class CandidateController implements CandidateApi {
     @Override
     public ResponseEntity<Void> updateExperiences(List<ExperienceRequest> request, Authentication authentication) {
         candidateService.updateExperiences(CurrentUserId.from(authentication), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> updateProjects(List<ProjectRequest> request, Authentication authentication) {
+        candidateService.updateProjects(CurrentUserId.from(authentication), request);
         return ResponseEntity.noContent().build();
     }
 

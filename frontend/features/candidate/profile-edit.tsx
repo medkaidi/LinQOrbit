@@ -11,6 +11,7 @@ import { DiplomasSection } from "@/features/candidate/diplomas-section";
 import { ExperiencesSection } from "@/features/candidate/experiences-section";
 import { LanguagesSection } from "@/features/candidate/languages-section";
 import { LinksSection } from "@/features/candidate/links-section";
+import { ProjectsSection } from "@/features/candidate/projects-section";
 import { SkillsSection } from "@/features/candidate/skills-section";
 import { ValidateProfileBanner } from "@/features/candidate/validate-profile-banner";
 import {
@@ -167,6 +168,7 @@ export function ProfileEdit() {
 
       <AboutSection about={data.about} cvImport={cvImport} />
       <ExperiencesSection experiences={data.experiences} cvImport={cvImport} />
+      <ProjectsSection projects={data.projects} />
       <DiplomasSection diplomas={data.diplomas} cvImport={cvImport} />
       <SkillsSection skills={data.skills} cvImport={cvImport} />
       <LanguagesSection languages={data.languages} cvImport={cvImport} />

@@ -10,6 +10,7 @@ import type { CandidateProfile } from "@/types/candidate";
 export const SECTION_ICONS = {
   about: "person",
   experiences: "work",
+  projects: "layers",
   education: "school",
   skills: "psychology",
   languages: "translate",
@@ -139,13 +140,14 @@ export function ViewSection({
 
 
 /**
- * Les 6 sections du profil, avec les mêmes règles que le backend
+ * Les 7 sections du profil, avec les mêmes règles que le backend
  * (`CandidateService.computeCompletion`) : About complet = titre + bio.
  */
 export function countCompletedSections(profile: CandidateProfile): number {
   return [
     Boolean(profile.about.title?.trim() && profile.about.bio?.trim()),
     profile.experiences.length > 0,
+    profile.projects.length > 0,
     profile.diplomas.length > 0,
     profile.skills.length > 0,
     profile.languages.length > 0,
@@ -214,7 +216,7 @@ export function CompletenessCard({
             Profile completeness
           </h2>
           <p className="mt-1 text-body-sm font-body-sm text-text-secondary max-w-2xl">
-            {completedSections} of 6 sections complete. A profile with substance gets more
+            {completedSections} of 7 sections complete. A profile with substance gets more
             replies.
           </p>
         </div>

@@ -45,7 +45,7 @@ import com.linqorbit.candidate.repository.CandidateRepository;
 public class NormalizationService {
 
     /** Version du format canonique produit (miroir de schema_version / schemaVersion). */
-    static final String SCHEMA_VERSION = "1";
+    static final String SCHEMA_VERSION = "2";
 
     private final CandidateRepository candidateRepository;
     private final NormalizedProfileRepository normalizedProfileRepository;

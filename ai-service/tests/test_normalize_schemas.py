@@ -3,12 +3,14 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.cv import CvExperience
 from app.schemas.normalize import (
     SCHEMA_VERSION,
     CandidateProfile,
     NormalizeRequest,
+    NormalizedExperience,
     NormalizedProfile,
+    NormalizedSkill,
+    SkillEvidence,
 )
 
 
@@ -32,6 +34,17 @@ def test_input_payload_parses_the_backend_wire_format():
                     "endDate": None,
                     "companyName": "A2S",
                     "companyCountry": "France",
+                }
+            ],
+            "projects": [
+                {
+                    "id": "3f0c1c9e-0000-0000-0000-000000000008",
+                    "name": "Portfolio",
+                    "role": "Author",
+                    "description": "Personal site",
+                    "startDate": "2023-01-01",
+                    "endDate": None,
+                    "technologies": "Next.js, TypeScript",
                 }
             ],
             "diplomas": [
@@ -82,6 +95,8 @@ def test_input_payload_parses_the_backend_wire_format():
 
     assert profile.about.title == "Full Stack Developer"
     assert profile.experiences[0].start_date == "2024-01-15"
+    assert profile.projects[0].name == "Portfolio"
+    assert profile.projects[0].technologies == "Next.js, TypeScript"
     # Ids and delivery metadata are ignored, never stored as content.
     assert "id" not in profile.experiences[0].model_dump()
     assert not hasattr(profile, "completion_percentage")
@@ -93,13 +108,17 @@ def test_input_defaults_to_empty_sections():
 
     assert profile.about is None
     assert profile.experiences == []
+    assert profile.projects == []
     assert profile.skills == []
 
 
 def test_input_accepts_null_sections():
-    profile = CandidateProfile.model_validate({"experiences": None, "skills": None})
+    profile = CandidateProfile.model_validate(
+        {"experiences": None, "projects": None, "skills": None}
+    )
 
     assert profile.experiences == []
+    assert profile.projects == []
     assert profile.skills == []
 
 
@@ -108,27 +127,48 @@ def test_output_wire_format_is_camel_case_and_canonical():
         title="Senior Backend Engineer",
         summary="I build APIs.",
         years_of_experience=7,
+        seniority="senior",
+        target_role="Staff Engineer",
+        location={"city": "Paris", "country": "FR"},
         experiences=[
-            CvExperience(
+            NormalizedExperience(
                 position_title="Backend Engineer",
                 company_name="Acme",
                 start_date="2021-03",
                 end_date=None,
             )
         ],
+        skills=[
+            NormalizedSkill(
+                name="Java",
+                category="programming_language",
+                level=4,
+                level_source="declared",
+                years_experience=7,
+                origin="declared",
+                evidence=[SkillEvidence(source="experience", index=0)],
+            )
+        ],
     )
 
     dumped = result.model_dump(by_alias=True)
-    assert dumped["schemaVersion"] == SCHEMA_VERSION
+    assert dumped["schemaVersion"] == SCHEMA_VERSION == "2"
     assert dumped["yearsOfExperience"] == 7
+    assert dumped["seniority"] == "senior"
+    assert dumped["targetRole"] == "Staff Engineer"
+    assert dumped["location"]["city"] == "Paris"
     assert dumped["experiences"][0]["positionTitle"] == "Backend Engineer"
     assert dumped["experiences"][0]["startDate"] == "2021-03"
     assert "start_date" not in dumped["experiences"][0]
+    assert dumped["skills"][0]["levelSource"] == "declared"
+    assert dumped["skills"][0]["evidence"][0]["source"] == "experience"
 
 
 def test_output_month_pattern_is_enforced():
     with pytest.raises(ValidationError):
-        CvExperience(position_title="Dev", company_name="Acme", start_date="2021-03-15")
+        NormalizedExperience(
+            position_title="Dev", company_name="Acme", start_date="2021-03-15"
+        )
 
 
 def test_output_years_of_experience_is_bounded():
@@ -136,10 +176,43 @@ def test_output_years_of_experience_is_bounded():
         NormalizedProfile(years_of_experience=200)
 
 
+def test_skill_category_is_constrained_to_the_taxonomy():
+    with pytest.raises(ValidationError):
+        NormalizedSkill(name="Java", category="n'importe quoi", origin="declared")
+
+
+def test_skill_evidence_index_must_be_non_negative():
+    with pytest.raises(ValidationError):
+        SkillEvidence(source="experience", index=-1)
+
+
+def test_skill_level_source_and_origin_are_constrained():
+    with pytest.raises(ValidationError):
+        NormalizedSkill(name="Java", category="tool", origin="maybe")
+    with pytest.raises(ValidationError):
+        NormalizedSkill(name="Java", category="tool", origin="declared", level_source="guessed")
+
+
+def test_project_context_is_constrained():
+    with pytest.raises(ValidationError):
+        NormalizedProfile().model_validate(
+            {
+                "projects": [
+                    {
+                        "name": "X",
+                        "startDate": "2023-01",
+                        "context": "unknown-context",
+                    }
+                ]
+            }
+        )
+
+
 def test_normalize_request_parses_the_backend_body():
     request = NormalizeRequest.model_validate(
         {
             "profile": {"about": {"title": "Developer"}, "skills": []},
+            "location": {"currentCity": "Paris", "currentCountry": "FR"},
             "context": {
                 "languages": ["French"],
                 "degrees": ["Bachelor's degree"],
@@ -150,12 +223,14 @@ def test_normalize_request_parses_the_backend_body():
     )
 
     assert request.profile.about.title == "Developer"
+    assert request.location.current_city == "Paris"
     assert request.context.study_fields == ["Computer Science"]
 
 
-def test_normalize_request_accepts_a_missing_context():
+def test_normalize_request_accepts_a_missing_location_and_context():
     request = NormalizeRequest.model_validate({"profile": {}})
 
+    assert request.location is None
     assert request.context is None
 
 
@@ -166,4 +241,8 @@ def test_json_schema_exposes_camel_case_fields():
     assert "schemaVersion" in schema["properties"]
     assert "schema_version" not in schema["properties"]
     assert "yearsOfExperience" in schema["properties"]
-    assert "startDate" in schema["$defs"]["CvExperience"]["properties"]
+    assert "seniority" in schema["properties"]
+    assert "certifications" in schema["properties"]
+    assert "projects" in schema["properties"]
+    assert "startDate" in schema["$defs"]["NormalizedExperience"]["properties"]
+    assert "levelSource" in schema["$defs"]["NormalizedSkill"]["properties"]

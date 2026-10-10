@@ -62,11 +62,12 @@ const profile: CandidateProfile = {
       companyCountry: "FR",
     },
   ],
+  projects: [],
   diplomas: [],
   skills: [],
   languages: [],
   links: [],
-  completionPercentage: 33,
+  completionPercentage: 28,
   hasUnvalidatedChanges: false,
   normalizationFailed: false,
   normalizationInProgress: false,
@@ -112,19 +113,19 @@ describe("ProfileEdit", () => {
     renderProfile();
 
     expect(
-      await screen.findByText("2 of 6 sections complete. A profile with substance gets more replies."),
+      await screen.findByText("2 of 7 sections complete. A profile with substance gets more replies."),
     ).toBeInTheDocument();
-    expect(screen.getByText("33%")).toBeInTheDocument();
+    expect(screen.getByText("28%")).toBeInTheDocument();
 
     const progressbar = screen.getByRole("progressbar", { name: "Profile completeness" });
-    expect(progressbar).toHaveAttribute("aria-valuenow", "33");
+    expect(progressbar).toHaveAttribute("aria-valuenow", "28");
 
-    for (const title of ["Personal Information", "Experience", "Education", "Skills", "Languages", "Links & certifications"]) {
+    for (const title of ["Personal Information", "Experience", "Projects", "Education", "Skills", "Languages", "Links & certifications"]) {
       expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     }
 
     expect(screen.getAllByText("Complete")).toHaveLength(2);
-    expect(screen.getAllByText("Not started")).toHaveLength(4);
+    expect(screen.getAllByText("Not started")).toHaveLength(5);
   });
 
   it("offers the account identity inside About when the account is known", async () => {
@@ -142,7 +143,7 @@ describe("ProfileEdit", () => {
 
     // La fusion n'ajoute pas de section : les badges restent ceux des 6 sections.
     expect(screen.getAllByText("Complete")).toHaveLength(2);
-    expect(screen.getAllByText("Not started")).toHaveLength(4);
+    expect(screen.getAllByText("Not started")).toHaveLength(5);
   });
 
   it("leaves the account fields empty when the account has no location data", async () => {

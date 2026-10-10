@@ -19,6 +19,7 @@ import java.util.List;
 public record CandidateProfileResponse(
         AboutResponse about,
         List<ExperienceResponse> experiences,
+        List<ProjectResponse> projects,
         List<DiplomaResponse> diplomas,
         List<SkillResponse> skills,
         List<LanguageResponse> languages,

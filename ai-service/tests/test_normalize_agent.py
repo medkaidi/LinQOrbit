@@ -62,10 +62,12 @@ def test_agent_loop_runs_offline_with_a_fake_model():
 def test_system_prompt_sets_the_hr_role_and_the_canonical_rules():
     assert "HR assistant" in SYSTEM_PROMPT
     assert "'YYYY-MM'" in SYSTEM_PROMPT
-    assert '"schemaVersion": "1"' in SYSTEM_PROMPT
+    assert '"schemaVersion": "2"' in SYSTEM_PROMPT
     assert "Never invent" in SYSTEM_PROMPT
     assert "no UUIDs" in SYSTEM_PROMPT
     assert '"summary"' in SYSTEM_PROMPT
+    assert "origin \"inferred\"" in SYSTEM_PROMPT
+    assert "certifications[]" in SYSTEM_PROMPT
     assert NormalizedProfile.model_json_schema()["title"] == "NormalizedProfile"
 
 

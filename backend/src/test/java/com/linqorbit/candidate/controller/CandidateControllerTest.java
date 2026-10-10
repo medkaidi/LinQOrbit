@@ -81,7 +81,7 @@ class CandidateControllerTest {
         UUID userId = UUID.randomUUID();
         when(candidateService.getProfile(userId)).thenReturn(new CandidateProfileResponse(
                 new AboutResponse("Full-stack Developer", "Staff Engineer", "Passionné de web", 5, "open_to_work"),
-                List.of(), List.of(), List.of(), List.of(), List.of(), 16, false, false, false));
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), 14, false, false, false));
 
         mockMvc.perform(get(PROFILE_PATH)
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
@@ -89,7 +89,7 @@ class CandidateControllerTest {
                 .andExpect(jsonPath("$.about.title").value("Full-stack Developer"))
                 .andExpect(jsonPath("$.about.targetPosition").value("Staff Engineer"))
                 .andExpect(jsonPath("$.about.searchStatus").value("open_to_work"))
-                .andExpect(jsonPath("$.completionPercentage").value(16))
+                .andExpect(jsonPath("$.completionPercentage").value(14))
                 .andExpect(jsonPath("$.hasUnvalidatedChanges").value(false))
                 .andExpect(jsonPath("$.normalizationFailed").value(false))
                 .andExpect(jsonPath("$.normalizationInProgress").value(false));
@@ -149,6 +149,32 @@ class CandidateControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Validation failed"))
                 .andExpect(jsonPath("$.detail").value(containsString("targetPosition")));
+    }
+
+    @Test
+    void updateProjectsRenvoie204EtTransmetLeUtilisateurDuJeton() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(put(PROFILE_PATH + "/projects")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                [{"name": "Portfolio", "role": "Author", "description": "Site perso",
+                                  "startDate": "2023-01-01", "endDate": null,
+                                  "technologies": "Next.js, TypeScript"}]"""))
+                .andExpect(status().isNoContent());
+
+        verify(candidateService).updateProjects(eq(userId), any());
+    }
+
+    @Test
+    void updateProjectsRenvoie400QuandLeNomEstVide() throws Exception {
+        mockMvc.perform(put(PROFILE_PATH + "/projects")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[{\"startDate\": \"2023-01-01\"}]"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

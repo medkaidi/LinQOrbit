@@ -15,6 +15,7 @@ import {
   updateExperiences,
   updateLanguages,
   updateLinks,
+  updateProjects,
   updateSkills,
   validateProfile,
 } from "@/lib/api/candidate.api";
@@ -24,6 +25,7 @@ import type {
   ExperiencesValues,
   LanguagesValues,
   LinksValues,
+  ProjectsValues,
   SkillsValues,
 } from "@/lib/validations/candidate.schemas";
 
@@ -55,6 +57,14 @@ export function useUpdateExperiences() {
   const invalidateProfile = useInvalidateProfile();
   return useMutation({
     mutationFn: (values: ExperiencesValues) => updateExperiences(values),
+    onSuccess: invalidateProfile,
+  });
+}
+
+export function useUpdateProjects() {
+  const invalidateProfile = useInvalidateProfile();
+  return useMutation({
+    mutationFn: (values: ProjectsValues) => updateProjects(values),
     onSuccess: invalidateProfile,
   });
 }
