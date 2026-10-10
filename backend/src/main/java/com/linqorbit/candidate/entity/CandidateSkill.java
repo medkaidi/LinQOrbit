@@ -19,7 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import com.linqorbit.candidate.Candidate;
+import com.linqorbit.candidate.entity.Candidate;
 
 /**
  * Compétence d'une liste prédéfinie, rattachée à un candidat avec un niveau (1-5).

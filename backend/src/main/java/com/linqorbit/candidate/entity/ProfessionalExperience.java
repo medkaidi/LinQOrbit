@@ -24,7 +24,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import com.linqorbit.candidate.Candidate;
+import com.linqorbit.candidate.entity.Candidate;
 
 /**
  * Expérience professionnelle d'un candidat. end_date null = poste actuel.

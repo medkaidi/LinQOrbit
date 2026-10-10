@@ -14,13 +14,15 @@ const DIRTY_MESSAGE =
   "You've made changes to your professional profile. Validate your profile to refresh its analysis and improve job match results.";
 const FAILED_MESSAGE =
   "We could not finish analyzing your profile. You can try again.";
+const ANALYZING_MESSAGE =
+  "Your profile is being analyzed in the background. This can take a few seconds.";
 
 /**
  * Bandeau « profil à valider » : affiché tant que le profil change depuis la
- * dernière normalisation, ou si la dernière tentative a échoué (message
- * générique — le détail reste dans les logs backend/IA). La validation lance
- * le job d'analyse, invalide le cache du profil (bandeau disparaît au refetch)
- * puis montre une confirmation temporaire.
+ * dernière normalisation, si la dernière tentative a échoué (message
+ * générique — le détail reste dans les logs backend/IA), ou si une analyse
+ * est en cours (signal GET, survit à la navigation). Priorité : confirmation
+ * temporaire 4 s > analyse en cours > échec > changements en attente.
  */
 export function ValidateProfileBanner({ profile }: { profile: CandidateProfile }) {
   const validate = useValidateProfile();
@@ -47,6 +49,14 @@ export function ValidateProfileBanner({ profile }: { profile: CandidateProfile }
     );
   }
 
+  if (profile.normalizationInProgress) {
+    return (
+      <Alert variant="info" title="Analysis in progress">
+        {ANALYZING_MESSAGE}
+      </Alert>
+    );
+  }
+
   const failed = profile.normalizationFailed;
 
   if (!failed && !profile.hasUnvalidatedChanges) {
@@ -63,18 +73,17 @@ export function ValidateProfileBanner({ profile }: { profile: CandidateProfile }
       <Alert
         variant={failed ? "error" : "info"}
         title={failed ? "Last validation attempt failed" : "Profile changes pending"}
-      >
-        <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="min-w-0">{failed ? FAILED_MESSAGE : DIRTY_MESSAGE}</span>
+        action={
           <CtaButton
             icon="task_alt"
             busy={validate.isPending}
             onClick={onValidate}
-            className="ml-auto"
           >
             {failed ? "Validate again" : "Validate profile"}
           </CtaButton>
-        </span>
+        }
+      >
+        {failed ? FAILED_MESSAGE : DIRTY_MESSAGE}
       </Alert>
     </>
   );

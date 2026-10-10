@@ -34,15 +34,21 @@ com.linqorbit/
 │                      Revue des suggestions : approbation (crée au catalogue + insère au profil des
 │                      auteurs), lien vers un skill existant, rejet — la décision frappe le groupe
 │                      homonyme (`findAllByNameIgnoreCase`), insertion profil = niveau 1, aucun V9
-├── candidate/         profil candidat (implémenté) : CandidateApi, CandidateController,
-│   ├──                CandidateService, NormalizationService, NormalizationWorker,
-│   ├──                ProfileNormalizeClient, ReferenceContextBuilder
+├── candidate/         profil candidat (implémenté), classes groupées par nature :
+│   ├── controller/    CandidateApi (contrat OpenAPI), CandidateController
+│   ├── service/       CandidateService, NormalizationService, NormalizationWorker,
+│   │                  CvParseService
+│   ├── client/        appels HTTP du service IA : CvParseClient, ProfileNormalizeClient,
+│   │                  ReferenceContextBuilder, AiClientErrors
+│   ├── entity/        Candidate, entités du profil (ProfessionalExperience, Diploma,
+│   │                  CandidateSkill …) + enums/converters (LinkType, SearchStatus,
+│   │                  SkillType, NormalizationJobStatus) + NormalizedProfile(Candidate),
+│   │                  NormalizationJob
+│   ├── repository/    CandidateRepository, repositories (Diploma, Skill, Language,
+│   │                  StudyField …) + NormalizedProfile(Candidate), NormalizationJob
+│   │                  (claim CAS, supersede)
 │   ├── dto/           21 DTOs de l'API profil (About/Experience/Diploma/Skill/Language/Link/
 │   │                  TargetPosition, CandidateProfileResponse, NormalizeRequest …)
-│   ├── entity/        entités du profil (ProfessionalExperience, Diploma, CandidateSkill …)
-│   │                  + NormalizedProfile, NormalizedProfileCandidate, NormalizationJob
-│   ├── repository/    repositories (Diploma, Skill, Language, StudyField …)
-│   │                  + NormalizedProfile(Candidate), NormalizationJob (claim CAS, supersede)
 │   ├── mapper/        CandidateMapper (MapStruct)
 │   └── exception/     InvalidProfileSectionException, ReferenceNotFoundException,
 │                      EmptyProfileException, AiServiceException
@@ -50,11 +56,8 @@ com.linqorbit/
 │                      domaines roadmap — pré-créés (exception), vides jusqu'à leur 1re classe
 ```
 
-- Chaque domaine est **autonome** : ses classes **à plat dans son package** (`Candidate.java`, `CandidateController.java`, `CandidateService.java`, `CandidateRepository.java`). Interdits : packages globaux `controllers/`, `services/`, `repositories/`, `entities/`, `dtos/`.
-- **Regroupement seulement quand la croissance le justifie** — « structure simple d'abord, groupement quand c'est motivé » :
-  - plusieurs classes d'une même responsabilité → sous-package correspondant (`dto/`, `exception/`, `mapper/`… ) ;
-  - un fichier unique → reste à plat (un seul DTO dans `candidate/` → `candidate/CandidateResponse.java`, pas de `dto/` ; même règle pour exception/mapper/validator) ;
-  - ne **jamais** créer ces packages par anticipation.
+- Chaque domaine est **autonome** : interdits les packages globaux `controllers/`, `services/`, `repositories/`, `entities/`, `dtos/` partagés entre domaines — les sous-packages sont **internes à leur domaine**.
+- **Regroupement par nature dans le domaine** (décision d'équipe, appliquée à `candidate/`) : chaque classe va dans le sous-package de sa nature — `controller/` (Api + contrôleur), `service/`, `client/` (appels HTTP du service IA), `entity/` (+ enums et converters), `repository/`, `dto/`, `mapper/`, `exception/` — et **les tests suivent le même miroir** (`src/test/…/candidate/{controller,service,client}/`). `user/` et `admin/` (déjà en place) restent en l'état. Ne **jamais** créer un sous-package par anticipation : il naît avec son premier fichier ; un seul fichier de cette nature n'empêche pas le sous-package dès qu'il appartient à un domaine structuré ainsi.
 - **Exception roadmap (décision explicite de l'équipe)** : les 7 domaines à venir — `application/`, `attachment/`, `candidate/`, `company/`, `joboffer/`, `matching/`, `recruiter/` — sont **pré-créés volontairement** avec leur `.gitkeep` pour matérialiser le périmètre du projet. Seule exception : **toute autre** naît avec sa première classe, jamais en avance (pas de nouveaux dossiers vides ni de `.gitkeep`).
 - `common/` : uniquement ce qui est **réellement partagé** (traitement d'erreurs HTTP, pagination, utilitaires transverses). Une classe utilisée par plusieurs domaines mais appartenant à l'un d'eux reste dans son domaine.
 - Ne **jamais** créer de classes vides ou de packages pour respecter une architecture théorique.
@@ -97,7 +100,7 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 ## Communication
 
 - **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,admin,recruiters,companies,job-offers,applications,matchings}` — `auth`, `candidates` et `admin` existent (`/api/v1/candidates/me/profile` + `/{about,about/target-position,experiences,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}` ; `POST /api/v1/candidates/me/profile/validate` déclenche la normalisation — voir « Normalisation du profil » ; `/api/v1/admin/{users,users/{userId}/status,skill-suggestions,skill-suggestions/{id}/{approve,link,reject}}` sous rôle ADMIN), les autres sont à venir. `PUT …/about` n'écrit jamais `targetPosition` (poste recherché isolé sur `PUT …/about/target-position`, conservé mais non consommé par l'UI actuelle) ; `GET …/profile` renvoie bien `about.targetPosition` et le signal `hasUnvalidatedChanges`.
-- **Service IA Python (FastAPI)** : appelé par ce backend en HTTP, jamais par le frontend. Deux clients dans `candidate/` : `CvParseClient` (`POST /cv/parse`, import de CV) et `ProfileNormalizeClient` (`POST /profile/normalize`, normalisation de profil — appelé par le worker) — pas de fake AI.
+- **Service IA Python (FastAPI)** : appelé par ce backend en HTTP, jamais par le frontend. Deux clients dans `candidate/client/` : `CvParseClient` (`POST /cv/parse`, import de CV) et `ProfileNormalizeClient` (`POST /profile/normalize`, normalisation de profil — appelé par le worker) — pas de fake AI.
 
 ## Normalisation du profil
 
@@ -105,8 +108,12 @@ Profil candidat → objet canonique JSON, en **async durable** (11 décisions ac
 
 - **Déclencheur = validation explicite** : `POST …/me/profile/validate` — les 7 écritures de section ne déclenchent rien. Même tx, sous lock pessimiste de la ligne candidat (`CandidateRepository.findByIdForUpdate`) : dirty-check → version = max+1 → jobs `PENDING` du candidat → `SUPERSEDED` → INSERT `normalized_profile` (content NULL) + association + job `PENDING`. No-op si rien n'a changé (sauf relance d'un job `FAILED`) ; 409 `EmptyProfileException` s'il n'y a pas de ligne candidat.
 - **Dirty-flag** : `hasUnvalidatedChanges` sur `GET …/profile` = `candidates.updated_at` (heartbeat : les 5 sections filles appellent `touchUpdatedAt`) vs `max(normalized_profile.validated_at)` ; `false` tant qu'aucune validation. Pas de colonne `is_current` : dérivé à la volée.
-- **Tables (V9)** : `normalized_profile` (PK dédiée, version, schema_version, content JSONB nullable, validated_at), `normalized_profile_candidate` (liaison candidat — table des offres plus tard), `normalization_job` (shared PK `job_id ≡ normalized_profile_id`, la PK porte la FK ; statuts `PENDING|RUNNING|DONE|FAILED|SUPERSEDED`). Version courante = dernière version avec `content IS NOT NULL`, dérivée. Pas de `UNIQUE(candidate_id, version)` ni trigger (décision : le lock pessimiste suffit).
-- **Worker** (`NormalizationWorker`) : `@EnableScheduling` sur l'application, poll `app.normalization.poll-interval-ms` (défaut 5 s, poller garé dans les tests par `src/test/resources/application.properties` — `.properties` prime sur le `.yml`). Claim CAS `PENDING→RUNNING` en tx courte via `TransactionTemplate` (jamais d'auto-invoque `@Transactional`), snapshot `CandidateService.getProfile` + contexte `ReferenceContextBuilder`, appel `ProfileNormalizeClient`, écriture `content` + `DONE` en une tx. Échec → backoff 60 s, 3 essais max → `FAILED` (relance possible par l'utilisateur) ; jobs `RUNNING` > 10 min récupérés (worker mort). MDC `correlationId` = id du job pendant l'exécution.
+- **Tables (V9)** : `normalized_profile` (PK dédiée, version, schema_version, content JSONB nullable, validated_at), `normalized_profile_candidate` (liaison candidat — table des offres plus tard), `normalization_job` (shared PK `job_id ≡ normalized_profile_id`, la PK porte la FK ; statuts `PENDING|RUNNING|DONE|FAILED|SUPERSEDED`, `attempts` = échecs cumulés, `next_attempt_at`, `started_at`, `completed_at`, `error` VARCHAR(500)). Version courante = dernière version avec `content IS NOT NULL`, dérivée. Pas de `UNIQUE(candidate_id, version)` ni trigger (décision : le lock pessimiste suffit).
+- **Déclenchement push (décision d'équipe, aucun polling)** : `NormalizationService.validate` publie `ProfileValidatedEvent(jobId)` **après commit** ; `NormalizationWorker.onProfileValidated` (`@TransactionalEventListener` `AFTER_COMMIT`) le soumet au pool dédié `normalizationExecutor` (`NormalizationExecutorConfig`, taille `app.normalization.threads`, queue bornée 256, préfixe `normalization-`). Rejet de soumission (queue saturée) → re-soumission one-shot à `+app.normalization.retry-delay-seconds` ; dernier filet = recovery au boot. Le seul scan du système est `recoverOrphanJobs` sur `ApplicationReadyEvent`.
+- **Worker** (`NormalizationWorker`) : claim CAS `PENDING→RUNNING` en tx courte via `TransactionTemplate` (jamais d'auto-invoque `@Transactional`), snapshot `CandidateService.getProfile` + contexte `ReferenceContextBuilder`, appel `ProfileNormalizeClient`, écriture `content` + `DONE` en une tx. Échec → `attempts+1` et replanification one-shot sur `normalizationTaskScheduler` (scheduler dédié, pool 1, préfixe `normalization-retry-`) tant que le total reste sous **3 exécutions** (initiale + 2 retries) ; au-delà → `FAILED` (terminal, relance uniquement par une nouvelle validation qui crée un nouveau job). MDC `correlationId` = id du job pendant l'exécution.
+- **Recovery au boot** (`recoverOrphanJobs`, seule « filet » du système) : RUNNING > 10 min (worker mort) → replanifié ; PENDING dû → exécuté immédiatement ; PENDING dont le retry n'est pas échu → planifié à son échéance. `SUPERSEDED` structurellement inéxécutable (le claim exige `PENDING`).
+- **Timeouts IA** (`app.ai.connect-timeout-ms` 5000 / `app.ai.read-timeout-ms` 120000) : le read timeout libère le thread de l'exécution mais **n'annule pas** le calcul côté FastAPI/LLM (réponse tardive perdue sur la socket fermée, corrélation `X-Request-Id` = jobId). Un RUNNING légitime ne dépasse donc jamais ~2 min, très loin du seuil de stale de 10 minutes.
+- **Signal d'affichage** : `normalizationInProgress` sur `GET …/profile` = le job le plus récent du candidat est `PENDING` ou `RUNNING` ; le bandeau frontend affiche « Analyzing… » (4ᵉ état, GET-driven, survit à la navigation) tant que ce signal est vrai, avec priorité succès flash 4 s > analyzing > failed > dirty.
 - **Format canonique v1** : JSON camelCase validé par le service IA (`app/schemas/normalize.py` : schemaVersion `1`, dates `YYYY-MM`, CEFR, niveaux 1–5, rien inventé, jamais d'UUID dans le contenu).
 
 ## Erreurs

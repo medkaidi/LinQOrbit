@@ -25,9 +25,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import com.linqorbit.candidate.Candidate;
-import com.linqorbit.candidate.LinkType;
-import com.linqorbit.candidate.LinkTypeConverter;
+import com.linqorbit.candidate.entity.Candidate;
+import com.linqorbit.candidate.entity.LinkType;
+import com.linqorbit.candidate.entity.LinkTypeConverter;
 
 /**
  * Lien ou certification du profil candidat (LinkedIn, GitHub, site perso, certif…).

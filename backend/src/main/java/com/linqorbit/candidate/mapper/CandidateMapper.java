@@ -4,10 +4,10 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 
-import com.linqorbit.candidate.Candidate;
-import com.linqorbit.candidate.LinkType;
-import com.linqorbit.candidate.SearchStatus;
-import com.linqorbit.candidate.SkillType;
+import com.linqorbit.candidate.entity.Candidate;
+import com.linqorbit.candidate.entity.LinkType;
+import com.linqorbit.candidate.entity.SearchStatus;
+import com.linqorbit.candidate.entity.SkillType;
 import com.linqorbit.candidate.dto.AboutResponse;
 import com.linqorbit.candidate.dto.DegreeOption;
 import com.linqorbit.candidate.dto.DiplomaResponse;

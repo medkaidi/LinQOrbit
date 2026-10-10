@@ -4,12 +4,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
-import com.linqorbit.candidate.NormalizationJobStatus;
+import com.linqorbit.candidate.entity.NormalizationJobStatus;
 import com.linqorbit.candidate.entity.NormalizationJob;
 
 public interface NormalizationJobRepository extends JpaRepository<NormalizationJob, UUID> {
@@ -41,12 +40,8 @@ public interface NormalizationJobRepository extends JpaRepository<NormalizationJ
                            where npc.candidateId = :candidateId)""")
     int supersedeForCandidate(UUID candidateId, NormalizationJobStatus expected, NormalizationJobStatus target);
 
-    @Query("""
-            select j from NormalizationJob j
-            where j.status = :status and j.nextAttemptAt <= :now
-            order by j.createdAt""")
-    List<NormalizationJob> findByStatusAndNextAttemptAtLessThanEqual(NormalizationJobStatus status,
-            LocalDateTime now, Pageable pageable);
+    /** Tous les jobs d'un statut (recovery au démarrage : PENDING dûs ou futurs). */
+    List<NormalizationJob> findByStatus(NormalizationJobStatus status);
 
     /** Jobs RUNNING dont le worker est probablement mort (redémarrage pendant l'appel IA). */
     @Query("""

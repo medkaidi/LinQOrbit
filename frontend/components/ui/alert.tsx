@@ -8,6 +8,7 @@ export type AlertProps = {
   variant?: AlertVariant;
   title: string;
   children: ReactNode;
+  action?: ReactNode;
   className?: string;
 };
 
@@ -28,14 +29,14 @@ const variantClasses: Record<
     icon: "check_circle",
   },
   error: {
-    wrapper: "bg-error-container",
+    wrapper: "bg-error-subtle",
     iconWrap: "text-on-error-container",
     label: "text-on-error-container",
     icon: "error",
   },
 };
 
-export function Alert({ variant = "info", title, children, className }: AlertProps) {
+export function Alert({ variant = "info", title, children, action, className }: AlertProps) {
   const classes = variantClasses[variant];
 
   return (
@@ -61,6 +62,7 @@ export function Alert({ variant = "info", title, children, className }: AlertPro
           {children}
         </span>
       </div>
+      {action ? <div className="ml-auto shrink-0">{action}</div> : null}
     </div>
   );
 }

@@ -66,6 +66,8 @@ export type CandidateProfile = {
   hasUnvalidatedChanges: boolean;
   /** True si la dernière tentative de validation a échoué définitivement (3 essais). */
   normalizationFailed: boolean;
+  /** True si le job de normalisation le plus récent est en attente ou en cours d'exécution. */
+  normalizationInProgress: boolean;
 };
 
 /** Listes de référence (skills, languages, degrees, study-fields). */

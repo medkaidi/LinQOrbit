@@ -24,7 +24,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import com.linqorbit.candidate.Candidate;
+import com.linqorbit.candidate.entity.Candidate;
 
 /**
  * Diplôme d'un candidat, rattaché à un niveau (degrees) et à un domaine

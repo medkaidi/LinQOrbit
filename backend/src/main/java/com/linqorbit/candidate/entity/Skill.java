@@ -17,8 +17,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import com.linqorbit.candidate.SkillType;
-import com.linqorbit.candidate.SkillTypeConverter;
+import com.linqorbit.candidate.entity.SkillType;
+import com.linqorbit.candidate.entity.SkillTypeConverter;
 
 /**
  * Compétence d'une liste prédéfinie (technique ou comportementale).

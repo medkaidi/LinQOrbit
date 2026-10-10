@@ -6,6 +6,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.time.Duration;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,7 +30,8 @@ class AiClientConfigTest {
     @BeforeEach
     void setUp() {
         MDC.clear();
-        RestClient.Builder builder = new AiClientConfig().aiRestClientBuilder("http://ai.test");
+        RestClient.Builder builder = new AiClientConfig()
+                .aiRestClientBuilder("http://ai.test", Duration.ofSeconds(5), Duration.ofSeconds(120));
         server = MockRestServiceServer.bindTo(builder).build();
         aiRestClient = builder.build();
     }

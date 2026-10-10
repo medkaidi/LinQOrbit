@@ -95,6 +95,7 @@ const filledProfile: CandidateProfile = {
   completionPercentage: 83,
   hasUnvalidatedChanges: false,
   normalizationFailed: false,
+  normalizationInProgress: false,
 };
 
 const emptyProfile: CandidateProfile = {
@@ -107,6 +108,7 @@ const emptyProfile: CandidateProfile = {
   completionPercentage: 0,
   hasUnvalidatedChanges: false,
   normalizationFailed: false,
+  normalizationInProgress: false,
 };
 
 const accountUser: AuthUser = {

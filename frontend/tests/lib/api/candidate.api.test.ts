@@ -40,6 +40,7 @@ describe("candidate.api", () => {
       completionPercentage: 0,
       hasUnvalidatedChanges: false,
       normalizationFailed: false,
+      normalizationInProgress: false,
     };
     mockedGet.mockResolvedValue({ data: profile });
 

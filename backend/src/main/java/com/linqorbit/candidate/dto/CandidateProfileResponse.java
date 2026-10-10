@@ -12,6 +12,9 @@ import java.util.List;
  * @param normalizationFailed la dernière tentative d'analyse a échoué
  *        définitivement → informer l'utilisateur avec un message générique
  *        (le détail de l'erreur reste dans les logs côté backend et service IA)
+ * @param normalizationInProgress le job de la dernière validation est en cours
+ *        (PENDING ou RUNNING) → afficher « Analyzing… » ; signal persisté en
+ *        base, il survit à la navigation
  */
 public record CandidateProfileResponse(
         AboutResponse about,
@@ -22,5 +25,6 @@ public record CandidateProfileResponse(
         List<LinkResponse> links,
         int completionPercentage,
         boolean hasUnvalidatedChanges,
-        boolean normalizationFailed) {
+        boolean normalizationFailed,
+        boolean normalizationInProgress) {
 }

@@ -69,6 +69,7 @@ const profile: CandidateProfile = {
   completionPercentage: 33,
   hasUnvalidatedChanges: false,
   normalizationFailed: false,
+  normalizationInProgress: false,
 };
 
 const accountUser: AuthUser = {

@@ -13,7 +13,11 @@ import { ValidateProfileBanner } from "@/features/candidate/validate-profile-ban
 
 const mockedValidateProfile = vi.mocked(validateProfile);
 
-function buildProfile(hasUnvalidatedChanges: boolean, normalizationFailed = false): CandidateProfile {
+function buildProfile(
+  hasUnvalidatedChanges: boolean,
+  normalizationFailed = false,
+  normalizationInProgress = false,
+): CandidateProfile {
   return {
     about: {
       title: null,
@@ -30,6 +34,7 @@ function buildProfile(hasUnvalidatedChanges: boolean, normalizationFailed = fals
     completionPercentage: 0,
     hasUnvalidatedChanges,
     normalizationFailed,
+    normalizationInProgress,
   };
 }
 
@@ -130,5 +135,31 @@ describe("ValidateProfileBanner", () => {
 
     expect(await screen.findByText("Last validation attempt failed")).toBeInTheDocument();
     expect(screen.queryByText("Profile changes pending")).not.toBeInTheDocument();
+  });
+
+  it("shows the analyzing state while a normalization job is in progress, without any action", async () => {
+    renderBanner(buildProfile(false, false, true));
+
+    expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your profile is being analyzed in the background. This can take a few seconds."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(mockedValidateProfile).not.toHaveBeenCalled();
+  });
+
+  it("hides the pending-changes notice while an analysis is already running", async () => {
+    renderBanner(buildProfile(true, false, true));
+
+    expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+    expect(screen.queryByText("Profile changes pending")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("prefers the analyzing notice over the failure notice when both apply", async () => {
+    renderBanner(buildProfile(false, true, true));
+
+    expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+    expect(screen.queryByText("Last validation attempt failed")).not.toBeInTheDocument();
   });
 });

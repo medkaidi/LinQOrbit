@@ -11,8 +11,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-import com.linqorbit.candidate.NormalizationJobStatus;
-import com.linqorbit.candidate.NormalizationJobStatusConverter;
+import com.linqorbit.candidate.entity.NormalizationJobStatus;
+import com.linqorbit.candidate.entity.NormalizationJobStatusConverter;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
