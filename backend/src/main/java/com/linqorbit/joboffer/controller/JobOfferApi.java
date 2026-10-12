@@ -90,6 +90,16 @@ public interface JobOfferApi {
     })
     ResponseEntity<Void> delete(@PathVariable UUID offerId, Authentication authentication);
 
+    @PostMapping("/{offerId}/duplicate")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Dupliquer une offre", description = "Membre de la company, tous statuts : copie le contenu en une nouvelle offre DRAFT attribuée au duplicateur (titre suffixé « (copy) », expiry réinitialisée, nouvel identifiant public).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Copie créée en DRAFT"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "404", description = "Aucun profil recruteur, offre inexistante ou inaccessible")
+    })
+    ResponseEntity<JobOfferResponse> duplicate(@PathVariable UUID offerId, Authentication authentication);
+
     @PostMapping("/{offerId}/validate")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Valider une offre", description = "Owner ou créateur ; DRAFT → VALIDATED (re-validation autorisée). La validation déclenche la normalisation (étape 3) — elle ne publie pas (D13).")

@@ -12,7 +12,7 @@ import { applyCvToLanguages, planCvImport } from "@/features/candidate/cv-parsin
 import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useReferenceLanguages, useUpdateLanguages } from "@/hooks/use-candidate-profile";
 import type { LanguageItem, ParsedCv } from "@/types/candidate";
-import { Button } from "@/components/ui/button";
+import { CtaButton } from "@/components/ui/button";
 import type { SelectOption } from "@/components/ui/select";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import {
@@ -170,14 +170,15 @@ export function LanguagesSection({
           ))}
         </div>
 
-        <Button
-          variant="outline"
+        <CtaButton
           type="button"
-          className="w-full"
+          tone="secondary"
+          icon="add"
+          className="self-start"
           onClick={() => append(emptyRow())}
         >
           Add language
-        </Button>
+        </CtaButton>
       </form>
     </SectionCard>
   );

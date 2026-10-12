@@ -1,11 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 
 import {
   closeJobOffer,
   createJobOffer,
   deleteJobOffer,
+  duplicateJobOffer,
   getJobOffer,
   listContractTypes,
   listEmploymentTypes,
@@ -77,6 +79,19 @@ export function useDeleteJobOffer() {
   return useMutation({
     mutationFn: (offerId: string) => deleteJobOffer(offerId),
     onSuccess: (_data, offerId) => invalidate(offerId),
+  });
+}
+
+/** Duplication (D20) : la copie naît en DRAFT — navigation vers son édition. */
+export function useDuplicateJobOffer() {
+  const invalidate = useInvalidateOffers();
+  const router = useRouter();
+  return useMutation({
+    mutationFn: (offerId: string) => duplicateJobOffer(offerId),
+    onSuccess: (offer) => {
+      invalidate(offer.id);
+      router.push(`/recruiter/offers/${offer.id}/edit`);
+    },
   });
 }
 

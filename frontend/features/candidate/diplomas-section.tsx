@@ -12,7 +12,7 @@ import { applyCvToDiplomas, planCvImport } from "@/features/candidate/cv-parsing
 import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useReferenceDegrees, useReferenceStudyFields, useUpdateDiplomas } from "@/hooks/use-candidate-profile";
 import type { DiplomaItem, ParsedCv } from "@/types/candidate";
-import { Button } from "@/components/ui/button";
+import { CtaButton } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { countryOptions } from "@/config/countries";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
@@ -206,14 +206,15 @@ export function DiplomasSection({
           ))}
         </div>
 
-        <Button
-          variant="outline"
+        <CtaButton
           type="button"
-          className="w-full"
+          tone="secondary"
+          icon="add"
+          className="self-start"
           onClick={() => append(emptyRow())}
         >
           Add education
-        </Button>
+        </CtaButton>
       </form>
     </SectionCard>
   );

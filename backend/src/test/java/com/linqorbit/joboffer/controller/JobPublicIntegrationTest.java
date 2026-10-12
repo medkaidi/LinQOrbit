@@ -144,8 +144,16 @@ class JobPublicIntegrationTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"companyId": "%s", "title": "Senior Backend Engineer"}
-                                """.formatted(companyIdOf(offerId))))
+                                {
+                                  "title": "Senior Backend Engineer",
+                                  "description": "Build and own our platform APIs.",
+                                  "country": "FR",
+                                  "employmentTypeId": "%s",
+                                  "skills": [
+                                    {"skillId": "%s", "requirementType": "mandatory", "weight": 4}
+                                  ]
+                                }
+                                """.formatted(EMPLOYMENT_TYPE_ID, SKILL_ID)))
                 .andExpect(status().isNoContent());
 
         assertThat(publicIdOf(offerId)).isEqualTo(publicId);
@@ -220,11 +228,6 @@ class JobPublicIntegrationTest {
     private String publicIdOf(UUID offerId) {
         return jdbcTemplate.queryForObject(
                 "SELECT public_id FROM job_offer WHERE id = ?", String.class, offerId);
-    }
-
-    private UUID companyIdOf(UUID offerId) {
-        return jdbcTemplate.queryForObject(
-                "SELECT company_id FROM job_offer WHERE id = ?", UUID.class, offerId);
     }
 
     private String signup() throws Exception {

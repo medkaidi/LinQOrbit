@@ -256,11 +256,14 @@ class JobOfferIntegrationTest {
                                 {
                                   "companyId": "%s",
                                   "title": "Backend Engineer",
+                                  "description": "Build APIs.",
+                                  "country": "FR",
+                                  "employmentTypeId": "%s",
                                   "skills": [
                                     {"skillId": "ffffffff-ffff-4fff-8fff-ffffffffffff", "requirementType": "mandatory", "weight": 3}
                                   ]
                                 }
-                                """.formatted(companyId)))
+                                """.formatted(companyId, EMPLOYMENT_TYPE_ID)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(
                         "Unknown skill: ffffffff-ffff-4fff-8fff-ffffffffffff"));
@@ -270,7 +273,18 @@ class JobOfferIntegrationTest {
         mockMvc.perform(post("/api/v1/job-offers")
                         .header("Authorization", "Bearer " + strangerToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"companyId\": \"" + companyId + "\", \"title\": \"Backend Engineer\"}"))
+                        .content("""
+                                {
+                                  "companyId": "%s",
+                                  "title": "Backend Engineer",
+                                  "description": "Build APIs.",
+                                  "country": "FR",
+                                  "employmentTypeId": "%s",
+                                  "skills": [
+                                    {"skillId": "%s", "requirementType": "mandatory", "weight": 3}
+                                  ]
+                                }
+                                """.formatted(companyId, EMPLOYMENT_TYPE_ID, SKILL_ID)))
                 .andExpect(status().isNotFound());
     }
 
@@ -287,6 +301,9 @@ class JobOfferIntegrationTest {
                                 {
                                   "companyId": "%s",
                                   "title": "Backend Engineer",
+                                  "description": "Build APIs.",
+                                  "country": "FR",
+                                  "employmentTypeId": "%s",
                                   "skills": [
                                     {"skillId": "%s", "requirementType": "mandatory", "weight": 4},
                                     {"skillId": "%s", "requirementType": "preferred", "weight": 2}
@@ -296,7 +313,8 @@ class JobOfferIntegrationTest {
                                     {"languageId": "%s", "level": "A2", "isRequired": false}
                                   ]
                                 }
-                                """.formatted(companyId, SKILL_ID, SKILL_ID, LANGUAGE_ID, LANGUAGE_ID)))
+                                """.formatted(companyId, EMPLOYMENT_TYPE_ID, SKILL_ID, SKILL_ID, LANGUAGE_ID,
+                                LANGUAGE_ID)))
                 .andExpect(status().isCreated())
                 .andReturn();
         UUID offerId = UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
@@ -309,6 +327,56 @@ class JobOfferIntegrationTest {
                 .andExpect(jsonPath("$.skills[0].skillId").value(SKILL_ID))
                 .andExpect(jsonPath("$.languages.length()").value(1))
                 .andExpect(jsonPath("$.languages[0].languageId").value(LANGUAGE_ID));
+    }
+
+    @Test
+    void duplicationCopieLeContenuEnDraftEt404PourUnNonMembre() throws Exception {
+        String ownerToken = signup("owner");
+        becomeRecruiter(ownerToken);
+        UUID companyId = createCompany(ownerToken, "Acme");
+
+        UUID offerId = createOffer(ownerToken, companyId, "Backend Engineer");
+        createdOfferIds.add(offerId);
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/validate")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/publish")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNoContent());
+
+        MvcResult duplicateResult = mockMvc
+                .perform(post("/api/v1/job-offers/" + offerId + "/duplicate")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("draft"))
+                .andExpect(jsonPath("$.companyId").value(companyId.toString()))
+                .andExpect(jsonPath("$.title").value("Backend Engineer (copy)"))
+                .andExpect(jsonPath("$.slug").value("backend-engineer-copy"))
+                .andExpect(jsonPath("$.skills.length()").value(2))
+                .andExpect(jsonPath("$.skills[0].skillId").value(SKILL_ID))
+                .andExpect(jsonPath("$.languages[0].languageId").value(LANGUAGE_ID))
+                .andExpect(jsonPath("$.degreeIds[0]").value(DEGREE_ID))
+                .andExpect(jsonPath("$.studyFieldIds[0]").value(STUDY_FIELD_ID))
+                .andReturn();
+        JsonNode copy = objectMapper.readTree(duplicateResult.getResponse().getContentAsString());
+        UUID copyId = UUID.fromString(copy.get("id").asText());
+        createdOfferIds.add(copyId);
+        assertThat(copyId).isNotEqualTo(offerId);
+        assertThat(copy.get("publicId").asText()).isNotEmpty();
+        assertThat(copy.get("validatedAt").isNull()).isTrue();
+        assertThat(copy.get("publishedAt").isNull()).isTrue();
+        assertThat(copy.get("expiresAt").isNull()).isTrue();
+
+        mockMvc.perform(get("/api/v1/job-offers/" + copyId).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("draft"))
+                .andExpect(jsonPath("$.hasUnvalidatedChanges").value(false));
+
+        String strangerToken = signup("stranger");
+        becomeRecruiter(strangerToken);
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/duplicate")
+                        .header("Authorization", "Bearer " + strangerToken))
+                .andExpect(status().isNotFound());
     }
 
     private UUID createOffer(String token, UUID companyId, String title) throws Exception {
@@ -324,8 +392,18 @@ class JobOfferIntegrationTest {
     private String offerBody(UUID companyId, String title, boolean withReferences) {
         if (!withReferences) {
             return """
-                    {"companyId": "%s", "title": "%s", "city": "Paris", "country": "FR"}
-                    """.formatted(companyId, title);
+                    {
+                      "companyId": "%s",
+                      "title": "%s",
+                      "description": "Build and own our platform APIs.",
+                      "city": "Paris",
+                      "country": "FR",
+                      "employmentTypeId": "%s",
+                      "skills": [
+                        {"skillId": "%s", "requirementType": "mandatory", "weight": 3}
+                      ]
+                    }
+                    """.formatted(companyId, title, EMPLOYMENT_TYPE_ID, SKILL_ID);
         }
         return """
                 {

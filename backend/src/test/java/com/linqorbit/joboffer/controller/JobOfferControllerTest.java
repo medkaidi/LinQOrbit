@@ -60,7 +60,7 @@ class JobOfferControllerTest {
         mockMvc.perform(post("/api/v1/job-offers")
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"companyId\": \"" + UUID.randomUUID() + "\", \"title\": \"Backend Engineer\"}"))
+                        .content(validCreateJson()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.title").value("Backend Engineer"))
                 .andExpect(jsonPath("$.status").value("draft"));
@@ -78,6 +78,88 @@ class JobOfferControllerTest {
     }
 
     @Test
+    void createRenvoie400SansDescription() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "companyId": "%s",
+                                  "title": "Backend Engineer",
+                                  "country": "FR",
+                                  "employmentTypeId": "%s",
+                                  "skills": [
+                                    {"skillId": "%s", "requirementType": "mandatory", "weight": 3}
+                                  ]
+                                }
+                                """.formatted(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createRenvoie400SansCountry() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "companyId": "%s",
+                                  "title": "Backend Engineer",
+                                  "description": "Build APIs.",
+                                  "employmentTypeId": "%s",
+                                  "skills": [
+                                    {"skillId": "%s", "requirementType": "mandatory", "weight": 3}
+                                  ]
+                                }
+                                """.formatted(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createRenvoie400SansEmploymentType() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "companyId": "%s",
+                                  "title": "Backend Engineer",
+                                  "description": "Build APIs.",
+                                  "country": "FR",
+                                  "skills": [
+                                    {"skillId": "%s", "requirementType": "mandatory", "weight": 3}
+                                  ]
+                                }
+                                """.formatted(UUID.randomUUID(), UUID.randomUUID())))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createRenvoie400SansCompetence() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "companyId": "%s",
+                                  "title": "Backend Engineer",
+                                  "description": "Build APIs.",
+                                  "country": "FR",
+                                  "employmentTypeId": "%s"
+                                }
+                                """.formatted(UUID.randomUUID(), UUID.randomUUID())))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void createRenvoie400PourUneCompetenceSansPoids() throws Exception {
         UUID userId = UUID.randomUUID();
 
@@ -88,11 +170,14 @@ class JobOfferControllerTest {
                                 {
                                   "companyId": "%s",
                                   "title": "Backend Engineer",
+                                  "description": "Build APIs.",
+                                  "country": "FR",
+                                  "employmentTypeId": "%s",
                                   "skills": [
                                     {"skillId": "%s", "requirementType": "mandatory"}
                                   ]
                                 }
-                                """.formatted(UUID.randomUUID(), UUID.randomUUID())))
+                                """.formatted(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())))
                 .andExpect(status().isBadRequest());
     }
 
@@ -105,7 +190,7 @@ class JobOfferControllerTest {
         mockMvc.perform(post("/api/v1/job-offers")
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"companyId\": \"" + UUID.randomUUID() + "\", \"title\": \"Backend Engineer\"}"))
+                        .content(validCreateJson()))
                 .andExpect(status().isNotFound());
     }
 
@@ -148,10 +233,28 @@ class JobOfferControllerTest {
         mockMvc.perform(put("/api/v1/job-offers/" + OFFER_ID)
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\": \"Backend Engineer\"}"))
+                        .content(validUpdateJson()))
                 .andExpect(status().isNoContent());
 
         verify(jobOfferService).update(eq(userId), eq(OFFER_ID), any(UpdateJobOfferRequest.class));
+    }
+
+    @Test
+    void updateRenvoie400SansCompetence() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(put("/api/v1/job-offers/" + OFFER_ID)
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Backend Engineer",
+                                  "description": "Build APIs.",
+                                  "country": "FR",
+                                  "employmentTypeId": "%s"
+                                }
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -163,7 +266,7 @@ class JobOfferControllerTest {
         mockMvc.perform(put("/api/v1/job-offers/" + OFFER_ID)
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\": \"Backend Engineer\"}"))
+                        .content(validUpdateJson()))
                 .andExpect(status().isForbidden());
     }
 
@@ -176,7 +279,7 @@ class JobOfferControllerTest {
         mockMvc.perform(put("/api/v1/job-offers/" + OFFER_ID)
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\": \"Backend Engineer\"}"))
+                        .content(validUpdateJson()))
                 .andExpect(status().isConflict());
     }
 
@@ -192,8 +295,7 @@ class JobOfferControllerTest {
     }
 
     @Test
-    void validatePublishEtCloseRenvoient204() throws Exception {
-        UUID userId = UUID.randomUUID();
+    void validatePublishEtCloseRenvoient204() throws Exception {        UUID userId = UUID.randomUUID();
 
         mockMvc.perform(post("/api/v1/job-offers/" + OFFER_ID + "/validate")
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
@@ -220,6 +322,60 @@ class JobOfferControllerTest {
         mockMvc.perform(post("/api/v1/job-offers/" + OFFER_ID + "/publish")
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void duplicateRenvoie201() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(jobOfferService.duplicate(eq(userId), eq(OFFER_ID))).thenReturn(draftResponse());
+
+        mockMvc.perform(post("/api/v1/job-offers/" + OFFER_ID + "/duplicate")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.title").value("Backend Engineer"))
+                .andExpect(jsonPath("$.status").value("draft"));
+
+        verify(jobOfferService).duplicate(userId, OFFER_ID);
+    }
+
+    @Test
+    void duplicateRenvoie404SiInaccessible() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(jobOfferService.duplicate(eq(userId), eq(OFFER_ID)))
+                .thenThrow(new JobOfferNotFoundException(OFFER_ID));
+
+        mockMvc.perform(post("/api/v1/job-offers/" + OFFER_ID + "/duplicate")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isNotFound());
+    }
+
+    private String validCreateJson() {
+        return """
+                {
+                  "companyId": "%s",
+                  "title": "Backend Engineer",
+                  "description": "Build APIs.",
+                  "country": "FR",
+                  "employmentTypeId": "%s",
+                  "skills": [
+                    {"skillId": "%s", "requirementType": "mandatory", "weight": 3}
+                  ]
+                }
+                """.formatted(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+    }
+
+    private String validUpdateJson() {
+        return """
+                {
+                  "title": "Backend Engineer",
+                  "description": "Build APIs.",
+                  "country": "FR",
+                  "employmentTypeId": "%s",
+                  "skills": [
+                    {"skillId": "%s", "requirementType": "mandatory", "weight": 3}
+                  ]
+                }
+                """.formatted(UUID.randomUUID(), UUID.randomUUID());
     }
 
     private JobOfferResponse draftResponse() {

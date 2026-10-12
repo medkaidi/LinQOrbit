@@ -1,4 +1,4 @@
-import type { JobOfferStatusValue, SeniorityValue } from "@/types/recruiter";
+import type { JobOffer, JobOfferStatusValue, SeniorityValue } from "@/types/recruiter";
 
 export const OFFER_SECTION_HEADER =
   "mx-6 pt-4 pb-4 flex items-start justify-between gap-4 border-b border-slate-border";
@@ -50,4 +50,20 @@ export function salaryLabel(
 export function locationLabel(city: string | null, country: string | null): string | null {
   const label = [city, country].filter(Boolean).join(", ");
   return label === "" ? null : label;
+}
+
+/** Message d'infobulle quand l'offre est trop incomplète pour sortir du brouillon. */
+export const OFFER_INCOMPLETE_TOOLTIP =
+  "Add a description, a country, an employment type and at least one skill before publishing.";
+
+/**
+ * Complétude minimale d'une offre (miroir des validations backend/Zod) :
+ * description, country, employment type et au moins une compétence.
+ */
+export function isOfferReadyToPublish(
+  offer: Pick<JobOffer, "description" | "country" | "employmentTypeId" | "skills">,
+): boolean {
+  return Boolean(
+    offer.description && offer.country && offer.employmentTypeId && offer.skills.length > 0,
+  );
 }

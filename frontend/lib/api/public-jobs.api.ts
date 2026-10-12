@@ -7,6 +7,6 @@ import type { PublicJob } from "@/types/public-job";
  * ou expirée.
  */
 export async function getPublicJob(publicId: string): Promise<PublicJob> {
-  const { data } = await api.get<PublicJob>(`/jobs/${publicId}`);
+  const { data } = await api.get<PublicJob>(`/api/v1/jobs/${publicId}`);
   return data;
 }

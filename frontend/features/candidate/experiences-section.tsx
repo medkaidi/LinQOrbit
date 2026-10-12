@@ -11,7 +11,7 @@ import { applyCvToExperiences, planCvImport } from "@/features/candidate/cv-pars
 import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useUpdateExperiences } from "@/hooks/use-candidate-profile";
 import type { ExperienceItem, ParsedCv } from "@/types/candidate";
-import { Button } from "@/components/ui/button";
+import { CtaButton } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
 import { countryOptions } from "@/config/countries";
@@ -173,14 +173,15 @@ export function ExperiencesSection({
           ))}
         </div>
 
-        <Button
-          variant="outline"
+        <CtaButton
           type="button"
-          className="w-full"
+          tone="secondary"
+          icon="add"
+          className="self-start"
           onClick={() => append(emptyRow())}
         >
           Add experience
-        </Button>
+        </CtaButton>
       </form>
     </SectionCard>
   );

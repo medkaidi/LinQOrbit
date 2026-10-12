@@ -52,6 +52,12 @@ public class JobOfferController implements JobOfferApi {
     }
 
     @Override
+    public ResponseEntity<JobOfferResponse> duplicate(UUID offerId, Authentication authentication) {
+        return ResponseEntity.status(201)
+                .body(jobOfferService.duplicate(CurrentUserId.from(authentication), offerId));
+    }
+
+    @Override
     public ResponseEntity<Void> validate(UUID offerId, Authentication authentication) {
         jobOfferService.validate(CurrentUserId.from(authentication), offerId);
         return ResponseEntity.noContent().build();

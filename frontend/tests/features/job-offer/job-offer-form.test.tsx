@@ -187,4 +187,29 @@ describe("JobOfferForm", () => {
       .filter((node) => node.tagName === "P");
     expect(errorNodes).toHaveLength(1);
   });
+
+  it("shows the skills root error when submitting without any skill", async () => {
+    render(
+      <JobOfferForm
+        mode="create"
+        companies={[
+          {
+            id: "33333333-3333-4333-8333-333333333333",
+            name: "Nimbus Labs",
+            description: null,
+            isOwner: true,
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), {
+      target: { value: "Backend Engineer" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create offer" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Add at least one skill")).toBeInTheDocument();
+    });
+  });
 });

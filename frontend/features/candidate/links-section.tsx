@@ -10,7 +10,7 @@ import { applyCvToLinks, planCvImport } from "@/features/candidate/cv-parsing";
 import { useApplyCvImport } from "@/hooks/use-apply-cv-import";
 import { useUpdateLinks } from "@/hooks/use-candidate-profile";
 import type { LinkItem, ParsedCv } from "@/types/candidate";
-import { Button } from "@/components/ui/button";
+import { CtaButton } from "@/components/ui/button";
 import { Select, type SelectOption } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
@@ -195,14 +195,15 @@ export function LinksSection({
           })}
         </div>
 
-        <Button
-          variant="outline"
+        <CtaButton
           type="button"
-          className="w-full"
+          tone="secondary"
+          icon="add"
+          className="self-start"
           onClick={() => append(emptyRow())}
         >
           Add link
-        </Button>
+        </CtaButton>
       </form>
     </SectionCard>
   );

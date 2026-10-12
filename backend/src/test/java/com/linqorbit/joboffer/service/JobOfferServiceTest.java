@@ -3,12 +3,16 @@ package com.linqorbit.joboffer.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,7 +31,12 @@ import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
 import com.linqorbit.joboffer.entity.JobOffer;
+import com.linqorbit.joboffer.entity.JobOfferDegree;
+import com.linqorbit.joboffer.entity.JobOfferLanguage;
+import com.linqorbit.joboffer.entity.JobOfferSkill;
 import com.linqorbit.joboffer.entity.JobOfferStatus;
+import com.linqorbit.joboffer.entity.JobOfferStudyField;
+import com.linqorbit.joboffer.entity.RequirementType;
 import com.linqorbit.joboffer.exception.InvalidJobOfferException;
 import com.linqorbit.joboffer.exception.InvalidJobOfferStatusException;
 import com.linqorbit.joboffer.exception.JobOfferAccessDeniedException;
@@ -55,7 +64,11 @@ class JobOfferServiceTest {
     private static final UUID OTHER_RECRUITER_ID = UUID.fromString("22222222-2222-4222-8222-222222222222");
     private static final UUID COMPANY_ID = UUID.fromString("33333333-3333-4333-8333-333333333333");
     private static final UUID OFFER_ID = UUID.fromString("44444444-4444-4444-8444-444444444444");
+    private static final UUID COPY_ID = UUID.fromString("55555555-5555-4555-8555-555555555555");
     private static final UUID SKILL_ID = UUID.fromString("a0000000-0000-4000-8000-000000000001");
+    private static final UUID LANGUAGE_ID = UUID.fromString("b0000000-0000-4000-8000-000000000002");
+    private static final UUID DEGREE_ID = UUID.fromString("c0000000-0000-4000-8000-000000000003");
+    private static final UUID STUDY_FIELD_ID = UUID.fromString("d0000000-0000-4000-8000-000000000001");
     private static final UUID CONTRACT_TYPE_ID = UUID.fromString("b0000000-0000-4000-8000-000000000001");
 
     private JobOfferRepository jobOfferRepository;
@@ -208,6 +221,111 @@ class JobOfferServiceTest {
     }
 
     @Test
+    void duplicateCopieLeContenuEnDraftMemeParUnMembreNonCreateur() {
+        JobOffer source = publishedOffer();
+        stubRecruiter(true);
+        stubDuplicateSource(source, OTHER_RECRUITER_ID);
+        when(jobOfferSkillRepository.findByJobOfferIdIn(List.of(OFFER_ID)))
+                .thenReturn(List.of(JobOfferSkill.builder()
+                        .jobOfferId(OFFER_ID).skillId(SKILL_ID)
+                        .requirementType(RequirementType.MANDATORY).weight(3).yearsExperience(2)
+                        .build()));
+        when(jobOfferLanguageRepository.findByJobOfferIdIn(List.of(OFFER_ID)))
+                .thenReturn(List.of(JobOfferLanguage.builder()
+                        .jobOfferId(OFFER_ID).languageId(LANGUAGE_ID)
+                        .level("B2").isRequired(true)
+                        .build()));
+        when(jobOfferDegreeRepository.findByJobOfferIdIn(List.of(OFFER_ID)))
+                .thenReturn(List.of(JobOfferDegree.builder()
+                        .jobOfferId(OFFER_ID).degreeId(DEGREE_ID)
+                        .build()));
+        when(jobOfferStudyFieldRepository.findByJobOfferIdIn(List.of(OFFER_ID)))
+                .thenReturn(List.of(JobOfferStudyField.builder()
+                        .jobOfferId(OFFER_ID).studyFieldId(STUDY_FIELD_ID)
+                        .build()));
+        when(jobOfferRepository.save(any(JobOffer.class))).thenAnswer(invocation -> {
+            JobOffer copy = invocation.getArgument(0);
+            copy.setId(COPY_ID);
+            return copy;
+        });
+
+        JobOfferResponse response = jobOfferService.duplicate(OTHER_RECRUITER_ID, OFFER_ID);
+
+        assertThat(response.id()).isEqualTo(COPY_ID);
+        assertThat(response.status()).isEqualTo("draft");
+        assertThat(response.companyId()).isEqualTo(COMPANY_ID);
+        assertThat(response.recruiterId()).isEqualTo(OTHER_RECRUITER_ID);
+        assertThat(response.title()).isEqualTo("Backend Engineer (copy)");
+        assertThat(response.slug()).isEqualTo("backend-engineer-copy");
+        assertThat(response.publicId()).isNotEqualTo("abcdefghijkl");
+        assertThat(response.description()).isEqualTo("Build APIs");
+        assertThat(response.country()).isEqualTo("FR");
+        assertThat(response.expiresAt()).isNull();
+        assertThat(response.validatedAt()).isNull();
+        assertThat(response.publishedAt()).isNull();
+        verify(jobOfferSkillRepository).saveAll(argThat(all -> {
+            List<JobOfferSkill> skills = asList(all);
+            return skills.size() == 1 && skills.get(0).getJobOfferId().equals(COPY_ID)
+                    && skills.get(0).getSkillId().equals(SKILL_ID)
+                    && skills.get(0).getRequirementType() == RequirementType.MANDATORY
+                    && skills.get(0).getWeight() == 3
+                    && skills.get(0).getYearsExperience() == 2;
+        }));
+        verify(jobOfferLanguageRepository).saveAll(argThat(all -> {
+            List<JobOfferLanguage> languages = asList(all);
+            return languages.size() == 1 && languages.get(0).getJobOfferId().equals(COPY_ID)
+                    && languages.get(0).getLanguageId().equals(LANGUAGE_ID)
+                    && languages.get(0).getLevel().equals("B2")
+                    && Boolean.TRUE.equals(languages.get(0).getIsRequired());
+        }));
+        verify(jobOfferDegreeRepository).saveAll(argThat(all -> {
+            List<JobOfferDegree> degrees = asList(all);
+            return degrees.size() == 1 && degrees.get(0).getJobOfferId().equals(COPY_ID)
+                    && degrees.get(0).getDegreeId().equals(DEGREE_ID);
+        }));
+        verify(jobOfferStudyFieldRepository).saveAll(argThat(all -> {
+            List<JobOfferStudyField> fields = asList(all);
+            return fields.size() == 1 && fields.get(0).getJobOfferId().equals(COPY_ID)
+                    && fields.get(0).getStudyFieldId().equals(STUDY_FIELD_ID);
+        }));
+    }
+
+    @Test
+    void duplicateRejetteUnNonMembre() {
+        stubRecruiter(true);
+        when(companyMemberRepository.findByRecruiterId(RECRUITER_ID)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> jobOfferService.duplicate(RECRUITER_ID, OFFER_ID))
+                .isInstanceOf(JobOfferNotFoundException.class);
+    }
+
+    @Test
+    void duplicateRejetteUnCompteSansProfilRecruteur() {
+        stubRecruiter(false);
+
+        assertThatThrownBy(() -> jobOfferService.duplicate(RECRUITER_ID, OFFER_ID))
+                .isInstanceOf(RecruiterNotFoundException.class);
+    }
+
+    @Test
+    void duplicateTronqueUnTitreDe255Caracteres() {
+        JobOffer source = publishedOffer();
+        source.setTitle("a".repeat(255));
+        stubRecruiter(true);
+        stubDuplicateSource(source, RECRUITER_ID);
+        when(jobOfferRepository.save(any(JobOffer.class))).thenAnswer(invocation -> {
+            JobOffer copy = invocation.getArgument(0);
+            copy.setId(COPY_ID);
+            return copy;
+        });
+
+        JobOfferResponse response = jobOfferService.duplicate(RECRUITER_ID, OFFER_ID);
+
+        assertThat(response.title()).hasSize(255);
+        assertThat(response.title()).endsWith(" (copy)");
+    }
+
+    @Test
     void validatePasseEnValidatedEtPoseValidatedAt() {
         JobOffer offer = draftOffer();
         stubManagement(offer, RECRUITER_ID, false);
@@ -258,6 +376,36 @@ class JobOfferServiceTest {
                 .status(JobOfferStatus.DRAFT)
                 .title("Backend Engineer")
                 .build();
+    }
+
+    private JobOffer publishedOffer() {
+        return JobOffer.builder()
+                .id(OFFER_ID)
+                .companyId(COMPANY_ID)
+                .recruiterId(RECRUITER_ID)
+                .status(JobOfferStatus.PUBLISHED)
+                .title("Backend Engineer")
+                .publicId("abcdefghijkl")
+                .slug("backend-engineer")
+                .description("Build APIs")
+                .country("FR")
+                .validatedAt(LocalDateTime.now().minusDays(2))
+                .publishedAt(LocalDateTime.now().minusDays(1))
+                .expiresAt(LocalDate.now().minusDays(1))
+                .build();
+    }
+
+    private void stubDuplicateSource(JobOffer source, UUID duplicatorId) {
+        stubMembership(duplicatorId, false);
+        when(jobOfferRepository.findByIdAndCompanyIdIn(OFFER_ID, List.of(COMPANY_ID)))
+                .thenReturn(Optional.of(source));
+    }
+
+    /** saveAll reçoit un Iterable : conversion pour les assertions argThat. */
+    private static <T> List<T> asList(Iterable<T> iterable) {
+        List<T> list = new ArrayList<>();
+        iterable.forEach(list::add);
+        return list;
     }
 
     private void stubManagement(JobOffer offer, UUID managerId, boolean isOwner) {

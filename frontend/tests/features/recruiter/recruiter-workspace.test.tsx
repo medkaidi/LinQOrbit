@@ -10,6 +10,7 @@ const useCreateRecruiterMock = vi.hoisted(() => vi.fn());
 const useJobOffersMock = vi.hoisted(() => vi.fn());
 const useJobOfferTransitionMock = vi.hoisted(() => vi.fn());
 const useDeleteJobOfferMock = vi.hoisted(() => vi.fn());
+const useDuplicateJobOfferMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/use-recruiter", () => ({
   useRecruiterProfile: useRecruiterProfileMock,
@@ -27,6 +28,9 @@ vi.mock("@/hooks/use-job-offers", () => ({
   useJobOffers: useJobOffersMock,
   useJobOfferTransition: useJobOfferTransitionMock,
   useDeleteJobOffer: useDeleteJobOfferMock,
+  useDuplicateJobOffer: useDuplicateJobOfferMock,
+  useContractTypes: () => ({ data: undefined, isLoading: false, isError: false }),
+  useWorkModes: () => ({ data: undefined, isLoading: false, isError: false }),
 }));
 
 const profile: RecruiterProfile = {
@@ -51,6 +55,7 @@ describe("RecruiterWorkspace", () => {
     useJobOffersMock.mockReturnValue({ data: [], isLoading: false, isError: false, refetch: vi.fn() });
     useJobOfferTransitionMock.mockReturnValue({ mutate: vi.fn(), variables: undefined, error: null });
     useDeleteJobOfferMock.mockReturnValue({ mutate: vi.fn(), variables: undefined, error: null });
+    useDuplicateJobOfferMock.mockReturnValue({ mutate: vi.fn(), variables: undefined, error: null });
     useRecruiterProfileMock.mockReturnValue({
       profile: null,
       isLoading: true,

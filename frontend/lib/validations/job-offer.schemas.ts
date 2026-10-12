@@ -23,11 +23,6 @@ const optionalText = (max: number, label: string) =>
 const uuidOrEmpty = (label: string) =>
   z.union([z.uuid(label), z.literal("")], label);
 
-const twoLetterOrEmpty = z.union(
-  [z.string().regex(/^[A-Z]{2}$/, "Country must be a 2-letter ISO code"), z.literal("")],
-  "Country must be a 2-letter ISO code",
-);
-
 const amountOrEmpty = z.union(
   [z.string().regex(/^\d{1,9}(\.\d{1,2})?$/, "Enter a valid amount"), z.literal("")],
   "Enter a valid amount",
@@ -81,9 +76,9 @@ const jobOfferBaseSchema = z.object({
   seniority: z.union([z.enum(JOB_OFFER_SENIORITIES), z.literal("")], "Pick a seniority"),
   requiredExpYear: yearsOrEmpty,
   city: optionalText(255, "City"),
-  country: twoLetterOrEmpty,
+  country: z.string().regex(/^[A-Z]{2}$/, "Pick a country"),
   contractTypeId: uuidOrEmpty("Pick a contract type"),
-  employmentTypeId: uuidOrEmpty("Pick an employment type"),
+  employmentTypeId: z.uuid("Pick an employment type"),
   workModeId: uuidOrEmpty("Pick a work mode"),
   expiresAt: z.union([z.iso.date("Enter a valid date"), z.literal("")], "Enter a valid date"),
   salaryMin: amountOrEmpty,
@@ -93,7 +88,7 @@ const jobOfferBaseSchema = z.object({
     [z.enum(JOB_OFFER_SALARY_PERIODS), z.literal("")],
     "Pick a salary period",
   ),
-  skills: z.array(jobOfferSkillRowSchema),
+  skills: z.array(jobOfferSkillRowSchema).min(1, "Add at least one skill"),
   languages: z.array(jobOfferLanguageRowSchema),
   // Chips (TagInput) : jamais de "" en entrée — uuid strict.
   degreeIds: z.array(z.uuid("Pick a degree")),
@@ -103,6 +98,18 @@ const jobOfferBaseSchema = z.object({
 type JobOfferBaseValues = z.infer<typeof jobOfferBaseSchema>;
 
 function refineJobOffer(values: JobOfferBaseValues, ctx: z.RefinementCtx) {
+  // Champ riche : "" et "<p></p>" (éditeur Tiptap vide) sont vides.
+  const plainDescription = values.description
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+  if (plainDescription === "") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["description"],
+      message: "Description is required",
+    });
+  }
   if (
     values.salaryMin !== "" &&
     values.salaryMax !== "" &&

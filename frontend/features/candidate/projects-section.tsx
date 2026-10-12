@@ -8,7 +8,7 @@ import { SectionCard } from "@/features/candidate/section-card";
 import { RemoveButton, SECTION_ICONS } from "@/features/candidate/profile-shared";
 import { useUpdateProjects } from "@/hooks/use-candidate-profile";
 import type { ProjectItem } from "@/types/candidate";
-import { Button } from "@/components/ui/button";
+import { CtaButton } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
@@ -152,14 +152,15 @@ export function ProjectsSection({ projects }: { projects: ProjectItem[] }) {
           ))}
         </div>
 
-        <Button
-          variant="outline"
+        <CtaButton
           type="button"
-          className="w-full"
+          tone="secondary"
+          icon="add"
+          className="self-start"
           onClick={() => append(emptyRow())}
         >
           Add project
-        </Button>
+        </CtaButton>
       </form>
     </SectionCard>
   );

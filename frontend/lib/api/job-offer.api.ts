@@ -142,6 +142,11 @@ export async function closeJobOffer(offerId: string): Promise<void> {
   await api.post(`/api/v1/job-offers/${offerId}/close`);
 }
 
+export async function duplicateJobOffer(offerId: string): Promise<JobOffer> {
+  const response = await api.post<JobOffer>(`/api/v1/job-offers/${offerId}/duplicate`);
+  return response.data;
+}
+
 export async function listContractTypes(): Promise<JobOfferLabelOption[]> {
   const response = await api.get<JobOfferLabelOption[]>(
     "/api/v1/job-offers/reference/contract-types",

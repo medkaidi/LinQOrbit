@@ -136,6 +136,8 @@ class OpenApiDocsTest {
                         .value("Modifier une offre"))
                 .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}'].delete.summary")
                         .value("Supprimer une offre"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/duplicate'].post.summary")
+                        .value("Dupliquer une offre"))
                 .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/validate'].post.summary")
                         .value("Valider une offre"))
                 .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/publish'].post.summary")

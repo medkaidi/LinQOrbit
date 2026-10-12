@@ -12,30 +12,31 @@ const validRow = {
   yearsExperience: "",
 };
 
+// Base minimale valide : title + description + country + employmentTypeId + ≥1 skill.
 const baseValues = {
   companyId: "33333333-3333-4333-8333-333333333333",
   title: "Backend Engineer",
-  description: "",
+  description: "<p>Build APIs.</p>",
   seniority: "",
   requiredExpYear: "",
   city: "",
-  country: "",
+  country: "FR",
   contractTypeId: "",
-  employmentTypeId: "",
+  employmentTypeId: "e0000000-0000-4000-8000-0000000000e1",
   workModeId: "",
   expiresAt: "",
   salaryMin: "",
   salaryMax: "",
   salaryCurrency: "",
   salaryPeriod: "",
-  skills: [],
+  skills: [validRow],
   languages: [],
   degreeIds: [],
   studyFieldIds: [],
 };
 
 describe("createJobOfferSchema", () => {
-  it("accepts a minimal draft", () => {
+  it("accepts a minimal complete offer", () => {
     expect(createJobOfferSchema.safeParse(baseValues).success).toBe(true);
   });
 
@@ -59,6 +60,64 @@ describe("createJobOfferSchema", () => {
   it("rejects a missing title", () => {
     const result = createJobOfferSchema.safeParse({ ...baseValues, title: " " });
     expect(result.success).toBe(false);
+  });
+
+  it("rejects an empty description and an editor-only empty markup", () => {
+    for (const description of ["", "   ", "<p></p>", "<p><br></p>"]) {
+      const result = createJobOfferSchema.safeParse({ ...baseValues, description });
+      expect(result.success, `description=${JSON.stringify(description)}`).toBe(false);
+      if (!result.success) {
+        expect(
+          result.error.issues.some(
+            (issue) =>
+              issue.path.includes("description") && issue.message === "Description is required",
+          ),
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("rejects a missing country and a country that is not a 2-letter code", () => {
+    for (const country of ["", "France", "f"]) {
+      const result = createJobOfferSchema.safeParse({ ...baseValues, country });
+      expect(result.success, `country=${JSON.stringify(country)}`).toBe(false);
+      if (!result.success) {
+        expect(
+          result.error.issues.some(
+            (issue) =>
+              issue.path.includes("country") && issue.message === "Pick a country",
+          ),
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("rejects a missing employment type", () => {
+    const result = createJobOfferSchema.safeParse({ ...baseValues, employmentTypeId: "" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.path.includes("employmentTypeId") &&
+            issue.message === "Pick an employment type",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("rejects an offer without any skill", () => {
+    const result = createJobOfferSchema.safeParse({ ...baseValues, skills: [] });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(
+        result.error.issues.some(
+          (issue) =>
+            issue.path.includes("skills") &&
+            issue.message === "Add at least one skill",
+        ),
+      ).toBe(true);
+    }
   });
 
   it("rejects a salary range where the maximum is below the minimum", () => {
@@ -117,11 +176,6 @@ describe("createJobOfferSchema", () => {
         ),
       ).toBe(true);
     }
-  });
-
-  it("rejects a country that is not a 2-letter code", () => {
-    const result = createJobOfferSchema.safeParse({ ...baseValues, country: "France" });
-    expect(result.success).toBe(false);
   });
 
   it("accepts years of experience between 0 and 60 and rejects above", () => {
@@ -192,5 +246,23 @@ describe("updateJobOfferSchema", () => {
       salaryMax: "5",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("requires the same completeness as create", () => {
+    const incomplete = updateJobOfferSchema.safeParse({
+      ...baseValues,
+      description: "<p></p>",
+      country: "",
+      employmentTypeId: "",
+      skills: [],
+    });
+    expect(incomplete.success).toBe(false);
+    if (!incomplete.success) {
+      const messages = incomplete.error.issues.map((issue) => issue.message);
+      expect(messages).toContain("Description is required");
+      expect(messages).toContain("Pick a country");
+      expect(messages).toContain("Pick an employment type");
+      expect(messages).toContain("Add at least one skill");
+    }
   });
 });

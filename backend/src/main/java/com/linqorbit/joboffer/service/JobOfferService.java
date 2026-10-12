@@ -228,6 +228,50 @@ public class JobOfferService {
         log.info("Job offer deleted : offerId={}", offerId);
     }
 
+    /**
+     * Duplication (D20) : membre de la company (comme create — la copie est
+     * un brouillon neuf attribué au duplicateur), tous statuts. Le contenu
+     * est copié à l'identique sauf : titre suffixé « (copy) », statut DRAFT,
+     * nouvel identifiant public, expiry réinitialisée, validatedAt/publishedAt
+     * à null. Aucune revalidation des vocabulaires (les FK viennent de la base).
+     */
+    @Transactional
+    public JobOfferResponse duplicate(UUID userId, UUID offerId) {
+        requireRecruiter(userId);
+        JobOffer source = loadForMember(offerId, userId);
+
+        String title = duplicateTitle(source.getTitle());
+        LocalDateTime now = LocalDateTime.now();
+        JobOffer copy = JobOffer.builder()
+                .companyId(source.getCompanyId())
+                .recruiterId(userId)
+                .status(JobOfferStatus.DRAFT)
+                .title(title)
+                .publicId(generatePublicId())
+                .slug(slugify(title))
+                .description(source.getDescription())
+                .seniority(source.getSeniority())
+                .requiredExpYear(source.getRequiredExpYear())
+                .city(source.getCity())
+                .country(source.getCountry())
+                .contractTypeId(source.getContractTypeId())
+                .employmentTypeId(source.getEmploymentTypeId())
+                .workModeId(source.getWorkModeId())
+                .expiresAt(null)
+                .salaryMin(source.getSalaryMin())
+                .salaryMax(source.getSalaryMax())
+                .salaryCurrency(source.getSalaryCurrency())
+                .salaryPeriod(source.getSalaryPeriod())
+                .updatedAt(now)
+                .build();
+        jobOfferRepository.save(copy);
+
+        copyChildren(offerId, copy.getId());
+        log.info("Job offer duplicated : sourceId={}, offerId={}, companyId={}, recruiterId={}",
+                offerId, copy.getId(), source.getCompanyId(), userId);
+        return buildResponse(copy);
+    }
+
     @Transactional
     public void validate(UUID userId, UUID offerId) {
         transition(userId, offerId, "validate",
@@ -377,6 +421,63 @@ public class JobOfferService {
                     .map(studyFieldId -> JobOfferStudyField.builder()
                             .jobOfferId(offerId)
                             .studyFieldId(studyFieldId)
+                            .build())
+                    .toList());
+        }
+    }
+
+    /**
+     * Titre de la copie : suffixe « (copy) », base tronquée pour tenir dans
+     * le VARCHAR(255) du titre (7 caractères de suffixe).
+     */
+    private static String duplicateTitle(String title) {
+        String base = title.length() > 248 ? title.substring(0, 248) : title;
+        return base + " (copy)";
+    }
+
+    /**
+     * D20 : recopie les associations vers la nouvelle offre (insertions
+     * seules — l'inverse de replaceChildren qui nettoie d'abord).
+     */
+    private void copyChildren(UUID sourceId, UUID targetId) {
+        List<JobOfferSkill> skills = jobOfferSkillRepository.findByJobOfferIdIn(List.of(sourceId));
+        if (!skills.isEmpty()) {
+            jobOfferSkillRepository.saveAll(skills.stream()
+                    .map(skill -> JobOfferSkill.builder()
+                            .jobOfferId(targetId)
+                            .skillId(skill.getSkillId())
+                            .requirementType(skill.getRequirementType())
+                            .weight(skill.getWeight())
+                            .yearsExperience(skill.getYearsExperience())
+                            .build())
+                    .toList());
+        }
+        List<JobOfferLanguage> languages = jobOfferLanguageRepository.findByJobOfferIdIn(List.of(sourceId));
+        if (!languages.isEmpty()) {
+            jobOfferLanguageRepository.saveAll(languages.stream()
+                    .map(language -> JobOfferLanguage.builder()
+                            .jobOfferId(targetId)
+                            .languageId(language.getLanguageId())
+                            .level(language.getLevel())
+                            .isRequired(language.getIsRequired())
+                            .build())
+                    .toList());
+        }
+        List<JobOfferDegree> degrees = jobOfferDegreeRepository.findByJobOfferIdIn(List.of(sourceId));
+        if (!degrees.isEmpty()) {
+            jobOfferDegreeRepository.saveAll(degrees.stream()
+                    .map(degree -> JobOfferDegree.builder()
+                            .jobOfferId(targetId)
+                            .degreeId(degree.getDegreeId())
+                            .build())
+                    .toList());
+        }
+        List<JobOfferStudyField> studyFields = jobOfferStudyFieldRepository.findByJobOfferIdIn(List.of(sourceId));
+        if (!studyFields.isEmpty()) {
+            jobOfferStudyFieldRepository.saveAll(studyFields.stream()
+                    .map(studyField -> JobOfferStudyField.builder()
+                            .jobOfferId(targetId)
+                            .studyFieldId(studyField.getStudyFieldId())
                             .build())
                     .toList());
         }

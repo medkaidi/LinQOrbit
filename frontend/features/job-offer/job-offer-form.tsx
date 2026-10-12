@@ -431,6 +431,9 @@ export function JobOfferForm({
               ))}
             </ul>
           )}
+          {errors.skills !== undefined && !Array.isArray(errors.skills) ? (
+            <p className="text-body-sm font-body-sm text-danger">{errors.skills.message}</p>
+          ) : null}
           <CtaButton
             type="button"
             tone="secondary"
@@ -544,8 +547,8 @@ export function JobOfferForm({
         </div>
       </section>
 
-      <div className="flex items-center gap-3">
-        <Button type="button" variant="ghost" onClick={() => router.push("/recruiter")}>
+      <div className="bg-canvas-white rounded-2xl shadow-sm px-6 py-4 flex items-center justify-end gap-3">
+        <Button type="button" variant="outline-sm" onClick={() => router.push("/recruiter")}>
           Cancel
         </Button>
         <CtaButton type="submit" icon="save" busy={mutation.isPending} disabled={!isDirty}>

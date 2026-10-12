@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { JobOffersSection } from "@/features/job-offer/job-offers-section";
 import type { Company, JobOffer } from "@/types/recruiter";
@@ -7,11 +7,17 @@ import type { Company, JobOffer } from "@/types/recruiter";
 const useJobOffersMock = vi.hoisted(() => vi.fn());
 const useJobOfferTransitionMock = vi.hoisted(() => vi.fn());
 const useDeleteJobOfferMock = vi.hoisted(() => vi.fn());
+const useDuplicateJobOfferMock = vi.hoisted(() => vi.fn());
+const useContractTypesMock = vi.hoisted(() => vi.fn());
+const useWorkModesMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/use-job-offers", () => ({
   useJobOffers: useJobOffersMock,
   useJobOfferTransition: useJobOfferTransitionMock,
   useDeleteJobOffer: useDeleteJobOfferMock,
+  useDuplicateJobOffer: useDuplicateJobOfferMock,
+  useContractTypes: useContractTypesMock,
+  useWorkModes: useWorkModesMock,
 }));
 
 const companies: Company[] = [
@@ -26,15 +32,15 @@ function draftOffer(overrides: Partial<JobOffer> = {}): JobOffer {
     title: "Backend Engineer",
     publicId: "abcdefghijkl",
     slug: "backend-engineer",
-    description: null,
+    description: "<p>Build APIs.</p>",
     status: "draft",
     seniority: null,
     requiredExpYear: null,
     city: null,
-    country: null,
-    contractTypeId: null,
-    employmentTypeId: null,
-    workModeId: null,
+    country: "FR",
+    contractTypeId: "ct1",
+    employmentTypeId: "et1",
+    workModeId: "wm1",
     salaryMin: null,
     salaryMax: null,
     salaryCurrency: null,
@@ -43,7 +49,15 @@ function draftOffer(overrides: Partial<JobOffer> = {}): JobOffer {
     publishedAt: null,
     expiresAt: null,
     hasUnvalidatedChanges: false,
-    skills: [],
+    skills: [
+      {
+        skillId: "s1",
+        name: "Java",
+        requirementType: "mandatory",
+        weight: 3,
+        yearsExperience: null,
+      },
+    ],
     languages: [],
     degreeIds: [],
     studyFieldIds: [],
@@ -74,6 +88,22 @@ describe("JobOffersSection", () => {
     });
     useJobOfferTransitionMock.mockReturnValue(mutation());
     useDeleteJobOfferMock.mockReturnValue(mutation());
+    useDuplicateJobOfferMock.mockReturnValue(mutation());
+    useContractTypesMock.mockReturnValue({
+      data: [{ id: "ct1", label: "Permanent" }],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    useWorkModesMock.mockReturnValue({
+      data: [
+        { id: "wm1", label: "Hybrid" },
+        { id: "wm2", label: "Remote" },
+      ],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
   });
 
   it("shows the loading state", () => {
@@ -112,7 +142,7 @@ describe("JobOffersSection", () => {
     expect(screen.getByText(/No offers yet/)).toBeInTheDocument();
   });
 
-  it("renders offers with company name and status label", () => {
+  it("renders offers with company name, contract label and status label", () => {
     useJobOffersMock.mockReturnValue({
       data: [
         draftOffer(),
@@ -129,9 +159,35 @@ describe("JobOffersSection", () => {
     expect(screen.getAllByText("Acme Inc.")).toHaveLength(2);
     expect(screen.getByText("Draft")).toBeInTheDocument();
     expect(screen.getByText("Published")).toBeInTheDocument();
+    expect(screen.getAllByText("Permanent")).toHaveLength(2);
+    expect(screen.getAllByText("Hybrid · FR")).toHaveLength(2);
+    expect(screen.getAllByText(/^Created /)).toHaveLength(2);
   });
 
-  it("validates a draft offer through the transition mutation", () => {
+  it("merges the work mode with the location", () => {
+    useJobOffersMock.mockReturnValue({
+      data: [
+        draftOffer({ city: "Paris", country: "FR" }),
+        draftOffer({
+          id: "o2",
+          title: "Data Engineer",
+          workModeId: "wm2",
+          city: "Lyon",
+          country: "FR",
+        }),
+      ],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+
+    expect(screen.getByText("Hybrid · Paris, FR")).toBeInTheDocument();
+    expect(screen.getByText("Remote · Lyon, FR")).toBeInTheDocument();
+  });
+
+  it("validates a draft offer only after confirmation", () => {
     const transition = mutation();
     useJobOfferTransitionMock.mockReturnValue(transition);
     useJobOffersMock.mockReturnValue({
@@ -144,7 +200,136 @@ describe("JobOffersSection", () => {
     render(<JobOffersSection companies={companies} />);
     fireEvent.click(screen.getByRole("button", { name: "Validate" }));
 
-    expect(transition.mutate).toHaveBeenCalledWith({ offerId: "o1", action: "validate" });
+    // Pas de mutation avant confirmation (clic accidentel protégé).
+    expect(transition.mutate).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: "Validate this offer?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(transition.mutate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Validate" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Validate" }),
+    );
+    expect(transition.mutate).toHaveBeenCalledWith(
+      { offerId: "o1", action: "validate" },
+      expect.anything(),
+    );
+  });
+
+  it("publishes a validated offer only after confirmation", () => {
+    const transition = mutation();
+    useJobOfferTransitionMock.mockReturnValue(transition);
+    useJobOffersMock.mockReturnValue({
+      data: [draftOffer({ status: "validated" })],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+    expect(transition.mutate).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "Publish this offer?" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Publish" }),
+    );
+    expect(transition.mutate).toHaveBeenCalledWith(
+      { offerId: "o1", action: "publish" },
+      expect.anything(),
+    );
+  });
+
+  it("disables Validate on an incomplete draft with an explanatory tooltip", () => {
+    const transition = mutation();
+    useJobOfferTransitionMock.mockReturnValue(transition);
+    useJobOffersMock.mockReturnValue({
+      data: [
+        draftOffer({
+          description: null,
+          country: null,
+          employmentTypeId: null,
+          skills: [],
+        }),
+      ],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+    const validate = screen.getByRole("button", { name: "Validate" });
+
+    expect(validate).toBeDisabled();
+    expect(validate).toHaveAttribute(
+      "title",
+      "Add a description, a country, an employment type and at least one skill before publishing.",
+    );
+    fireEvent.click(validate);
+    expect(transition.mutate).not.toHaveBeenCalled();
+  });
+
+  it("disables Publish on an incomplete validated offer", () => {
+    const transition = mutation();
+    useJobOfferTransitionMock.mockReturnValue(transition);
+    useJobOffersMock.mockReturnValue({
+      data: [draftOffer({ status: "validated", skills: [] })],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+    const publish = screen.getByRole("button", { name: "Publish" });
+
+    expect(publish).toBeDisabled();
+    fireEvent.click(publish);
+    expect(transition.mutate).not.toHaveBeenCalled();
+  });
+
+  it("does not keep the row busy after a transition has settled", () => {
+    // Régression : variables persiste après succès en TanStack Query v5 —
+    // busy doit suivre isPending, sinon Publish/Close tournent à l'infini.
+    useJobOfferTransitionMock.mockReturnValue(
+      mutation({
+        variables: { offerId: "o1", action: "validate" },
+        isPending: false,
+      }),
+    );
+    useJobOffersMock.mockReturnValue({
+      data: [draftOffer({ status: "validated" })],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+
+    expect(screen.getByRole("button", { name: "Publish" })).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: "Close" })).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: "Publish" })).not.toBeDisabled();
+  });
+
+  it("shows the row busy only while the transition is pending", () => {
+    useJobOfferTransitionMock.mockReturnValue(
+      mutation({
+        variables: { offerId: "o1", action: "validate" },
+        isPending: true,
+      }),
+    );
+    useJobOffersMock.mockReturnValue({
+      data: [draftOffer()],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+
+    expect(screen.getByRole("button", { name: "Validate" })).toHaveAttribute("aria-busy", "true");
   });
 
   it("only offers Close on a published offer", () => {
@@ -219,17 +404,36 @@ describe("JobOffersSection", () => {
       isError: false,
       refetch: vi.fn(),
     });
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
 
     render(<JobOffersSection companies={companies} />);
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
+    const dialog = screen.getByRole("dialog", { name: "Delete this draft offer?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(remove.mutate).not.toHaveBeenCalled();
 
-    confirmSpy.mockReturnValue(true);
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-    expect(remove.mutate).toHaveBeenCalledWith("o1");
-    confirmSpy.mockRestore();
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+    expect(remove.mutate).toHaveBeenCalledWith("o1", expect.anything());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("duplicates an offer immediately without confirmation", () => {
+    const duplicate = mutation();
+    useDuplicateJobOfferMock.mockReturnValue(duplicate);
+    useJobOffersMock.mockReturnValue({
+      data: [draftOffer({ status: "published" })],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
+
+    expect(duplicate.mutate).toHaveBeenCalledWith("o1");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("shows a mutation error without dropping the list", () => {
