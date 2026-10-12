@@ -116,7 +116,7 @@ export function ContactForm() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <TextField
             label="Company name"
-            placeholder="Acme Technologies"
+            placeholder="Nimbus Labs"
             autoComplete="organization"
             error={errors.company?.message}
             {...register("company")}

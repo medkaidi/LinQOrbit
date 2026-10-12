@@ -27,6 +27,7 @@ import com.linqorbit.auth.exception.AccountNotActiveException;
 import com.linqorbit.auth.exception.EmailAlreadyExistsException;
 import com.linqorbit.auth.exception.InvalidCredentialsException;
 import com.linqorbit.auth.exception.WrongCurrentPasswordException;
+import com.linqorbit.recruiter.repository.RecruiterRepository;
 import com.linqorbit.user.User;
 import com.linqorbit.user.UserRepository;
 import com.linqorbit.user.UserRole;
@@ -44,6 +45,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtEncoder jwtEncoder;
     private final UserRoleRepository userRoleRepository;
+    private final RecruiterRepository recruiterRepository;
 
     @Value("${app.auth.token-ttl-seconds:86400}")
     private final long tokenTtlSeconds;
@@ -105,7 +107,7 @@ public class AuthService {
             log.warn("Profile lookup failed : user not found, userId={}", userId);
             throw new InvalidCredentialsException();
         }
-        return userMapper.toUserResponse(user, roleCodes(userId));
+        return userMapper.toUserResponse(user, roleCodes(userId), recruiterRepository.existsById(userId));
     }
 
     @Transactional
@@ -123,7 +125,7 @@ public class AuthService {
         user.setCurrentCountry(request.currentCountry());
         user = userRepository.save(user);
         log.info("Profile updated : userId={}, email={}", user.getId(), user.getEmail());
-        return userMapper.toUserResponse(user, roleCodes(userId));
+        return userMapper.toUserResponse(user, roleCodes(userId), recruiterRepository.existsById(userId));
     }
 
     @Transactional
@@ -145,7 +147,8 @@ public class AuthService {
 
     private AuthResponse buildResponse(User user) {
         List<Short> roles = roleCodes(user.getId());
-        return new AuthResponse(issueToken(user, roles), userMapper.toUserResponse(user, roles));
+        boolean isRecruiter = recruiterRepository.existsById(user.getId());
+        return new AuthResponse(issueToken(user, roles), userMapper.toUserResponse(user, roles, isRecruiter));
     }
 
     /**

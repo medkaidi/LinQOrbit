@@ -129,7 +129,7 @@ export function ExperiencesSection({
                 />
                 <TextField
                   label="Company"
-                  placeholder="Acme Inc."
+                  placeholder="Nimbus Labs"
                   error={errors.items?.[index]?.companyName?.message}
                   {...register(`items.${index}.companyName`)}
                 />

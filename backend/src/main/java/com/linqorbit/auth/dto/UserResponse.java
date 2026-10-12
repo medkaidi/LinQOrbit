@@ -13,5 +13,6 @@ public record UserResponse(
         String homeCountry,
         String currentCity,
         String currentCountry,
-        List<Short> roles) {
+        List<Short> roles,
+        boolean isRecruiter) {
 }

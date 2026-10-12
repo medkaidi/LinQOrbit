@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { DashboardSidebar } from "@/components/layout/dashboard-sidebar";
 import { ROLE } from "@/lib/utils/roles";
 import { useAuthStore } from "@/stores/auth-store";
+import { useViewModeStore } from "@/stores/view-mode-store";
 import type { AuthUser } from "@/types/auth";
 
 const adminUser: AuthUser = {
@@ -28,10 +29,12 @@ describe("DashboardSidebar", () => {
   beforeEach(() => {
     pathnameMock.mockReturnValue("/dashboard");
     useAuthStore.getState().clearAuth();
+    useViewModeStore.setState({ mode: "candidate" });
   });
 
   afterEach(() => {
     useAuthStore.getState().clearAuth();
+    useViewModeStore.setState({ mode: "candidate" });
   });
 
   it("marks Overview as the active destination", () => {
@@ -128,5 +131,67 @@ describe("DashboardSidebar", () => {
       "aria-current",
       "page",
     );
+  });
+
+  describe("recruiter mode", () => {
+    beforeEach(() => {
+      useViewModeStore.setState({ mode: "recruiter" });
+    });
+
+    it("offers Overview, Offers and Settings as real links on the dashboard", () => {
+      render(<DashboardSidebar />);
+
+      const overview = screen.getByRole("link", { name: /overview/i });
+      expect(overview).toHaveAttribute("href", "/dashboard");
+      expect(overview).toHaveAttribute("aria-current", "page");
+
+      expect(screen.getByRole("link", { name: /offers/i })).toHaveAttribute("href", "/recruiter");
+      expect(screen.getByRole("link", { name: /settings/i })).toHaveAttribute(
+        "href",
+        "/recruiter/settings",
+      );
+    });
+
+    it("hides the candidate Profile entry and the future placeholder sections", () => {
+      render(<DashboardSidebar />);
+
+      expect(screen.queryByRole("link", { name: /^profile$/i })).not.toBeInTheDocument();
+      expect(screen.queryByText("Candidate Pool")).not.toBeInTheDocument();
+      expect(screen.queryByText("AI Agents Studio")).not.toBeInTheDocument();
+    });
+
+    it("marks Offers active on the recruiter workspace and Settings on its route", () => {
+      pathnameMock.mockReturnValue("/recruiter/offers/new");
+      const { rerender } = render(<DashboardSidebar />);
+
+      expect(screen.getByRole("link", { name: /offers/i })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      expect(screen.getByRole("link", { name: /settings/i })).not.toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+
+      pathnameMock.mockReturnValue("/recruiter/settings");
+      rerender(<DashboardSidebar />);
+
+      expect(screen.getByRole("link", { name: /settings/i })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      expect(screen.getByRole("link", { name: /offers/i })).not.toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+    });
+
+    it("keeps the Administration entry for admins", () => {
+      useAuthStore.getState().setAuth({ token: "jwt-token", user: adminUser });
+
+      render(<DashboardSidebar />);
+
+      expect(screen.getByRole("link", { name: /administration/i })).toBeInTheDocument();
+    });
   });
 });

@@ -1,7 +1,5 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
-
-export const VIEW_MODE_STORAGE_KEY = "linqorbit.viewMode";
+import { persist } from "zustand/middleware";
 
 export type ViewMode = "candidate" | "recruiter";
 
@@ -10,15 +8,19 @@ type ViewModeState = {
   setMode: (mode: ViewMode) => void;
 };
 
+/**
+ * Profil sélectionné (état UI pur, aucun rôle backend) : la route
+ * `/recruiter*` force le mode recruteur à l'entrée (deep link), mais le
+ * choix persiste ailleurs (les cartes du dashboard suivent le mode).
+ */
 export const useViewModeStore = create<ViewModeState>()(
   persist(
     (set) => ({
       mode: "candidate",
       setMode: (mode) => set({ mode }),
     }),
-    {
-      name: VIEW_MODE_STORAGE_KEY,
-      storage: createJSONStorage(() => localStorage),
-    },
+    { name: "linqorbit.viewMode" },
   ),
 );
+
+export const VIEW_MODE_STORAGE_KEY = "linqorbit.viewMode";

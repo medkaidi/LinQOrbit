@@ -71,9 +71,9 @@ Un seul moteur, trois usages — pas d'algorithme différent par écran.
 | **Normalisation profil** | §2.3, §10 | `candidate/` (worker, service, client) | bandeau | ✅ **Implémenté** (détail §4) |
 | Import de CV | §10 (extraction IA) | `candidate/` (CvParseService) | `features/candidate/cv-*` | ✅ Implémenté (aperçu, non persisté) |
 | Suggestions de compétences | — | `candidate/` + `admin/` | `features/admin` | ✅ Implémenté |
-| Profil recruteur & entreprise | §22, §6 modèle D4 | `recruiter/`, `company/` (vides) | `features/recruiter`, `features/company` (vides) | ❌ À venir |
-| Offres d'emploi | §3-4, §9 | `joboffer/` (vide) | `features/job-offer` (vide) | ❌ À venir |
-| **Normalisation offre** | §9 | (réutilise `candidate/`) | — | ❌ À venir (D4) |
+| Profil recruteur & entreprise | §22, §6 modèle D4 | `recruiter/`, `company/` | `features/recruiter`, `lib/api/{recruiter,company}.api.ts` | ✅ **Implémenté** (D10–D11 : backend + FE onboarding D16 + chrome D18) |
+| Offres d'emploi | §3-4, §9 | `joboffer/` | `features/job-offer` | ✅ **Implémenté** (D12–D14 : CRUD + cycle de vie backend, FE offres/éditeur) |
+| **Normalisation offre** | §9 | `joboffer/` (worker dédié à `source_type`) | — | 🏗 En cours (D15) |
 | Critères (obligatoires/souhaitables) | §5-6 | `joboffer/` ou `matching/` | — | ❌ À venir |
 | **Moteur de matching** | §3, §18-19 | `matching/` (vide) | `features/matching` (vide) | ❌ À venir |
 | Analyse IA de l'offre | §8 | `joboffer/` + ai-service | — | ❌ À venir |
@@ -91,7 +91,7 @@ Un seul moteur, trois usages — pas d'algorithme différent par écran.
 
 - **Deux couches de rôles** : les rôles (`user_roles`, capacité `ADMIN(1)`) disent ce qu'un compte **peut faire** ; l'identité (candidat / recruteur) vit dans `candidates` / `recruiters` (cumul natif : un utilisateur peut être les deux). Jamais de `USER.type`, jamais de PERMISSIONS.
 - Auth stateless JWT ; profil candidat lié par PK partagée `candidates.id ≡ users.id`.
-- **`recruiters`** : table créée (V1) **vide, sans entité JPA** — viendra avec le profil recruteur (§6).
+- **`recruiters`** : table créée (V1) **vide, sans entité JPA** — profil recruteur livré en Phase 1 (D10 : `headline`, `bio`, ligne créée par `POST /recruiters/me`, `isRecruiter` exposé par `GET /auth/me`). Toujours **aucun rôle `RECRUITER` dans `user_roles`** (cohérent avec le candidat).
 
 ### 3.2 Identité candidat (§10.1 du CDC)
 
@@ -207,27 +207,27 @@ Stocké en `normalized_profile.content` (JSONB). **Aucun endpoint ne l'expose** 
 
 ## 6. Offres d'emploi et entreprise
 
-### 6.1 Modèle relationnel cible (D4 — décidé, non implémenté)
+### 6.1 Modèle relationnel cible (D4 + D10–D15 — décidé, en implémentation)
 
 ```
-users ──▶ recruiters (table existante, vide)
+users ──▶ recruiters (V1, enrichie : headline, bio — D10)
              │
-             ├─ crée une company → owner (company_members ou is_owner)
+             ├─ crée une company → owner (company_members — D11)
              └─ affecté à une company (appartendance)
                           │
                           ▼
-              job_offer (recruiter_id → gestion, company_id → appartenance)
+               job_offer (recruiter_id → gestion, company_id → appartenance)
                           │            [relation tertiaire]
-              validation par le recruteur
+               validation par le recruteur (D13 : DRAFT → VALIDATED → PUBLISHED)
                           ▼
-              normalisation de l'offre → fiche offre
+               normalisation de l'offre → fiche offre
                           ▼
-              matching : fiche offre ↔ fiches candidats
+               matching : fiche offre ↔ fiches candidats
 ```
 
 - Une offre est **gérée par un recruteur** et **appartient à une company**.
-- La validation de l'offre par le recruteur **déclenche sa normalisation** — même machine à états que le profil candidat (shared PK `job_id ≡ normalized_profile_id`, réutilisation de `normalization_job`).
-- La table d'association `normalized_profile_candidate` (nom spécifique au candidat) devra être étendue ou doublée pour l'offre — à trancher à l'implémentation.
+- La validation de l'offre par le recruteur **déclenche sa normalisation** — même machine à états que le profil candidat (shared PK `job_id ≡ normalized_profile_id`, réutilisation de `normalization_job` + `source_type`, D15).
+- L'association de la fiche à sa source : **table dédiée `normalized_profile_job_offer`** (le profil est candidat XOR offre, D15) — `normalized_profile_candidate` reste inchangée.
 
 ### 6.2 Fiche offre normalisée (§3 + §9 du CDC)
 
@@ -484,6 +484,21 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 | **D8** | **Périmètre = extraction maximale** : le system prompt IA réécrit tous les textes (bio, descriptions expériences/projets) pour en tirer titre, rôle, séniorité, technologies, réalisations — différenciateur produit. | §4.3. |
 | **D9** | **Modèle de preuve v2** : `skills[]` index `{name, category, level, levelSource, yearsExperience, origin, evidence:[{source, index}]}` — niveau déclaré jamais recalculé, `yearsExperience` = somme des périodes non-chevauchantes des evidence, evidence = index 0-based (zéro identifiant), discipline déclarée/inférée/null. | §4.3. |
 
+### 14.3 Phase 1 — Entreprise, recruteur, offre (2026-10-11)
+
+| # | Décision | Portée |
+|---|---|---|
+| **D10** | **Identité recruteur = ligne `recruiters` enrichie** (`headline VARCHAR(100)`, `bio TEXT`), créée par `POST /api/v1/recruiters/me` (self-serve, action explicite — jamais sur GET). **Aucun rôle ajouté à `user_roles`** (cohérence : le candidat n'en a pas non plus ; `user_roles` reste capacité-only) ; `GET /auth/me` ajoute `isRecruiter`. Sécurité : `.authenticated()` + vérification service (404 sans ligne). Identité nominative (nom, photo, e-mail) reste sur `users`. **Photos/pièces jointes = table `attachments` à venir (scope projet, hors V11).** | §3.1, §6.1. |
+| **D11** | **Company** : `companies(id, name, description NULL)` + `company_members(company_id, recruiter_id, is_owner)` (PK composite, multi-appartenance). Création = tout recruteur (devient `is_owner`); `PUT /companies/{id}` réservé à l'owner. | §6.1. |
+| **D12** | **Permissions offre (rôle coarse uniquement)** : membre de la company = lecture + création (le créateur devient gestionnaire via `job_offers.recruiter_id`) ; **owner ou gestionnaire** = édition / validate / publish / close / delete. Aucune permission fine. | §6.1. |
+| **D13** | **Cycle de vie offre : `DRAFT → VALIDATED → PUBLISHED → CLOSED`, validate ≠ publish.** `POST …/validate` = acte explicite qui déclenche la normalisation (miroir « Validate profile », D4) ; `POST …/publish` (exige `VALIDATED`) = publication, `published_at` ; `POST …/close` (depuis `VALIDATED` ou `PUBLISHED`) ; publication **planifiable** = évolution future (colonne déjà présente). Édition autorisée en `DRAFT`/`VALIDATED` (dirty-flag `hasUnvalidatedChanges` = `updated_at` vs `max(validated_at)`, miroir candidat — re-validation → nouvelle version de fiche) ; `PUBLISHED`/`CLOSED` = lecture seule ; `DELETE` = `DRAFT` seul. | §6.1, §6.2. |
+| **D14** | **Vocabulaires d'offre = tables de référence** `contract_type` / `employment_type` (full-time / part-time) / `work_mode` (remote / hybrid / on-site), shape `(id, label UNIQUE)` miroir `degrees`, seed en migration dédiée, endpoints `/job-offers/reference/*`. Enums Java SMALLINT (pas de table) uniquement pour `status`, `seniority` (**junior/mid/senior/lead/principal = mêmes valeurs que le schema v2 IA**, symétrie matching), `requirement_type`, `salary_period`. `salary_type` (brut/net) **supprimé**. Localisation = `city VARCHAR(255)` + `country VARCHAR(2)` ISO, miroir `users` (pas de table geo). `published_at` conservée à côté de `validated_at` (les deux notions sont distinctes, D13). | §6.2, §15.3. |
+| **D15** | **Normalisation d'offre : même machine que le profil candidat** — `normalized_profile` + association `normalized_profile_job_offer` (profil = candidat **XOR** offre) + colonne `source_type` (`CANDIDATE`/`OFFER`) sur `normalization_job` : chaque worker ne réclame que son type (zéro course au claim, zéro refactor du worker candidat ; recovery / retries / executor réutilisés à l'identique). La `description` étant HTML sanitisé depuis D19, le worker **strip le HTML via jsoup** avant l'extraction IA (texte brut pour le LLM). | §6.1, §4. |
+| **D16** | **Onboarding recruteur** : la bascule « Candidate \| Recruiter » change de layout et affiche un overlay « Switching to recruiter workspace… » pendant `GET /recruiters/me` ; 404 (pas recruteur) → **création auto du profil** (`POST /me`, l'information/consentement étant porté par le modal de bascule D17 — aucun écran d'essai intermédiaire) → recruteur sans company → page de setup ; sinon → espace offres. Un 409 (profil créé entre-temps) est absorbé par une invalidation → refetch. | §6.1, frontend. |
+| **D17** | **Bascule de profil = modal de confirmation** : depuis le profil candidat, clic sur « Recruteur » ouvre un modal (message d'essai + bouton « Switch to recruiter », source unique partagée) **sans naviguer** ; confirmation → `/recruiter` (le workspace y crée le profil si 404), annulation/Échap → rester. Le retour Recruiter → Candidate navigue directement. Primitif unique `components/ui/dialog.tsx` (portal sur `document.body`, immunité aux ancêtres `backdrop-blur`/`transform`, Échap, verrou scroll, `dismissable`) réutilisé par la modale admin de revue — une seule implémentation de shell modal dans l'app. | §6.1, frontend. |
+| **D18** | **Mode profil = source de vérité UI du chrome** : `stores/view-mode-store.ts` (Zustand persisté, clé `linqorbit.viewMode`, défaut `candidate`, état UI pur sans rôle backend) lu par `useViewMode`, qui **force `recruiter` dès que la route est `/recruiter*`** (deep link sûr ; jamais l'inverse — le clic « Candidate » passe par le modal D17 puis la route suit). Chrome adaptatif en mode recruteur : **sidenav minimale** (Overview `/dashboard`, Offers `/recruiter`, Settings `/recruiter/settings` — sans Profile ni sections placeholders, Administration/télémétrie inchangées), **cartes dashboard `RECRUITER_STATS`** fictifs (mêmes titres de carte, même titre « Welcome back… »), **menu user enrichi** (headline du profil recruteur sous l'email via `useRecruiterProfile({ enabled: mode === "recruiter" })` + menuitem « Recruiter settings » → `/recruiter/settings`, visible uniquement en mode recruteur). La section « Recruiter profile » passe en **lecture par défaut** (miroir `CompaniesSection` : bouton `Edit` → formulaire RHF → `Save`/`Discard`). | frontend. |
+| **D19** | **Description d'offre = HTML riche sanitisé** : éditeur Tiptap (`components/ui/rich-text-editor.tsx` — Bold/Italic/Underline, H2/H3, listes, Lien http(s), `immediatelyRender: false`) branché via `Controller` sur `description` ; le HTML **sanitisé au vol** (DOMPurify, profile `html`) dans la couche API (`lib/utils/sanitize-html.ts` + `htmlOrNull` : vide/`<p></p>` → `null`) — la base ne stocke jamais de HTML cru. Limite métier 20 000 caractères (FE `optionalText(20000)` + BE `@Size(max = 20000)` sur `description TEXT`, migration V14). Le worker de normalisation (D15, à venir) **strip le HTML via jsoup** avant extraction IA. | §15.3, frontend. |
+
 ---
 
 ## 15. Modèle de données
@@ -506,9 +521,19 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 
 - Enums **sans `CHECK`** en BD ; pas de `ON DELETE` sur `normalized_profile_candidate`/`normalization_job` (suppression candidat = violation FK) ; double heartbeat `updated_at` (`touchUpdatedAt` + `@UpdateTimestamp`) ; `job_positions` morte ; `langchain-openai` mort ; `skills.category` = VARCHAR libre (pas de table FK).
 
-### 15.3 À concevoir (Phase 1)
+### 15.3 Phase 1 — concevoir / migrer (V11+)
 
-`companies`, `company_members` (ou `is_owner`), `job_offers` (`recruiter_id` + `company_id`), `offer_criteria` (mandatory/preferred, weight, required_level, min_experience, evidence_required, category), `offer_questions` (+ réponses candidat), `matching_results` (scores par critère, catégorie « info insuffisante »), `clarifications` (historique évaluation → clarification → rééval), embeddings (choix technique à trancher).
+**Décidé (D10–D15), à livrer en 4 migrations** :
+
+| Migration | Contenu |
+|---|---|
+| ✅ V11 | `recruiters` + `headline`, `bio` ; `companies` ; `company_members` |
+| ✅ V12 | `contract_type` / `employment_type` / `work_mode` + seeds |
+| ✅ V13 | `job_offer` (+ `company_id`, `recruiter_id`, `status`, `seniority`, `city`/`country`, `validated_at`/`published_at`, salary) ; `job_offer_skills` (requirement_type, weight, years_experience) ; `job_offer_languages` (level CEFR, is_required) ; `job_offer_degrees` ; `job_offer_study_fields` |
+| ✅ V14 | `job_offer.description` → `TEXT` (description riche Tiptap, D19 — limite métier 20 000 en `@Size`) |
+| V15 | `normalization_job` + `source_type` ; `normalized_profile_job_offer` |
+
+**Reste à concevoir (phases suivantes)** : `offer_questions` (+ réponses candidat), `matching_results` (scores par critère, catégorie « info insuffisante »), `clarifications` (historique évaluation → clarification → rééval), `attachments` (photos / pièces jointes), embeddings (choix technique à trancher).
 
 ---
 
@@ -516,8 +541,8 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 
 ### 16.1 Livré et testé
 
-- Comptes, auth, admin, rôles ; profil candidat **7 sections** + import CV + suggestions ; **normalisation du profil candidat complète** (push async, dirty-flag, versioning, retries, recovery, bandeau) ; service IA extraction + normalisation (**schema v2** : Projets, séniorité, catégories, modèle de preuve, certifications, location).
-- **197 tests backend / 76 ai-service / 292 frontend au vert.**
+- Comptes, auth, admin, rôles ; profil candidat **7 sections** + import CV + suggestions ; **normalisation du profil candidat complète** (push async, dirty-flag, versioning, retries, recovery, bandeau) ; service IA extraction + normalisation (**schema v2** : Projets, séniorité, catégories, modèle de preuve, certifications, location) ; **Phase 1 backend étapes 1a–1d** : identité recruteur (D10), companies + membership (D11), vocabulaires d'offre (D14), **offres d'emploi CRUD + cycle de vie** (D12–D13 : validate ≠ publish, permissions coarse, dirty-flag) ; **Phase 1 frontend étape 2** : espace recruteur (`/recruiter`) avec onboarding D16 (overlay « Switching… », création auto du profil sur 404, création company), réglages (`/recruiter/settings`), éditeur d'offres (`/recruiter/offers/new`, `/recruiter/offers/[offerId]/edit`, description **HTML riche Tiptap sanitisé**, D19), liste des offres avec actions par statut (validate/publish/close/delete), bascule Candidate ↔ Recruiter branchée sur la route avec **modal de confirmation avant bascule** (D17) et primitif `Dialog` portalisé partagé ; **chrome adaptatif au mode profil** (D18 : sidenav recruteur minimale, cartes dashboard `RECRUITER_STATS`, entrée « Recruiter settings » + headline dans le menu user, section « Recruiter profile » en lecture/édition).
+- **268 tests backend / 76 ai-service / 378 frontend au vert.**
 
 ### 16.2 Écarts (audit 2026-10)
 
@@ -538,6 +563,50 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 | — | Workflow save/validate, async, architecture IA §24, 11 décisions | **Conforme** | aucune | — |
 | — | Matching, critères, questions, clarification, transparence, vue recruteur, ATS, analyse offre | Reportés Phase 1+ | aucune action dans ce chantier | D1 |
 
+### 16.3 Checklist de suivi — Phase 1 (rubrique entreprise / recruteur / offre)
+
+> Règle de vie : une tâche terminée est **conservée et cochée** — rien ne se supprime ; seules les cases avancent. Mise à jour à chaque étape livrée.
+
+**Backend (étapes 1a–1d)** — ✅ livré, 268 tests
+
+- ✅ 1a — identité recruteur `recruiters` + headline/bio (D10, auto-création sur 404) — V11
+- ✅ 1b — `companies` + `company_members` owner (D11) — V11
+- ✅ 1c — vocabulaires d'offre `contract_type` / `employment_type` / `work_mode` (D14) — V12
+- ✅ 1d — offre CRUD + cycle de vie `DRAFT→VALIDATED→PUBLISHED→CLOSED`, validate ≠ publish, dirty-flag, permissions coarse (D12–D13) — V13
+- ✅ D19 backend — `job_offer.description` → `TEXT`, `@Size(max = 20000)` — V14
+
+**Frontend (étape 2 + passes UX)** — ✅ livré, 378 tests
+
+- ✅ Étape 2 — espace `/recruiter` (liste offres + actions par statut), `/recruiter/settings` (company + profil recruteur), éditeur d'offres `/recruiter/offers/new` + `/[offerId]/edit`
+- ✅ D16 — onboarding recruteur (overlay « Switching… », auto-création du profil sur 404, setup company si besoin)
+- ✅ D17 — modal de bascule Candidate↔Recruiter + primitif `Dialog` portalisé partagé
+- ✅ D18 — chrome adaptatif (sidenav recruteur minimale, cartes `RECRUITER_STATS`, user-menu headline + « Recruiter settings »)
+- ✅ Passes UX — page `/recruiter` = offres seules ; sidenav refactorisée (constantes partagées, `px-3`) ; formulaire offre (Add en bas de liste, `CtaButton tone="secondary"`, TagInput Degrees/Fields of study) ; user-menu nom+headline avec fallback email
+- ✅ D19 frontend — `RichTextEditor` Tiptap + `sanitizeHtml` (DOMPurify, couche API) + styles `.job-offer-description`
+- ✅ Padding éditeur — `px-4 py-3` miroir Textarea (texte non collé au bord, dernière ligne hors de la zone de courbure des coins)
+- ✅ Boutons de formulaire — Discard/Cancel à gauche, Save changes/CTA à droite (pattern unifié avec `section-card` et aperçu d'import CV)
+- ✅ Toolbar éditeur — Underline ajouté (Bold/Italic/Underline, H2/H3, listes, Lien)
+
+**Correctifs pré-commit (audit fin de phase)** — ✅ livrés
+
+- ✅ BE-1 — `hasUnvalidatedChanges` faux positif après publish/close (flag limité à DRAFT/VALIDATED)
+- ✅ BE-2 — `weight` manquant non rejeté : `@NotNull` sur `JobOfferSkillRequest` + `@Valid` en cascade sur les listes `skills`/`languages` (Create/Update)
+- ✅ BE-3 — doublons `skillId`/`languageId` dédupliqués côté serveur (`replaceChildren`, LinkedHashMap)
+- ✅ FE-1 — erreur « Pick a level » affichée deux fois (paragraph redondant retiré du formulaire)
+- ✅ FE-2 — `yearsExperience`/`requiredExpYear` bornés 0-60 côté schéma (61-99 acceptés avant)
+- ✅ FE-3 — unicité skills/langues dans le schéma (miroir `withUniqueReferences` du profil candidat)
+- ✅ FE-4 — `<button>` imbriqué dans `<a>` (Edit → lien habillé `outline-sm`, New offer → `NavPill`)
+- ✅ FE-5 — édition d'offre : fetch `companies` inutile + écran blanc silencieux supprimés
+- ✅ Docs — checklist §16.3
+
+**Reste à faire (rubrique)**
+
+- ⬜ Commit de la rubrique (travail uncommitted en attente de feu vert)
+- ⬜ Normalisation d'offre (V16, D15 : `source_type`, worker dédié, **strip HTML via jsoup** avant extraction IA)
+- ⬜ Analyse IA — 11 familles d'anomalies avant publication
+- ⬜ Matching — moteur critères pondérés + similarité sémantique
+- ⬜ Transparence & clarification — vue d'évaluation, clarification, réévaluation
+
 ---
 
 ## 17. Phasage
@@ -546,7 +615,8 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 |---|---|---|
 | **0 — Profil candidat** | Comptes, 7 sections (dont **Projects**), import CV, **normalisation profil v2** (push, dirty-flag, bandeau, modèle de preuve) | ✅ **Livré** |
 | **0+ — Extensions profil** | Contrat recherché + mobilité (D2) | Décision prête |
-| **1 — Entreprise / recruteur / offre** | Company (owner/membre), recruteur, CRUD offre, validation → **normalisation offre** (D4), analyse IA offre (§9) | À venir |
+| **1 — Entreprise / recruteur / offre** | Company (owner/membre), identité recruteur (D10), CRUD offre + cycle de vie (D13), validation → **normalisation offre** (D4/D15) | 🏗 **Backend 1a–1d + FE étape 2 livrés (D10–D14, D16–D19)** ; reste : normalisation offre (V15/D15), analyse IA, matching |
+| **1 — Analyse IA offre** | 11 familles d'anomalies avant publication (§6.3, §9) | À venir |
 | **1 — Matching** | Moteur unique : critères pondérés (§7), score par critère, similarité sémantique (embeddings), « info insuffisante » (§19) | À venir |
 | **1 — Transparence & clarification** | Vue d'évaluation, auto-évaluation (§11.2), clarification & réévaluation (§11.3, D1), historique, Q7 (D5) | À venir |
 | **1 — Questions & recruteur** | Questions présélection, agent IA (§10), vue recruteur (§12.1), ATS basique (§12.2) | À venir |

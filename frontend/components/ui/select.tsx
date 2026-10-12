@@ -17,6 +17,13 @@ export type SelectOption = {
   label: string;
 };
 
+/** Filtre partagé (Select + TagInput) : label contenant la saisie, insensible à la casse. */
+export function filterOptions(options: SelectOption[], query: string): SelectOption[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return options;
+  return options.filter((option) => option.label.toLowerCase().includes(needle));
+}
+
 export type SelectProps = {
   label: string;
   options: SelectOption[];
@@ -68,9 +75,8 @@ export function Select({
 
   /** Liste visible : filtrée en mode searchable, sinon la liste complète. */
   const visibleOptions = useMemo(() => {
-    if (!searchable || !query.trim()) return options;
-    const needle = query.trim().toLowerCase();
-    return options.filter((option) => option.label.toLowerCase().includes(needle));
+    if (!searchable) return options;
+    return filterOptions(options, query);
   }, [searchable, options, query]);
 
   const close = useCallback(() => {

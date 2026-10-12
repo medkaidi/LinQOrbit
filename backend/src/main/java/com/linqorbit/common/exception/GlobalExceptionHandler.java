@@ -27,6 +27,15 @@ import com.linqorbit.candidate.exception.AiServiceException;
 import com.linqorbit.candidate.exception.EmptyProfileException;
 import com.linqorbit.candidate.exception.InvalidProfileSectionException;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
+import com.linqorbit.company.exception.CompanyAccessDeniedException;
+import com.linqorbit.company.exception.CompanyNotFoundException;
+import com.linqorbit.joboffer.exception.InvalidJobOfferException;
+import com.linqorbit.joboffer.exception.InvalidJobOfferStatusException;
+import com.linqorbit.joboffer.exception.JobOfferAccessDeniedException;
+import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
+import com.linqorbit.joboffer.exception.JobOfferReferenceNotFoundException;
+import com.linqorbit.recruiter.exception.RecruiterAlreadyExistsException;
+import com.linqorbit.recruiter.exception.RecruiterNotFoundException;
 
 /**
  * Gestion centralisée minimale des erreurs REST (format ProblemDetail / RFC 7807).
@@ -111,6 +120,42 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(RecruiterNotFoundException.class)
+    public ProblemDetail handleRecruiterNotFound(RecruiterNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Recruiter profile not found");
+        problem.setDetail("This account does not have a recruiter profile yet.");
+        log.warn("Recruiter profile rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(RecruiterAlreadyExistsException.class)
+    public ProblemDetail handleRecruiterAlreadyExists(RecruiterAlreadyExistsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setTitle("Recruiter profile already exists");
+        problem.setDetail("This account already has a recruiter profile.");
+        log.warn("Recruiter profile creation rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(CompanyNotFoundException.class)
+    public ProblemDetail handleCompanyNotFound(CompanyNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Company not found");
+        problem.setDetail("No company matches this identifier for your account.");
+        log.warn("Company operation rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(CompanyAccessDeniedException.class)
+    public ProblemDetail handleCompanyAccessDenied(CompanyAccessDeniedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
+        problem.setTitle("Owner only");
+        problem.setDetail("Only the company owner can perform this action.");
+        log.warn("Company operation rejected : {}", ex.getMessage());
+        return problem;
+    }
+
     @ExceptionHandler(InvalidUserStatusException.class)
     public ProblemDetail handleInvalidUserStatus(InvalidUserStatusException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
@@ -162,6 +207,51 @@ public class GlobalExceptionHandler {
         problem.setTitle("Invalid skill type");
         problem.setDetail("Only 'tech' and 'soft' are supported.");
         log.warn("Admin suggestion review rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(JobOfferNotFoundException.class)
+    public ProblemDetail handleJobOfferNotFound(JobOfferNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Job offer not found");
+        problem.setDetail("No job offer matches this identifier for your account.");
+        log.warn("Job offer operation rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(JobOfferAccessDeniedException.class)
+    public ProblemDetail handleJobOfferAccessDenied(JobOfferAccessDeniedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
+        problem.setTitle("Cannot manage this job offer");
+        problem.setDetail("Only the company owner or the recruiter who created the offer can manage it.");
+        log.warn("Job offer operation rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidJobOfferStatusException.class)
+    public ProblemDetail handleInvalidJobOfferStatus(InvalidJobOfferStatusException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setTitle("Invalid job offer status");
+        problem.setDetail("This action is not allowed from the offer's current status.");
+        log.warn("Job offer status transition rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(JobOfferReferenceNotFoundException.class)
+    public ProblemDetail handleJobOfferReferenceNotFound(JobOfferReferenceNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Unknown reference");
+        problem.setDetail(ex.getMessage());
+        log.warn("Job offer update rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidJobOfferException.class)
+    public ProblemDetail handleInvalidJobOffer(InvalidJobOfferException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Invalid job offer");
+        problem.setDetail(ex.getMessage());
+        log.warn("Job offer operation rejected : {}", ex.getMessage());
         return problem;
     }
 

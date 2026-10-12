@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button, CtaButton } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Select } from "@/components/ui/select";
 import { RetryButton } from "@/features/admin/retry-button";
@@ -51,26 +52,6 @@ export function SuggestionReviewDialog({
     [reference.data],
   );
 
-  // Fermeture par Échap (un Select interne peut avoir traité la touche avant).
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented && !pending) {
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [pending, onClose]);
-
-  // Le contenu de la page ne défile pas derrière la fenêtre.
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, []);
-
   const error = approve.isError
     ? getApiErrorMessage(approve.error)
     : link.isError
@@ -100,82 +81,18 @@ export function SuggestionReviewDialog({
     .join(" ");
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={pending ? undefined : onClose}
-    >
-      <div className="absolute inset-0 bg-text-primary/40" aria-hidden="true" />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Review suggestion ${suggestion.name}`}
-        className="relative w-full max-w-xl bg-canvas-white rounded-2xl shadow-xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className="mx-6 pt-4 pb-4 border-b border-slate-border">
-          <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
-            Review skill suggestion
-          </h2>
-          <p className="mt-1 text-body-sm font-body-sm text-text-secondary truncate">
-            “{suggestion.name}” suggested by {author || "Unknown candidate"}
-          </p>
-        </header>
-
-        <div className="px-6 pt-5 pb-6 flex flex-col gap-4">
-          {error && (
-            <Alert variant="error" title="Unable to review the suggestion">
-              {error} <RetryButton onRetry={dismissError} label="Dismiss" />
-            </Alert>
-          )}
-
-          <SegmentedControl
-            label="Resolution"
-            value={mode}
-            options={[
-              { value: "new", label: "New skill" },
-              { value: "existing", label: "Existing skill" },
-            ]}
-            onChange={setMode}
-            className="self-center"
-          />
-
-          {mode === "new" ? (
-            <>
-              <Select
-                label="Category"
-                options={categoryOptions}
-                placeholder="Pick an existing category"
-                value={category}
-                onValueChange={setCategory}
-                disabled={reference.isLoading}
-              />
-              <div className="flex items-center justify-between gap-4">
-                <span className="font-label-md text-label-md text-text-secondary">Skill type</span>
-                <SegmentedControl
-                  label="Skill type"
-                  value={skillKind}
-                  options={[
-                    { value: "tech", label: "Technical" },
-                    { value: "soft", label: "Soft" },
-                  ]}
-                  onChange={setSkillKind}
-                />
-              </div>
-            </>
-          ) : (
-            <Select
-              label="Catalog skill"
-              searchable
-              options={skillOptions}
-              placeholder="Search an existing skill"
-              value={skillId}
-              onValueChange={setSkillId}
-              disabled={reference.isLoading}
-            />
-          )}
-        </div>
-
-        <footer className="mx-6 pt-4 pb-5 flex items-center justify-between gap-3 border-t border-slate-border">
+    <Dialog
+      title="Review skill suggestion"
+      description={
+        <>
+          &ldquo;{suggestion.name}&rdquo; suggested by {author || "Unknown candidate"}
+        </>
+      }
+      ariaLabel={`Review suggestion ${suggestion.name}`}
+      dismissable={!pending}
+      onClose={onClose}
+      footer={
+        <>
           <Button variant="outline-sm" type="button" disabled={pending} onClick={onClose}>
             Cancel
           </Button>
@@ -188,8 +105,60 @@ export function SuggestionReviewDialog({
           >
             {mode === "new" ? "Approve" : "Link to profile"}
           </CtaButton>
-        </footer>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {error && (
+        <Alert variant="error" title="Unable to review the suggestion">
+          {error} <RetryButton onRetry={dismissError} label="Dismiss" />
+        </Alert>
+      )}
+
+      <SegmentedControl
+        label="Resolution"
+        value={mode}
+        options={[
+          { value: "new", label: "New skill" },
+          { value: "existing", label: "Existing skill" },
+        ]}
+        onChange={setMode}
+        className="self-center"
+      />
+
+      {mode === "new" ? (
+        <>
+          <Select
+            label="Category"
+            options={categoryOptions}
+            placeholder="Pick an existing category"
+            value={category}
+            onValueChange={setCategory}
+            disabled={reference.isLoading}
+          />
+          <div className="flex items-center justify-between gap-4">
+            <span className="font-label-md text-label-md text-text-secondary">Skill type</span>
+            <SegmentedControl
+              label="Skill type"
+              value={skillKind}
+              options={[
+                { value: "tech", label: "Technical" },
+                { value: "soft", label: "Soft" },
+              ]}
+              onChange={setSkillKind}
+            />
+          </div>
+        </>
+      ) : (
+        <Select
+          label="Catalog skill"
+          searchable
+          options={skillOptions}
+          placeholder="Search an existing skill"
+          value={skillId}
+          onValueChange={setSkillId}
+          disabled={reference.isLoading}
+        />
+      )}
+    </Dialog>
   );
 }

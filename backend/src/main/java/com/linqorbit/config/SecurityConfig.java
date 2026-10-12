@@ -40,6 +40,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/me", "/api/v1/auth/change-password").authenticated()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/candidates/**").authenticated()
+                        .requestMatchers("/api/v1/recruiters/**").authenticated()
+                        .requestMatchers("/api/v1/companies/**").authenticated()
+                        .requestMatchers("/api/v1/job-offers/**").authenticated()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().permitAll())
                 // 401/403 au format ProblemDetail (détail sûr construit par l'application),

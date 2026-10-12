@@ -5,11 +5,15 @@ import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/icon";
 import { useAuth } from "@/hooks/use-auth";
+import { useRecruiterProfile } from "@/hooks/use-recruiter";
+import { useViewMode } from "@/hooks/use-view-mode";
 import { useAuthStore } from "@/stores/auth-store";
 
 export function UserMenu() {
   const { logout } = useAuth();
   const user = useAuthStore((state) => state.user);
+  const { mode } = useViewMode();
+  const recruiter = useRecruiterProfile({ enabled: mode === "recruiter" });
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -45,6 +49,8 @@ export function UserMenu() {
 
   const initials = `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase();
   const displayName = `${user.firstName} ${user.lastName.charAt(0)}.`;
+  const isRecruiterMode = mode === "recruiter";
+  const headline = recruiter.profile?.headline ?? null;
 
   return (
     <div ref={containerRef} className="relative">
@@ -59,9 +65,15 @@ export function UserMenu() {
       >
         <span className="hidden sm:flex flex-col text-right">
           <span className="text-xs text-text-primary font-bold leading-tight">{displayName}</span>
-          <span className="text-[11px] text-text-tertiary leading-tight font-medium truncate max-w-[10rem]">
-            {user.email}
-          </span>
+          {isRecruiterMode && headline ? (
+            <span className="text-[11px] text-orange-deep leading-tight font-medium truncate max-w-[10rem]">
+              {headline}
+            </span>
+          ) : (
+            <span className="text-[11px] text-text-tertiary leading-tight font-medium truncate max-w-[10rem]">
+              {user.email}
+            </span>
+          )}
         </span>
         <span className="w-8 h-8 rounded-full bg-primary-fixed text-on-primary-fixed border-2 border-slate-border flex items-center justify-center text-label-md font-bold shrink-0">
           {initials}
@@ -94,6 +106,17 @@ export function UserMenu() {
             <Icon name="person" className="text-[18px] text-text-secondary" />
             My Account
           </Link>
+          {isRecruiterMode ? (
+            <Link
+              href="/recruiter/settings"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-3 py-2 rounded-xl text-body-md font-body-md text-text-primary hover:bg-canvas-subtle transition-colors"
+            >
+              <Icon name="badge" className="text-[18px] text-text-secondary" />
+              Recruiter settings
+            </Link>
+          ) : null}
           <Link
             href="/change-password"
             role="menuitem"

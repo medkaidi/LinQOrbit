@@ -3,9 +3,10 @@
 import { Icon } from "@/components/ui/icon";
 import { NewCampaignButton } from "@/components/ui/new-campaign-button";
 import { useMounted } from "@/hooks/use-mounted";
+import { useViewMode } from "@/hooks/use-view-mode";
 import { useAuthStore } from "@/stores/auth-store";
 
-const STATS = [
+const CANDIDATE_STATS = [
   {
     section: "Pipeline",
     period: "This month",
@@ -43,6 +44,50 @@ const STATS = [
     caption: "average cycle",
     bandTitle: "Reduced time-to-hire",
     bandTrend: "38d sector average, 52% faster",
+    bandIcon: "bolt",
+    bandClass: "bg-emerald-deep",
+  },
+] as const;
+
+/** Métriques recruteur (données fictives, en attendant les vraies). */
+const RECRUITER_STATS = [
+  {
+    section: "Offers",
+    period: "This month",
+    value: "6",
+    caption: "published",
+    bandTitle: "Live job offers",
+    bandTrend: "2 drafts waiting for validation",
+    bandIcon: "description",
+    bandClass: "bg-orange-deep",
+  },
+  {
+    section: "Applicants",
+    period: "Real-time",
+    value: "248",
+    caption: "applications",
+    bandTitle: "Received this month",
+    bandTrend: "+18% vs last month",
+    bandIcon: "group",
+    bandClass: "bg-text-primary",
+  },
+  {
+    section: "Match quality",
+    period: "Continuous",
+    value: "86%",
+    caption: "average match",
+    bandTitle: "AI-ranked shortlists",
+    bandTrend: "Verified",
+    bandIcon: "verified",
+    bandClass: "bg-blue-deep",
+  },
+  {
+    section: "Velocity",
+    period: "Last 30 days",
+    value: "16d",
+    caption: "time-to-hire",
+    bandTitle: "Fastest hire cycle",
+    bandTrend: "38d sector average, 58% faster",
     bandIcon: "bolt",
     bandClass: "bg-emerald-deep",
   },
@@ -127,6 +172,8 @@ function ownerInitials(owner: string) {
 export function DashboardOverview() {
   const user = useAuthStore((state) => state.user);
   const mounted = useMounted();
+  const { mode } = useViewMode();
+  const stats = mode === "recruiter" ? RECRUITER_STATS : CANDIDATE_STATS;
   const today = mounted
     ? new Date().toLocaleDateString("en-US", {
         weekday: "long",
@@ -158,7 +205,7 @@ export function DashboardOverview() {
 
       {/* Stat cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4" aria-label="Key metrics">
-        {STATS.map((stat) => (
+        {stats.map((stat) => (
           <div
             key={stat.bandTitle}
             className="bg-canvas-white border border-slate-border rounded-2xl overflow-hidden flex flex-col justify-between hover:border-slate-border-strong transition-[border-color] duration-150 ease-out"

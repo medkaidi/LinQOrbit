@@ -15,7 +15,8 @@ public interface UserMapper {
 
     @Mapping(target = "sex", qualifiedByName = "sexToApi")
     @Mapping(target = "roles", source = "roles")
-    UserResponse toUserResponse(User user, List<Short> roles);
+    @Mapping(target = "isRecruiter", source = "isRecruiter")
+    UserResponse toUserResponse(User user, List<Short> roles, boolean isRecruiter);
 
     @Named("sexToApi")
     default String sexToApi(UserSex sex) {

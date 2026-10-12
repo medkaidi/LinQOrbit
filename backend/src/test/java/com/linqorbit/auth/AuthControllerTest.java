@@ -64,7 +64,7 @@ class AuthControllerTest {
     @Test
     void signupRenvoie201AvecLeTokenEtLUtilisateur() throws Exception {
         UserResponse user = new UserResponse(UUID.randomUUID(), "ada@example.com", "Ada", "Lovelace",
-                "female", "+1 555 000 0000", "FR", "Paris", "FR", List.of());
+                "female", "+1 555 000 0000", "FR", "Paris", "FR", List.of(), false);
         when(authService.signup(any())).thenReturn(new AuthResponse("jwt-token", user));
 
         mockMvc.perform(post("/api/v1/auth/signup")
@@ -102,7 +102,7 @@ class AuthControllerTest {
     @Test
     void loginRenvoie200AvecLeToken() throws Exception {
         UserResponse user = new UserResponse(UUID.randomUUID(), "ada@example.com", "Ada", "Lovelace",
-                "female", "+1 555 000 0000", "FR", "Paris", "FR", List.of());
+                "female", "+1 555 000 0000", "FR", "Paris", "FR", List.of(), false);
         when(authService.login(any())).thenReturn(new AuthResponse("jwt-token", user));
 
         mockMvc.perform(post("/api/v1/auth/login")
@@ -139,7 +139,7 @@ class AuthControllerTest {
     void lesEndpointsAuthSontAccessiblesSansAuthentification() throws Exception {
         when(authService.login(any())).thenReturn(
                 new AuthResponse("jwt-token", new UserResponse(UUID.randomUUID(), "ada@example.com",
-                        "Ada", "Lovelace", "female", null, "FR", "Paris", "FR", List.of())));
+                        "Ada", "Lovelace", "female", null, "FR", "Paris", "FR", List.of(), false)));
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -152,7 +152,7 @@ class AuthControllerTest {
         UUID userId = UUID.randomUUID();
         when(authService.getProfile(userId)).thenReturn(
                 new UserResponse(userId, "ada@example.com", "Ada", "Lovelace",
-                        "female", "+1 555 000 0000", "FR", "Paris", "FR", List.of()));
+                        "female", "+1 555 000 0000", "FR", "Paris", "FR", List.of(), false));
 
         mockMvc.perform(get("/api/v1/auth/me")
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
@@ -160,7 +160,8 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.id").value(userId.toString()))
                 .andExpect(jsonPath("$.email").value("ada@example.com"))
                 .andExpect(jsonPath("$.firstName").value("Ada"))
-                .andExpect(jsonPath("$.currentCity").value("Paris"));
+                .andExpect(jsonPath("$.currentCity").value("Paris"))
+                .andExpect(jsonPath("$.isRecruiter").value(false));
     }
 
     @Test
@@ -174,7 +175,7 @@ class AuthControllerTest {
         UUID userId = UUID.randomUUID();
         when(authService.updateProfile(eq(userId), any())).thenReturn(
                 new UserResponse(userId, "ada@example.com", "Augusta Ada", "King",
-                        "female", "+33 6 11 22 33 44", "FR", "Lyon", "FR", List.of()));
+                        "female", "+33 6 11 22 33 44", "FR", "Lyon", "FR", List.of(), false));
 
         mockMvc.perform(put("/api/v1/auth/me")
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))

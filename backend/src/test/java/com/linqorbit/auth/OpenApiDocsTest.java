@@ -85,6 +85,66 @@ class OpenApiDocsTest {
     }
 
     @Test
+    void exposeLeDocumentOpenApiAvecLesEndpointsRecruteur() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/recruiters/me'].post.summary")
+                        .value("Activer le profil recruteur"))
+                .andExpect(jsonPath("$.paths['/api/v1/recruiters/me'].get.summary")
+                        .value("Lire le profil recruteur"))
+                .andExpect(jsonPath("$.paths['/api/v1/recruiters/me'].put.summary")
+                        .value("Mettre à jour le profil recruteur"));
+    }
+
+    @Test
+    void exposeLeDocumentOpenApiAvecLesEndpointsCompany() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/companies'].post.summary")
+                        .value("Créer une company"))
+                .andExpect(jsonPath("$.paths['/api/v1/companies'].get.summary")
+                        .value("Lister mes companies"))
+                .andExpect(jsonPath("$.paths['/api/v1/companies/{companyId}'].get.summary")
+                        .value("Lire une company"))
+                .andExpect(jsonPath("$.paths['/api/v1/companies/{companyId}'].put.summary")
+                        .value("Mettre à jour une company"));
+    }
+
+    @Test
+    void exposeLeDocumentOpenApiAvecLesReferencesDOffre() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/reference/contract-types'].get.summary")
+                        .value("Lister les types de contrat"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/reference/employment-types'].get.summary")
+                        .value("Lister les types d'emploi"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/reference/work-modes'].get.summary")
+                        .value("Lister les modes de travail"));
+    }
+
+    @Test
+    void exposeLeDocumentOpenApiAvecLesEndpointsOffre() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers'].post.summary")
+                        .value("Créer une offre"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers'].get.summary")
+                        .value("Lister mes offres"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}'].get.summary")
+                        .value("Lire une offre"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}'].put.summary")
+                        .value("Modifier une offre"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}'].delete.summary")
+                        .value("Supprimer une offre"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/validate'].post.summary")
+                        .value("Valider une offre"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/publish'].post.summary")
+                        .value("Publier une offre"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/close'].post.summary")
+                        .value("Clôturer une offre"));
+    }
+
+    @Test
     void exposeSwaggerUi() throws Exception {
         MvcResult result = mockMvc.perform(get("/swagger-ui.html")).andReturn();
         assertThat(result.getResponse().getStatus()).isBetween(200, 399);

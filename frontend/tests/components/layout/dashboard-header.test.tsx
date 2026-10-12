@@ -7,6 +7,7 @@ import type { AuthUser } from "@/types/auth";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/dashboard",
 }));
 
 const user: AuthUser = {

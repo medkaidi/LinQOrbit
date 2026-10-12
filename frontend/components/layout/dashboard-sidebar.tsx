@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/brand/logo";
 import { Wordmark } from "@/components/brand/wordmark";
 import { Icon } from "@/components/ui/icon";
+import { useViewMode } from "@/hooks/use-view-mode";
 import { isAdmin } from "@/lib/utils/roles";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -24,34 +25,29 @@ type SidebarLinkProps = {
   active: boolean;
 };
 
+const SIDEBAR_ITEM_CLASS =
+  "flex items-center gap-2.5 px-3 py-2 rounded-full border group transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep";
+const SIDEBAR_ITEM_ACTIVE_CLASS = `${SIDEBAR_ITEM_CLASS} bg-orange-subtle border-orange-border text-orange-deep`;
+const SIDEBAR_ITEM_IDLE_CLASS = `${SIDEBAR_ITEM_CLASS} border-transparent text-text-secondary hover:text-text-primary hover:bg-slate-surface`;
+const SIDEBAR_ITEM_BUTTON_CLASS = `${SIDEBAR_ITEM_IDLE_CLASS} cursor-pointer text-left`;
+const SIDEBAR_ICON_ACTIVE_CLASS =
+  "w-7 h-7 rounded-full bg-primary-container text-canvas-white flex items-center justify-center shrink-0";
+const SIDEBAR_ICON_IDLE_CLASS =
+  "w-7 h-7 rounded-full bg-slate-surface text-slate-muted flex items-center justify-center group-hover:bg-canvas-white group-hover:text-text-primary transition-colors shrink-0";
+const SIDEBAR_LABEL_CLASS = "text-xs font-semibold tracking-tight";
+
 function SidebarLink({ href, icon, label, active }: SidebarLinkProps) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={
-        active
-          ? "flex items-center gap-2.5 px-4 py-2 rounded-full bg-orange-subtle border border-orange-border text-orange-deep transition-colors group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-          : "flex items-center gap-2.5 px-4 py-2 rounded-full border border-transparent text-text-secondary hover:text-text-primary hover:bg-slate-surface transition-colors group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-      }
+      className={active ? SIDEBAR_ITEM_ACTIVE_CLASS : SIDEBAR_ITEM_IDLE_CLASS}
     >
       <span className="flex items-center gap-2.5">
-        <span
-          className={
-            active
-              ? "w-7 h-7 rounded-full bg-primary-container text-canvas-white flex items-center justify-center shrink-0"
-              : "w-7 h-7 rounded-full bg-slate-surface text-slate-muted flex items-center justify-center group-hover:bg-canvas-white group-hover:text-text-primary transition-colors shrink-0"
-          }
-        >
+        <span className={active ? SIDEBAR_ICON_ACTIVE_CLASS : SIDEBAR_ICON_IDLE_CLASS}>
           <Icon name={icon} className="text-[16px]!" />
         </span>
-        <span
-          className={
-            active
-              ? "text-xs font-semibold tracking-tight text-orange-deep"
-              : "text-xs font-semibold tracking-tight"
-          }
-        >
+        <span className={active ? `${SIDEBAR_LABEL_CLASS} text-orange-deep` : SIDEBAR_LABEL_CLASS}>
           {label}
         </span>
       </span>
@@ -62,6 +58,9 @@ function SidebarLink({ href, icon, label, active }: SidebarLinkProps) {
 export function DashboardSidebar() {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
+  const { mode } = useViewMode();
+
+  const isRecruiterMode = mode === "recruiter";
 
   return (
     <aside className="hidden lg:flex fixed left-0 top-0 h-full w-64 bg-canvas-white border-r border-slate-border z-50 flex-col justify-between pb-5">
@@ -83,46 +82,65 @@ export function DashboardSidebar() {
             label="Overview"
             active={pathname === "/dashboard"}
           />
-          <SidebarLink
-            href="/profile"
-            icon="person"
-            label="Profile"
-            active={pathname.startsWith("/profile")}
-          />
-
-          {NAV_ITEMS.map((item) => {
-            const hasBadge = "badge" in item && Boolean(item.badge);
-            return (
-              <button
-                key={item.label}
-                type="button"
-                className={`flex items-center gap-2.5 px-4 py-2 rounded-full text-text-secondary hover:text-text-primary hover:bg-slate-surface transition-colors cursor-pointer group text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep ${
-                  hasBadge ? "justify-between" : ""
-                }`}
-              >
-                {hasBadge ? (
-                  <>
-                    <span className="flex items-center gap-2.5">
-                      <span className="w-7 h-7 rounded-full bg-slate-surface text-slate-muted flex items-center justify-center group-hover:bg-canvas-white group-hover:text-text-primary transition-colors shrink-0">
-                        <Icon name={item.icon} className="text-[16px]!" />
-                      </span>
-                      <span className="text-xs font-semibold tracking-tight">{item.label}</span>
-                    </span>
-                    <span className="px-2 py-0.5 text-[9px] font-bold font-mono rounded-full bg-orange-subtle text-orange-deep border border-orange-border">
-                      {item.badge}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="w-7 h-7 rounded-full bg-slate-surface text-slate-muted flex items-center justify-center group-hover:bg-canvas-white group-hover:text-text-primary transition-colors shrink-0">
-                      <Icon name={item.icon} className="text-[16px]!" />
-                    </span>
-                    <span className="text-xs font-semibold tracking-tight">{item.label}</span>
-                  </>
-                )}
-              </button>
-            );
-          })}
+          {isRecruiterMode ? (
+            <>
+              <SidebarLink
+                href="/recruiter"
+                icon="description"
+                label="Offers"
+                active={
+                  pathname.startsWith("/recruiter") &&
+                  !pathname.startsWith("/recruiter/settings")
+                }
+              />
+              <SidebarLink
+                href="/recruiter/settings"
+                icon="tune"
+                label="Settings"
+                active={pathname.startsWith("/recruiter/settings")}
+              />
+            </>
+          ) : (
+            <>
+              <SidebarLink
+                href="/profile"
+                icon="person"
+                label="Profile"
+                active={pathname.startsWith("/profile")}
+              />
+              {NAV_ITEMS.map((item) => {
+                const hasBadge = "badge" in item && Boolean(item.badge);
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    className={`${SIDEBAR_ITEM_BUTTON_CLASS}${hasBadge ? " justify-between" : ""}`}
+                  >
+                    {hasBadge ? (
+                      <>
+                        <span className="flex items-center gap-2.5">
+                          <span className={SIDEBAR_ICON_IDLE_CLASS}>
+                            <Icon name={item.icon} className="text-[16px]!" />
+                          </span>
+                          <span className={SIDEBAR_LABEL_CLASS}>{item.label}</span>
+                        </span>
+                        <span className="px-2 py-0.5 text-[9px] font-bold font-mono rounded-full bg-orange-subtle text-orange-deep border border-orange-border">
+                          {item.badge}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className={SIDEBAR_ICON_IDLE_CLASS}>
+                          <Icon name={item.icon} className="text-[16px]!" />
+                        </span>
+                        <span className={SIDEBAR_LABEL_CLASS}>{item.label}</span>
+                      </>
+                    )}
+                  </button>
+                );
+              })}
+            </>
+          )}
         </nav>
 
         {isAdmin(user) && (
