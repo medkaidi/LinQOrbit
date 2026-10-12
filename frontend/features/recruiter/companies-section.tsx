@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, CtaButton } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
-import { useCompanies, useCreateCompany, useUpdateCompany } from "@/hooks/use-recruiter";
+import { useCompanies, useCreateCompany, useUpdateCompany } from "@/hooks/use-companies";
 import { getCompanyErrorMessage } from "@/lib/api/company.api";
 import {
   companySchema,

@@ -19,14 +19,13 @@ import type {
   CreateJobOfferValues,
   UpdateJobOfferValues,
 } from "@/lib/validations/job-offer.schemas";
+import { queryKeys } from "@/hooks/query-keys";
 
-export const JOB_OFFERS_KEY = ["job-offers", "list"] as const;
-export const JOB_OFFER_KEY = ["job-offers", "detail"] as const;
 const OFFER_REFERENCES_STALE_TIME = 5 * 60_000;
 
 export function useJobOffers() {
   return useQuery({
-    queryKey: JOB_OFFERS_KEY,
+    queryKey: queryKeys.jobOffers.list,
     queryFn: listJobOffers,
     staleTime: 30_000,
   });
@@ -34,7 +33,7 @@ export function useJobOffers() {
 
 export function useJobOffer(offerId: string) {
   return useQuery({
-    queryKey: [...JOB_OFFER_KEY, offerId],
+    queryKey: queryKeys.jobOffers.detail(offerId),
     queryFn: () => getJobOffer(offerId),
     enabled: offerId !== "",
     staleTime: 30_000,
@@ -44,9 +43,9 @@ export function useJobOffer(offerId: string) {
 function useInvalidateOffers() {
   const queryClient = useQueryClient();
   return (offerId?: string) => {
-    void queryClient.invalidateQueries({ queryKey: JOB_OFFERS_KEY });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.jobOffers.list });
     if (offerId) {
-      void queryClient.invalidateQueries({ queryKey: [...JOB_OFFER_KEY, offerId] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.jobOffers.detail(offerId) });
     }
   };
 }
@@ -106,7 +105,7 @@ export function useJobOfferTransition() {
 
 export function useContractTypes() {
   return useQuery({
-    queryKey: ["job-offers", "reference", "contract-types"],
+    queryKey: queryKeys.jobOffers.contractTypes,
     queryFn: listContractTypes,
     staleTime: OFFER_REFERENCES_STALE_TIME,
   });
@@ -114,7 +113,7 @@ export function useContractTypes() {
 
 export function useEmploymentTypes() {
   return useQuery({
-    queryKey: ["job-offers", "reference", "employment-types"],
+    queryKey: queryKeys.jobOffers.employmentTypes,
     queryFn: listEmploymentTypes,
     staleTime: OFFER_REFERENCES_STALE_TIME,
   });
@@ -122,7 +121,7 @@ export function useEmploymentTypes() {
 
 export function useWorkModes() {
   return useQuery({
-    queryKey: ["job-offers", "reference", "work-modes"],
+    queryKey: queryKeys.jobOffers.workModes,
     queryFn: listWorkModes,
     staleTime: OFFER_REFERENCES_STALE_TIME,
   });

@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { JobOfferForm } from "@/features/job-offer/job-offer-form";
-import { useCompanies } from "@/hooks/use-recruiter";
+import { useCompanies } from "@/hooks/use-companies";
 
 /**
  * Création d'offre : s'appuie sur la première company du recruteur (le choix

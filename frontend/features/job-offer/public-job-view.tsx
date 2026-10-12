@@ -9,6 +9,7 @@ import {
   SENIORITY_LABELS,
 } from "@/features/job-offer/job-offer-shared";
 import { getPublicJob } from "@/lib/api/public-jobs.api";
+import { queryKeys } from "@/hooks/query-keys";
 import type { SeniorityValue } from "@/types/recruiter";
 import type { PublicJob } from "@/types/public-job";
 
@@ -39,15 +40,6 @@ function metaLine(job: PublicJob): string[] {
   ].filter((part): part is string => Boolean(part));
 }
 
-function useJob(publicId: string | null) {
-  return useQuery({
-    queryKey: ["public-jobs", publicId],
-    queryFn: () => getPublicJob(publicId as string),
-    enabled: publicId != null,
-    retry: false,
-  });
-}
-
 function NotFound() {
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-16 text-center">
@@ -61,18 +53,13 @@ function NotFound() {
   );
 }
 
-/**
- * Fiche publique d'une offre publiée (V15) : rendue sans authentification.
- * La description est le HTML déjà sanitisé stocké en base (D19) — styles
- * scopés `.job-offer-description`.
- */
-export function PublicJobView({ jobParam }: { jobParam: string }) {
-  const publicId = parsePublicId(jobParam);
-  const job = useJob(publicId);
+function PublicJobDetail({ publicId }: { publicId: string }) {
+  const job = useQuery({
+    queryKey: queryKeys.publicJobs.detail(publicId),
+    queryFn: () => getPublicJob(publicId),
+    retry: false,
+  });
 
-  if (publicId == null) {
-    return <NotFound />;
-  }
   if (job.isLoading) {
     return (
       <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-6 py-16 text-body-sm font-body-sm text-text-secondary">
@@ -172,4 +159,17 @@ export function PublicJobView({ jobParam }: { jobParam: string }) {
       ) : null}
     </article>
   );
+}
+
+/**
+ * Fiche publique d'une offre publiée (V15) : rendue sans authentification.
+ * La description est le HTML déjà sanitisé stocké en base (D19) — styles
+ * scopés `.job-offer-description`.
+ */
+export function PublicJobView({ jobParam }: { jobParam: string }) {
+  const publicId = parsePublicId(jobParam);
+  if (publicId == null) {
+    return <NotFound />;
+  }
+  return <PublicJobDetail publicId={publicId} />;
 }

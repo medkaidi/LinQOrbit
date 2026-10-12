@@ -10,7 +10,8 @@ import { CompaniesSection } from "@/features/recruiter/companies-section";
 import { CompanySetup } from "@/features/recruiter/company-setup";
 import { RecruiterProfileSection } from "@/features/recruiter/profile-section";
 import { JobOffersSection } from "@/features/job-offer/job-offers-section";
-import { useCompanies, useCreateRecruiter, useRecruiterProfile } from "@/hooks/use-recruiter";
+import { useCreateRecruiter, useRecruiterProfile } from "@/hooks/use-recruiter";
+import { useCompanies } from "@/hooks/use-companies";
 import { getRecruiterErrorMessage } from "@/lib/api/recruiter.api";
 
 function WorkspaceHeader({ title }: { title: string }) {

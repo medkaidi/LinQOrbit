@@ -13,11 +13,14 @@ const useDeleteJobOfferMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/use-recruiter", () => ({
   useRecruiterProfile: useRecruiterProfileMock,
-  useCompanies: useCompaniesMock,
   useCreateRecruiter: useCreateRecruiterMock,
+  useUpdateRecruiter: () => ({ mutate: vi.fn(), isError: false, isPending: false, error: null, reset: vi.fn() }),
+}));
+
+vi.mock("@/hooks/use-companies", () => ({
+  useCompanies: useCompaniesMock,
   useCreateCompany: () => ({ mutate: vi.fn(), isError: false, isPending: false, error: null }),
   useUpdateCompany: () => ({ mutate: vi.fn(), isError: false, isPending: false, error: null }),
-  useUpdateRecruiter: () => ({ mutate: vi.fn(), isError: false, isPending: false, error: null, reset: vi.fn() }),
 }));
 
 vi.mock("@/hooks/use-job-offers", () => ({

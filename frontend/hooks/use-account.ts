@@ -5,11 +5,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { me, updateProfile } from "@/lib/api/auth.api";
 import { updateAbout } from "@/lib/api/candidate.api";
 import type { AboutSectionValues } from "@/lib/validations/candidate.schemas";
-import { PROFILE_KEY } from "@/hooks/use-candidate-profile";
+import { queryKeys } from "@/hooks/query-keys";
 import { useAuthStore } from "@/stores/auth-store";
 import type { AuthUser } from "@/types/auth";
-
-const ACCOUNT_KEY = ["auth", "me"] as const;
 
 export type AccountState = {
   account: AuthUser | null;
@@ -25,7 +23,7 @@ export type AccountState = {
 export function useAccount(): AccountState {
   const storeUser = useAuthStore((state) => state.user);
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ACCOUNT_KEY,
+    queryKey: queryKeys.auth.me,
     queryFn: me,
     staleTime: 60_000,
   });
@@ -60,8 +58,8 @@ export function useSaveAboutSection() {
       });
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ACCOUNT_KEY });
-      void queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.candidate.profile });
     },
   });
 }

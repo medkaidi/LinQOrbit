@@ -7,7 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { CtaButton } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
-import { useCreateCompany } from "@/hooks/use-recruiter";
+import { useCreateCompany } from "@/hooks/use-companies";
 import { getCompanyErrorMessage } from "@/lib/api/company.api";
 import {
   companySchema,

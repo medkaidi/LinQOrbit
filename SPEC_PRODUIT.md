@@ -606,6 +606,13 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 - ✅ Backend — `GET /api/v1/jobs/{publicId}` en `permitAll` (`PublicJobResponse` sans recruiterId/statut/dirty-flag, labels résolus) ; 404 sûr sur inconnu/non publié/clôturé/expiré ; slug NFD sans diacritiques, régénéré à l'édition, `publicId` jamais modifié
 - ✅ Frontend — page publique `app/(public)/jobs/[job]` (segment unique `{publicId}-{slug}`, split sur le premier tiret, états loading/404, description HTML sanitisé rendue avec styles `.job-offer-description`)
 
+**Lot query keys + split hooks** — ✅ livré (sans changement de comportement)
+
+- ✅ `hooks/query-keys.ts` — registre unique `queryKeys.<domain>…` (clés statiques `as const`, clés paramétrées en fabrique, familles invalidables par clé racine) ; aucun littéral `queryKey: [...]` ni constante de clé exportée hors du registre
+- ✅ Migration des 5 hooks (`use-account`, `use-admin`, `use-candidate-profile`, `use-job-offers`, `use-recruiter`) + `public-job-view.tsx`
+- ✅ Split `hooks/use-companies.ts` (`useCompanies`/`useCreateCompany`/`useUpdateCompany` sortis du god-hook `use-recruiter.ts`) ; imports mis à jour (workspace, companies-section, company-setup, job-offer-new)
+- ✅ Règle ajoutée à `frontend/AGENTS.md` (registre + placement `hooks/`)
+
 **Reste à faire (rubrique)**
 
 - ⬜ Commit de la rubrique (travail uncommitted en attente de feu vert)

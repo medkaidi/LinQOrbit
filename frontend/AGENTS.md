@@ -53,7 +53,7 @@ Avant de créer un fichier, vérifier ce tableau — **en cas de doute, demander
 | `app/` | routing et layouts Next.js UNIQUEMENT (route groups, pages) |
 | `components/` | composants réellement partagés entre domaines (`ui/`, `layout/`, `navigation/`, `brand/`) |
 | `features/<domaine>/` | composants, pages, données et logique métier du domaine (formulaires, `countries.ts`, …) |
-| `hooks/` | **tous** les hooks personnalisés (`use-auth.ts`, …) — jamais dans `features/` |
+| `hooks/` | **tous** les hooks personnalisés (`use-auth.ts`, …) + le registre `query-keys.ts` — jamais dans `features/` |
 | `lib/api/` | instance axios + **tous** les modules API par domaine (`auth.api.ts`, `candidate.api.ts`, …) — les fonctions uniquement : leurs types d'entités viennent de `types/` |
 | `lib/validations/` | **tous** les schémas Zod (`*.schemas.ts`) |
 | `lib/utils/`, `stores/`, `config/` | utilitaires, Zustand, configuration |
@@ -70,6 +70,8 @@ Zod              validation / schémas
 ```
 
 Ne jamais mettre de données serveur dans Zustand « parce que Zustand est dispo ».
+
+- **Clés TanStack Query** : toujours via `hooks/query-keys.ts` (`queryKeys.<domain>.…`) — aucun littéral `queryKey: [...]` hors de ce registre, ni clé exportée depuis un hook ; invalider une famille = sa clé racine (ex. `queryKeys.candidate.reference` pour les 4 listes de référence, `queryKeys.jobOffers.list` + `queryKeys.jobOffers.detail(id)` après une mutation d'offre).
 
 ## Formulaires (React Hook Form + Zod)
 

@@ -28,13 +28,13 @@ import type {
   ProjectsValues,
   SkillsValues,
 } from "@/lib/validations/candidate.schemas";
+import { queryKeys } from "@/hooks/query-keys";
 
-export const PROFILE_KEY = ["candidate", "profile"] as const;
 const REFERENCE_STALE_TIME = 5 * 60_000;
 
 export function useCandidateProfile() {
   return useQuery({
-    queryKey: PROFILE_KEY,
+    queryKey: queryKeys.candidate.profile,
     queryFn: getProfile,
     staleTime: 30_000,
   });
@@ -42,7 +42,7 @@ export function useCandidateProfile() {
 
 function useInvalidateProfile() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
+  return () => queryClient.invalidateQueries({ queryKey: queryKeys.candidate.profile });
 }
 
 export function useUpdateAbout() {
@@ -126,7 +126,7 @@ export function useSuggestSkills() {
 
 export function useReferenceSkills() {
   return useQuery({
-    queryKey: ["candidate", "reference", "skills"],
+    queryKey: queryKeys.candidate.referenceSkills,
     queryFn: getReferenceSkills,
     staleTime: REFERENCE_STALE_TIME,
   });
@@ -134,7 +134,7 @@ export function useReferenceSkills() {
 
 export function useReferenceLanguages() {
   return useQuery({
-    queryKey: ["candidate", "reference", "languages"],
+    queryKey: queryKeys.candidate.referenceLanguages,
     queryFn: getReferenceLanguages,
     staleTime: REFERENCE_STALE_TIME,
   });
@@ -142,7 +142,7 @@ export function useReferenceLanguages() {
 
 export function useReferenceDegrees() {
   return useQuery({
-    queryKey: ["candidate", "reference", "degrees"],
+    queryKey: queryKeys.candidate.referenceDegrees,
     queryFn: getReferenceDegrees,
     staleTime: REFERENCE_STALE_TIME,
   });
@@ -150,7 +150,7 @@ export function useReferenceDegrees() {
 
 export function useReferenceStudyFields() {
   return useQuery({
-    queryKey: ["candidate", "reference", "study-fields"],
+    queryKey: queryKeys.candidate.referenceStudyFields,
     queryFn: getReferenceStudyFields,
     staleTime: REFERENCE_STALE_TIME,
   });

@@ -8,16 +8,9 @@ import {
   getRecruiter,
   updateRecruiter,
 } from "@/lib/api/recruiter.api";
-import {
-  createCompany,
-  listCompanies,
-  updateCompany,
-} from "@/lib/api/company.api";
-import type { CompanyValues, UpdateRecruiterValues } from "@/lib/validations/recruiter.schemas";
+import type { UpdateRecruiterValues } from "@/lib/validations/recruiter.schemas";
 import type { RecruiterProfile } from "@/types/recruiter";
-
-export const RECRUITER_KEY = ["recruiter", "profile"] as const;
-export const COMPANIES_KEY = ["recruiter", "companies"] as const;
+import { queryKeys } from "@/hooks/query-keys";
 
 export type RecruiterProfileState = {
   /** `null` = aucun profil recruteur (404) — déclenche l'onboarding D16. */
@@ -36,7 +29,7 @@ export type RecruiterProfileState = {
 export function useRecruiterProfile(options?: { enabled?: boolean }): RecruiterProfileState {
   const enabled = options?.enabled ?? true;
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: RECRUITER_KEY,
+    queryKey: queryKeys.recruiter.profile,
     queryFn: async () => {
       try {
         return await getRecruiter();
@@ -66,14 +59,14 @@ export function useCreateRecruiter() {
   return useMutation({
     mutationFn: () => createRecruiterApi(),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: RECRUITER_KEY });
-      void queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.recruiter.profile });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
     },
     // 409 : le profil existe déjà (créé entre-temps) — on refait le GET plutôt
     // que d'afficher une erreur bloquante.
     onError: (error) => {
       if (isAxiosError(error) && error.response?.status === 409) {
-        void queryClient.invalidateQueries({ queryKey: RECRUITER_KEY });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.recruiter.profile });
       }
     },
   });
@@ -84,36 +77,7 @@ export function useUpdateRecruiter() {
   return useMutation({
     mutationFn: (values: UpdateRecruiterValues) => updateRecruiter(values),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: RECRUITER_KEY });
-    },
-  });
-}
-
-export function useCompanies() {
-  return useQuery({
-    queryKey: COMPANIES_KEY,
-    queryFn: listCompanies,
-    staleTime: 30_000,
-  });
-}
-
-export function useCreateCompany() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (values: CompanyValues) => createCompany(values),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: COMPANIES_KEY });
-    },
-  });
-}
-
-export function useUpdateCompany() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ companyId, values }: { companyId: string; values: CompanyValues }) =>
-      updateCompany(companyId, values),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: COMPANIES_KEY });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.recruiter.profile });
     },
   });
 }

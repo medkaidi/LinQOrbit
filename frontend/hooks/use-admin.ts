@@ -11,17 +11,14 @@ import {
   updateUserStatus,
 } from "@/lib/api/admin.api";
 import type { AdminUser } from "@/types/admin";
-
-const USERS_KEY = ["admin", "users"] as const;
-const SUGGESTIONS_KEY = ["admin", "skill-suggestions"] as const;
-const REFERENCE_SKILLS_KEY = ["candidate", "reference", "skills"] as const;
+import { queryKeys } from "@/hooks/query-keys";
 
 export function useAdminUsers() {
-  return useQuery({ queryKey: USERS_KEY, queryFn: listUsers });
+  return useQuery({ queryKey: queryKeys.admin.users, queryFn: listUsers });
 }
 
 export function useSkillSuggestions() {
-  return useQuery({ queryKey: SUGGESTIONS_KEY, queryFn: listSkillSuggestions });
+  return useQuery({ queryKey: queryKeys.admin.skillSuggestions, queryFn: listSkillSuggestions });
 }
 
 /** Active / désactive un compte, puis rafraîchit la liste des comptes. */
@@ -30,14 +27,14 @@ export function useUpdateUserStatus() {
   return useMutation({
     mutationFn: ({ userId, status }: { userId: string; status: AdminUser["status"] }) =>
       updateUserStatus(userId, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: USERS_KEY }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.users }),
   });
 }
 
 /** Approbation / lien : la file change et le catalogue peut grandir. */
 function invalidateReview(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: SUGGESTIONS_KEY });
-  queryClient.invalidateQueries({ queryKey: REFERENCE_SKILLS_KEY });
+  queryClient.invalidateQueries({ queryKey: queryKeys.admin.skillSuggestions });
+  queryClient.invalidateQueries({ queryKey: queryKeys.candidate.referenceSkills });
 }
 
 export function useApproveSkillSuggestion() {
@@ -61,6 +58,6 @@ export function useRejectSkillSuggestion() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => rejectSkillSuggestion(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: SUGGESTIONS_KEY }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.skillSuggestions }),
   });
 }
