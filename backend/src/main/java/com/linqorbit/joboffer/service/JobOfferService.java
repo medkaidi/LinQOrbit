@@ -460,6 +460,8 @@ public class JobOfferService {
                         offer.getRecruiterId(),
                         offer.getStatus().getApiValue(),
                         offer.getTitle(),
+                        offer.getPublicId(),
+                        offer.getSlug(),
                         offer.getDescription(),
                         offer.getSeniority() == null ? null : offer.getSeniority().getApiValue(),
                         offer.getRequiredExpYear(),

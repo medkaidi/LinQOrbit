@@ -18,6 +18,8 @@ public record JobOfferResponse(
         UUID recruiterId,
         String status,
         String title,
+        String publicId,
+        String slug,
         String description,
         String seniority,
         Integer requiredExpYear,

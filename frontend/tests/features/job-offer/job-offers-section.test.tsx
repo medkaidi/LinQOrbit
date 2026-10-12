@@ -24,6 +24,8 @@ function draftOffer(overrides: Partial<JobOffer> = {}): JobOffer {
     companyId: "c1",
     recruiterId: "r1",
     title: "Backend Engineer",
+    publicId: "abcdefghijkl",
+    slug: "backend-engineer",
     description: null,
     status: "draft",
     seniority: null,
@@ -158,6 +160,54 @@ describe("JobOffersSection", () => {
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Validate" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("copies the absolute public URL of a published offer", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    useJobOffersMock.mockReturnValue({
+      data: [draftOffer({ status: "published" })],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining("/jobs/abcdefghijkl-backend-engineer"),
+    );
+    expect(await screen.findByRole("button", { name: "Link copied" })).toBeInTheDocument();
+  });
+
+  it("links the public page of a published offer in a new tab", () => {
+    useJobOffersMock.mockReturnValue({
+      data: [draftOffer({ status: "published" })],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+
+    const link = screen.getByRole("link", { name: /view public page/i });
+    expect(link).toHaveAttribute("href", "/jobs/abcdefghijkl-backend-engineer");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("shows no public link controls on a draft offer", () => {
+    useJobOffersMock.mockReturnValue({
+      data: [draftOffer()],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+
+    expect(screen.queryByRole("button", { name: "Copy link" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /view public page/i })).not.toBeInTheDocument();
   });
 
   it("deletes a draft only after confirmation", () => {

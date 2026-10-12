@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, CtaButton } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { NavPill } from "@/components/ui/nav-pill";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -31,6 +33,38 @@ const EDIT_LINK_CLASS =
 
 function statusBadgeTone(status: JobOfferStatusValue): "neutral" | "success" {
   return status === "published" ? "success" : "neutral";
+}
+
+/** URL publique (V15) : segment unique `{publicId}-{slug}`. */
+function publicJobPath(publicId: string, slug: string): string {
+  return `/jobs/${publicId}-${slug}`;
+}
+
+/** Copie l'URL publique absolue dans le presse-papiers, avec retour visuel « Copied » (2 s). */
+function CopyPublicLinkButton({ publicId, slug }: { publicId: string; slug: string }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) {
+      return;
+    }
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  return (
+    <Button
+      variant="outline-sm"
+      aria-label={copied ? "Link copied" : "Copy link"}
+      onClick={() => {
+        const url = new URL(publicJobPath(publicId, slug), window.location.origin).toString();
+        void navigator.clipboard.writeText(url).then(() => setCopied(true));
+      }}
+    >
+      <Icon name={copied ? "check" : "content_copy"} className="text-[14px]" />
+      {copied ? "Copied" : "Copy link"}
+    </Button>
+  );
 }
 
 function OfferActions({
@@ -73,9 +107,21 @@ function OfferActions({
         </>
       )}
       {offer.status === "published" && (
-        <CtaButton tone="neutral" icon="close" busy={busy} onClick={() => onTransition("close")}>
-          Close
-        </CtaButton>
+        <>
+          <CopyPublicLinkButton publicId={offer.publicId} slug={offer.slug} />
+          <Link
+            href={publicJobPath(offer.publicId, offer.slug)}
+            className={EDIT_LINK_CLASS}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Icon name="open_in_new" className="text-[14px]" />
+            View public page
+          </Link>
+          <CtaButton tone="neutral" icon="close" busy={busy} onClick={() => onTransition("close")}>
+            Close
+          </CtaButton>
+        </>
       )}
     </div>
   );

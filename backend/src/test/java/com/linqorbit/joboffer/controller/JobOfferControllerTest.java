@@ -224,7 +224,8 @@ class JobOfferControllerTest {
 
     private JobOfferResponse draftResponse() {
         return new JobOfferResponse(
-                OFFER_ID, UUID.randomUUID(), UUID.randomUUID(), "draft", "Backend Engineer", null,
+                OFFER_ID, UUID.randomUUID(), UUID.randomUUID(), "draft", "Backend Engineer",
+                "abcdefghijkl", "backend-engineer", null,
                 null, null, null, null, null, null, null, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
                 false, List.of(), List.of(), List.of(), List.of(), null, null);

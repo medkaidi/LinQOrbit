@@ -605,6 +605,7 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 - ✅ Migration V15 — `public_id VARCHAR(12) UNIQUE` immuable + `slug VARCHAR(120)` dérivé du titre ; aucun index additionnel (le UNIQUE couvre le lookup ; `(status, published_at)` viendra avec la liste publique)
 - ✅ Backend — `GET /api/v1/jobs/{publicId}` en `permitAll` (`PublicJobResponse` sans recruiterId/statut/dirty-flag, labels résolus) ; 404 sûr sur inconnu/non publié/clôturé/expiré ; slug NFD sans diacritiques, régénéré à l'édition, `publicId` jamais modifié
 - ✅ Frontend — page publique `app/(public)/jobs/[job]` (segment unique `{publicId}-{slug}`, split sur le premier tiret, états loading/404, description HTML sanitisé rendue avec styles `.job-offer-description`)
+- ✅ URL publique côté recruteur — `publicId`/`slug` exposés par `JobOfferResponse` ; dans la liste `/recruiter`, les offres publiées affichent deux boutons lecture seule : **Copy link** (URL absolue dans le presse-papiers, retour « Copied » 2 s) et **View public page** (nouvel onglet vers `/jobs/{publicId}-{slug}`)
 
 **Lot query keys + split hooks** — ✅ livré (sans changement de comportement)
 

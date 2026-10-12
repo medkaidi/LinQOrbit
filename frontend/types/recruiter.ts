@@ -41,6 +41,8 @@ export type JobOffer = {
   recruiterId: string;
   status: JobOfferStatusValue;
   title: string;
+  publicId: string;
+  slug: string;
   description: string | null;
   seniority: SeniorityValue | null;
   requiredExpYear: number | null;

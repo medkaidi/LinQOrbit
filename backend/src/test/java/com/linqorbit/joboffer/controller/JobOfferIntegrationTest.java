@@ -22,6 +22,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.jayway.jsonpath.JsonPath;
+
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -87,9 +89,11 @@ class JobOfferIntegrationTest {
         UUID offerId = createOffer(ownerToken, companyId, "Backend Engineer");
         createdOfferIds.add(offerId);
 
-        mockMvc.perform(get("/api/v1/job-offers/" + offerId).header("Authorization", "Bearer " + ownerToken))
+        MvcResult createResult = mockMvc.perform(get("/api/v1/job-offers/" + offerId).header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("draft"))
+                .andExpect(jsonPath("$.publicId").isString())
+                .andExpect(jsonPath("$.slug").value("backend-engineer"))
                 .andExpect(jsonPath("$.skills[0].skillId").value(SKILL_ID))
                 .andExpect(jsonPath("$.skills[0].name").value("Java"))
                 .andExpect(jsonPath("$.skills[0].requirementType").value("mandatory"))
@@ -98,7 +102,9 @@ class JobOfferIntegrationTest {
                 .andExpect(jsonPath("$.languages[0].level").value("B2"))
                 .andExpect(jsonPath("$.degreeIds[0]").value(DEGREE_ID))
                 .andExpect(jsonPath("$.studyFieldIds[0]").value(STUDY_FIELD_ID))
-                .andExpect(jsonPath("$.hasUnvalidatedChanges").value(false));
+                .andExpect(jsonPath("$.hasUnvalidatedChanges").value(false))
+                .andReturn();
+        String publicId = JsonPath.read(createResult.getResponse().getContentAsString(), "$.publicId");
 
         mockMvc.perform(get("/api/v1/job-offers").header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isOk())
@@ -116,6 +122,8 @@ class JobOfferIntegrationTest {
         mockMvc.perform(get("/api/v1/job-offers/" + offerId).header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("validated"))
+                .andExpect(jsonPath("$.publicId").value(publicId))
+                .andExpect(jsonPath("$.slug").value("senior-backend-engineer"))
                 .andExpect(jsonPath("$.hasUnvalidatedChanges").value(false))
                 .andExpect(jsonPath("$.validatedAt").exists());
 
