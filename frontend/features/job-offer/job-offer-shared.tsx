@@ -67,3 +67,16 @@ export function isOfferReadyToPublish(
     offer.description && offer.country && offer.employmentTypeId && offer.skills.length > 0,
   );
 }
+
+/**
+ * Offre publiée expirée (miroir de getPublic : `expiresAt` strictement avant
+ * aujourd'hui — à date d'expiry l'offre reste visible). La page publique rend
+ * 404 ; ce signal aligne la liste sur ce comportement.
+ */
+export function isOfferExpired(offer: Pick<JobOffer, "status" | "expiresAt">): boolean {
+  return (
+    offer.status === "published" &&
+    offer.expiresAt !== null &&
+    offer.expiresAt < new Date().toISOString().slice(0, 10)
+  );
+}

@@ -4,6 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Spinner } from "@/components/ui/spinner";
 import {
+  PublicJobArticle,
+  type PublicJobArticleModel,
+} from "@/features/job-offer/public-job-article";
+import {
   locationLabel,
   salaryLabel,
   SENIORITY_LABELS,
@@ -73,92 +77,25 @@ function PublicJobDetail({ publicId }: { publicId: string }) {
   }
 
   const data = job.data;
-  const meta = metaLine(data);
-
-  return (
-    <article className="mx-auto w-full max-w-3xl px-6 py-12 lg:py-16">
-      <header className="border-b border-slate-border pb-6">
-        {data.companyName ? (
-          <p className="font-label-md text-label-md text-text-secondary">{data.companyName}</p>
-        ) : null}
-        <h1 className="mt-1 font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
-          {data.title}
-        </h1>
-        {meta.length > 0 ? (
-          <p className="mt-2 text-body-md font-body-md text-text-secondary">
-            {meta.join(" · ")}
-          </p>
-        ) : null}
-      </header>
-
-      {data.description ? (
-        <section className="mt-8">
-          <div
-            className="job-offer-description text-body-md font-body-md text-text-primary"
-            // HTML déjà sanitisé côté serveur/base (D19) — jamais de HTML cru.
-            dangerouslySetInnerHTML={{ __html: data.description }}
-          />
-        </section>
-      ) : null}
-
-      {data.skills.length > 0 ? (
-        <section className="mt-8">
-          <h2 className="font-headline-md text-headline-md text-text-primary font-bold">
-            Skills
-          </h2>
-          <ul className="mt-3 flex flex-wrap gap-2">
-            {data.skills.map((skill) => (
-              <li
-                key={skill.skillId}
-                className="px-2.5 py-1 rounded-full text-label-md font-label-md bg-canvas-white text-text-primary shadow-sm"
-              >
-                {skill.name ?? "Unknown skill"}
-                {skill.requirementType === "mandatory" ? (
-                  <span className="ml-1.5 text-text-secondary">· required</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {data.languages.length > 0 ? (
-        <section className="mt-8">
-          <h2 className="font-headline-md text-headline-md text-text-primary font-bold">
-            Languages
-          </h2>
-          <ul className="mt-3 flex flex-wrap gap-2">
-            {data.languages.map((language) => (
-              <li
-                key={language.languageId}
-                className="px-2.5 py-1 rounded-full text-label-md font-label-md bg-canvas-white text-text-primary shadow-sm"
-              >
-                {language.name ?? "Unknown language"} · {language.level}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {data.degreeLabels.length > 0 || data.studyFieldLabels.length > 0 ? (
-        <section className="mt-8">
-          <h2 className="font-headline-md text-headline-md text-text-primary font-bold">
-            Education
-          </h2>
-          <ul className="mt-3 flex flex-wrap gap-2">
-            {[...data.degreeLabels, ...data.studyFieldLabels].map((label) => (
-              <li
-                key={label}
-                className="px-2.5 py-1 rounded-full text-label-md font-label-md bg-canvas-white text-text-primary shadow-sm"
-              >
-                {label}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-    </article>
-  );
+  const article: PublicJobArticleModel = {
+    companyName: data.companyName,
+    title: data.title,
+    meta: metaLine(data),
+    description: data.description,
+    skills: data.skills.map((skill) => ({
+      id: skill.skillId,
+      name: skill.name,
+      requirementType: skill.requirementType,
+    })),
+    languages: data.languages.map((language) => ({
+      id: language.languageId,
+      name: language.name,
+      level: language.level,
+    })),
+    degreeLabels: data.degreeLabels,
+    studyFieldLabels: data.studyFieldLabels,
+  };
+  return <PublicJobArticle article={article} />;
 }
 
 /**

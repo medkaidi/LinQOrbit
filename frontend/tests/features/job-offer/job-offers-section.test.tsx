@@ -419,6 +419,40 @@ describe("JobOffersSection", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  it("flags an expired published offer without changing its status", () => {
+    useJobOffersMock.mockReturnValue({
+      data: [
+        draftOffer({ id: "o1", status: "published", expiresAt: "2020-01-01" }),
+        draftOffer({ id: "o2", title: "Data Engineer", status: "published", expiresAt: "2099-01-01" }),
+        draftOffer({ id: "o3", title: "ML Engineer", status: "published", expiresAt: null }),
+      ],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+
+    expect(screen.getAllByText("Expired")).toHaveLength(1);
+    expect(screen.getAllByText("Published")).toHaveLength(3);
+  });
+
+  it("links the preview of a validated offer", () => {
+    useJobOffersMock.mockReturnValue({
+      data: [draftOffer({ status: "validated" })],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+
+    expect(screen.getByRole("link", { name: "Preview" })).toHaveAttribute(
+      "href",
+      "/recruiter/offers/o1/preview",
+    );
+  });
+
   it("duplicates an offer immediately without confirmation", () => {
     const duplicate = mutation();
     useDuplicateJobOfferMock.mockReturnValue(duplicate);

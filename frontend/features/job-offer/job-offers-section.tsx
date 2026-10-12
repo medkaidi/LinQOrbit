@@ -22,6 +22,7 @@ import {
 import { getJobOfferErrorMessage } from "@/lib/api/job-offer.api";
 import type { Company, JobOffer, JobOfferStatusValue } from "@/types/recruiter";
 import {
+  isOfferExpired,
   isOfferReadyToPublish,
   locationLabel,
   OFFER_INCOMPLETE_TOOLTIP,
@@ -181,6 +182,9 @@ function OfferActions({
           <Link href={`/recruiter/offers/${offer.id}/edit`} className={EDIT_LINK_CLASS}>
             Edit
           </Link>
+          <Link href={`/recruiter/offers/${offer.id}/preview`} className={EDIT_LINK_CLASS}>
+            Preview
+          </Link>
           <CtaButton
             icon="publish"
             busy={busy}
@@ -307,6 +311,7 @@ function OfferRow({
               </span>
             ) : null}
             <StatusPill status={offer.status} />
+            {isOfferExpired(offer) ? <Badge tone="neutral">Expired</Badge> : null}
             {offer.hasUnvalidatedChanges && offer.status === "validated" ? (
               <Badge>Unvalidated changes</Badge>
             ) : null}

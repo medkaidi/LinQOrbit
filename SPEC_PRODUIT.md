@@ -72,7 +72,7 @@ Un seul moteur, trois usages — pas d'algorithme différent par écran.
 | Import de CV | §10 (extraction IA) | `candidate/` (CvParseService) | `features/candidate/cv-*` | ✅ Implémenté (aperçu, non persisté) |
 | Suggestions de compétences | — | `candidate/` + `admin/` | `features/admin` | ✅ Implémenté |
 | Profil recruteur & entreprise | §22, §6 modèle D4 | `recruiter/`, `company/` | `features/recruiter`, `lib/api/{recruiter,company}.api.ts` | ✅ **Implémenté** (D10–D11 : backend + FE onboarding D16 + chrome D18) |
-| Offres d'emploi | §3-4, §9 | `joboffer/` | `features/job-offer` | ✅ **Implémenté** (D12–D14 : CRUD + cycle de vie backend, FE offres/éditeur) |
+| Offres d'emploi | §3-4, §9 | `joboffer/` | `features/job-offer` | ✅ **Implémenté** (D12–D14 : CRUD + cycle de vie backend, FE offres/éditeur, complétude D21, duplication D20) |
 | **Normalisation offre** | §9 | `joboffer/` (worker dédié à `source_type`) | — | 🏗 En cours (D15) |
 | Critères (obligatoires/souhaitables) | §5-6 | `joboffer/` ou `matching/` | — | ❌ À venir |
 | **Moteur de matching** | §3, §18-19 | `matching/` (vide) | `features/matching` (vide) | ❌ À venir |
@@ -498,6 +498,8 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 | **D17** | **Bascule de profil = modal de confirmation** : depuis le profil candidat, clic sur « Recruteur » ouvre un modal (message d'essai + bouton « Switch to recruiter », source unique partagée) **sans naviguer** ; confirmation → `/recruiter` (le workspace y crée le profil si 404), annulation/Échap → rester. Le retour Recruiter → Candidate navigue directement. Primitif unique `components/ui/dialog.tsx` (portal sur `document.body`, immunité aux ancêtres `backdrop-blur`/`transform`, Échap, verrou scroll, `dismissable`) réutilisé par la modale admin de revue — une seule implémentation de shell modal dans l'app. | §6.1, frontend. |
 | **D18** | **Mode profil = source de vérité UI du chrome** : `stores/view-mode-store.ts` (Zustand persisté, clé `linqorbit.viewMode`, défaut `candidate`, état UI pur sans rôle backend) lu par `useViewMode`, qui **force `recruiter` dès que la route est `/recruiter*`** (deep link sûr ; jamais l'inverse — le clic « Candidate » passe par le modal D17 puis la route suit). Chrome adaptatif en mode recruteur : **sidenav minimale** (Overview `/dashboard`, Offers `/recruiter`, Settings `/recruiter/settings` — sans Profile ni sections placeholders, Administration/télémétrie inchangées), **cartes dashboard `RECRUITER_STATS`** fictifs (mêmes titres de carte, même titre « Welcome back… »), **menu user enrichi** (headline du profil recruteur sous l'email via `useRecruiterProfile({ enabled: mode === "recruiter" })` + menuitem « Recruiter settings » → `/recruiter/settings`, visible uniquement en mode recruteur). La section « Recruiter profile » passe en **lecture par défaut** (miroir `CompaniesSection` : bouton `Edit` → formulaire RHF → `Save`/`Discard`). | frontend. |
 | **D19** | **Description d'offre = HTML riche sanitisé** : éditeur Tiptap (`components/ui/rich-text-editor.tsx` — Bold/Italic/Underline, H2/H3, listes, Lien http(s), `immediatelyRender: false`) branché via `Controller` sur `description` ; le HTML **sanitisé au vol** (DOMPurify, profile `html`) dans la couche API (`lib/utils/sanitize-html.ts` + `htmlOrNull` : vide/`<p></p>` → `null`) — la base ne stocke jamais de HTML cru. Limite métier 20 000 caractères (FE `optionalText(20000)` + BE `@Size(max = 20000)` sur `description TEXT`, migration V14). Le worker de normalisation (D15, à venir) **strip le HTML via jsoup** avant extraction IA. | §15.3, frontend. |
+| **D20** | **Duplication d'offre** : `POST …/{offerId}/duplicate` (membre de la company, tous statuts) — copie le contenu en une nouvelle offre **DRAFT** attribuée au duplicateur : titre suffixé « (copy) » (base tronquée pour tenir dans le VARCHAR(255)), `publicId` régénéré, slug recalculé, `expiresAt`/`validatedAt`/`publishedAt` à null ; enfants (skills/languages/degrees/studyFields) recopiés à l'identique (`copyChildren`, inserts seules, aucune revalidation vocabulaire — les FK viennent de la base). **Sans ConfirmDialog** (non destructif, brouillon supprimable d'un clic) ; après succès, navigation vers l'édition de la copie. | §6.1. |
+| **D21** | **Complétude obligatoire d'une offre** : description (HTML strippé non vide), `country`, `employmentTypeId` et **≥ 1 skill** requis à la **création comme à l'édition** (miroir BE `@NotBlank`/`@NotNull`/`@Size(min = 1)` + FE `refineJobOffer` — jamais d'offre incomplète, retrofit naturel des brouillons legacy ; ville facultative). Boutons Validate/Publish `disabled` + `title` sur offre incomplète (`isOfferReadyToPublish`, filet côté liste) ; erreur racine `skills` affichée sous la liste du formulaire. | §6.1, frontend. |
 
 ---
 
@@ -543,7 +545,7 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 ### 16.1 Livré et testé
 
 - Comptes, auth, admin, rôles ; profil candidat **7 sections** + import CV + suggestions ; **normalisation du profil candidat complète** (push async, dirty-flag, versioning, retries, recovery, bandeau) ; service IA extraction + normalisation (**schema v2** : Projets, séniorité, catégories, modèle de preuve, certifications, location) ; **Phase 1 backend étapes 1a–1d** : identité recruteur (D10), companies + membership (D11), vocabulaires d'offre (D14), **offres d'emploi CRUD + cycle de vie** (D12–D13 : validate ≠ publish, permissions coarse, dirty-flag) ; **Phase 1 frontend étape 2** : espace recruteur (`/recruiter`) avec onboarding D16 (overlay « Switching… », création auto du profil sur 404, création company), réglages (`/recruiter/settings`), éditeur d'offres (`/recruiter/offers/new`, `/recruiter/offers/[offerId]/edit`, description **HTML riche Tiptap sanitisé**, D19), liste des offres avec actions par statut (validate/publish/close/delete), bascule Candidate ↔ Recruiter branchée sur la route avec **modal de confirmation avant bascule** (D17) et primitif `Dialog` portalisé partagé ; **chrome adaptatif au mode profil** (D18 : sidenav recruteur minimale, cartes dashboard `RECRUITER_STATS`, entrée « Recruiter settings » + headline dans le menu user, section « Recruiter profile » en lecture/édition).
-- **274 tests backend / 76 ai-service / 384 frontend au vert.**
+- **286 tests backend / 76 ai-service / 404 frontend au vert.**
 
 ### 16.2 Écarts (audit 2026-10)
 
@@ -607,6 +609,14 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 - ✅ Frontend — page publique `app/(public)/jobs/[job]` (segment unique `{publicId}-{slug}`, split sur le premier tiret, états loading/404, description HTML sanitisé rendue avec styles `.job-offer-description`)
 - ✅ URL publique côté recruteur — `publicId`/`slug` exposés par `JobOfferResponse` ; dans la liste `/recruiter`, les offres publiées affichent deux boutons lecture seule : **Copy link** (URL absolue dans le presse-papiers, retour « Copied » 2 s) et **View public page** (nouvel onglet vers `/jobs/{publicId}-{slug}`)
 
+**Lots session offres (validations, confirmations, duplication, URL publique)** — ✅ livrés
+
+- ✅ Complétude obligatoire (D21 : description, country, employment type, ≥ 1 skill — création + édition, Validate/Publish désactivés + infobulle sur offre incomplète)
+- ✅ Confirmations : `ConfirmDialog` réutilisable (jamais `window.confirm`) — Delete (`danger`), Validate et Publish (`primary`, `busy` bloquant) ; Close reste direct
+- ✅ Spinner infini : `busy` suit `isPending` (plus les `variables` persistées TanStack Query v5)
+- ✅ Duplication (D20 : `POST …/duplicate` → 201, copie DRAFT « (copy) », navigation vers l'édition)
+- ✅ URL publique : chemin `/api/v1/jobs/{publicId}` verrouillé par test (404 fantôme corrigé)
+
 **Lot query keys + split hooks** — ✅ livré (sans changement de comportement)
 
 - ✅ `hooks/query-keys.ts` — registre unique `queryKeys.<domain>…` (clés statiques `as const`, clés paramétrées en fabrique, familles invalidables par clé racine) ; aucun littéral `queryKey: [...]` ni constante de clé exportée hors du registre
@@ -616,7 +626,7 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 
 **Reste à faire (rubrique)**
 
-- ⬜ Commit de la rubrique (travail uncommitted en attente de feu vert)
+- ✅ Commit de la rubrique (0712af6 — offres : complétude, duplication, confirmations, fix URL publique)
 - ⬜ Normalisation d'offre (V16, D15 : `source_type`, worker dédié, **strip HTML via jsoup** avant extraction IA)
 - ⬜ Analyse IA — 11 familles d'anomalies avant publication
 - ⬜ Matching — moteur critères pondérés + similarité sémantique
