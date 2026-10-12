@@ -1,6 +1,8 @@
 package com.linqorbit.joboffer.service;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -8,9 +10,13 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -22,21 +28,28 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import com.linqorbit.candidate.entity.Degree;
 import com.linqorbit.candidate.entity.Language;
 import com.linqorbit.candidate.entity.Skill;
+import com.linqorbit.candidate.entity.StudyField;
 import com.linqorbit.candidate.repository.DegreeRepository;
 import com.linqorbit.candidate.repository.LanguageRepository;
 import com.linqorbit.candidate.repository.SkillRepository;
 import com.linqorbit.candidate.repository.StudyFieldRepository;
+import com.linqorbit.company.entity.Company;
 import com.linqorbit.company.entity.CompanyMember;
 import com.linqorbit.company.repository.CompanyMemberRepository;
+import com.linqorbit.company.repository.CompanyRepository;
 import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
 import com.linqorbit.joboffer.dto.JobOfferLanguageOption;
 import com.linqorbit.joboffer.dto.JobOfferLanguageRequest;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.JobOfferSkillOption;
 import com.linqorbit.joboffer.dto.JobOfferSkillRequest;
+import com.linqorbit.joboffer.dto.PublicJobResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
+import com.linqorbit.joboffer.entity.ContractType;
+import com.linqorbit.joboffer.entity.EmploymentType;
 import com.linqorbit.joboffer.entity.JobOffer;
 import com.linqorbit.joboffer.entity.JobOfferDegree;
 import com.linqorbit.joboffer.entity.JobOfferLanguage;
@@ -46,6 +59,7 @@ import com.linqorbit.joboffer.entity.JobOfferStudyField;
 import com.linqorbit.joboffer.entity.RequirementType;
 import com.linqorbit.joboffer.entity.SalaryPeriod;
 import com.linqorbit.joboffer.entity.Seniority;
+import com.linqorbit.joboffer.entity.WorkMode;
 import com.linqorbit.joboffer.exception.InvalidJobOfferException;
 import com.linqorbit.joboffer.exception.InvalidJobOfferStatusException;
 import com.linqorbit.joboffer.exception.JobOfferAccessDeniedException;
@@ -73,12 +87,15 @@ import com.linqorbit.recruiter.repository.RecruiterRepository;
 @Slf4j
 public class JobOfferService {
 
+    private static final String BASE36 = "0123456789abcdefghijklmnopqrstuvwxyz";
+
     private final JobOfferRepository jobOfferRepository;
     private final JobOfferSkillRepository jobOfferSkillRepository;
     private final JobOfferLanguageRepository jobOfferLanguageRepository;
     private final JobOfferDegreeRepository jobOfferDegreeRepository;
     private final JobOfferStudyFieldRepository jobOfferStudyFieldRepository;
     private final CompanyMemberRepository companyMemberRepository;
+    private final CompanyRepository companyRepository;
     private final RecruiterRepository recruiterRepository;
     private final SkillRepository skillRepository;
     private final LanguageRepository languageRepository;
@@ -102,6 +119,8 @@ public class JobOfferService {
                 .recruiterId(userId)
                 .status(JobOfferStatus.DRAFT)
                 .title(request.title().trim())
+                .publicId(generatePublicId())
+                .slug(slugify(request.title()))
                 .description(trimToNull(request.description()))
                 .seniority(parseSeniority(request.seniority()))
                 .requiredExpYear(request.requiredExpYear())
@@ -142,6 +161,26 @@ public class JobOfferService {
         return buildResponse(loadForMember(offerId, userId));
     }
 
+    /**
+     * Lecture publique (V15) : une seule fuite possible = existence. Le même
+     * 404 (détail fixe du handler) couvre inconnu, non publié, clôturé et
+     * expiré — aucune distinction côté client.
+     */
+    public PublicJobResponse getPublic(String publicId) {
+        JobOffer offer = jobOfferRepository.findByPublicId(publicId)
+                .orElseThrow(() -> {
+                    log.warn("Public job offer rejected : unknown publicId={}", publicId);
+                    return new JobOfferNotFoundException("Job offer not found.");
+                });
+        if (offer.getStatus() != JobOfferStatus.PUBLISHED
+                || (offer.getExpiresAt() != null && offer.getExpiresAt().isBefore(LocalDate.now()))) {
+            log.warn("Public job offer rejected : publicId={}, status={}, expiresAt={}",
+                    publicId, offer.getStatus().getApiValue(), offer.getExpiresAt());
+            throw new JobOfferNotFoundException("Job offer not found.");
+        }
+        return buildPublicResponse(offer);
+    }
+
     @Transactional
     public void update(UUID userId, UUID offerId, UpdateJobOfferRequest request) {
         JobOffer offer = loadForManagement(offerId, userId);
@@ -151,6 +190,9 @@ public class JobOfferService {
                 request.contractTypeId(), request.employmentTypeId(), request.workModeId());
 
         offer.setTitle(request.title().trim());
+        // Slug cosmétique dérivé du titre — régénéré à chaque édition
+        // (idempotent : un titre inchangé produit le même slug).
+        offer.setSlug(slugify(request.title()));
         offer.setDescription(trimToNull(request.description()));
         offer.setSeniority(parseSeniority(request.seniority()));
         offer.setRequiredExpYear(request.requiredExpYear());
@@ -466,6 +508,123 @@ public class JobOfferService {
                         offer.getCreatedAt(),
                         offer.getUpdatedAt()))
                 .toList();
+    }
+
+    /**
+     * Fiche publique : labels résolus (company, vocabulaires, mentions) — le
+     * HTML de la description est déjà sanitisé en base (D19).
+     */
+    private PublicJobResponse buildPublicResponse(JobOffer offer) {
+        String companyName = companyRepository.findById(offer.getCompanyId())
+                .map(Company::getName)
+                .orElse(null);
+
+        List<JobOfferSkill> skills = jobOfferSkillRepository.findByJobOfferIdIn(List.of(offer.getId()));
+        List<JobOfferLanguage> languages = jobOfferLanguageRepository.findByJobOfferIdIn(List.of(offer.getId()));
+        List<JobOfferDegree> degrees = jobOfferDegreeRepository.findByJobOfferIdIn(List.of(offer.getId()));
+        List<JobOfferStudyField> studyFields = jobOfferStudyFieldRepository.findByJobOfferIdIn(List.of(offer.getId()));
+        Map<UUID, Skill> skillMap = loadSkills(skills);
+        Map<UUID, Language> languageMap = loadLanguages(languages);
+
+        return new PublicJobResponse(
+                offer.getPublicId(),
+                offer.getSlug(),
+                offer.getTitle(),
+                offer.getDescription(),
+                offer.getSeniority() == null ? null : offer.getSeniority().getApiValue(),
+                offer.getRequiredExpYear(),
+                offer.getCity(),
+                offer.getCountry(),
+                companyName,
+                labelOf(offer.getContractTypeId(),
+                        id -> contractTypeRepository.findById(id).map(ContractType::getLabel).orElse(null)),
+                labelOf(offer.getEmploymentTypeId(),
+                        id -> employmentTypeRepository.findById(id).map(EmploymentType::getLabel).orElse(null)),
+                labelOf(offer.getWorkModeId(),
+                        id -> workModeRepository.findById(id).map(WorkMode::getLabel).orElse(null)),
+                offer.getSalaryMin(),
+                offer.getSalaryMax(),
+                offer.getSalaryCurrency(),
+                offer.getSalaryPeriod() == null ? null : offer.getSalaryPeriod().getApiValue(),
+                offer.getExpiresAt(),
+                skills.stream()
+                        .map(skill -> new JobOfferSkillOption(
+                                skill.getSkillId(),
+                                skillName(skillMap, skill.getSkillId()),
+                                skill.getRequirementType().getApiValue(),
+                                skill.getWeight(),
+                                skill.getYearsExperience()))
+                        .toList(),
+                languages.stream()
+                        .map(language -> new JobOfferLanguageOption(
+                                language.getLanguageId(),
+                                languageSymbol(languageMap, language.getLanguageId()),
+                                languageName(languageMap, language.getLanguageId()),
+                                language.getLevel(),
+                                Boolean.TRUE.equals(language.getIsRequired())))
+                        .toList(),
+                loadDegreeLabels(degrees),
+                loadStudyFieldLabels(studyFields),
+                offer.getPublishedAt());
+    }
+
+    private List<String> loadDegreeLabels(List<JobOfferDegree> degrees) {
+        if (degrees.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, String> labels = degreeRepository.findAllById(
+                        degrees.stream().map(JobOfferDegree::getDegreeId).toList()).stream()
+                .collect(Collectors.toMap(Degree::getId, Degree::getLabel));
+        return degrees.stream()
+                .map(degree -> labels.get(degree.getDegreeId()))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private List<String> loadStudyFieldLabels(List<JobOfferStudyField> studyFields) {
+        if (studyFields.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, String> labels = studyFieldRepository.findAllById(
+                        studyFields.stream().map(JobOfferStudyField::getStudyFieldId).toList()).stream()
+                .collect(Collectors.toMap(StudyField::getId, StudyField::getLabel));
+        return studyFields.stream()
+                .map(studyField -> labels.get(studyField.getStudyFieldId()))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /** FK vocabulaire nullable : {@code findById(null)} lèverait côté JPA. */
+    private static String labelOf(UUID id, Function<UUID, String> label) {
+        return id == null ? null : label.apply(id);
+    }
+
+    /**
+     * Identifiant public : 12 caractères base36 (SecureRandom) — sans tiret,
+     * pour que le split d'URL /jobs/{publicId}-{slug} isole le publicId sur
+     * le premier tiret.
+     */
+    private static String generatePublicId() {
+        StringBuilder id = new StringBuilder(12);
+        for (int i = 0; i < 12; i++) {
+            id.append(BASE36.charAt(ThreadLocalRandom.current().nextInt(BASE36.length())));
+        }
+        return id.toString();
+    }
+
+    /** Slug cosmétique : minuscules ASCII sans diacritiques, tirets. */
+    static String slugify(String title) {
+        if (title == null) {
+            return "";
+        }
+        String slug = Normalizer.normalize(title.toLowerCase(Locale.ROOT), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-+|-+$", "");
+        if (slug.length() > 120) {
+            slug = slug.substring(0, 120).replaceAll("-+$", "");
+        }
+        return slug;
     }
 
     private Map<UUID, Skill> loadSkills(List<JobOfferSkill> skills) {

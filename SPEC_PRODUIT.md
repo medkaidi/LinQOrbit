@@ -523,7 +523,7 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 
 ### 15.3 Phase 1 — concevoir / migrer (V11+)
 
-**Décidé (D10–D15), à livrer en 4 migrations** :
+**Décidé (D10–D15), à livrer en 5 migrations** :
 
 | Migration | Contenu |
 |---|---|
@@ -531,7 +531,8 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 | ✅ V12 | `contract_type` / `employment_type` / `work_mode` + seeds |
 | ✅ V13 | `job_offer` (+ `company_id`, `recruiter_id`, `status`, `seniority`, `city`/`country`, `validated_at`/`published_at`, salary) ; `job_offer_skills` (requirement_type, weight, years_experience) ; `job_offer_languages` (level CEFR, is_required) ; `job_offer_degrees` ; `job_offer_study_fields` |
 | ✅ V14 | `job_offer.description` → `TEXT` (description riche Tiptap, D19 — limite métier 20 000 en `@Size`) |
-| V15 | `normalization_job` + `source_type` ; `normalized_profile_job_offer` |
+| ✅ V15 | `job_offer.public_id` (VARCHAR(12) UNIQUE, immuable) + `slug` (VARCHAR(120), dérivé du titre) — URL publique `/jobs/{publicId}-{slug}`, lookup par `public_id` seul |
+| V16 | `normalization_job` + `source_type` ; `normalized_profile_job_offer` |
 
 **Reste à concevoir (phases suivantes)** : `offer_questions` (+ réponses candidat), `matching_results` (scores par critère, catégorie « info insuffisante »), `clarifications` (historique évaluation → clarification → rééval), `attachments` (photos / pièces jointes), embeddings (choix technique à trancher).
 
@@ -542,7 +543,7 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 ### 16.1 Livré et testé
 
 - Comptes, auth, admin, rôles ; profil candidat **7 sections** + import CV + suggestions ; **normalisation du profil candidat complète** (push async, dirty-flag, versioning, retries, recovery, bandeau) ; service IA extraction + normalisation (**schema v2** : Projets, séniorité, catégories, modèle de preuve, certifications, location) ; **Phase 1 backend étapes 1a–1d** : identité recruteur (D10), companies + membership (D11), vocabulaires d'offre (D14), **offres d'emploi CRUD + cycle de vie** (D12–D13 : validate ≠ publish, permissions coarse, dirty-flag) ; **Phase 1 frontend étape 2** : espace recruteur (`/recruiter`) avec onboarding D16 (overlay « Switching… », création auto du profil sur 404, création company), réglages (`/recruiter/settings`), éditeur d'offres (`/recruiter/offers/new`, `/recruiter/offers/[offerId]/edit`, description **HTML riche Tiptap sanitisé**, D19), liste des offres avec actions par statut (validate/publish/close/delete), bascule Candidate ↔ Recruiter branchée sur la route avec **modal de confirmation avant bascule** (D17) et primitif `Dialog` portalisé partagé ; **chrome adaptatif au mode profil** (D18 : sidenav recruteur minimale, cartes dashboard `RECRUITER_STATS`, entrée « Recruiter settings » + headline dans le menu user, section « Recruiter profile » en lecture/édition).
-- **268 tests backend / 76 ai-service / 378 frontend au vert.**
+- **274 tests backend / 76 ai-service / 384 frontend au vert.**
 
 ### 16.2 Écarts (audit 2026-10)
 
@@ -567,7 +568,7 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 
 > Règle de vie : une tâche terminée est **conservée et cochée** — rien ne se supprime ; seules les cases avancent. Mise à jour à chaque étape livrée.
 
-**Backend (étapes 1a–1d)** — ✅ livré, 268 tests
+**Backend (étapes 1a–1d)** — ✅ livré, 274 tests
 
 - ✅ 1a — identité recruteur `recruiters` + headline/bio (D10, auto-création sur 404) — V11
 - ✅ 1b — `companies` + `company_members` owner (D11) — V11
@@ -575,7 +576,7 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 - ✅ 1d — offre CRUD + cycle de vie `DRAFT→VALIDATED→PUBLISHED→CLOSED`, validate ≠ publish, dirty-flag, permissions coarse (D12–D13) — V13
 - ✅ D19 backend — `job_offer.description` → `TEXT`, `@Size(max = 20000)` — V14
 
-**Frontend (étape 2 + passes UX)** — ✅ livré, 378 tests
+**Frontend (étape 2 + passes UX)** — ✅ livré, 384 tests
 
 - ✅ Étape 2 — espace `/recruiter` (liste offres + actions par statut), `/recruiter/settings` (company + profil recruteur), éditeur d'offres `/recruiter/offers/new` + `/[offerId]/edit`
 - ✅ D16 — onboarding recruteur (overlay « Switching… », auto-création du profil sur 404, setup company si besoin)
@@ -598,6 +599,12 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 - ✅ FE-4 — `<button>` imbriqué dans `<a>` (Edit → lien habillé `outline-sm`, New offer → `NavPill`)
 - ✅ FE-5 — édition d'offre : fetch `companies` inutile + écran blanc silencieux supprimés
 - ✅ Docs — checklist §16.3
+
+**Lot V15 — URL publique d'offre** — ✅ livré
+
+- ✅ Migration V15 — `public_id VARCHAR(12) UNIQUE` immuable + `slug VARCHAR(120)` dérivé du titre ; aucun index additionnel (le UNIQUE couvre le lookup ; `(status, published_at)` viendra avec la liste publique)
+- ✅ Backend — `GET /api/v1/jobs/{publicId}` en `permitAll` (`PublicJobResponse` sans recruiterId/statut/dirty-flag, labels résolus) ; 404 sûr sur inconnu/non publié/clôturé/expiré ; slug NFD sans diacritiques, régénéré à l'édition, `publicId` jamais modifié
+- ✅ Frontend — page publique `app/(public)/jobs/[job]` (segment unique `{publicId}-{slug}`, split sur le premier tiret, états loading/404, description HTML sanitisé rendue avec styles `.job-offer-description`)
 
 **Reste à faire (rubrique)**
 

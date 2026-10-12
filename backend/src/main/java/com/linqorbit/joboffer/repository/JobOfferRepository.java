@@ -16,5 +16,7 @@ public interface JobOfferRepository extends JpaRepository<JobOffer, UUID> {
 
     Optional<JobOffer> findByIdAndCompanyIdIn(UUID id, List<UUID> companyIds);
 
+    Optional<JobOffer> findByPublicId(String publicId);
+
     List<JobOffer> findByCompanyIdInOrderByCreatedAtDesc(List<UUID> companyIds);
 }

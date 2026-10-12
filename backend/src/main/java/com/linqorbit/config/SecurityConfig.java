@@ -43,6 +43,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/recruiters/**").authenticated()
                         .requestMatchers("/api/v1/companies/**").authenticated()
                         .requestMatchers("/api/v1/job-offers/**").authenticated()
+                        // Lecture publique d'une offre publiée (V15) : sans jeton,
+                        // 404 sûr sur tout ce qui n'est pas PUBLISHED et non expiré.
+                        .requestMatchers("/api/v1/jobs/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().permitAll())
                 // 401/403 au format ProblemDetail (détail sûr construit par l'application),

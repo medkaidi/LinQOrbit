@@ -22,6 +22,7 @@ import com.linqorbit.candidate.repository.SkillRepository;
 import com.linqorbit.candidate.repository.StudyFieldRepository;
 import com.linqorbit.company.entity.CompanyMember;
 import com.linqorbit.company.repository.CompanyMemberRepository;
+import com.linqorbit.company.repository.CompanyRepository;
 import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
@@ -63,6 +64,7 @@ class JobOfferServiceTest {
     private JobOfferDegreeRepository jobOfferDegreeRepository;
     private JobOfferStudyFieldRepository jobOfferStudyFieldRepository;
     private CompanyMemberRepository companyMemberRepository;
+    private CompanyRepository companyRepository;
     private RecruiterRepository recruiterRepository;
     private SkillRepository skillRepository;
     private LanguageRepository languageRepository;
@@ -81,6 +83,7 @@ class JobOfferServiceTest {
         jobOfferDegreeRepository = mock(JobOfferDegreeRepository.class);
         jobOfferStudyFieldRepository = mock(JobOfferStudyFieldRepository.class);
         companyMemberRepository = mock(CompanyMemberRepository.class);
+        companyRepository = mock(CompanyRepository.class);
         recruiterRepository = mock(RecruiterRepository.class);
         skillRepository = mock(SkillRepository.class);
         languageRepository = mock(LanguageRepository.class);
@@ -92,7 +95,7 @@ class JobOfferServiceTest {
         jobOfferService = new JobOfferService(
                 jobOfferRepository, jobOfferSkillRepository, jobOfferLanguageRepository,
                 jobOfferDegreeRepository, jobOfferStudyFieldRepository, companyMemberRepository,
-                recruiterRepository, skillRepository, languageRepository, degreeRepository,
+                companyRepository, recruiterRepository, skillRepository, languageRepository, degreeRepository,
                 studyFieldRepository, contractTypeRepository, employmentTypeRepository, workModeRepository);
 
         lenient().when(jobOfferSkillRepository.findByJobOfferIdIn(any())).thenReturn(List.of());
@@ -269,6 +272,17 @@ class JobOfferServiceTest {
                 .thenReturn(Optional.of(membership));
         when(jobOfferRepository.findByIdAndCompanyIdIn(OFFER_ID, List.of(COMPANY_ID)))
                 .thenReturn(Optional.of(offer));
+    }
+
+    @Test
+    void slugifyProduitUnSlugAsciiCourt() {
+        assertThat(JobOfferService.slugify("Senior Backend Engineer"))
+                .isEqualTo("senior-backend-engineer");
+        assertThat(JobOfferService.slugify("  Développeur C++ / DevOps!  "))
+                .isEqualTo("developpeur-c-devops");
+        assertThat(JobOfferService.slugify("---")).isEmpty();
+        assertThat(JobOfferService.slugify(null)).isEmpty();
+        assertThat(JobOfferService.slugify("a".repeat(200))).hasSizeLessThanOrEqualTo(120);
     }
 
     private void stubRecruiter(boolean exists) {

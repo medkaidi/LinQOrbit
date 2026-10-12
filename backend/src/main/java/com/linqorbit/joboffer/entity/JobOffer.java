@@ -56,6 +56,14 @@ public class JobOffer {
     @Column(name = "title", nullable = false, length = 255)
     private String title;
 
+    /** Identifiant public court, immuable — URL /jobs/{publicId}-{slug}. */
+    @Column(name = "public_id", nullable = false, length = 12)
+    private String publicId;
+
+    /** Slug dérivé du titre (cosmétique/SEO), régénéré à chaque changement. */
+    @Column(name = "slug", nullable = false, length = 120)
+    private String slug;
+
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
