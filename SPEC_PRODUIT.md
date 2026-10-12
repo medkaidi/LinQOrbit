@@ -508,8 +508,8 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 ### 15.1 Existant (migrations V1–V10)
 
 **Comptes** : `users` (identité + géo + `updated_at` heartbeat), `candidates` (title, bio, years_of_experience, search_status, target_position), `recruiters` (vide), `user_roles`.
-**Profil** : `professional_experiences` (dont FK morte `job_position_id`), `candidate_projects` (V10 — Nom, Rôle, Période, Description, Technologies libre), `diplomas`, `candidate_skills` (level 1–5, years_experience), `candidate_languages` (CEFR), `candidate_links` (dont `CERTIFICATION`).
-**Références** : `skills` (226, 10 catégories libres), `languages` (47), `degrees` (6), `study_fields` (24), `job_positions` (vide, sans entité).
+**Profil** : `professional_experiences` (dont FK `job_position_id` vers le référentiel de titres — remplissage IA à venir), `candidate_projects` (V10 — Nom, Rôle, Période, Description, Technologies libre), `diplomas`, `candidate_skills` (level 1–5, years_experience), `candidate_languages` (CEFR), `candidate_links` (dont `CERTIFICATION`).
+**Références** : `skills` (226, 10 catégories libres), `languages` (47), `degrees` (6), `study_fields` (24), `job_positions` (référentiel de titres officiels — vide en attente de l'alimentation IA, cf. D15/normalisation).
 **Suggestions** : `skill_suggestions` (pas de workflow persistant — résolution = suppression du groupe).
 **Normalisation (V9)** :
 
@@ -521,7 +521,7 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 
 ### 15.2 Dette / faiblesses (audit)
 
-- Enums **sans `CHECK`** en BD ; pas de `ON DELETE` sur `normalized_profile_candidate`/`normalization_job` (suppression candidat = violation FK) ; double heartbeat `updated_at` (`touchUpdatedAt` + `@UpdateTimestamp`) ; `job_positions` morte ; `langchain-openai` mort ; `skills.category` = VARCHAR libre (pas de table FK).
+- Enums **sans `CHECK`** en BD ; pas de `ON DELETE` sur `normalized_profile_candidate`/`normalization_job` (suppression candidat = violation FK) ; double heartbeat `updated_at` (`touchUpdatedAt` + `@UpdateTimestamp`) ; `langchain-openai` mort ; `skills.category` = VARCHAR libre (pas de table FK).
 
 ### 15.3 Phase 1 — concevoir / migrer (V11+)
 
