@@ -10,7 +10,9 @@ import java.util.UUID;
  * Offre vue par un membre de la company : statut portant le cycle de vie
  * DRAFT→VALIDATED→PUBLISHED→CLOSED (D13), {@code hasUnvalidatedChanges} le
  * dirty-flag (modifications post-validation, miroir candidat) que le frontend
- * affiche avant la re-validation.
+ * affiche avant la re-validation, {@code normalizationInProgress} et
+ * {@code normalizationFailed} les signaux du job de normalisation (miroir
+ * candidat, pilotés par la base).
  */
 public record JobOfferResponse(
         UUID id,
@@ -36,6 +38,8 @@ public record JobOfferResponse(
         String salaryCurrency,
         String salaryPeriod,
         boolean hasUnvalidatedChanges,
+        boolean normalizationInProgress,
+        boolean normalizationFailed,
         List<JobOfferSkillOption> skills,
         List<JobOfferLanguageOption> languages,
         List<UUID> degreeIds,

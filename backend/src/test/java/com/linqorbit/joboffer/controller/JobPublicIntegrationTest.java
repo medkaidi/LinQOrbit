@@ -18,17 +18,22 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import com.linqorbit.candidate.service.NormalizationWorker;
+
 /**
  * Lecture publique d'offre (V15) : sans jeton, une offre PUBLISHED non
  * expirée est lisible par public_id ; le même 404 sûr couvre inconnu, non
  * publié, clôturé et expiré. Le slug suit le titre, le publicId ne bouge
- * jamais.
+ * jamais. Le worker est mocké pour empêcher tout dispatch asynchrone vers
+ * l'IA (jobs PENDING, assertions déterministes) — pattern
+ * NormalizationValidateIntegrationTest.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -47,6 +52,9 @@ class JobPublicIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @MockitoBean
+    private NormalizationWorker normalizationWorker;
+
     private final List<UUID> createdUserIds = new ArrayList<>();
     private final List<UUID> createdCompanyIds = new ArrayList<>();
     private final List<UUID> createdOfferIds = new ArrayList<>();
@@ -54,6 +62,19 @@ class JobPublicIntegrationTest {
     @AfterEach
     void cleanup() {
         for (UUID offerId : createdOfferIds) {
+            // La validation crée un couple profil + job (normalisation) : à
+            // nettoyer avant l'offre (FK normalized_profile_job_offer).
+            jdbcTemplate.update("""
+                    DELETE FROM normalization_job j
+                    USING normalized_profile_job_offer npo
+                    WHERE npo.normalized_profile_id = j.job_id AND npo.job_offer_id = ?""", offerId);
+            jdbcTemplate.update("DELETE FROM normalized_profile_job_offer WHERE job_offer_id = ?", offerId);
+            jdbcTemplate.update("""
+                    DELETE FROM normalized_profile np
+                    WHERE NOT EXISTS (SELECT 1 FROM normalized_profile_candidate npc
+                                       WHERE npc.normalized_profile_id = np.normalized_profile_id)
+                      AND NOT EXISTS (SELECT 1 FROM normalized_profile_job_offer npo
+                                       WHERE npo.normalized_profile_id = np.normalized_profile_id)""");
             jdbcTemplate.update("DELETE FROM job_offer_skill WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("DELETE FROM job_offer_language WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("DELETE FROM job_offer_degree WHERE job_offer_id = ?", offerId);

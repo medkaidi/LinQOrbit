@@ -167,6 +167,7 @@ Trois pièges déjà rencontrés :
   - `@Slf4j` donne le champ `log` (`log.info/warn/error`) — **jamais** de `LoggerFactory.getLogger(...)` manuel ;
   - **Construction d'entités = builder** : `@Builder` + `@NoArgsConstructor` + `@AllArgsConstructor(access = AccessLevel.PACKAGE)` sur l'entité (recette JPA obligatoire, **jamais `@Builder` seul** — cela casserait Hibernate qui a besoin du no-args), usage `User.builder().email(…)….build()` — **jamais** `new Entity()` + cascade de setters à la création ; les setters restent réservés aux **mises à jour** d'entités existantes ;
   - les annotations JPA restent sur les **champs** (source de vérité), jamais sur les méthodes générées.
+- **Spring 7 / Boot 4** : les interfaces client HTTP sont dans `org.springframework.http.client` (`ClientHttpRequest`, `ClientHttpRequestExecution`, `ClientHttpResponse`) ; la signature de `ClientHttpRequestInterceptor.intercept(...)` prend un `org.springframework.http.HttpRequest` — les imports `org.springframework.http.ClientXxx` (Spring 6) ne compilent plus.
 - Pas de profil Spring (`@Profile`, `application-dev.yml`) tant que le besoin ne se présente pas.
 - Asynchrone local acceptable ; **Kafka interdit** pour la V0 (l'architecture doit rester compatible avec son ajout futur, sans abstraction fictive).
 - Vérifier avant de conclure : `./mvnw clean`, `./mvnw test`, `./mvnw verify` (PostgreSQL requis : voir `.env.example`).

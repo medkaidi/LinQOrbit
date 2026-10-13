@@ -36,6 +36,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.linqorbit.candidate.entity.NormalizationJobStatus;
 import com.linqorbit.candidate.exception.AiServiceException;
 
 import tools.jackson.databind.JsonNode;
@@ -114,7 +115,7 @@ class NormalizationWorkerIntegrationTest {
         normalizationWorker.executeJob(jobId);
 
         Map<String, Object> row = jobRowWithContent(jobId);
-        assertThat(row.get("status")).isEqualTo("DONE");
+        assertThat(statusOf(row)).isEqualTo(NormalizationJobStatus.DONE);
         assertThat(row.get("completed_at")).isNotNull();
         assertThat(String.valueOf(row.get("content"))).contains("\"schemaVersion\": \"1\"");
     }
@@ -130,36 +131,37 @@ class NormalizationWorkerIntegrationTest {
 
         normalizationWorker.executeJob(jobId);
         Map<String, Object> first = jobRow(jobId);
-        assertThat(first.get("status")).isEqualTo("PENDING");
+        assertThat(statusOf(first)).isEqualTo(NormalizationJobStatus.PENDING);
         assertThat((Integer) first.get("attempts")).isEqualTo(1);
         assertThat(first.get("error")).isEqualTo("The AI service call failed.");
         assertThat(nextAttemptIsInFuture(jobId)).isTrue();
         runScheduledToCompletion();
 
         Map<String, Object> second = jobRow(jobId);
-        assertThat(second.get("status")).isEqualTo("PENDING");
+        assertThat(statusOf(second)).isEqualTo(NormalizationJobStatus.PENDING);
         assertThat((Integer) second.get("attempts")).isEqualTo(2);
         runScheduledToCompletion();
 
         Map<String, Object> abandoned = jobRow(jobId);
-        assertThat(abandoned.get("status")).isEqualTo("FAILED");
+        assertThat(statusOf(abandoned)).isEqualTo(NormalizationJobStatus.FAILED);
         assertThat((Integer) abandoned.get("attempts")).isEqualTo(3);
         assertThat(abandoned.get("completed_at")).isNotNull();
 
         normalizationWorker.executeJob(jobId);
         assertThat((Integer) jobRow(jobId).get("attempts")).isEqualTo(3);
-        assertThat(jobRow(jobId).get("status")).isEqualTo("FAILED");
+        assertThat(statusOf(jobRow(jobId))).isEqualTo(NormalizationJobStatus.FAILED);
         verify(profileNormalizeClient, times(3)).normalize(any());
     }
 
     @Test
     void jobSupersedeNeJamaisExecute() throws Exception {
         UUID jobId = seedValidatedCandidate();
-        jdbcTemplate.update("UPDATE normalization_job SET status = 'SUPERSEDED' WHERE job_id = ?", jobId);
+        // Statut SMALLINT : 5 = SUPERSEDED.
+        jdbcTemplate.update("UPDATE normalization_job SET status = 5 WHERE job_id = ?", jobId);
 
         normalizationWorker.executeJob(jobId);
 
-        assertThat(jobRow(jobId).get("status")).isEqualTo("SUPERSEDED");
+        assertThat(statusOf(jobRow(jobId))).isEqualTo(NormalizationJobStatus.SUPERSEDED);
         assertThat((Integer) jobRow(jobId).get("attempts")).isZero();
         verify(profileNormalizeClient, never()).normalize(any());
     }
@@ -170,17 +172,18 @@ class NormalizationWorkerIntegrationTest {
         // La validation HTTP a déjà soumis le job au pool (mock inert) : on ne
         // gère ici que la soumission du retry.
         clearInvocations(normalizationExecutor);
-        jdbcTemplate.update("UPDATE normalization_job SET status = 'RUNNING', started_at = ? WHERE job_id = ?",
+        // Statut SMALLINT : 2 = RUNNING.
+        jdbcTemplate.update("UPDATE normalization_job SET status = 2, started_at = ? WHERE job_id = ?",
                 LocalDateTime.now().minusMinutes(11), jobId);
 
         normalizationWorker.recoverOrphanJobs();
 
         Map<String, Object> recovered = jobRow(jobId);
-        assertThat(recovered.get("status")).isEqualTo("PENDING");
+        assertThat(statusOf(recovered)).isEqualTo(NormalizationJobStatus.PENDING);
         assertThat((Integer) recovered.get("attempts")).isEqualTo(1);
         assertThat(recovered.get("error")).isEqualTo(STALE_ERROR);
         runScheduledToCompletion();
-        assertThat(jobRow(jobId).get("status")).isEqualTo("DONE");
+        assertThat(statusOf(jobRow(jobId))).isEqualTo(NormalizationJobStatus.DONE);
     }
 
     @Test
@@ -197,14 +200,14 @@ class NormalizationWorkerIntegrationTest {
                                  "yearsOfExperience": 6, "searchStatus": "open_to_work"}"""))
                 .andExpect(status().isNoContent());
         UUID userId = createdUserIds.get(createdUserIds.size() - 1);
-        UUID dueJobId = seedJob(userId, 1, "PENDING", 0, LocalDateTime.now().minusSeconds(1), null);
-        UUID futureJobId = seedJob(userId, 2, "PENDING", 1, LocalDateTime.now().plusMinutes(30), null);
+        UUID dueJobId = seedJob(userId, 1, NormalizationJobStatus.PENDING, 0, LocalDateTime.now().minusSeconds(1), null);
+        UUID futureJobId = seedJob(userId, 2, NormalizationJobStatus.PENDING, 1, LocalDateTime.now().plusMinutes(30), null);
         Instant scheduledAt = Instant.now();
 
         normalizationWorker.recoverOrphanJobs();
 
         takeDispatched().run();
-        assertThat(jobRow(dueJobId).get("status")).isEqualTo("DONE");
+        assertThat(statusOf(jobRow(dueJobId))).isEqualTo(NormalizationJobStatus.DONE);
 
         verify(normalizationTaskScheduler).schedule(scheduleCaptor.capture(), scheduleInstantCaptor.capture());
         clearInvocations(normalizationTaskScheduler);
@@ -213,7 +216,7 @@ class NormalizationWorkerIntegrationTest {
                 .isBeforeOrEqualTo(scheduledAt.plusSeconds(31 * 60));
         scheduleCaptor.getValue().run();
         takeDispatched().run();
-        assertThat(jobRow(futureJobId).get("status")).isEqualTo("DONE");
+        assertThat(statusOf(jobRow(futureJobId))).isEqualTo(NormalizationJobStatus.DONE);
     }
 
     @Test
@@ -230,7 +233,7 @@ class NormalizationWorkerIntegrationTest {
         normalizationWorker.onProfileValidated(new ProfileValidatedEvent(jobId));
 
         takeScheduled().run();
-        assertThat(jobRow(jobId).get("status")).isEqualTo("DONE");
+        assertThat(statusOf(jobRow(jobId))).isEqualTo(NormalizationJobStatus.DONE);
     }
 
     @Test
@@ -242,7 +245,7 @@ class NormalizationWorkerIntegrationTest {
 
         takeDispatched().run();
 
-        assertThat(jobRow(jobId).get("status")).isEqualTo("DONE");
+        assertThat(statusOf(jobRow(jobId))).isEqualTo(NormalizationJobStatus.DONE);
     }
 
     private Runnable takeDispatched() {
@@ -271,7 +274,7 @@ class NormalizationWorkerIntegrationTest {
     }
 
     /** Amorce un job en SQL : aucun événement, aucun dispatch asynchrone. */
-    private UUID seedJob(UUID userId, int version, String status, int attempts,
+    private UUID seedJob(UUID userId, int version, NormalizationJobStatus status, int attempts,
             LocalDateTime nextAttemptAt, LocalDateTime startedAt) {
         UUID jobId = UUID.randomUUID();
         LocalDateTime now = LocalDateTime.now();
@@ -284,9 +287,9 @@ class NormalizationWorkerIntegrationTest {
                 jobId, userId);
         jdbcTemplate.update("""
                 INSERT INTO normalization_job
-                    (job_id, status, attempts, next_attempt_at, error, created_at, started_at)
-                VALUES (?, ?, ?, ?, NULL, ?, ?)""",
-                jobId, status, attempts, nextAttemptAt, now, startedAt);
+                    (job_id, status, source_type, attempts, next_attempt_at, error, created_at, started_at)
+                VALUES (?, ?, 1, ?, ?, NULL, ?, ?)""",
+                jobId, status.getCode(), attempts, nextAttemptAt, now, startedAt);
         return jobId;
     }
 
@@ -348,6 +351,11 @@ class NormalizationWorkerIntegrationTest {
         return jdbcTemplate.queryForMap(
                 "SELECT status, attempts, next_attempt_at, error, completed_at FROM normalization_job WHERE job_id = ?",
                 jobId);
+    }
+
+    /** Statut SMALLINT → enum (les assertions parlent métier, pas codes). */
+    private static NormalizationJobStatus statusOf(Map<String, Object> row) {
+        return NormalizationJobStatus.fromCode(((Number) row.get("status")).shortValue());
     }
 
     private Map<String, Object> jobRowWithContent(UUID jobId) {

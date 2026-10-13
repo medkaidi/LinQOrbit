@@ -49,6 +49,7 @@ import com.linqorbit.joboffer.repository.JobOfferLanguageRepository;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.joboffer.repository.JobOfferSkillRepository;
 import com.linqorbit.joboffer.repository.JobOfferStudyFieldRepository;
+import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.repository.WorkModeRepository;
 import com.linqorbit.recruiter.exception.RecruiterNotFoundException;
 import com.linqorbit.recruiter.repository.RecruiterRepository;
@@ -109,7 +110,9 @@ class JobOfferServiceTest {
                 jobOfferRepository, jobOfferSkillRepository, jobOfferLanguageRepository,
                 jobOfferDegreeRepository, jobOfferStudyFieldRepository, companyMemberRepository,
                 companyRepository, recruiterRepository, skillRepository, languageRepository, degreeRepository,
-                studyFieldRepository, contractTypeRepository, employmentTypeRepository, workModeRepository);
+                studyFieldRepository, contractTypeRepository, employmentTypeRepository, workModeRepository,
+                mock(NormalizedProfileJobOfferRepository.class),
+                mock(JobOfferNormalizationService.class));
 
         lenient().when(jobOfferSkillRepository.findByJobOfferIdIn(any())).thenReturn(List.of());
         lenient().when(jobOfferLanguageRepository.findByJobOfferIdIn(any())).thenReturn(List.of());
@@ -334,7 +337,10 @@ class JobOfferServiceTest {
 
         assertThat(offer.getStatus()).isEqualTo(JobOfferStatus.VALIDATED);
         assertThat(offer.getValidatedAt()).isNotNull();
-        assertThat(offer.getUpdatedAt()).isEqualTo(offer.getValidatedAt());
+        // La validation n'est pas une édition : updatedAt est inchangé (le
+        // dirty-flag compare updatedAt à validatedAt — un bump ici créerait
+        // un faux positif et un doublon de version au double-clic).
+        assertThat(offer.getUpdatedAt()).isNull();
     }
 
     @Test
@@ -420,6 +426,8 @@ class JobOfferServiceTest {
                 .thenReturn(Optional.of(membership));
         when(jobOfferRepository.findByIdAndCompanyIdIn(OFFER_ID, List.of(COMPANY_ID)))
                 .thenReturn(Optional.of(offer));
+        // Les transitions passent par findByIdForUpdate (lock en tête).
+        when(jobOfferRepository.findByIdForUpdate(OFFER_ID)).thenReturn(Optional.of(offer));
     }
 
     @Test

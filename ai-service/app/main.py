@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import FastAPI, Request, Response
 
-from app.api.routes import cv, health, normalize
+from app.api.routes import cv, health, job_offer, normalize
 from app.core.config import settings
 from app.core.logging import configure_logging, reset_correlation_id, set_correlation_id
 
@@ -21,6 +21,7 @@ app = FastAPI(
 app.include_router(health.router)
 app.include_router(cv.router)
 app.include_router(normalize.router)
+app.include_router(job_offer.router)
 
 
 def _response_level(status_code: int) -> int:

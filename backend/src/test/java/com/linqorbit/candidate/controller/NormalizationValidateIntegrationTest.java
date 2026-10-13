@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import com.linqorbit.candidate.entity.NormalizationJobStatus;
 import com.linqorbit.candidate.service.NormalizationWorker;
 
 /**
@@ -101,7 +102,7 @@ class NormalizationValidateIntegrationTest {
                 .andExpect(jsonPath("$.normalizationInProgress").value(true));
         assertThat(profileCount(userId)).isEqualTo(1);
         assertThat(latestVersion(userId)).isEqualTo(1);
-        assertThat(jobStatus(latestProfileId(userId))).isEqualTo("PENDING");
+        assertThat(jobStatus(latestProfileId(userId))).isEqualTo(NormalizationJobStatus.PENDING);
         assertThat(contentOf(latestProfileId(userId))).isNull();
 
         mockMvc.perform(put(PROFILE_PATH + "/experiences")
@@ -123,8 +124,8 @@ class NormalizationValidateIntegrationTest {
 
         assertThat(profileCount(userId)).isEqualTo(2);
         assertThat(latestVersion(userId)).isEqualTo(2);
-        assertThat(jobStatus(latestProfileId(userId))).isEqualTo("PENDING");
-        assertThat(jobStatus(profileIdOfVersion(userId, 1))).isEqualTo("SUPERSEDED");
+        assertThat(jobStatus(latestProfileId(userId))).isEqualTo(NormalizationJobStatus.PENDING);
+        assertThat(jobStatus(profileIdOfVersion(userId, 1))).isEqualTo(NormalizationJobStatus.SUPERSEDED);
 
         mockMvc.perform(post(PROFILE_PATH + "/validate")
                         .header("Authorization", "Bearer " + token))
@@ -166,8 +167,9 @@ class NormalizationValidateIntegrationTest {
                 .andExpect(status().isNoContent());
 
         UUID firstJobId = latestProfileId(userId);
+        // Statut SMALLINT : 4 = FAILED.
         jdbcTemplate.update("""
-                UPDATE normalization_job SET status = 'FAILED', attempts = 3, completed_at = now()
+                UPDATE normalization_job SET status = 4, attempts = 3, completed_at = now()
                 WHERE job_id = ?""", firstJobId);
 
         mockMvc.perform(get(PROFILE_PATH).header("Authorization", "Bearer " + token))
@@ -182,8 +184,8 @@ class NormalizationValidateIntegrationTest {
                 .andExpect(status().isNoContent());
 
         assertThat(profileCount(userId)).isEqualTo(2);
-        assertThat(jobStatus(latestProfileId(userId))).isEqualTo("PENDING");
-        assertThat(jobStatus(firstJobId)).isEqualTo("FAILED");
+        assertThat(jobStatus(latestProfileId(userId))).isEqualTo(NormalizationJobStatus.PENDING);
+        assertThat(jobStatus(firstJobId)).isEqualTo(NormalizationJobStatus.FAILED);
 
         mockMvc.perform(get(PROFILE_PATH).header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -257,9 +259,10 @@ class NormalizationValidateIntegrationTest {
                 WHERE npc.candidate_id = ? AND np.version = ?""", UUID.class, userId, version);
     }
 
-    private String jobStatus(UUID profileId) {
-        return jdbcTemplate.queryForObject(
-                "SELECT status FROM normalization_job WHERE job_id = ?", String.class, profileId);
+    private NormalizationJobStatus jobStatus(UUID profileId) {
+        Number status = jdbcTemplate.queryForObject(
+                "SELECT status FROM normalization_job WHERE job_id = ?", Number.class, profileId);
+        return NormalizationJobStatus.fromCode(status.shortValue());
     }
 
     private String contentOf(UUID profileId) {

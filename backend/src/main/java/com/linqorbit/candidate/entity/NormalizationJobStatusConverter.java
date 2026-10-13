@@ -4,18 +4,18 @@ import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
 /**
- * Mapping explicite NormalizationJobStatus ↔ VARCHAR (jamais @Enumerated(ORDINAL)).
+ * Mapping explicite NormalizationJobStatus ↔ SMALLINT (jamais @Enumerated(ORDINAL)).
  */
 @Converter(autoApply = false)
-public class NormalizationJobStatusConverter implements AttributeConverter<NormalizationJobStatus, String> {
+public class NormalizationJobStatusConverter implements AttributeConverter<NormalizationJobStatus, Short> {
 
     @Override
-    public String convertToDatabaseColumn(NormalizationJobStatus attribute) {
-        return attribute == null ? null : attribute.name();
+    public Short convertToDatabaseColumn(NormalizationJobStatus attribute) {
+        return attribute == null ? null : (short) attribute.getCode();
     }
 
     @Override
-    public NormalizationJobStatus convertToEntityAttribute(String dbData) {
-        return dbData == null ? null : NormalizationJobStatus.valueOf(dbData);
+    public NormalizationJobStatus convertToEntityAttribute(Short dbData) {
+        return dbData == null ? null : NormalizationJobStatus.fromCode(dbData);
     }
 }

@@ -9,19 +9,20 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.linqorbit.candidate.entity.Candidate;
 import com.linqorbit.candidate.entity.NormalizationJob;
+import com.linqorbit.candidate.entity.NormalizationJobStatus;
+import com.linqorbit.candidate.entity.NormalizationSourceType;
 import com.linqorbit.candidate.entity.NormalizedProfile;
 import com.linqorbit.candidate.entity.NormalizedProfileCandidate;
 import com.linqorbit.candidate.exception.EmptyProfileException;
+import com.linqorbit.candidate.repository.CandidateRepository;
 import com.linqorbit.candidate.repository.NormalizationJobRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileCandidateRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import com.linqorbit.candidate.entity.Candidate;
-import com.linqorbit.candidate.entity.NormalizationJobStatus;
-import com.linqorbit.candidate.repository.CandidateRepository;
 
 /**
  * Normalisation du profil candidat : validation explicite par l'utilisateur
@@ -126,6 +127,7 @@ public class NormalizationService {
         normalizationJobRepository.save(NormalizationJob.builder()
                 .id(profileId)
                 .status(NormalizationJobStatus.PENDING)
+                .sourceType(NormalizationSourceType.CANDIDATE)
                 .attempts(0)
                 .nextAttemptAt(now)
                 .createdAt(now)

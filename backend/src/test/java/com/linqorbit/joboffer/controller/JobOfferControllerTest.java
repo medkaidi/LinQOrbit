@@ -295,7 +295,8 @@ class JobOfferControllerTest {
     }
 
     @Test
-    void validatePublishEtCloseRenvoient204() throws Exception {        UUID userId = UUID.randomUUID();
+    void validatePublishEtCloseRenvoient204() throws Exception {
+        UUID userId = UUID.randomUUID();
 
         mockMvc.perform(post("/api/v1/job-offers/" + OFFER_ID + "/validate")
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
@@ -384,6 +385,6 @@ class JobOfferControllerTest {
                 "abcdefghijkl", "backend-engineer", null,
                 null, null, null, null, null, null, null, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
-                false, List.of(), List.of(), List.of(), List.of(), null, null);
+                false, false, false, List.of(), List.of(), List.of(), List.of(), null, null);
     }
 }

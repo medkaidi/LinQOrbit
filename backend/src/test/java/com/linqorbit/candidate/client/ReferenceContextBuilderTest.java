@@ -48,4 +48,19 @@ class ReferenceContextBuilderTest {
                 .containsEntry("Programming Languages", List.of("Java"))
                 .containsEntry("Software", List.of("Microsoft Excel"));
     }
+
+    @Test
+    void buildForOfferNeContientQueLanguesEtSkills() {
+        when(languageRepository.findAllByOrderByNameAsc())
+                .thenReturn(List.of(Language.builder().name("English").build()));
+        when(skillRepository.findAllByOrderBySkillTypeAscNameAsc())
+                .thenReturn(List.of(Skill.builder().name("Java").category("Programming Languages").build()));
+
+        ParseContext context = referenceContextBuilder.buildForOffer();
+
+        assertThat(context.languages()).containsExactly("English");
+        assertThat(context.degrees()).isEmpty();
+        assertThat(context.studyFields()).isEmpty();
+        assertThat(context.skills()).containsEntry("Programming Languages", List.of("Java"));
+    }
 }

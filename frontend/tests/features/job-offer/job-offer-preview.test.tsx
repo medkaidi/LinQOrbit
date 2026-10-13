@@ -61,6 +61,8 @@ function validatedOffer(): JobOffer {
     publishedAt: null,
     expiresAt: null,
     hasUnvalidatedChanges: false,
+    normalizationInProgress: false,
+    normalizationFailed: false,
     skills: [
       {
         skillId: "s1",

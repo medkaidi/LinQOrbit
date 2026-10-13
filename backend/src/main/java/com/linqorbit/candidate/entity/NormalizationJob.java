@@ -11,9 +11,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-import com.linqorbit.candidate.entity.NormalizationJobStatus;
-import com.linqorbit.candidate.entity.NormalizationJobStatusConverter;
-
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,8 +24,8 @@ import lombok.Setter;
  * Shared PK : {@code job_id ≡ normalized_profile_id}, la PK porte la FK
  * (intégrité sans colonne redondante) — l'id est donc toujours assigné.
  *
- * <p>Claim sûr multi-instances : {@code UPDATE … SET status='RUNNING'
- * WHERE id = ? AND status = 'PENDING'}.</p>
+ * <p>Claim sûr multi-instances : {@code UPDATE … SET status=2
+ * WHERE id = ? AND status = 1} (RUNNING = 2, PENDING = 1).</p>
  */
 @Entity
 @Table(name = "normalization_job")
@@ -44,8 +41,12 @@ public class NormalizationJob {
     private UUID id;
 
     @Convert(converter = NormalizationJobStatusConverter.class)
-    @Column(name = "status", nullable = false, length = 12)
+    @Column(name = "status", nullable = false)
     private NormalizationJobStatus status;
+
+    @Convert(converter = NormalizationSourceTypeConverter.class)
+    @Column(name = "source_type", nullable = false)
+    private NormalizationSourceType sourceType;
 
     @Column(name = "attempts", nullable = false)
     private Integer attempts;

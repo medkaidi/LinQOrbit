@@ -49,6 +49,8 @@ function draftOffer(overrides: Partial<JobOffer> = {}): JobOffer {
     publishedAt: null,
     expiresAt: null,
     hasUnvalidatedChanges: false,
+    normalizationInProgress: false,
+    normalizationFailed: false,
     skills: [
       {
         skillId: "s1",
@@ -485,5 +487,76 @@ describe("JobOffersSection", () => {
 
     expect(screen.getByText("Action failed")).toBeInTheDocument();
     expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
+  });
+
+  function renderOffers(offers: JobOffer[]) {
+    useJobOffersMock.mockReturnValue({
+      data: offers,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    render(<JobOffersSection companies={companies} />);
+  }
+
+  it("shows Analyzing… while the normalization is in progress", () => {
+    renderOffers([draftOffer({ status: "validated", normalizationInProgress: true })]);
+
+    expect(screen.getByText("Analyzing…")).toBeInTheDocument();
+    expect(screen.queryByText("Unvalidated changes")).not.toBeInTheDocument();
+  });
+
+  it("shows Analysis failed when the last normalization failed", () => {
+    renderOffers([draftOffer({ status: "validated", normalizationFailed: true })]);
+
+    expect(screen.getByText("Analysis failed")).toBeInTheDocument();
+    expect(screen.queryByText("Unvalidated changes")).not.toBeInTheDocument();
+  });
+
+  it("prioritises Analyzing… over a failed or dirty state", () => {
+    renderOffers([
+      draftOffer({
+        status: "validated",
+        normalizationInProgress: true,
+        normalizationFailed: true,
+        hasUnvalidatedChanges: true,
+      }),
+    ]);
+
+    expect(screen.getByText("Analyzing…")).toBeInTheDocument();
+    expect(screen.queryByText("Analysis failed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unvalidated changes")).not.toBeInTheDocument();
+  });
+
+  it("shows no analysis badge once the normalization settles without changes", () => {
+    renderOffers([draftOffer({ status: "validated" })]);
+
+    expect(screen.queryByText("Analyzing…")).not.toBeInTheDocument();
+    expect(screen.queryByText("Analysis failed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unvalidated changes")).not.toBeInTheDocument();
+  });
+
+  it("offers a Validate again action on a failed analysis", () => {
+    const transition = mutation();
+    useJobOfferTransitionMock.mockReturnValue(transition);
+    renderOffers([draftOffer({ status: "validated", normalizationFailed: true })]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Validate again" }));
+    // Même garde que Validate en draft : confirmation avant la mutation (D13).
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Validate" }),
+    );
+
+    expect(transition.mutate).toHaveBeenCalledWith(
+      { offerId: "o1", action: "validate" },
+      expect.anything(),
+    );
+  });
+
+  it("does not offer Validate again when the analysis is healthy", () => {
+    renderOffers([draftOffer({ status: "validated" })]);
+
+    expect(screen.queryByRole("button", { name: "Validate again" })).not.toBeInTheDocument();
   });
 });

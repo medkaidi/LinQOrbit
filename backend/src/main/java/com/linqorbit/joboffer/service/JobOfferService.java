@@ -30,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import com.linqorbit.candidate.entity.Degree;
 import com.linqorbit.candidate.entity.Language;
+import com.linqorbit.candidate.entity.NormalizationJobStatus;
 import com.linqorbit.candidate.entity.Skill;
 import com.linqorbit.candidate.entity.StudyField;
 import com.linqorbit.candidate.repository.DegreeRepository;
@@ -72,6 +73,7 @@ import com.linqorbit.joboffer.repository.JobOfferLanguageRepository;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.joboffer.repository.JobOfferSkillRepository;
 import com.linqorbit.joboffer.repository.JobOfferStudyFieldRepository;
+import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.repository.WorkModeRepository;
 import com.linqorbit.recruiter.exception.RecruiterNotFoundException;
 import com.linqorbit.recruiter.repository.RecruiterRepository;
@@ -104,6 +106,8 @@ public class JobOfferService {
     private final ContractTypeRepository contractTypeRepository;
     private final EmploymentTypeRepository employmentTypeRepository;
     private final WorkModeRepository workModeRepository;
+    private final NormalizedProfileJobOfferRepository normalizedProfileJobOfferRepository;
+    private final JobOfferNormalizationService jobOfferNormalizationService;
 
     @Transactional
     public JobOfferResponse create(UUID userId, CreateJobOfferRequest request) {
@@ -272,16 +276,23 @@ public class JobOfferService {
         return buildResponse(copy);
     }
 
+    /**
+     * Validation explicite (D13 : validate ≠ publish) : acte qui déclenche la
+     * normalisation de l'offre (miroir « Validate profile »). La validation
+     * n'est pas une édition : elle pose {@code validatedAt} sans toucher
+     * {@code updatedAt} (miroir du heartbeat candidat), sinon le dirty-flag
+     * serait faussé et le double-clic créerait deux versions. La création du
+     * couple profil + job se fait dans la même tx.
+     */
     @Transactional
     public void validate(UUID userId, UUID offerId) {
         transition(userId, offerId, "validate",
                 status -> status == JobOfferStatus.DRAFT || status == JobOfferStatus.VALIDATED,
                 offer -> {
                     offer.setStatus(JobOfferStatus.VALIDATED);
-                    LocalDateTime now = LocalDateTime.now();
-                    offer.setValidatedAt(now);
-                    offer.setUpdatedAt(now);
+                    offer.setValidatedAt(LocalDateTime.now());
                 });
+        jobOfferNormalizationService.onValidated(offerId);
     }
 
     @Transactional
@@ -308,7 +319,10 @@ public class JobOfferService {
 
     private void transition(UUID userId, UUID offerId, String action,
             Predicate<JobOfferStatus> allowed, Consumer<JobOffer> apply) {
-        JobOffer offer = loadForManagement(offerId, userId);
+        // Lock avant tout read-check (miroir candidat) : les transitions
+        // concurrentes d'une même offre sont sérialisées, pas seulement
+        // validate → onValidated.
+        JobOffer offer = loadForManagementForUpdate(offerId, userId);
         if (!allowed.test(offer.getStatus())) {
             log.warn("Job offer transition rejected : offerId={}, action={}, status={}",
                     offerId, action, offer.getStatus().getApiValue());
@@ -336,6 +350,19 @@ public class JobOfferService {
     private JobOffer loadForManagement(UUID offerId, UUID userId) {
         requireRecruiter(userId);
         JobOffer offer = loadForMember(offerId, userId);
+        requireManagementAccess(offer, offerId, userId);
+        return offer;
+    }
+
+    private JobOffer loadForManagementForUpdate(UUID offerId, UUID userId) {
+        requireRecruiter(userId);
+        JobOffer offer = jobOfferRepository.findByIdForUpdate(offerId)
+                .orElseThrow(() -> new JobOfferNotFoundException(offerId));
+        requireManagementAccess(offer, offerId, userId);
+        return offer;
+    }
+
+    private void requireManagementAccess(JobOffer offer, UUID offerId, UUID userId) {
         CompanyMember membership = companyMemberRepository
                 .findByCompanyIdAndRecruiterId(offer.getCompanyId(), userId)
                 .orElseThrow(() -> new JobOfferNotFoundException(offerId));
@@ -344,7 +371,6 @@ public class JobOfferService {
             log.warn("Job offer management rejected : offerId={}, recruiterId={}", offerId, userId);
             throw new JobOfferAccessDeniedException(offerId, userId);
         }
-        return offer;
     }
 
     private void requireEditable(JobOffer offer) {
@@ -553,6 +579,7 @@ public class JobOfferService {
         Map<UUID, List<JobOfferLanguage>> languagesByOffer = groupBy(languages, JobOfferLanguage::getJobOfferId);
         Map<UUID, List<JobOfferDegree>> degreesByOffer = groupBy(degrees, JobOfferDegree::getJobOfferId);
         Map<UUID, List<JobOfferStudyField>> studyFieldsByOffer = groupBy(studyFields, JobOfferStudyField::getJobOfferId);
+        Map<UUID, NormalizationJobStatus> latestStatuses = latestJobStatuses(offerIds);
 
         return offers.stream()
                 .map(offer -> new JobOfferResponse(
@@ -582,10 +609,12 @@ public class JobOfferService {
                         // publish/close posent updatedAt après validatedAt et fausseraient
                         // le signal sur PUBLISHED/CLOSED (lecture seule).
                         (offer.getStatus() == JobOfferStatus.DRAFT
-                                || offer.getStatus() == JobOfferStatus.VALIDATED)
-                                && offer.getValidatedAt() != null
-                                && offer.getUpdatedAt() != null
-                                && offer.getUpdatedAt().isAfter(offer.getValidatedAt()),
+                                 || offer.getStatus() == JobOfferStatus.VALIDATED)
+                                 && offer.getValidatedAt() != null
+                                 && offer.getUpdatedAt() != null
+                                 && offer.getUpdatedAt().isAfter(offer.getValidatedAt()),
+                         isInProgress(latestStatuses.get(offer.getId())),
+                         latestStatuses.get(offer.getId()) == NormalizationJobStatus.FAILED,
                         skillsByOffer.getOrDefault(offer.getId(), List.of()).stream()
                                 .map(skill -> new JobOfferSkillOption(
                                         skill.getSkillId(),
@@ -778,6 +807,25 @@ public class JobOfferService {
         } catch (IllegalArgumentException ex) {
             throw new InvalidJobOfferException("Unknown salary period: " + value);
         }
+    }
+
+    /**
+     * Statut du job de la dernière version de chaque offre, en une seule
+     * requête (pas de N+1 sur les signaux d'affichage de la liste).
+     */
+    private Map<UUID, NormalizationJobStatus> latestJobStatuses(List<UUID> offerIds) {
+        if (offerIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, NormalizationJobStatus> statuses = new HashMap<>();
+        for (Object[] row : normalizedProfileJobOfferRepository.findLatestJobStatuses(offerIds)) {
+            statuses.put((UUID) row[0], (NormalizationJobStatus) row[1]);
+        }
+        return statuses;
+    }
+
+    private static boolean isInProgress(NormalizationJobStatus status) {
+        return status == NormalizationJobStatus.PENDING || status == NormalizationJobStatus.RUNNING;
     }
 
     private static String skillName(Map<UUID, Skill> skills, UUID id) {

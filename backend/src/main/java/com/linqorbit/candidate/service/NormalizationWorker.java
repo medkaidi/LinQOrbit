@@ -20,23 +20,32 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.linqorbit.candidate.client.ProfileNormalizeClient;
+import com.linqorbit.candidate.client.ReferenceContextBuilder;
 import com.linqorbit.candidate.dto.CandidateProfileResponse;
 import com.linqorbit.candidate.dto.NormalizeRequest;
 import com.linqorbit.candidate.dto.ParseContext;
 import com.linqorbit.candidate.dto.ProfileLocation;
 import com.linqorbit.candidate.entity.NormalizationJob;
+import com.linqorbit.candidate.entity.NormalizationJobStatus;
+import com.linqorbit.candidate.entity.NormalizationSourceType;
 import com.linqorbit.candidate.exception.AiServiceException;
 import com.linqorbit.candidate.repository.NormalizationJobRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileCandidateRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.common.logging.RequestLoggingFilter;
+import com.linqorbit.joboffer.client.JobOfferNormalizeClient;
+import com.linqorbit.joboffer.dto.OfferNormalizeRequest;
+import com.linqorbit.joboffer.dto.OfferSnapshot;
+import com.linqorbit.joboffer.entity.JobOffer;
+import com.linqorbit.joboffer.repository.JobOfferRepository;
+import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
+import com.linqorbit.joboffer.service.JobOfferNormalizeSnapshotBuilder;
+import com.linqorbit.joboffer.service.JobOfferValidatedEvent;
 import com.linqorbit.user.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import com.linqorbit.candidate.client.ProfileNormalizeClient;
-import com.linqorbit.candidate.client.ReferenceContextBuilder;
-import com.linqorbit.candidate.entity.NormalizationJobStatus;
 
 /**
  * Exécution asynchrone des jobs de normalisation, <b>déclenchée uniquement par
@@ -51,6 +60,11 @@ import com.linqorbit.candidate.entity.NormalizationJobStatus;
  * {@code PENDING}). {@code attempts} compte les échecs cumulés : exécution
  * initiale + 2 retries = 3 exécutions au total, jamais une quatrième
  * ({@code FAILED} est terminal pour un job).</p>
+ *
+ * <p>Le worker est <b>unique</b> pour les deux sources (D27) : après le
+ * claim, il branche sur {@code source_type} (snapshot et client IA dédiés
+ * par source). Claim, retries, recovery et écriture DONE sont partagés —
+ * seule la construction du snapshot et l'appel IA diffèrent.</p>
  *
  * <p>Timeouts : le read timeout du client IA libère le thread de l'exécution ;
  * il n'annule pas le calcul côté FastAPI/LLM (réponse tardive perdue sur la
@@ -82,12 +96,22 @@ public class NormalizationWorker {
     private final ReferenceContextBuilder referenceContextBuilder;
     private final ProfileNormalizeClient profileNormalizeClient;
     private final UserRepository userRepository;
+    private final NormalizedProfileJobOfferRepository normalizedProfileJobOfferRepository;
+    private final JobOfferRepository jobOfferRepository;
+    private final JobOfferNormalizeSnapshotBuilder jobOfferNormalizeSnapshotBuilder;
+    private final JobOfferNormalizeClient jobOfferNormalizeClient;
     @Value("${app.normalization.retry-delay-seconds}")
     private final int retryDelaySeconds;
 
     /** Après commit d'une validation : soumission immédiate au pool dédié. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     void onProfileValidated(ProfileValidatedEvent event) {
+        dispatch(event.jobId());
+    }
+
+    /** Après commit d'une validation d'offre : même soumission, même pool. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    void onJobOfferValidated(JobOfferValidatedEvent event) {
         dispatch(event.jobId());
     }
 
@@ -182,13 +206,17 @@ public class NormalizationWorker {
             }
             MDC.put(RequestLoggingFilter.CORRELATION_ID, jobId.toString());
             try {
-                execute(job);
+                if (job.getSourceType() == NormalizationSourceType.OFFER) {
+                    executeOffer(job);
+                } else {
+                    executeCandidate(job);
+                }
             } catch (AiServiceException ex) {
-                log.warn("Profile normalization failed : jobId={}, status={}, detail={}",
+                log.warn("Normalization failed : jobId={}, status={}, detail={}",
                         job.getId(), ex.getStatus(), ex.getMessage());
                 retryOrFail(job, ex.getMessage());
             } catch (Exception ex) {
-                log.error("Profile normalization unexpected error : jobId={}", job.getId(), ex);
+                log.error("Normalization unexpected error : jobId={}", job.getId(), ex);
                 retryOrFail(job, "Unexpected error during normalization");
             } finally {
                 MDC.remove(RequestLoggingFilter.CORRELATION_ID);
@@ -212,7 +240,7 @@ public class NormalizationWorker {
     }
 
     /** Appel IA hors tx ; écriture du contenu + DONE en une tx courte. */
-    private void execute(NormalizationJob job) {
+    private void executeCandidate(NormalizationJob job) {
         UUID candidateId = normalizedProfileCandidateRepository
                 .findCandidateIdByNormalizedProfileId(job.getId())
                 .orElseThrow(() -> new IllegalStateException("Job without candidate link"));
@@ -232,6 +260,30 @@ public class NormalizationWorker {
     }
 
     /**
+     * Branche offre : snapshot de l'offre (description HTML déjà strippée par
+     * le builder) + contexte référentiel → POST /job-offer/normalize, puis
+     * écriture du contenu + DONE en une tx (même machine que le candidat).
+     */
+    private void executeOffer(NormalizationJob job) {
+        UUID offerId = normalizedProfileJobOfferRepository
+                .findOfferIdByNormalizedProfileId(job.getId())
+                .orElseThrow(() -> new IllegalStateException("Job without offer link"));
+        JobOffer offer = jobOfferRepository.findById(offerId)
+                .orElseThrow(() -> new IllegalStateException("Job without offer"));
+        OfferSnapshot snapshot = jobOfferNormalizeSnapshotBuilder.build(offer);
+        ParseContext context = referenceContextBuilder.buildForOffer();
+        String canonical = jobOfferNormalizeClient
+                .normalize(new OfferNormalizeRequest(snapshot, context));
+        LocalDateTime now = LocalDateTime.now();
+        transactionTemplate.executeWithoutResult(txStatus -> {
+            normalizedProfileRepository.setContent(job.getId(), canonical, now);
+            normalizationJobRepository.casDone(job.getId(),
+                    NormalizationJobStatus.RUNNING, NormalizationJobStatus.DONE, now);
+        });
+        log.info("Offer normalization done : jobId={}, offerId={}", job.getId(), offerId);
+    }
+
+    /**
      * Échec courant : replanifie (one-shot à {@code retryDelaySeconds}) tant
      * que le total reste sous {@link #MAX_ATTEMPTS} exécutions, sinon
      * abandonne en {@code FAILED} (relançable par une nouvelle validation,
@@ -245,7 +297,7 @@ public class NormalizationWorker {
             transactionTemplate.executeWithoutResult(txStatus ->
                     normalizationJobRepository.casFail(job.getId(), NormalizationJobStatus.RUNNING,
                             NormalizationJobStatus.FAILED, attempts, now, error));
-            log.warn("Profile normalization abandoned after {} attempts : jobId={}, error={}",
+            log.warn("Normalization abandoned after {} attempts : jobId={}, error={}",
                     attempts, job.getId(), error);
             return;
         }
@@ -253,7 +305,7 @@ public class NormalizationWorker {
         transactionTemplate.executeWithoutResult(txStatus ->
                 normalizationJobRepository.casRetry(job.getId(), NormalizationJobStatus.RUNNING,
                         NormalizationJobStatus.PENDING, attempts, nextAttemptAt, error));
-        log.info("Profile normalization scheduled for retry : jobId={}, attempt={}, nextAttemptAt={}",
+        log.info("Normalization scheduled for retry : jobId={}, attempt={}, nextAttemptAt={}",
                 job.getId(), attempts, nextAttemptAt);
         scheduleAt(job.getId(), nextAttemptAt);
     }

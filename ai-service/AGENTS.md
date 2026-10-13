@@ -4,7 +4,7 @@ Service indépendant spécialisé IA pour LinQOrbit. **Spring Boot reste le back
 
 ## Rôle
 
-Reçoit des données structurées de Spring Boot (HTTP/JSON) → analyse via LangGraph/agents/LLM → renvoie un résultat structuré. Existant : `POST /cv/parse` (import de CV), `POST /profile/normalize` (normalisation de profil, appelée par le worker Spring Boot). À terme : normalisation d'offre, `POST /ai/matching/analyze`, `POST /ai/matching/clarify`.
+Reçoit des données structurées de Spring Boot (HTTP/JSON) → analyse via LangGraph/agents/LLM → renvoie un résultat structuré. Existant : `POST /cv/parse` (import de CV), `POST /profile/normalize` (normalisation de profil, appelée par le worker Spring Boot), `POST /job-offer/normalize` (normalisation d'offre, même worker unique côté Spring). À terme : `POST /ai/matching/analyze`, `POST /ai/matching/clarify`.
 
 ## Stack
 
@@ -18,8 +18,8 @@ Reçoit des données structurées de Spring Boot (HTTP/JSON) → analyse via Lan
 ```text
 app/
 ├── main.py          # app FastAPI + routers
-├── api/routes/       # HTTP uniquement (health.py, cv.py, normalize.py ; plus tard matching.py)
-├── schemas/          # contrats Pydantic API (cv.py, normalize.py ; plus tard job_offer, matching…) — JAMAIS d'ORM
+├── api/routes/       # HTTP uniquement (health.py, cv.py, normalize.py, job_offer.py ; plus tard matching.py)
+├── schemas/          # contrats Pydantic API (cv.py, normalize.py, job_offer.py ; plus tard matching…) — JAMAIS d'ORM
 ├── agents/           # logique des agents
 ├── graphs/           # orchestration LangGraph (workflow des agents)
 ├── llm/              # config et appels LLM centralisés (jamais dispersés dans les routes)

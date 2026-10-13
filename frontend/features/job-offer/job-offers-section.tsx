@@ -179,6 +179,11 @@ function OfferActions({
       )}
       {offer.status === "validated" && (
         <>
+          {offer.normalizationFailed && (
+            <Button variant="outline-sm" busy={busy} onClick={() => onTransition("validate")}>
+              Validate again
+            </Button>
+          )}
           <Link href={`/recruiter/offers/${offer.id}/edit`} className={EDIT_LINK_CLASS}>
             Edit
           </Link>
@@ -312,7 +317,11 @@ function OfferRow({
             ) : null}
             <StatusPill status={offer.status} />
             {isOfferExpired(offer) ? <Badge tone="neutral">Expired</Badge> : null}
-            {offer.hasUnvalidatedChanges && offer.status === "validated" ? (
+            {offer.normalizationInProgress ? (
+              <Badge>Analyzing…</Badge>
+            ) : offer.normalizationFailed ? (
+              <Badge tone="neutral">Analysis failed</Badge>
+            ) : offer.hasUnvalidatedChanges && offer.status === "validated" ? (
               <Badge>Unvalidated changes</Badge>
             ) : null}
             {created ? (

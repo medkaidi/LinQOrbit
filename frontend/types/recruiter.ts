@@ -59,6 +59,8 @@ export type JobOffer = {
   salaryCurrency: string | null;
   salaryPeriod: SalaryPeriodValue | null;
   hasUnvalidatedChanges: boolean;
+  normalizationInProgress: boolean;
+  normalizationFailed: boolean;
   skills: JobOfferSkillOption[];
   languages: JobOfferLanguageOption[];
   degreeIds: string[];

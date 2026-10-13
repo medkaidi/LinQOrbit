@@ -168,9 +168,9 @@ export function CvImportPreview({
   return (
     <section
       aria-label="CV import preview"
-      className="bg-canvas-white rounded-2xl p-6 shadow-sm flex flex-col gap-4"
+      className="bg-canvas-white rounded-2xl p-6 shadow-sm flex flex-col gap-4 min-h-0"
     >
-      <header className="flex items-start gap-3">
+      <header className="flex items-start gap-3 shrink-0">
         <SectionIcon name="upload_file" />
         <div className="min-w-0 flex-1">
           <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
@@ -182,6 +182,7 @@ export function CvImportPreview({
         </div>
       </header>
 
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
       {cv.title || cv.summary ? (
         <div className="rounded-2xl border border-slate-border bg-item-surface/50 p-4">
           <span className="font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
@@ -324,8 +325,9 @@ export function CvImportPreview({
           </ul>
         </div>
       ) : null}
+      </div>
 
-      <footer className="flex flex-wrap items-center justify-end gap-3">
+      <footer className="flex flex-wrap items-center justify-end gap-3 shrink-0">
         {applyHint ? (
           <span className="mr-auto text-body-sm font-body-sm text-text-secondary">{applyHint}</span>
         ) : null}

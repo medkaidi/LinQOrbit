@@ -100,7 +100,7 @@ export function CvImportDialog({
         role="dialog"
         aria-modal="true"
         aria-label="CV import"
-        className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-canvas-white rounded-2xl shadow-xl"
+        className="relative w-full max-w-3xl max-h-[90vh] overflow-hidden bg-canvas-white rounded-2xl shadow-xl flex flex-col"
         onClick={(event) => event.stopPropagation()}
       >
         {status === "parsing" ? (

@@ -5,6 +5,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+
+import jakarta.persistence.LockModeType;
 
 import com.linqorbit.joboffer.entity.JobOffer;
 
@@ -19,4 +23,8 @@ public interface JobOfferRepository extends JpaRepository<JobOffer, UUID> {
     Optional<JobOffer> findByPublicId(String publicId);
 
     List<JobOffer> findByCompanyIdInOrderByCreatedAtDesc(List<UUID> companyIds);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from JobOffer o where o.id = :id")
+    Optional<JobOffer> findByIdForUpdate(UUID id);
 }

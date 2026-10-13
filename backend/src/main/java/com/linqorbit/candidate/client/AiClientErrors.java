@@ -13,17 +13,18 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Mapping partagé des réponses d'erreur du service IA vers le bon statut et
- * le bon détail ({@link AiServiceException}). Sert {@link CvParseClient} et
- * {@link ProfileNormalizeClient} : aucune logique copiée d'un client à l'autre.
+ * le bon détail ({@link AiServiceException}). Sert {@link CvParseClient},
+ * {@link ProfileNormalizeClient} et {@code JobOfferNormalizeClient} : aucune
+ * logique copiée d'un client à l'autre.
  */
 @Slf4j
-final class AiClientErrors {
+public final class AiClientErrors {
 
     private AiClientErrors() {
     }
 
     /** 4xx du service IA (400 illisible, 422 sans texte, 429 quota…) telles quelles. */
-    static HttpStatus mapClientError(HttpStatusCode statusCode) {
+    public static HttpStatus mapClientError(HttpStatusCode statusCode) {
         HttpStatus resolved = HttpStatus.resolve(statusCode.value());
         if (resolved != null && resolved.is4xxClientError()) {
             return resolved;
@@ -32,7 +33,7 @@ final class AiClientErrors {
     }
 
     /** Le service IA répond {"detail": "..."} (FastAPI) ; fallback sinon. */
-    static String extractDetail(ObjectMapper objectMapper, HttpStatusCodeException ex, String fallback) {
+    public static String extractDetail(ObjectMapper objectMapper, HttpStatusCodeException ex, String fallback) {
         try {
             JsonNode detail = objectMapper.readTree(ex.getResponseBodyAsString()).path("detail");
             if (detail.isTextual()) {
