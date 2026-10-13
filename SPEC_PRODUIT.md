@@ -298,13 +298,13 @@ Plus : contexte éventuel, synonymes, informations complémentaires.
 ```
 Offre ──┐       ├── Règles métier (critères pondérés, niveaux requis)
         ├───────┼── Matching exact (compétences, langues, localisation…)
-Candidat┘       ├── Similarité sémantique (embeddings : « PostgreSQL » ↔ « bases de données relationnelles »)
+Candidat┘       ├── Comparaison sémantique (LLM : « PostgreSQL » ↔ « bases de données relationnelles »)
                 └── Informations disponibles (distinction cruciale : absent ≠ non possédé)
                        ↓
                  Score par critère
 ```
 
-**Jamais** « LLM → ce candidat vaut 87 % ». Les calculs et pondérations sont **côté backend** ; le LLM comprend le texte.
+**Jamais** « LLM → ce candidat vaut 87 % ». Les calculs et pondérations sont **côté backend** ; le LLM comprend le texte. Les **embeddings** ne sont pas un axe de score (révisé par D31) : ils ne servent qu'au **retrieval amont** (§8.4).
 
 ### 8.2 Résultat structuré (§19)
 
@@ -319,6 +319,102 @@ Candidat┘       ├── Similarité sémantique (embeddings : « PostgreSQL 
 | Candidat → Offres | Fiche candidat → matching → offres correspondantes | Candidat recherche |
 | Offre → Candidats | Fiche offre → matching → candidats correspondants | Recruteur reçoit des propositions |
 | Offre ↔ Candidat | Évaluation détaillée → transparence → clarification (§11) | Les deux |
+
+### 8.4 Screening sémantique — retrieval en amont du matching
+
+> **Évolution du matching (2026-10-12, D30–D32)** — pas un remplacement : un étage de **réduction de l'espace de recherche** exécuté avant §8.1–8.3.
+
+#### 8.4.1 Position dans le pipeline
+
+```
+Offre validée (fiche v1)
+      ↓
+embedding de l'offre (§8.4.5)
+      ↓
+recherche de similarité pgvector (§8.4.7)
+      ↓
+Top N candidats présélectionnés
+      ↓
+Matching détaillé (§8.1–8.3)
+      ↓
+Ranking final (basé sur les résultats du matching)
+```
+
+`N = 20` n'est qu'un exemple initial, valeur **expérimentale** (§8.4.8). Trois questions distinctes : le retrieval répond « qui semble sémantiquement pertinent pour cette offre ? », le matching « dans quelle mesure chacun y correspond-il, et pourquoi ? », le ranking « dans quel ordre les présenter ? ». La chaîne cible est **Semantic Retrieval → Detailed Matching → Ranking**, jamais « Embedding Similarity → Final Score ».
+
+#### 8.4.2 Rôle et limites
+
+Le screening **réduit l'espace de recherche uniquement** — il ne décide ni ne score (D31). Exemple canonique : un candidat à similarité vectorielle 0.91 qui ne possède **pas** une compétence obligatoire doit rester derrière un candidat à 0.84 qui les possède toutes. Le matching détaillé reste la source de décision et du ranking, avec tous ses axes déjà prévus (§7, §8.2 : scores par critère, obligatoires/souhaitables, forces, lacunes, justification, « info insuffisante », questions générées, réponses candidat, recalcul).
+
+**Condition de fiabilité** : si un bon candidat n'entre pas dans le Top N, le matching ne peut jamais le récupérer ensuite → le screening se juge sur le **rappel**, pas sur la précision (§8.4.8).
+
+#### 8.4.3 Sources : profils normalisés des deux côtés
+
+Les embeddings sont construits à partir de `NORMALIZED_PROFILE` des deux côtés (`source_type` CANDIDATE/OFFER, D26) — jamais du JSON brut des formulaires. Les structures JSON offre et candidat **diffèrent volontairement** : l'offre décrit des obligations (compétences obligatoires/souhaitables, responsabilités, séniorité, langues, localisation, contrat, contexte technique…) ; le candidat décrit des acquis (compétences, expériences, projets, formations, certifications, langues, responsabilités exercées, contexte technique…). C'est le matching qui reste responsable de la comparaison sémantique fine entre les deux.
+
+**Population éligible** : seuls les candidats dont la normalisation est validée sont visibles au screening ; un profil non normalisé est invisible tant que le pipeline §4 n'a pas tourné.
+
+#### 8.4.4 Représentation JSON → texte
+
+`normalized_profile.content` est du JSONB ; la recherche vectorielle attend du texte. La représentation textuelle doit être **fidèle, structurée, sans invention** (elle ne doit rien ajouter qui n'existe pas dans le JSON). Deux familles à étudier :
+
+| Option | Pour | Contre |
+|---|---|---|
+| Rendu **déterministe** (backend sérialise le JSON en texte ordonné) | Gratuit, testable, reproductible (même profil → même texte → même vecteur), zéro hallucination | Formulation moins naturelle |
+| Reformulation **LLM** | Texte plus fluide | Coût, latence, omission/hallucination de compétences, représentation instable → embeddings non reproductibles |
+
+Critères de choix : omission d'informations importantes, hallucination, coût/latence, stabilité/testabilité de la représentation. **Décision ouverte** — la solution retenue sera documentée ici avant implémentation.
+
+#### 8.4.5 Génération des embeddings
+
+Service d'embedding **externe**, étude préalable comparant : gratuité/quota gratuit, taille du modèle, dimension du vecteur, qualité de la recherche sémantique, **multilingue** (profils et offres mixtes FR/EN), stabilité de l'API, rate-limits, confidentialité des données, conditions d'utilisation, portabilité vers un autre modèle. **Même modèle, même espace vectoriel** pour les profils candidats et les profils d'offre ; la dimension est une **conséquence du modèle**, jamais choisie avant lui.
+
+#### 8.4.6 Persistance : PostgreSQL + pgvector
+
+- Extension **pgvector** à activer sur l'instance PostgreSQL (migration `CREATE EXTENSION IF NOT EXISTS vector`, image/docker adaptée).
+- **Table dédiée `PROFILE_EMBEDDING`** (D32 — séparée de `normalized_profile` : régénérer un embedding ne doit jamais modifier ni perdre le profil normalisé) : `normalized_profile_id`, modèle utilisé, embedding, date de génération, version/stratégie de représentation. Shape exacte = open point (définie après le choix du modèle).
+- **Index vectoriels seulement si le volume le justifie** — un scan séquentiel suffit au prototype ; type d'index (HNSW/IVFFlat…), métrique de distance (cosine/l2…) et paramètres = open points.
+
+#### 8.4.7 Screening
+
+Flux : offre validée (fiche v1 disponible) → embedding de l'offre → requête de similarité pgvector sur les embeddings candidats → **Top N** → matching détaillé §8.1–8.3 → ranking final basé sur les résultats du matching (jamais sur la similarité brute, D31).
+
+#### 8.4.8 Mesure de la qualité du Top N
+
+Le N et la stratégie de retrieval se règlent sur **des mesures, pas des suppositions**. Condition : le Top N doit contenir les candidats que le matching classerait en tête. Protocole à définir avant implémentation — piste : exécuter le matching complet sur un échantillon de candidats (hors screening) et mesurer à quelle fréquence son top K est inclus dans le Top N vectoriel (rappel proxy). Tant que le rappel n'est pas mesuré et satisfaisant, le screening n'est pas activé.
+
+#### 8.4.9 Indépendance du matching
+
+Le matching v1 **doit fonctionner sans pgvector** : il reçoit un ensemble de candidats (fourni directement par l'appelant) et produit ses résultats. Le screening est ensuite un **plug de retrieval interchangeable** en amont :
+
+```
+Version initiale :  Offre → Candidats (ensemble fourni) → Matching → Ranking
+Version screening : Offre → Retrieval pgvector (Top N) → Matching → Ranking
+```
+
+Cela permet de développer et valider le matching indépendamment de la qualité du système de recherche vectorielle.
+
+#### 8.4.10 Déclencheurs de génération
+
+En miroir de l'architecture de normalisation (§4, §6.1) : génération de l'embedding au moment de la **validation** du profil candidat (validate) et de la **validation** de l'offre (validate, D13), à la création ou à la mise à jour du `PROFILE_EMBEDDING` correspondant ; **backfill** des profils et offres déjà validés à la mise en production ; régénération globale sur changement de modèle ou de stratégie de représentation (d'où le versionnement, §8.4.6).
+
+#### 8.4.11 Ordre d'implémentation
+
+1. Finaliser le matching détaillé (§8.1–8.3) — sans aucune dépendance retrieval.
+2. Valider ses résultats sur des cas réels / représentatifs.
+3. Étudier modèles et APIs d'embedding (§8.4.5) → choisir un modèle provisoire pour le prototype.
+4. Ajouter pgvector à PostgreSQL + migration `PROFILE_EMBEDDING` (§8.4.6).
+5. Implémenter la représentation JSON → texte (§8.4.4, solution tranchée et documentée avant).
+6. Générer et stocker les embeddings (candidats + offres, backfill §8.4.10).
+7. Implémenter la recherche pgvector (§8.4.7) et l'intégrer en amont du matching.
+8. Mesurer la qualité du Top N (§8.4.8) → ajuster N et stratégie de retrieval.
+9. Exécuter le matching détaillé sur le Top N → produire le ranking final.
+
+#### 8.4.12 Points à ne pas figer prématurément
+
+Fournisseur et modèle d'embedding · dimension du vecteur · méthode JSON → texte (LLM ou déterministe) · valeur de N · type d'index vectoriel · métrique de distance · stratégie de régénération · politique de versionnement des embeddings · recherche hybride (lexical + vectoriel) si le rappel pur vectoriel s'avère insuffisant.
+
+Priorité aux mesures réelles plutôt qu'aux suppositions : construire l'architecture mesurable d'abord, choisir les paramètres techniques ensuite.
 
 ---
 
@@ -450,7 +546,7 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 - **Gemini `gemini-3.1-flash-lite`** via LangChain/LangGraph, structured output Pydantic, instance unique cachée, LangSmith, garde-fous (limite d'appels, un tour de réparation).
 - **4 routes** : `GET /health`, `POST /cv/parse`, `POST /profile/normalize`, `POST /job-offer/normalize`. Prompts interdisant l'invention.
 - **0** matching, **0** embeddings, **0** questions, **0** analyse d'offre (11 familles d'anomalies). `langchain-openai` déclaré mais jamais importé (dépendance morte — nettoyer ou garder pour les embeddings futurs).
-- Embeddings (§18) : prévus pour la similarité sémantique, **pas encore de choix technique** (pas d'index vectoriel, pas de bibliothèque installée).
+- Embeddings (§8.4) : prévus pour le **screening / retrieval amont du matching** (D30–D31), **pas encore de choix technique** (fournisseur, modèle, dimension, pgvector : open points §8.4.12).
 
 ---
 
@@ -511,6 +607,14 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 | **D28** | **Extraction profonde miroir candidat** : `requirementType` déclaré jamais reclassé (mandatory→required, preferred→preferred) ; seuls les skills inférés sont classés required/preferred d'après la formulation ; `evidence → responsibilities[index]` ou `[]` ; description HTML strippée via jsoup côté worker ; `validate` ne touche plus `updatedAt` (la validation n'est pas une édition — sinon dirty-flag faussé et doublon de version au double-clic). | §4.3, §6.2. |
 | **D29** | **Statut des jobs en SMALLINT** (V17 : 1 = PENDING, 2 = RUNNING, 3 = DONE, 4 = FAILED, 5 = SUPERSEDED, enum + converter) — alignement de convention avec le reste du codebase, pas une optimisation (gain ~6 octets/ligne sur une table à faible volumétrie). | §4, §15.3. |
 
+### 14.4 Screening sémantique / retrieval (2026-10-12)
+
+| # | Décision | Portée |
+|---|---|---|
+| **D30** | **Chaîne Semantic Retrieval → Detailed Matching → Ranking** : le screening vectoriel (Top N, §8.4.7) s'exécute **en amont** du matching détaillé pour réduire l'espace de recherche ; il ne remplace ni ne pèse dans le matching. Le matching v1 est conçu **sans dépendre** du retrieval (ensemble de candidats fourni directement, §8.4.9). **Même modèle d'embedding / même espace vectoriel** pour les profils candidats et les profils d'offre. Les choix techniques (fournisseur, modèle, dimension, N, index, méthode JSON → texte) restent ouverts (§8.4.12). | §8.4. |
+| **D31** | **Embeddings = signal de retrieval, jamais composante de score** : le ranking final repose sur les résultats du matching détaillé (§8.2), pas sur la similarité vectorielle. Révise le diagramme §8.1 (la « similarité sémantique » n'est plus un axe de calcul du score — l'axe sémantique reste porté par le LLM) et le phasage §17. | §8.1, §8.4.2. |
+| **D32** | **Embeddings hors `normalized_profile`** : table dédiée `PROFILE_EMBEDDING` (profil, modèle, vecteur, date de génération, version/stratégie de représentation) — régénérer un embedding ou changer de modèle ne doit ni modifier ni perdre le profil normalisé. Shape exacte définie après le choix du modèle (§8.4.6) ; `CREATE EXTENSION vector` en migration dédiée. | §8.4.6, §15.3. |
+
 ---
 
 ## 15. Modèle de données
@@ -547,7 +651,7 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 | ✅ V16 | `normalization_job.source_type` SMALLINT (1 = CANDIDATE, backfill ; 2 = OFFER) + index `(status, source_type, next_attempt_at)` ; `normalized_profile_job_offer` (+ index `job_offer_id`) |
 | ✅ V17 | `normalization_job.status` VARCHAR(12) → SMALLINT (1 = PENDING, 2 = RUNNING, 3 = DONE, 4 = FAILED, 5 = SUPERSEDED — D29) |
 
-**Reste à concevoir (phases suivantes)** : `offer_questions` (+ réponses candidat), `matching_results` (scores par critère, catégorie « info insuffisante »), `clarifications` (historique évaluation → clarification → rééval), `attachments` (photos / pièces jointes), embeddings (choix technique à trancher).
+**Reste à concevoir (phases suivantes)** : `offer_questions` (+ réponses candidat), `matching_results` (scores par critère, catégorie « info insuffisante »), `clarifications` (historique évaluation → clarification → rééval), `attachments` (photos / pièces jointes), embeddings de screening (`PROFILE_EMBEDDING` + pgvector — §8.4.6, choix technique à trancher).
 
 ---
 
@@ -640,7 +744,7 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 - ✅ Commit de la rubrique (0712af6 — offres : complétude, duplication, confirmations, fix URL publique)
 - ✅ Normalisation d'offre (V16, D22–D28 : fiche v1 `POST /job-offer/normalize`, `source_type` SMALLINT, worker unique, snapshot Spring avec strip HTML jsoup, signaux GET `normalizationInProgress`/`normalizationFailed`, `validate` sans bump `updatedAt`)
 - ⬜ Analyse IA — 11 familles d'anomalies avant publication
-- ⬜ Matching — moteur critères pondérés + similarité sémantique
+- ⬜ Matching — moteur critères pondérés (les embeddings ne servent qu'au retrieval amont, §8.4 / D31)
 - ⬜ Transparence & clarification — vue d'évaluation, clarification, réévaluation
 
 ---
@@ -653,10 +757,11 @@ Offre créée → Candidature reçue → Présélection → Questions → Évalu
 | **0+ — Extensions profil** | Contrat recherché + mobilité (D2) | Décision prête |
 | **1 — Entreprise / recruteur / offre** | Company (owner/membre), identité recruteur (D10), CRUD offre + cycle de vie (D13), validation → **normalisation offre** (D4/D22–D29) | ✅ **Backend + FE livrés (D10–D14, D16–D21)** + **normalisation offre livrée (V16–V17, D22–D29)** ; reste : analyse IA, matching |
 | **1 — Analyse IA offre** | 11 familles d'anomalies avant publication (§6.3, §9) | À venir |
-| **1 — Matching** | Moteur unique : critères pondérés (§7), score par critère, similarité sémantique (embeddings), « info insuffisante » (§19) | À venir |
+| **1 — Matching** | Moteur unique : critères pondérés (§7), score par critère, comparaison sémantique LLM, « info insuffisante » (§19) — conçu sans dépendre du retrieval (§8.4.9) | À venir |
+| **1+ — Screening sémantique** | Retrieval amont du matching (§8.4, D30–D32) : pgvector, table `PROFILE_EMBEDDING`, représentation JSON → texte, embeddings, Top N, mesure du rappel | À venir (après matching) |
 | **1 — Transparence & clarification** | Vue d'évaluation, auto-évaluation (§11.2), clarification & réévaluation (§11.3, D1), historique, Q7 (D5) | À venir |
 | **1 — Questions & recruteur** | Questions présélection, agent IA (§10), vue recruteur (§12.1), ATS basique (§12.2) | À venir |
-| **2** | Matching avancé, embeddings, historique évaluations, statistiques, recherche sémantique | Plus tard |
+| **2** | Matching avancé, historique évaluations, statistiques | Plus tard |
 | **3** | Freelance, intelligence du marché, analyses agrégées, API externe | Plus tard |
 
 ---
