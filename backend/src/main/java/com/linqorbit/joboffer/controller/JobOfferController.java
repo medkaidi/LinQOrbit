@@ -1,6 +1,5 @@
 package com.linqorbit.joboffer.controller;
 
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
@@ -12,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 
 import com.linqorbit.common.security.CurrentUserId;
 import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
+import com.linqorbit.joboffer.dto.JobOfferPageResponse;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
 import com.linqorbit.joboffer.service.JobOfferService;
@@ -30,8 +30,8 @@ public class JobOfferController implements JobOfferApi {
     }
 
     @Override
-    public ResponseEntity<List<JobOfferResponse>> listMine(Authentication authentication) {
-        return ResponseEntity.ok(jobOfferService.listMine(CurrentUserId.from(authentication)));
+    public ResponseEntity<JobOfferPageResponse> listMine(Integer page, Integer size, Authentication authentication) {
+        return ResponseEntity.ok(jobOfferService.listMine(CurrentUserId.from(authentication), page, size));
     }
 
     @Override

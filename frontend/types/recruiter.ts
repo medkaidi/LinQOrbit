@@ -74,3 +74,11 @@ export type JobOfferLabelOption = {
   id: string;
   label: string;
 };
+
+/** Page d'offres du recruteur (enveloppe backend, page 0-based — D34). */
+export type JobOfferPage = {
+  items: JobOffer[];
+  page: number;
+  size: number;
+  total: number;
+};

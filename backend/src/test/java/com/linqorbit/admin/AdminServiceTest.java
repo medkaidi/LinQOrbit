@@ -3,30 +3,48 @@ package com.linqorbit.admin;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
+import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
+import com.linqorbit.admin.dto.AdminJobOfferListItem;
+import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
+import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
 import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
+import com.linqorbit.admin.dto.AdminUserDetailResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
+import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
 import com.linqorbit.admin.exception.InvalidSkillTypeException;
 import com.linqorbit.admin.exception.InvalidUserStatusException;
+import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
 import com.linqorbit.admin.exception.SuggestionNotFoundException;
 import com.linqorbit.admin.exception.UserNotFoundException;
 import com.linqorbit.candidate.entity.Candidate;
+import com.linqorbit.candidate.entity.NormalizationJob;
+import com.linqorbit.candidate.entity.NormalizationJobStatus;
+import com.linqorbit.candidate.entity.NormalizedProfile;
 import com.linqorbit.candidate.repository.CandidateRepository;
 import com.linqorbit.candidate.entity.SkillType;
 import com.linqorbit.candidate.entity.CandidateSkill;
@@ -34,14 +52,30 @@ import com.linqorbit.candidate.entity.Skill;
 import com.linqorbit.candidate.entity.SkillSuggestion;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
 import com.linqorbit.candidate.repository.CandidateSkillRepository;
+import com.linqorbit.candidate.repository.NormalizationJobRepository;
+import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.candidate.repository.SkillRepository;
 import com.linqorbit.candidate.repository.SkillSuggestionRepository;
+import com.linqorbit.company.entity.Company;
+import com.linqorbit.company.repository.CompanyRepository;
+import com.linqorbit.joboffer.dto.JobOfferAdminView;
+import com.linqorbit.joboffer.dto.PublicJobResponse;
+import com.linqorbit.joboffer.entity.JobOffer;
+import com.linqorbit.joboffer.entity.JobOfferStatus;
+import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
+import com.linqorbit.joboffer.repository.JobOfferRepository;
+import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
+import com.linqorbit.joboffer.service.JobOfferService;
+import com.linqorbit.recruiter.repository.RecruiterRepository;
 import com.linqorbit.user.Role;
 import com.linqorbit.user.User;
 import com.linqorbit.user.UserRepository;
 import com.linqorbit.user.UserRole;
 import com.linqorbit.user.UserRoleRepository;
+import com.linqorbit.user.UserSex;
 import com.linqorbit.user.UserStatus;
+
+import tools.jackson.databind.ObjectMapper;
 
 class AdminServiceTest {
 
@@ -51,6 +85,13 @@ class AdminServiceTest {
     private SkillRepository skillRepository;
     private CandidateRepository candidateRepository;
     private CandidateSkillRepository candidateSkillRepository;
+    private RecruiterRepository recruiterRepository;
+    private NormalizedProfileRepository normalizedProfileRepository;
+    private NormalizedProfileJobOfferRepository normalizedProfileJobOfferRepository;
+    private NormalizationJobRepository normalizationJobRepository;
+    private JobOfferRepository jobOfferRepository;
+    private JobOfferService jobOfferService;
+    private CompanyRepository companyRepository;
     private AdminService adminService;
 
     @BeforeEach
@@ -61,8 +102,18 @@ class AdminServiceTest {
         skillRepository = mock(SkillRepository.class);
         candidateRepository = mock(CandidateRepository.class);
         candidateSkillRepository = mock(CandidateSkillRepository.class);
+        recruiterRepository = mock(RecruiterRepository.class);
+        normalizedProfileRepository = mock(NormalizedProfileRepository.class);
+        normalizedProfileJobOfferRepository = mock(NormalizedProfileJobOfferRepository.class);
+        normalizationJobRepository = mock(NormalizationJobRepository.class);
+        jobOfferRepository = mock(JobOfferRepository.class);
+        jobOfferService = mock(JobOfferService.class);
+        companyRepository = mock(CompanyRepository.class);
         adminService = new AdminService(userRepository, userRoleRepository, skillSuggestionRepository,
-                skillRepository, candidateRepository, candidateSkillRepository);
+                skillRepository, candidateRepository, candidateSkillRepository, recruiterRepository,
+                normalizedProfileRepository, normalizedProfileJobOfferRepository,
+                normalizationJobRepository, jobOfferRepository, jobOfferService, companyRepository,
+                new ObjectMapper());
     }
 
     @Test
@@ -350,5 +401,240 @@ class AdminServiceTest {
         assertThatThrownBy(() -> adminService.rejectSuggestion(unknownId, adminId))
                 .isInstanceOf(SuggestionNotFoundException.class);
         verify(skillSuggestionRepository, never()).deleteAll(any());
+    }
+
+    @Test
+    void getUserDetailRenvoieLaFicheCompleteSansHash() {
+        UUID userId = UUID.randomUUID();
+        UUID recruiterId = UUID.randomUUID();
+        User user = User.builder().id(userId).email("ada@example.com")
+                .firstName("Ada").lastName("Lovelace").status(UserStatus.ACTIVE)
+                .phone("+33612345678").sex(UserSex.FEMALE).homeCountry("FR")
+                .currentCity("Paris").currentCountry("FR")
+                .createdAt(LocalDateTime.of(2026, 1, 15, 10, 0)).build();
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRoleRepository.findByUserId(userId)).thenReturn(List.of(UserRole.of(userId, Role.ADMIN)));
+        when(candidateRepository.existsById(userId)).thenReturn(true);
+        when(recruiterRepository.existsById(recruiterId)).thenReturn(true);
+
+        AdminUserDetailResponse detail = adminService.getUserDetail(userId);
+
+        assertThat(detail.id()).isEqualTo(userId);
+        assertThat(detail.email()).isEqualTo("ada@example.com");
+        assertThat(detail.firstName()).isEqualTo("Ada");
+        assertThat(detail.lastName()).isEqualTo("Lovelace");
+        assertThat(detail.status()).isEqualTo("ACTIVE");
+        assertThat(detail.roles()).containsExactly((short) 1);
+        assertThat(detail.phone()).isEqualTo("+33612345678");
+        assertThat(detail.sex()).isEqualTo("female");
+        assertThat(detail.homeCountry()).isEqualTo("FR");
+        assertThat(detail.currentCity()).isEqualTo("Paris");
+        assertThat(detail.currentCountry()).isEqualTo("FR");
+        assertThat(detail.createdAt()).isEqualTo(LocalDateTime.of(2026, 1, 15, 10, 0));
+        assertThat(detail.hasCandidateProfile()).isTrue();
+        assertThat(detail.hasRecruiterProfile()).isFalse();
+    }
+
+    @Test
+    void getUserDetailRejetteUnCompteInconnu() {
+        UUID unknownId = UUID.randomUUID();
+        when(userRepository.findById(unknownId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> adminService.getUserDetail(unknownId))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Test
+    void getCandidateNormalizedProfileParseLeContenuEtLeStatutDuJob() {
+        UUID candidateId = UUID.randomUUID();
+        UUID profileId = UUID.randomUUID();
+        NormalizedProfile profile = NormalizedProfile.builder()
+                .id(profileId).version(3).schemaVersion("2")
+                .content("{\"seniority\":\"mid\"}")
+                .validatedAt(LocalDateTime.of(2026, 10, 1, 12, 0)).build();
+        when(candidateRepository.existsById(candidateId)).thenReturn(true);
+        when(normalizedProfileRepository.findLatestByCandidateId(eq(candidateId), any(Pageable.class)))
+                .thenReturn(List.of(profile));
+        when(normalizationJobRepository.findById(profileId))
+                .thenReturn(Optional.of(NormalizationJob.builder()
+                        .id(profileId).status(NormalizationJobStatus.DONE).build()));
+
+        AdminNormalizedProfileResponse response = adminService.getCandidateNormalizedProfile(candidateId);
+
+        assertThat(response.profileId()).isEqualTo(profileId);
+        assertThat(response.version()).isEqualTo(3);
+        assertThat(response.schemaVersion()).isEqualTo("2");
+        assertThat(response.jobStatus()).isEqualTo("done");
+        assertThat(response.validatedAt()).isEqualTo(LocalDateTime.of(2026, 10, 1, 12, 0));
+        assertThat(response.content()).isNotNull();
+        assertThat(response.content().get("seniority").asString()).isEqualTo("mid");
+    }
+
+    @Test
+    void getCandidateNormalizedProfileRejetteUnCompteNonCandidat() {
+        UUID unknownId = UUID.randomUUID();
+        when(candidateRepository.existsById(unknownId)).thenReturn(false);
+
+        assertThatThrownBy(() -> adminService.getCandidateNormalizedProfile(unknownId))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Test
+    void getCandidateNormalizedProfileRejetteUnCompteSansFiche() {
+        UUID candidateId = UUID.randomUUID();
+        when(candidateRepository.existsById(candidateId)).thenReturn(true);
+        when(normalizedProfileRepository.findLatestByCandidateId(eq(candidateId), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> adminService.getCandidateNormalizedProfile(candidateId))
+                .isInstanceOf(NormalizedProfileNotFoundException.class);
+    }
+
+    @Test
+    void getOfferNormalizedProfileParseLeContenuEtLeStatutDuJob() {
+        UUID offerId = UUID.randomUUID();
+        UUID profileId = UUID.randomUUID();
+        NormalizedProfile profile = NormalizedProfile.builder()
+                .id(profileId).version(1).schemaVersion("1")
+                .content("{\"title\":\"Dev Java\"}")
+                .validatedAt(LocalDateTime.of(2026, 10, 2, 9, 0)).build();
+        when(jobOfferRepository.existsById(offerId)).thenReturn(true);
+        when(normalizedProfileJobOfferRepository.findLatestByOfferId(eq(offerId), any(Pageable.class)))
+                .thenReturn(List.of(profile));
+        when(normalizationJobRepository.findById(profileId))
+                .thenReturn(Optional.of(NormalizationJob.builder()
+                        .id(profileId).status(NormalizationJobStatus.FAILED).build()));
+
+        AdminNormalizedProfileResponse response = adminService.getOfferNormalizedProfile(offerId);
+
+        assertThat(response.profileId()).isEqualTo(profileId);
+        assertThat(response.version()).isEqualTo(1);
+        assertThat(response.schemaVersion()).isEqualTo("1");
+        assertThat(response.jobStatus()).isEqualTo("failed");
+        assertThat(response.content().get("title").asString()).isEqualTo("Dev Java");
+    }
+
+    @Test
+    void getOfferNormalizedProfileRejetteUneOffreInconnue() {
+        UUID unknownId = UUID.randomUUID();
+        when(jobOfferRepository.existsById(unknownId)).thenReturn(false);
+
+        assertThatThrownBy(() -> adminService.getOfferNormalizedProfile(unknownId))
+                .isInstanceOf(JobOfferNotFoundException.class);
+    }
+
+    @Test
+    void getOfferNormalizedProfileRejetteUneOffreSansFiche() {
+        UUID offerId = UUID.randomUUID();
+        when(jobOfferRepository.existsById(offerId)).thenReturn(true);
+        when(normalizedProfileJobOfferRepository.findLatestByOfferId(eq(offerId), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> adminService.getOfferNormalizedProfile(offerId))
+                .isInstanceOf(NormalizedProfileNotFoundException.class);
+    }
+
+    @Test
+    void listJobOffersSansFiltreAppelleFindAllEtJointLesNomsDEntreprises() {
+        UUID offerId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        JobOffer offer = JobOffer.builder().id(offerId).companyId(companyId)
+                .status(JobOfferStatus.PUBLISHED).title("Dev Java").publicId("abc123")
+                .slug("dev-java").createdAt(LocalDateTime.of(2026, 10, 1, 8, 0))
+                .updatedAt(LocalDateTime.of(2026, 10, 1, 9, 0))
+                .expiresAt(LocalDate.of(2026, 12, 31))
+                .publishedAt(LocalDateTime.of(2026, 10, 1, 10, 0)).build();
+        Page<JobOffer> page = new PageImpl<>(List.of(offer),
+                PageRequest.of(0, 20, org.springframework.data.domain.Sort.by(
+                        org.springframework.data.domain.Sort.Direction.DESC, "createdAt")),
+                1);
+        when(jobOfferRepository.findAll(any(Pageable.class))).thenReturn(page);
+        when(companyRepository.findAllById(any())).thenReturn(List.of(
+                Company.builder().id(companyId).name("Acme").build()));
+        when(normalizedProfileJobOfferRepository.findLatestJobStatuses(anyList()))
+                .thenReturn(List.<Object[]>of(new Object[] { offerId, NormalizationJobStatus.DONE }));
+
+        AdminJobOfferPageResponse response = adminService.listJobOffers(null, 0, 20);
+
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.page()).isZero();
+        assertThat(response.size()).isEqualTo(20);
+        assertThat(response.total()).isEqualTo(1);
+        AdminJobOfferListItem item = response.items().get(0);
+        assertThat(item.id()).isEqualTo(offerId);
+        assertThat(item.title()).isEqualTo("Dev Java");
+        assertThat(item.status()).isEqualTo("published");
+        assertThat(item.companyName()).isEqualTo("Acme");
+        assertThat(item.publicId()).isEqualTo("abc123");
+        assertThat(item.slug()).isEqualTo("dev-java");
+        assertThat(item.expiresAt()).isEqualTo(LocalDate.of(2026, 12, 31));
+        assertThat(item.publishedAt()).isEqualTo(LocalDateTime.of(2026, 10, 1, 10, 0));
+        assertThat(item.normalizationJobStatus()).isEqualTo("done");
+    }
+
+    @Test
+    void listJobOffersAvecFiltreAppelleFindByStatus() {
+        when(jobOfferRepository.findByStatus(eq(JobOfferStatus.PUBLISHED), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(1, 20), 0));
+
+        AdminJobOfferPageResponse response = adminService.listJobOffers(" published ", 1, 20);
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.page()).isEqualTo(1);
+        verify(jobOfferRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listJobOffersRejetteUnFiltreInconnu() {
+        assertThatThrownBy(() -> adminService.listJobOffers("archived", 0, 20))
+                .isInstanceOf(InvalidOfferStatusFilterException.class);
+        verify(jobOfferRepository, never()).findAll(any(Pageable.class));
+        verify(jobOfferRepository, never()).findByStatus(any(), any());
+    }
+
+    @Test
+    void listJobOffersBorneLaPagination() {
+        when(jobOfferRepository.findAll(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 50), 0));
+
+        AdminJobOfferPageResponse response = adminService.listJobOffers(null, -5, 500);
+
+        assertThat(response.page()).isZero();
+        assertThat(response.size()).isEqualTo(50);
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(jobOfferRepository).findAll(pageableCaptor.capture());
+        assertThat(pageableCaptor.getValue().getPageNumber()).isZero();
+        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(50);
+    }
+
+    @Test
+    void listJobOffersAppliqueLaTailleParDefaut() {
+        when(jobOfferRepository.findAll(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        AdminJobOfferPageResponse response = adminService.listJobOffers(null, 0, null);
+
+        assertThat(response.size()).isEqualTo(20);
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(jobOfferRepository).findAll(pageableCaptor.capture());
+        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(20);
+    }
+
+    @Test
+    void getJobOfferDetailDelegueAuServicePublic() {
+        UUID offerId = UUID.randomUUID();
+        LocalDateTime createdAt = LocalDateTime.of(2026, 9, 1, 8, 0);
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 9, 2, 9, 0);
+        when(jobOfferService.getAdminView(offerId)).thenReturn(new JobOfferAdminView(
+                offerId, "published", createdAt, updatedAt, null));
+
+        AdminJobOfferDetailResponse response = adminService.getJobOfferDetail(offerId);
+
+        assertThat(response.id()).isEqualTo(offerId);
+        assertThat(response.status()).isEqualTo("published");
+        assertThat(response.createdAt()).isEqualTo(createdAt);
+        assertThat(response.updatedAt()).isEqualTo(updatedAt);
+        assertThat(response.detail()).isNull();
+        verify(jobOfferService).getAdminView(offerId);
     }
 }

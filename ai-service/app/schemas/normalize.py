@@ -13,8 +13,8 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from app.schemas.cv import (
+    CefrLevel,
     CvDiploma,
-    CvLanguage,
     CvLink,
     CvModel,
     DATE_PATTERN,
@@ -22,9 +22,12 @@ from app.schemas.cv import (
 )
 
 # Canonical format version written into every normalized profile (mirrors the
-# backend's schema_version column). v2 = projects section, deep extraction,
-# evidence-based skills index, certifications split from links, location.
-SCHEMA_VERSION = "2"
+# backend's schema_version column). v3 = languages, diplomas and certifications
+# carry origin + evidence (entries may be mined from the bio, experiences and
+# projects when a text names them explicitly); bio-evidenced skills.
+# v2 = projects section, deep extraction, evidence-based skills index,
+# certifications split from links, location.
+SCHEMA_VERSION = "3"
 
 Seniority = Literal["junior", "mid", "senior", "lead", "principal"]
 
@@ -45,7 +48,7 @@ ProjectContext = Literal[
     "personal", "academic", "open_source", "professional", "volunteer", "other"
 ]
 
-EvidenceSource = Literal["experience", "project", "diploma", "certification"]
+EvidenceSource = Literal["bio", "experience", "project", "diploma", "certification"]
 
 SkillOrigin = Literal["declared", "inferred"]
 
@@ -217,17 +220,6 @@ class NormalizedProject(CvModel):
     achievements: list[str] = Field(default_factory=list)
 
 
-class NormalizedCertification(CvModel):
-    """One certification, split out of the links section."""
-
-    name: str = Field(description="Certification name (the link label)")
-    issuer: str | None = Field(default=None, description="Issuing organisation")
-    issued_at: str | None = Field(
-        default=None, pattern=DATE_PATTERN, description="Issue month YYYY-MM when stated"
-    )
-    url: str | None = Field(default=None, description="Verification URL")
-
-
 class NormalizedLocation(CvModel):
     """Candidate location taken from the account (never invented)."""
 
@@ -236,14 +228,75 @@ class NormalizedLocation(CvModel):
 
 
 class SkillEvidence(CvModel):
-    """Pointer to one item of the canonical profile proving the skill.
+    """Pointer to one item of the canonical profile proving a value.
 
     Indices are 0-based positions in the output arrays of the same response —
-    never database identifiers (the profile is regenerated atomically).
+    never database identifiers (the profile is regenerated atomically). The
+    'bio' source points at the about section, which has no index.
     """
 
     source: EvidenceSource = Field(description="Which section the proof comes from")
-    index: int = Field(ge=0, description="0-based index into that section's output array")
+    index: int | None = Field(
+        default=None,
+        ge=0,
+        description="0-based index into that section's output array; null for 'bio'",
+    )
+
+    @model_validator(mode="after")
+    def _index_required_outside_bio(self) -> "SkillEvidence":
+        if self.source != "bio" and self.index is None:
+            raise ValueError("index is required unless source is 'bio'")
+        return self
+
+
+class NormalizedDiploma(CvDiploma):
+    """One education entry: stored section or explicitly mined from a text."""
+
+    origin: SkillOrigin = Field(
+        description="'declared' when it comes from the stored education section, "
+        "'inferred' when a text names it explicitly"
+    )
+    evidence: list[SkillEvidence] = Field(
+        default_factory=list,
+        description="Items of this profile that name this credential (empty when declared)",
+    )
+
+
+class NormalizedCertification(CvModel):
+    """One certification: split out of the links section or explicitly mined."""
+
+    name: str = Field(description="Certification name (the link label or the text's wording)")
+    issuer: str | None = Field(default=None, description="Issuing organisation")
+    issued_at: str | None = Field(
+        default=None, pattern=DATE_PATTERN, description="Issue month YYYY-MM when stated"
+    )
+    url: str | None = Field(default=None, description="Verification URL")
+    origin: SkillOrigin = Field(
+        description="'declared' when it comes from a stored certification link, "
+        "'inferred' when a text names it explicitly"
+    )
+    evidence: list[SkillEvidence] = Field(
+        default_factory=list,
+        description="Items of this profile that name this credential (empty when declared)",
+    )
+
+
+class NormalizedLanguage(CvModel):
+    """One language: stored criterion or mined from a text, with provenance."""
+
+    name: str = Field(description="Language name, e.g. 'French'")
+    level: CefrLevel | None = Field(
+        default=None,
+        description="CEFR grade: copy the declared level, else infer only when a text "
+        "states one clearly, else null",
+    )
+    origin: SkillOrigin = Field(
+        description="'declared' when it comes from the stored languages section, "
+        "'inferred' when a text of the profile names it"
+    )
+    evidence: list[SkillEvidence] = Field(
+        default_factory=list, description="Items of this profile that name this language"
+    )
 
 
 class NormalizedSkill(CvModel):
@@ -276,7 +329,7 @@ class NormalizedProfile(CvModel):
     """Canonical profile object v2 produced by the agent (camelCase wire)."""
 
     schema_version: str = Field(
-        default=SCHEMA_VERSION, description="Canonical format version, fixed to '2'"
+        default=SCHEMA_VERSION, description="Canonical format version, fixed to '3'"
     )
     title: str | None = Field(default=None, description="Professional headline, e.g. 'Senior Backend Engineer'")
     summary: str | None = Field(
@@ -304,10 +357,12 @@ class NormalizedProfile(CvModel):
     projects: list[NormalizedProject] = Field(
         default_factory=list, description="Most recent project first"
     )
-    diplomas: list[CvDiploma] = Field(default_factory=list, description="Most recent diploma first")
-    languages: list[CvLanguage] = Field(default_factory=list)
+    diplomas: list[NormalizedDiploma] = Field(
+        default_factory=list, description="Most recent diploma first"
+    )
+    languages: list[NormalizedLanguage] = Field(default_factory=list)
     certifications: list[NormalizedCertification] = Field(
-        default_factory=list, description="Split out of the stored certification links"
+        default_factory=list, description="Split out of the stored certification links, plus mined ones"
     )
     links: list[CvLink] = Field(
         default_factory=list, description="Non-certification online presence only"

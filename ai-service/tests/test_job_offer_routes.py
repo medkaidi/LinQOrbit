@@ -47,9 +47,11 @@ def test_normalize_endpoint_returns_the_canonical_offer(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["title"] == "Senior Backend Engineer"
-    assert response.json()["schemaVersion"] == "1"
+    assert response.json()["schemaVersion"] == "2"
     assert isinstance(received["offer"], JobOfferSnapshot)
     assert received["offer"].contract_type_label == "Permanent"
+    assert received["offer"].skills[0].weight == 5
+    assert received["offer"].degree_labels == ["Master"]
     assert received["context"].languages == ["French"]
 
 
@@ -60,10 +62,15 @@ def test_normalize_endpoint_serialises_the_camel_case_contract(monkeypatch):
             contract_type="permanent",
             work_time="full_time",
             work_mode="hybrid",
+            required_years=5,
+            required_years_source="inferred",
+            required_degrees=[{"label": "Master's degree", "source": "inferred"}],
+            languages=[{"name": "English", "level": "B2", "required": True, "origin": "declared"}],
             responsibilities=[
                 {
                     "text": "Own the public API",
                     "importance": "mandatory",
+                    "weight": 5,
                     "technologies": ["Java"],
                 }
             ],
@@ -71,16 +78,19 @@ def test_normalize_endpoint_serialises_the_camel_case_contract(monkeypatch):
                 {
                     "name": "Java",
                     "category": "programming_language",
+                    "weight": 5,
                     "level": 4,
                     "level_source": "declared",
                     "min_years": 3,
+                    "min_years_source": "declared",
                     "origin": "declared",
                     "evidence": [{"source": "responsibility", "index": 0}],
                 }
             ],
             preferred_skills=[
-                {"name": "Kubernetes", "category": "tool", "origin": "inferred"}
+                {"name": "Kubernetes", "category": "tool", "weight": 2, "origin": "inferred"}
             ],
+            certifications=[{"name": "AWS Solutions Architect"}],
         )
 
     monkeypatch.setattr("app.api.routes.job_offer.normalize_job_offer", fake_normalize)
@@ -91,11 +101,20 @@ def test_normalize_endpoint_serialises_the_camel_case_contract(monkeypatch):
     assert body["contractType"] == "permanent"
     assert body["workTime"] == "full_time"
     assert body["workMode"] == "hybrid"
+    assert body["requiredYears"] == 5
+    assert body["requiredYearsSource"] == "inferred"
+    assert body["requiredDegrees"][0]["source"] == "inferred"
+    assert body["languages"][0]["origin"] == "declared"
     assert body["responsibilities"][0]["importance"] == "mandatory"
+    assert body["responsibilities"][0]["weight"] == 5
+    assert body["requiredSkills"][0]["weight"] == 5
     assert body["requiredSkills"][0]["minYears"] == 3
+    assert body["requiredSkills"][0]["minYearsSource"] == "declared"
     assert body["requiredSkills"][0]["levelSource"] == "declared"
     assert body["requiredSkills"][0]["evidence"][0]["source"] == "responsibility"
+    assert body["preferredSkills"][0]["weight"] == 2
     assert body["preferredSkills"][0]["origin"] == "inferred"
+    assert body["certifications"][0]["name"] == "AWS Solutions Architect"
     assert "required_skills" not in body
 
 

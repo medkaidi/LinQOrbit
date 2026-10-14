@@ -36,7 +36,7 @@ def _offer() -> JobOfferSnapshot:
     return JobOfferSnapshot(
         title="Senior Backend Engineer",
         description="You will own the public API.",
-        skills=[{"name": "Java", "requirement_type": "mandatory", "weight": 5}],
+        skills=[{"name": "Java", "requirement_type": "mandatory"}],
         languages=[{"name": "English", "level": "B2", "is_required": True}],
     )
 
@@ -46,8 +46,11 @@ def test_has_content_detects_scalars_company_and_sections():
     assert has_content(JobOfferSnapshot(description="Own the API."))
     assert has_content(JobOfferSnapshot(company={"name": "Acme"}))
     assert has_content(JobOfferSnapshot(skills=[{"name": "Java"}]))
-    assert has_content(JobOfferSnapshot(degree_labels=["Master"]))
+    assert has_content(JobOfferSnapshot(contract_type_label="Permanent"))
     assert has_content(JobOfferSnapshot(salary_min=60000))
+    assert has_content(JobOfferSnapshot(required_exp_year=3))
+    assert has_content(JobOfferSnapshot(degree_labels=["Master"]))
+    assert has_content(JobOfferSnapshot(study_field_labels=["Computer Science"]))
     assert not has_content(JobOfferSnapshot())
     assert not has_content(JobOfferSnapshot(company={}))
 
@@ -85,7 +88,7 @@ def test_normalize_job_offer_forces_the_schema_version(monkeypatch):
 
     result = normalize_job_offer(_offer())
 
-    assert result.schema_version == "1"
+    assert result.schema_version == "2"
 
 
 def test_normalize_job_offer_forwards_the_reference_context(monkeypatch):

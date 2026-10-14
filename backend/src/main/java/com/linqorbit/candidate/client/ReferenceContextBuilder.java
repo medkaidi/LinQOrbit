@@ -22,7 +22,8 @@ import lombok.RequiredArgsConstructor;
 /**
  * Référentiel DB groupé par famille, trié par libellé — source du prompt,
  * partagé par l'import de CV, la normalisation de profil et la
- * normalisation d'offre ({@code buildForOffer} : langues + skills).
+ * normalisation d'offre ({@code buildForOffer} : langues, skills, diplômes
+ * et domaines d'études — la fiche offre v2 porte des exigences éducation).
  */
 @Component
 @RequiredArgsConstructor
@@ -50,17 +51,23 @@ public class ReferenceContextBuilder {
     }
 
     /**
-     * Référentiel de l'offre : langues + skills seulement. L'offre n'a pas de
-     * champ diplômes/études dans la fiche v1 (D22) — inonder le prompt de
-     * ces deux listes n'ajouterait que des tokens morts et de l'ambiguïté.
+     * Référentiel de l'offre : langues, skills, diplômes et domaines d'études.
+     * La fiche offre v2 minait les exigences éducation depuis la description
+     * — le prompt doit pouvoir canonicaliser ces libellés contre le catalogue.
      */
     public ParseContext buildForOffer() {
         List<String> languages = languageRepository.findAllByOrderByNameAsc().stream()
                 .map(Language::getName)
                 .toList();
+        List<String> degrees = degreeRepository.findAllByOrderByLabelAsc().stream()
+                .map(Degree::getLabel)
+                .toList();
+        List<String> studyFields = studyFieldRepository.findAllByOrderByLabelAsc().stream()
+                .map(StudyField::getLabel)
+                .toList();
         Map<String, List<String>> skills = skillRepository.findAllByOrderBySkillTypeAscNameAsc().stream()
                 .collect(Collectors.groupingBy(Skill::getCategory, TreeMap::new,
                         Collectors.mapping(Skill::getName, Collectors.toList())));
-        return new ParseContext(languages, List.of(), List.of(), skills);
+        return new ParseContext(languages, degrees, studyFields, skills);
     }
 }

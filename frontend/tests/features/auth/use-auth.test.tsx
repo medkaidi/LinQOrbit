@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClientWrapper } from "@/tests/helpers/test-utils";
 import { useAuthStore } from "@/stores/auth-store";
+import { useViewModeStore } from "@/stores/view-mode-store";
 
 const pushMock = vi.hoisted(() => vi.fn());
 
@@ -63,6 +64,7 @@ describe("useAuth", () => {
     mockedSignup.mockReset();
     pushMock.mockClear();
     useAuthStore.getState().clearAuth();
+    useViewModeStore.setState({ mode: "candidate", byUser: {} });
   });
 
   it("stores the token and redirects after a successful signup", async () => {
@@ -84,6 +86,24 @@ describe("useAuth", () => {
 
     await waitFor(() => expect(useAuthStore.getState().token).toBe("jwt-token"));
     expect(pushMock).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("restores the view-mode preference of the account on login", async () => {
+    useViewModeStore.setState({ byUser: { "3f0a…": "recruiter" } });
+    mockedLogin.mockResolvedValue(authResponse);
+    const { result } = renderHook(() => useAuth(), { wrapper: queryClientWrapper });
+
+    act(() => result.current.login(loginValues));
+
+    await waitFor(() => expect(useViewModeStore.getState().mode).toBe("recruiter"));
+
+    mockedLogin.mockResolvedValue({
+      token: "other-token",
+      user: { ...authResponse.user, id: "other-id" },
+    });
+    act(() => result.current.login(loginValues));
+
+    await waitFor(() => expect(useViewModeStore.getState().mode).toBe("candidate"));
   });
 
   it("exposes the server error message when login fails", async () => {

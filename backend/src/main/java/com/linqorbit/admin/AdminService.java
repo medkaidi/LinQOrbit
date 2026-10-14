@@ -1,33 +1,61 @@
 package com.linqorbit.admin;
 
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
+import com.linqorbit.admin.dto.AdminJobOfferListItem;
+import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
+import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
 import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
+import com.linqorbit.admin.dto.AdminUserDetailResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
+import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
 import com.linqorbit.admin.exception.InvalidSkillTypeException;
 import com.linqorbit.admin.exception.InvalidUserStatusException;
+import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
 import com.linqorbit.admin.exception.SuggestionNotFoundException;
 import com.linqorbit.admin.exception.UserNotFoundException;
 import com.linqorbit.candidate.entity.Candidate;
-import com.linqorbit.candidate.repository.CandidateRepository;
+import com.linqorbit.candidate.entity.NormalizationJobStatus;
+import com.linqorbit.candidate.entity.NormalizedProfile;
 import com.linqorbit.candidate.entity.SkillType;
 import com.linqorbit.candidate.entity.CandidateSkill;
 import com.linqorbit.candidate.entity.Skill;
 import com.linqorbit.candidate.entity.SkillSuggestion;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
+import com.linqorbit.candidate.repository.CandidateRepository;
 import com.linqorbit.candidate.repository.CandidateSkillRepository;
+import com.linqorbit.candidate.repository.NormalizationJobRepository;
+import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.candidate.repository.SkillRepository;
 import com.linqorbit.candidate.repository.SkillSuggestionRepository;
+import com.linqorbit.common.pagination.PageSizes;
+import com.linqorbit.company.entity.Company;
+import com.linqorbit.company.repository.CompanyRepository;
+import com.linqorbit.joboffer.dto.JobOfferAdminView;
+import com.linqorbit.joboffer.entity.JobOffer;
+import com.linqorbit.joboffer.entity.JobOfferStatus;
+import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
+import com.linqorbit.joboffer.repository.JobOfferRepository;
+import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
+import com.linqorbit.joboffer.service.JobOfferService;
+import com.linqorbit.recruiter.repository.RecruiterRepository;
 import com.linqorbit.user.User;
 import com.linqorbit.user.UserRepository;
 import com.linqorbit.user.UserRole;
@@ -36,6 +64,9 @@ import com.linqorbit.user.UserStatus;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Administration : comptes (liste, activation / désactivation) et file de
@@ -57,6 +88,14 @@ public class AdminService {
     private final SkillRepository skillRepository;
     private final CandidateRepository candidateRepository;
     private final CandidateSkillRepository candidateSkillRepository;
+    private final RecruiterRepository recruiterRepository;
+    private final NormalizedProfileRepository normalizedProfileRepository;
+    private final NormalizedProfileJobOfferRepository normalizedProfileJobOfferRepository;
+    private final NormalizationJobRepository normalizationJobRepository;
+    private final JobOfferRepository jobOfferRepository;
+    private final JobOfferService jobOfferService;
+    private final CompanyRepository companyRepository;
+    private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
     public List<AdminUserResponse> listUsers() {
@@ -242,5 +281,175 @@ public class AdminService {
             granted++;
         }
         return granted;
+    }
+
+    /**
+     * Fiche détail d'un compte (D33) : identité complète saisie par
+     * l'utilisateur (jamais le hash du mot de passe), statut, rôles de
+     * capacité et drapeaux candidat / recruteur.
+     */
+    @Transactional(readOnly = true)
+    public AdminUserDetailResponse getUserDetail(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        List<Short> roles = userRoleRepository.findByUserId(userId).stream()
+                .map(UserRole::getRole)
+                .toList();
+        return new AdminUserDetailResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getStatus().name(),
+                roles,
+                user.getPhone(),
+                user.getSex() == null ? null : user.getSex().getApiValue(),
+                user.getHomeCountry(),
+                user.getCurrentCity(),
+                user.getCurrentCountry(),
+                user.getCreatedAt(),
+                candidateRepository.existsById(userId),
+                recruiterRepository.existsById(userId));
+    }
+
+    /**
+     * Fiche normalisée d'un candidat (D33) : dernière version produite +
+     * statut du job associé + contenu pass-through (JsonNode). 404 si le
+     * compte n'est pas un candidat ou si aucune validation n'a encore produit
+     * de fiche.
+     */
+    @Transactional(readOnly = true)
+    public AdminNormalizedProfileResponse getCandidateNormalizedProfile(UUID candidateId) {
+        if (!candidateRepository.existsById(candidateId)) {
+            throw new UserNotFoundException(candidateId);
+        }
+        List<NormalizedProfile> latest = normalizedProfileRepository
+                .findLatestByCandidateId(candidateId, PageRequest.of(0, 1));
+        if (latest.isEmpty()) {
+            throw new NormalizedProfileNotFoundException(true);
+        }
+        return toNormalizedResponse(latest.get(0));
+    }
+
+    /**
+     * Fiche normalisée d'une offre (D33) : dernière version produite + statut
+     * du job associé + contenu pass-through (JsonNode). 404 si l'offre
+     * n'existe pas ou si aucune validation n'a encore produit de fiche.
+     */
+    @Transactional(readOnly = true)
+    public AdminNormalizedProfileResponse getOfferNormalizedProfile(UUID offerId) {
+        if (!jobOfferRepository.existsById(offerId)) {
+            throw new JobOfferNotFoundException("Job offer not found.");
+        }
+        List<NormalizedProfile> latest = normalizedProfileJobOfferRepository
+                .findLatestByOfferId(offerId, PageRequest.of(0, 1));
+        if (latest.isEmpty()) {
+            throw new NormalizedProfileNotFoundException(false);
+        }
+        return toNormalizedResponse(latest.get(0));
+    }
+
+    /**
+     * Liste globale des offres (D33, bornes D34) : toutes les offres du
+     * système, filtre de statut optionnel (draft|validated|published|closed),
+     * pagination bornée par {@link PageSizes} (défaut 20, max 50), tri
+     * createdAt décroissant. Chaque ligne porte le statut du job de
+     * normalisation (anti-N+1).
+     */
+    @Transactional(readOnly = true)
+    public AdminJobOfferPageResponse listJobOffers(String status, int page, Integer size) {
+        int safePage = PageSizes.page(page);
+        int safeSize = PageSizes.clamp(size);
+        Pageable pageable = PageRequest.of(safePage, safeSize,
+                Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<JobOffer> result = (status == null || status.isBlank())
+                ? jobOfferRepository.findAll(pageable)
+                : jobOfferRepository.findByStatus(parseOfferStatus(status), pageable);
+        List<JobOffer> offers = result.getContent();
+        Map<UUID, String> companyNames = companyNamesOf(offers);
+        Map<UUID, NormalizationJobStatus> jobStatuses = latestOfferJobStatuses(offers);
+        List<AdminJobOfferListItem> items = offers.stream()
+                .map(offer -> new AdminJobOfferListItem(
+                        offer.getId(),
+                        offer.getTitle(),
+                        offer.getStatus().getApiValue(),
+                        companyNames.get(offer.getCompanyId()),
+                        offer.getPublicId(),
+                        offer.getSlug(),
+                        offer.getCreatedAt(),
+                        offer.getUpdatedAt(),
+                        offer.getExpiresAt(),
+                        offer.getPublishedAt(),
+                        jobStatuses.containsKey(offer.getId())
+                                ? jobStatuses.get(offer.getId()).name().toLowerCase(Locale.ROOT)
+                                : null))
+                .toList();
+        return new AdminJobOfferPageResponse(
+                items, result.getNumber(), result.getSize(), result.getTotalElements());
+    }
+
+    /**
+     * Détail d'une offre (D33) : la fiche publique (labels résolus, HTML
+     * sanitisé) sans la gate published / non expirée, augmentée de
+     * l'identifiant, du statut de vie et des horodatages.
+     */
+    @Transactional(readOnly = true)
+    public AdminJobOfferDetailResponse getJobOfferDetail(UUID offerId) {
+        JobOfferAdminView view = jobOfferService.getAdminView(offerId);
+        return new AdminJobOfferDetailResponse(
+                view.id(), view.status(), view.createdAt(), view.updatedAt(), view.detail());
+    }
+
+    private AdminNormalizedProfileResponse toNormalizedResponse(NormalizedProfile profile) {
+        String jobStatus = normalizationJobRepository.findById(profile.getId())
+                .map(job -> job.getStatus().name().toLowerCase(Locale.ROOT))
+                .orElse(null);
+        JsonNode content = null;
+        if (profile.getContent() != null) {
+            try {
+                content = objectMapper.readTree(profile.getContent());
+            } catch (Exception ex) {
+                log.error("Admin normalized profile content unparsable : profileId={}",
+                        profile.getId(), ex);
+            }
+        }
+        return new AdminNormalizedProfileResponse(
+                profile.getId(),
+                profile.getVersion(),
+                profile.getSchemaVersion(),
+                profile.getValidatedAt(),
+                jobStatus,
+                content);
+    }
+
+    private JobOfferStatus parseOfferStatus(String status) {
+        try {
+            return JobOfferStatus.fromApiValue(status.trim());
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidOfferStatusFilterException(status);
+        }
+    }
+
+    private Map<UUID, String> companyNamesOf(List<JobOffer> offers) {
+        if (offers.isEmpty()) {
+            return Map.of();
+        }
+        Set<UUID> companyIds = offers.stream()
+                .map(JobOffer::getCompanyId)
+                .collect(Collectors.toSet());
+        return companyRepository.findAllById(companyIds).stream()
+                .collect(Collectors.toMap(Company::getId, Company::getName));
+    }
+
+    private Map<UUID, NormalizationJobStatus> latestOfferJobStatuses(List<JobOffer> offers) {
+        if (offers.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> offerIds = offers.stream().map(JobOffer::getId).toList();
+        Map<UUID, NormalizationJobStatus> statuses = new HashMap<>();
+        for (Object[] row : normalizedProfileJobOfferRepository.findLatestJobStatuses(offerIds)) {
+            statuses.put((UUID) row[0], (NormalizationJobStatus) row[1]);
+        }
+        return statuses;
     }
 }

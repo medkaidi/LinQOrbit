@@ -7,7 +7,10 @@ from app.schemas.normalize import (
     SCHEMA_VERSION,
     CandidateProfile,
     NormalizeRequest,
+    NormalizedCertification,
+    NormalizedDiploma,
     NormalizedExperience,
+    NormalizedLanguage,
     NormalizedProfile,
     NormalizedSkill,
     SkillEvidence,
@@ -138,6 +141,32 @@ def test_output_wire_format_is_camel_case_and_canonical():
                 end_date=None,
             )
         ],
+        languages=[
+            NormalizedLanguage(name="English", level="C1", origin="declared"),
+            NormalizedLanguage(
+                name="German",
+                level=None,
+                origin="inferred",
+                evidence=[SkillEvidence(source="experience", index=0)],
+            ),
+        ],
+        diplomas=[
+            NormalizedDiploma(
+                title="MSc Computer Science",
+                institution="Sorbonne",
+                start_date="2016-09",
+                end_date="2018-06",
+                origin="declared",
+            )
+        ],
+        certifications=[
+            NormalizedCertification(name="AWS SAA", origin="declared"),
+            NormalizedCertification(
+                name="CKA",
+                origin="inferred",
+                evidence=[SkillEvidence(source="bio")],
+            ),
+        ],
         skills=[
             NormalizedSkill(
                 name="Java",
@@ -147,12 +176,18 @@ def test_output_wire_format_is_camel_case_and_canonical():
                 years_experience=7,
                 origin="declared",
                 evidence=[SkillEvidence(source="experience", index=0)],
-            )
+            ),
+            NormalizedSkill(
+                name="Mentoring",
+                category="soft_skill",
+                origin="inferred",
+                evidence=[SkillEvidence(source="bio")],
+            ),
         ],
     )
 
     dumped = result.model_dump(by_alias=True)
-    assert dumped["schemaVersion"] == SCHEMA_VERSION == "2"
+    assert dumped["schemaVersion"] == SCHEMA_VERSION == "3"
     assert dumped["yearsOfExperience"] == 7
     assert dumped["seniority"] == "senior"
     assert dumped["targetRole"] == "Staff Engineer"
@@ -162,6 +197,11 @@ def test_output_wire_format_is_camel_case_and_canonical():
     assert "start_date" not in dumped["experiences"][0]
     assert dumped["skills"][0]["levelSource"] == "declared"
     assert dumped["skills"][0]["evidence"][0]["source"] == "experience"
+    assert dumped["languages"][0]["origin"] == "declared"
+    assert dumped["languages"][1]["evidence"][0] == {"source": "experience", "index": 0}
+    assert dumped["diplomas"][0]["origin"] == "declared"
+    assert dumped["certifications"][1]["evidence"][0] == {"source": "bio", "index": None}
+    assert dumped["skills"][1]["evidence"][0] == {"source": "bio", "index": None}
 
 
 def test_output_month_pattern_is_enforced():
@@ -184,6 +224,30 @@ def test_skill_category_is_constrained_to_the_taxonomy():
 def test_skill_evidence_index_must_be_non_negative():
     with pytest.raises(ValidationError):
         SkillEvidence(source="experience", index=-1)
+
+
+def test_bio_evidence_carries_no_index_and_other_sources_require_one():
+    bio = SkillEvidence(source="bio")
+    assert bio.source == "bio"
+    assert bio.index is None
+    with pytest.raises(ValidationError):
+        SkillEvidence(source="experience")
+    with pytest.raises(ValidationError):
+        SkillEvidence(source="diploma", index=None)
+
+
+def test_languages_diplomas_and_certifications_carry_their_origin():
+    assert NormalizedLanguage(name="English", level="B2", origin="declared").origin == "declared"
+    assert NormalizedDiploma(
+        title="MSc CS", institution="Sorbonne", start_date="2016-09", origin="inferred"
+    ).origin == "inferred"
+    assert NormalizedCertification(name="AWS SAA", origin="declared").origin == "declared"
+    with pytest.raises(ValidationError):
+        NormalizedLanguage(name="English")
+    with pytest.raises(ValidationError):
+        NormalizedLanguage(name="English", origin="stored")
+    with pytest.raises(ValidationError):
+        NormalizedCertification(name="AWS SAA", origin="maybe")
 
 
 def test_skill_level_source_and_origin_are_constrained():
@@ -246,3 +310,7 @@ def test_json_schema_exposes_camel_case_fields():
     assert "projects" in schema["properties"]
     assert "startDate" in schema["$defs"]["NormalizedExperience"]["properties"]
     assert "levelSource" in schema["$defs"]["NormalizedSkill"]["properties"]
+    assert "origin" in schema["$defs"]["NormalizedLanguage"]["properties"]
+    assert "origin" in schema["$defs"]["NormalizedDiploma"]["properties"]
+    assert "origin" in schema["$defs"]["NormalizedCertification"]["properties"]
+    assert "index" in schema["$defs"]["SkillEvidence"]["properties"]

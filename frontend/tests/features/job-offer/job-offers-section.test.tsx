@@ -4,7 +4,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { JobOffersSection } from "@/features/job-offer/job-offers-section";
 import type { Company, JobOffer } from "@/types/recruiter";
 
-const useJobOffersMock = vi.hoisted(() => vi.fn());
+const useInfiniteJobOffersMock = vi.hoisted(() => vi.fn());
 const useJobOfferTransitionMock = vi.hoisted(() => vi.fn());
 const useDeleteJobOfferMock = vi.hoisted(() => vi.fn());
 const useDuplicateJobOfferMock = vi.hoisted(() => vi.fn());
@@ -12,7 +12,7 @@ const useContractTypesMock = vi.hoisted(() => vi.fn());
 const useWorkModesMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/use-job-offers", () => ({
-  useJobOffers: useJobOffersMock,
+  useInfiniteJobOffers: useInfiniteJobOffersMock,
   useJobOfferTransition: useJobOfferTransitionMock,
   useDeleteJobOffer: useDeleteJobOfferMock,
   useDuplicateJobOffer: useDuplicateJobOfferMock,
@@ -69,6 +69,39 @@ function draftOffer(overrides: Partial<JobOffer> = {}): JobOffer {
   };
 }
 
+/** Forme retournée par useInfiniteJobOffers (une seule page chargée). */
+function infiniteResult(
+  offers: JobOffer[],
+  overrides: {
+    isLoading?: boolean;
+    isError?: boolean;
+    error?: Error;
+    hasNextPage?: boolean;
+    isFetchingNextPage?: boolean;
+    fetchNextPage?: ReturnType<typeof vi.fn>;
+    refetch?: ReturnType<typeof vi.fn>;
+    /** data reste undefined (chargement initial). */
+    unloaded?: boolean;
+  } = {},
+) {
+  const { unloaded = false, ...rest } = overrides;
+  return {
+    data: unloaded
+      ? undefined
+      : {
+          pages: [{ items: offers, page: 0, size: 20, total: offers.length }],
+          pageParams: [0],
+        },
+    isLoading: false,
+    isError: false,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
+    refetch: vi.fn(),
+    ...rest,
+  };
+}
+
 function mutation(data: Partial<ReturnType<typeof useJobOfferTransitionMock>> = {}) {
   return {
     mutate: vi.fn(),
@@ -82,12 +115,7 @@ function mutation(data: Partial<ReturnType<typeof useJobOfferTransitionMock>> = 
 
 describe("JobOffersSection", () => {
   beforeEach(() => {
-    useJobOffersMock.mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(infiniteResult([], { unloaded: true, isLoading: true }));
     useJobOfferTransitionMock.mockReturnValue(mutation());
     useDeleteJobOfferMock.mockReturnValue(mutation());
     useDuplicateJobOfferMock.mockReturnValue(mutation());
@@ -116,13 +144,9 @@ describe("JobOffersSection", () => {
 
   it("surfaces a load error with a retry that refetches", () => {
     const refetch = vi.fn();
-    useJobOffersMock.mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isError: true,
-      error: new Error("boom"),
-      refetch,
-    });
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([], { isError: true, error: new Error("boom"), refetch }),
+    );
 
     render(<JobOffersSection companies={companies} />);
 
@@ -132,12 +156,7 @@ describe("JobOffersSection", () => {
   });
 
   it("explains the empty state", () => {
-    useJobOffersMock.mockReturnValue({
-      data: [],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(infiniteResult([]));
 
     render(<JobOffersSection companies={companies} />);
 
@@ -145,15 +164,12 @@ describe("JobOffersSection", () => {
   });
 
   it("renders offers with company name, contract label and status label", () => {
-    useJobOffersMock.mockReturnValue({
-      data: [
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([
         draftOffer(),
         draftOffer({ id: "o2", title: "Data Engineer", status: "published" }),
-      ],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+      ]),
+    );
 
     render(<JobOffersSection companies={companies} />);
 
@@ -166,9 +182,22 @@ describe("JobOffersSection", () => {
     expect(screen.getAllByText(/^Created /)).toHaveLength(2);
   });
 
+  it("loads the next page through the load-more fallback", () => {
+    const fetchNextPage = vi.fn();
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer()], { hasNextPage: true, fetchNextPage }),
+    );
+
+    render(<JobOffersSection companies={companies} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+
+    expect(fetchNextPage).toHaveBeenCalledOnce();
+  });
+
   it("merges the work mode with the location", () => {
-    useJobOffersMock.mockReturnValue({
-      data: [
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([
         draftOffer({ city: "Paris", country: "FR" }),
         draftOffer({
           id: "o2",
@@ -177,11 +206,8 @@ describe("JobOffersSection", () => {
           city: "Lyon",
           country: "FR",
         }),
-      ],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+      ]),
+    );
 
     render(<JobOffersSection companies={companies} />);
 
@@ -192,12 +218,7 @@ describe("JobOffersSection", () => {
   it("validates a draft offer only after confirmation", () => {
     const transition = mutation();
     useJobOfferTransitionMock.mockReturnValue(transition);
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer()],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(infiniteResult([draftOffer()]));
 
     render(<JobOffersSection companies={companies} />);
     fireEvent.click(screen.getByRole("button", { name: "Validate" }));
@@ -222,12 +243,7 @@ describe("JobOffersSection", () => {
   it("publishes a validated offer only after confirmation", () => {
     const transition = mutation();
     useJobOfferTransitionMock.mockReturnValue(transition);
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer({ status: "validated" })],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(infiniteResult([draftOffer({ status: "validated" })]));
 
     render(<JobOffersSection companies={companies} />);
     fireEvent.click(screen.getByRole("button", { name: "Publish" }));
@@ -248,19 +264,16 @@ describe("JobOffersSection", () => {
   it("disables Validate on an incomplete draft with an explanatory tooltip", () => {
     const transition = mutation();
     useJobOfferTransitionMock.mockReturnValue(transition);
-    useJobOffersMock.mockReturnValue({
-      data: [
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([
         draftOffer({
           description: null,
           country: null,
           employmentTypeId: null,
           skills: [],
         }),
-      ],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+      ]),
+    );
 
     render(<JobOffersSection companies={companies} />);
     const validate = screen.getByRole("button", { name: "Validate" });
@@ -277,12 +290,9 @@ describe("JobOffersSection", () => {
   it("disables Publish on an incomplete validated offer", () => {
     const transition = mutation();
     useJobOfferTransitionMock.mockReturnValue(transition);
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer({ status: "validated", skills: [] })],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer({ status: "validated", skills: [] })]),
+    );
 
     render(<JobOffersSection companies={companies} />);
     const publish = screen.getByRole("button", { name: "Publish" });
@@ -301,12 +311,9 @@ describe("JobOffersSection", () => {
         isPending: false,
       }),
     );
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer({ status: "validated" })],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer({ status: "validated" })]),
+    );
 
     render(<JobOffersSection companies={companies} />);
 
@@ -322,12 +329,7 @@ describe("JobOffersSection", () => {
         isPending: true,
       }),
     );
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer()],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(infiniteResult([draftOffer()]));
 
     render(<JobOffersSection companies={companies} />);
 
@@ -335,12 +337,9 @@ describe("JobOffersSection", () => {
   });
 
   it("only offers Close on a published offer", () => {
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer({ id: "o2", status: "published" })],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer({ id: "o2", status: "published" })]),
+    );
 
     render(<JobOffersSection companies={companies} />);
 
@@ -352,12 +351,9 @@ describe("JobOffersSection", () => {
   it("copies the absolute public URL of a published offer", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer({ status: "published" })],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer({ status: "published" })]),
+    );
 
     render(<JobOffersSection companies={companies} />);
     fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
@@ -369,12 +365,9 @@ describe("JobOffersSection", () => {
   });
 
   it("links the public page of a published offer in a new tab", () => {
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer({ status: "published" })],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer({ status: "published" })]),
+    );
 
     render(<JobOffersSection companies={companies} />);
 
@@ -384,12 +377,7 @@ describe("JobOffersSection", () => {
   });
 
   it("shows no public link controls on a draft offer", () => {
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer()],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(infiniteResult([draftOffer()]));
 
     render(<JobOffersSection companies={companies} />);
 
@@ -400,12 +388,7 @@ describe("JobOffersSection", () => {
   it("deletes a draft only after confirmation", () => {
     const remove = mutation();
     useDeleteJobOfferMock.mockReturnValue(remove);
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer()],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(infiniteResult([draftOffer()]));
 
     render(<JobOffersSection companies={companies} />);
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
@@ -422,16 +405,13 @@ describe("JobOffersSection", () => {
   });
 
   it("flags an expired published offer without changing its status", () => {
-    useJobOffersMock.mockReturnValue({
-      data: [
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([
         draftOffer({ id: "o1", status: "published", expiresAt: "2020-01-01" }),
         draftOffer({ id: "o2", title: "Data Engineer", status: "published", expiresAt: "2099-01-01" }),
         draftOffer({ id: "o3", title: "ML Engineer", status: "published", expiresAt: null }),
-      ],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+      ]),
+    );
 
     render(<JobOffersSection companies={companies} />);
 
@@ -440,12 +420,9 @@ describe("JobOffersSection", () => {
   });
 
   it("links the preview of a validated offer", () => {
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer({ status: "validated" })],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer({ status: "validated" })]),
+    );
 
     render(<JobOffersSection companies={companies} />);
 
@@ -458,12 +435,9 @@ describe("JobOffersSection", () => {
   it("duplicates an offer immediately without confirmation", () => {
     const duplicate = mutation();
     useDuplicateJobOfferMock.mockReturnValue(duplicate);
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer({ status: "published" })],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer({ status: "published" })]),
+    );
 
     render(<JobOffersSection companies={companies} />);
     fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
@@ -476,12 +450,7 @@ describe("JobOffersSection", () => {
     useJobOfferTransitionMock.mockReturnValue(
       mutation({ error: new Error("Invalid transition") }),
     );
-    useJobOffersMock.mockReturnValue({
-      data: [draftOffer()],
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(infiniteResult([draftOffer()]));
 
     render(<JobOffersSection companies={companies} />);
 
@@ -490,12 +459,7 @@ describe("JobOffersSection", () => {
   });
 
   function renderOffers(offers: JobOffer[]) {
-    useJobOffersMock.mockReturnValue({
-      data: offers,
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    useInfiniteJobOffersMock.mockReturnValue(infiniteResult(offers));
 
     render(<JobOffersSection companies={companies} />);
   }

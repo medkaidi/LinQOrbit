@@ -1,6 +1,7 @@
 package com.linqorbit.admin;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -26,14 +27,24 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
+import com.linqorbit.admin.dto.AdminJobOfferListItem;
+import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
+import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
 import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
+import com.linqorbit.admin.dto.AdminUserDetailResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
+import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
+import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
 import com.linqorbit.admin.exception.SuggestionNotFoundException;
 import com.linqorbit.admin.exception.UserNotFoundException;
 import com.linqorbit.config.SecurityConfig;
 import com.linqorbit.user.UserStatus;
+
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 @WebMvcTest(AdminController.class)
 @Import(SecurityConfig.class)
@@ -213,6 +224,143 @@ class AdminControllerTest {
                         .with(adminJwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("Skill suggestion not found"));
+    }
+
+    @Test
+    void getUserDetailRenvoie200AvecRoleAdmin() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(adminService.getUserDetail(userId)).thenReturn(new AdminUserDetailResponse(
+                userId, "ada@example.com", "Ada", "Lovelace", "ACTIVE", List.of((short) 1),
+                "+33612345678", "female", "FR", "Paris", "FR",
+                java.time.LocalDateTime.of(2026, 1, 15, 10, 0), true, false));
+
+        mockMvc.perform(get("/api/v1/admin/users/{userId}", userId).with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("ada@example.com"))
+                .andExpect(jsonPath("$.sex").value("female"))
+                .andExpect(jsonPath("$.hasCandidateProfile").value(true))
+                .andExpect(jsonPath("$.hasRecruiterProfile").value(false));
+    }
+
+    @Test
+    void getUserDetailRenvoie404QuandCompteInconnu() throws Exception {
+        UUID unknownId = UUID.randomUUID();
+        doThrow(new UserNotFoundException(unknownId))
+                .when(adminService).getUserDetail(unknownId);
+
+        mockMvc.perform(get("/api/v1/admin/users/{userId}", unknownId).with(adminJwt()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("User not found"));
+    }
+
+    @Test
+    void candidateNormalizedProfileRenvoie200AvecContenu() throws Exception {
+        UUID userId = UUID.randomUUID();
+        ObjectNode content = JsonNodeFactory.instance.objectNode();
+        content.put("seniority", "mid");
+        when(adminService.getCandidateNormalizedProfile(userId)).thenReturn(
+                new AdminNormalizedProfileResponse(userId, 3, "2",
+                        java.time.LocalDateTime.of(2026, 10, 1, 12, 0), "done", content));
+
+        mockMvc.perform(get("/api/v1/admin/users/{userId}/normalized-profile", userId)
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(3))
+                .andExpect(jsonPath("$.schemaVersion").value("2"))
+                .andExpect(jsonPath("$.jobStatus").value("done"))
+                .andExpect(jsonPath("$.content.seniority").value("mid"));
+    }
+
+    @Test
+    void candidateNormalizedProfileRenvoie404SansFiche() throws Exception {
+        doThrow(new NormalizedProfileNotFoundException(true))
+                .when(adminService).getCandidateNormalizedProfile(any());
+
+        mockMvc.perform(get("/api/v1/admin/users/{userId}/normalized-profile", UUID.randomUUID())
+                        .with(adminJwt()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Normalized profile not found"));
+    }
+
+    @Test
+    void listJobOffersRenvoie200AvecParametres() throws Exception {
+        when(adminService.listJobOffers("published", 1, 10))
+                .thenReturn(new AdminJobOfferPageResponse(List.of(
+                        new AdminJobOfferListItem(UUID.randomUUID(), "Dev Java", "published",
+                                "Acme", "abc123", "dev-java",
+                                java.time.LocalDateTime.of(2026, 10, 1, 8, 0),
+                                java.time.LocalDateTime.of(2026, 10, 1, 9, 0),
+                                java.time.LocalDate.of(2026, 12, 31),
+                                java.time.LocalDateTime.of(2026, 10, 1, 10, 0), "done")),
+                        1, 10, 42));
+
+        mockMvc.perform(get("/api/v1/admin/job-offers")
+                        .param("status", "published").param("page", "1").param("size", "10")
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].title").value("Dev Java"))
+                .andExpect(jsonPath("$.items[0].companyName").value("Acme"))
+                .andExpect(jsonPath("$.items[0].normalizationJobStatus").value("done"))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.total").value(42));
+    }
+
+    @Test
+    void listJobOffersRenvoie400QuandFiltreInconnu() throws Exception {
+        doThrow(new InvalidOfferStatusFilterException("archived"))
+                .when(adminService).listJobOffers(any(), anyInt(), any());
+
+        mockMvc.perform(get("/api/v1/admin/job-offers").param("status", "archived")
+                        .with(adminJwt()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Unsupported status filter"));
+    }
+
+    @Test
+    void getJobOfferDetailRenvoie200() throws Exception {
+        UUID offerId = UUID.randomUUID();
+        when(adminService.getJobOfferDetail(offerId)).thenReturn(new AdminJobOfferDetailResponse(
+                offerId, "closed", java.time.LocalDateTime.of(2026, 9, 1, 8, 0),
+                java.time.LocalDateTime.of(2026, 9, 2, 9, 0), null));
+
+        mockMvc.perform(get("/api/v1/admin/job-offers/{offerId}", offerId).with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(offerId.toString()))
+                .andExpect(jsonPath("$.status").value("closed"));
+    }
+
+    @Test
+    void offerNormalizedProfileRenvoie200AvecContenu() throws Exception {
+        UUID offerId = UUID.randomUUID();
+        ObjectNode content = JsonNodeFactory.instance.objectNode();
+        content.put("title", "Dev Java");
+        when(adminService.getOfferNormalizedProfile(offerId)).thenReturn(
+                new AdminNormalizedProfileResponse(offerId, 1, "1",
+                        java.time.LocalDateTime.of(2026, 10, 2, 9, 0), "failed", content));
+
+        mockMvc.perform(get("/api/v1/admin/job-offers/{offerId}/normalized-profile", offerId)
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.schemaVersion").value("1"))
+                .andExpect(jsonPath("$.jobStatus").value("failed"))
+                .andExpect(jsonPath("$.content.title").value("Dev Java"));
+    }
+
+    @Test
+    void adminJobEndpointsRenvoient403SansRoleAdmin() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/users/{userId}", UUID.randomUUID())
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString()))))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/admin/job-offers")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString()))))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/admin/job-offers/{offerId}", UUID.randomUUID())
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString()))))
+                .andExpect(status().isForbidden());
     }
 
     private static JwtRequestPostProcessor adminJwt() {

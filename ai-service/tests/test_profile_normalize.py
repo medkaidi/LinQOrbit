@@ -79,7 +79,7 @@ def test_normalize_profile_forces_the_schema_version(monkeypatch):
 
     result = normalize_profile(_profile())
 
-    assert result.schema_version == "2"
+    assert result.schema_version == "3"
 
 
 def test_normalize_profile_forwards_the_reference_context(monkeypatch):

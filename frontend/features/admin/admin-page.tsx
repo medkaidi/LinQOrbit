@@ -69,7 +69,12 @@ function AccountRow({
     >
       <div className="min-w-0">
         <p className="text-body-md font-body-md text-text-primary font-semibold truncate">
-          {[account.firstName, account.lastName].filter(Boolean).join(" ")}
+          <Link
+            href={`/admin/users/${account.id}`}
+            className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+          >
+            {[account.firstName, account.lastName].filter(Boolean).join(" ")}
+          </Link>
         </p>
         <p className={`${MUTED} truncate`}>{account.email}</p>
       </div>

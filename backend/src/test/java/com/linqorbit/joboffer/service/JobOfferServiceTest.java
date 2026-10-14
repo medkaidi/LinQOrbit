@@ -124,7 +124,7 @@ class JobOfferServiceTest {
     void createCreeUneOffreDraftEnMembre() {
         stubRecruiter(true);
         stubMembership(RECRUITER_ID, true);
-        when(skillRepository.existsById(SKILL_ID)).thenReturn(true);
+        when(skillRepository.countByIdIn(any())).thenReturn(1L);
         when(contractTypeRepository.existsById(CONTRACT_TYPE_ID)).thenReturn(true);
         when(jobOfferRepository.save(any(JobOffer.class))).thenAnswer(invocation -> {
             JobOffer offer = invocation.getArgument(0);
@@ -155,6 +155,7 @@ class JobOfferServiceTest {
     void createRejetteUnSkillInconnu() {
         stubRecruiter(true);
         stubMembership(RECRUITER_ID, true);
+        when(skillRepository.countByIdIn(any())).thenReturn(0L);
         when(skillRepository.existsById(SKILL_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> jobOfferService.create(RECRUITER_ID, createRequest()))

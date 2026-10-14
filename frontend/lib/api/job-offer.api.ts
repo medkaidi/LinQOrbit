@@ -9,6 +9,7 @@ import type {
 import type {
   JobOffer,
   JobOfferLabelOption,
+  JobOfferPage,
 } from "@/types/recruiter";
 
 /** Corps envoyé au backend : "" → null, nombres en string → number (miroir profil candidat). */
@@ -97,8 +98,15 @@ export function toJobOfferPayload(
   };
 }
 
-export async function listJobOffers(): Promise<JobOffer[]> {
-  const response = await api.get<JobOffer[]>("/api/v1/job-offers");
+/** La taille de page n'est jamais envoyée : le backend décide (D34). */
+export async function listJobOffers(
+  params: { page?: number } = {},
+  options: { signal?: AbortSignal } = {},
+): Promise<JobOfferPage> {
+  const response = await api.get<JobOfferPage>("/api/v1/job-offers", {
+    params: { ...(params.page !== undefined ? { page: params.page } : {}) },
+    signal: options.signal,
+  });
   return response.data;
 }
 

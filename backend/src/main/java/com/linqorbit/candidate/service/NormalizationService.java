@@ -46,7 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 public class NormalizationService {
 
     /** Version du format canonique produit (miroir de schema_version / schemaVersion). */
-    static final String SCHEMA_VERSION = "2";
+    static final String SCHEMA_VERSION = "3";
 
     private final CandidateRepository candidateRepository;
     private final NormalizedProfileRepository normalizedProfileRepository;

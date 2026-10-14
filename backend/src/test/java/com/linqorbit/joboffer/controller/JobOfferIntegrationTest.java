@@ -130,7 +130,8 @@ class JobOfferIntegrationTest {
 
         mockMvc.perform(get("/api/v1/job-offers").header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.total").value(1));
 
         mockMvc.perform(put("/api/v1/job-offers/" + offerId)
                         .header("Authorization", "Bearer " + ownerToken)
@@ -235,7 +236,8 @@ class JobOfferIntegrationTest {
                 .andExpect(status().isNotFound());
         mockMvc.perform(get("/api/v1/job-offers").header("Authorization", "Bearer " + strangerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.items.length()").value(0))
+                .andExpect(jsonPath("$.total").value(0));
 
         String memberToken = signup("member");
         becomeRecruiter(memberToken);

@@ -9,13 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button, CtaButton } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Icon } from "@/components/ui/icon";
+import { InfiniteList } from "@/components/ui/infinite-list";
 import { NavPill } from "@/components/ui/nav-pill";
 import { Spinner } from "@/components/ui/spinner";
 import {
   useContractTypes,
   useDeleteJobOffer,
   useDuplicateJobOffer,
-  useJobOffers,
+  useInfiniteJobOffers,
   useJobOfferTransition,
   useWorkModes,
 } from "@/hooks/use-job-offers";
@@ -363,7 +364,7 @@ function OfferRow({
  * mutation partagé par les actions, erreurs en `Alert` sans perdre la liste.
  */
 export function JobOffersSection({ companies }: { companies: Company[] }) {
-  const offers = useJobOffers();
+  const offers = useInfiniteJobOffers();
   const transition = useJobOfferTransition();
   const remove = useDeleteJobOffer();
   const duplicate = useDuplicateJobOffer();
@@ -423,7 +424,7 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
     );
   }
 
-  const list = offers.data ?? [];
+  const list = offers.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
     <section className="bg-canvas-white rounded-2xl shadow-sm">
@@ -437,35 +438,39 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
             {getJobOfferErrorMessage(error)}
           </Alert>
         ) : null}
-        {list.length === 0 ? (
-          <p className="text-body-md font-body-md text-text-secondary">
-            No offers yet. Create your first job offer to start matching candidates.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {list.map((offer) => (
-              <OfferRow
-                key={offer.id}
-                offer={offer}
-                companyName={companyNames.get(offer.companyId) ?? null}
-                contractTypeLabel={
-                  offer.contractTypeId ? contractLabels.get(offer.contractTypeId) ?? null : null
-                }
-                workModeLabel={
-                  offer.workModeId ? workModeLabels.get(offer.workModeId) ?? null : null
-                }
-                busy={pendingId === offer.id}
-                onTransition={(action) =>
-                  action === "close"
-                    ? transition.mutate({ offerId: offer.id, action })
-                    : setConfirmTransition({ offer, action })
-                }
-                onDuplicate={() => duplicate.mutate(offer.id)}
-                onDelete={() => setDeleteTarget(offer)}
-              />
-            ))}
-          </ul>
-        )}
+        <InfiniteList
+          items={list}
+          keyExtractor={(offer) => offer.id}
+          renderItem={(offer) => (
+            <OfferRow
+              offer={offer}
+              companyName={companyNames.get(offer.companyId) ?? null}
+              contractTypeLabel={
+                offer.contractTypeId ? contractLabels.get(offer.contractTypeId) ?? null : null
+              }
+              workModeLabel={
+                offer.workModeId ? workModeLabels.get(offer.workModeId) ?? null : null
+              }
+              busy={pendingId === offer.id}
+              onTransition={(action) =>
+                action === "close"
+                  ? transition.mutate({ offerId: offer.id, action })
+                  : setConfirmTransition({ offer, action })
+              }
+              onDuplicate={() => duplicate.mutate(offer.id)}
+              onDelete={() => setDeleteTarget(offer)}
+            />
+          )}
+          hasNextPage={offers.hasNextPage}
+          isFetchingNextPage={offers.isFetchingNextPage}
+          fetchNextPage={() => void offers.fetchNextPage()}
+          loading={offers.isLoading}
+          empty={
+            <p className="text-body-md font-body-md text-text-secondary">
+              No offers yet. Create your first job offer to start matching candidates.
+            </p>
+          }
+        />
         {confirmTransition ? (
           <ConfirmDialog
             title={TRANSITION_CONFIRM[confirmTransition.action].title}

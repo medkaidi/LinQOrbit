@@ -2,6 +2,7 @@ package com.linqorbit.joboffer.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.linqorbit.config.SecurityConfig;
 import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
+import com.linqorbit.joboffer.dto.JobOfferPageResponse;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
 import com.linqorbit.joboffer.exception.InvalidJobOfferStatusException;
@@ -216,14 +218,42 @@ class JobOfferControllerTest {
     }
 
     @Test
-    void listMineRenvoie200() throws Exception {
+    void listMineRenvoie200AvecEnveloppe() throws Exception {
         UUID userId = UUID.randomUUID();
-        when(jobOfferService.listMine(eq(userId))).thenReturn(List.of(draftResponse()));
+        when(jobOfferService.listMine(eq(userId), isNull(), isNull()))
+                .thenReturn(new JobOfferPageResponse(List.of(draftResponse()), 0, 20, 1));
 
         mockMvc.perform(get("/api/v1/job-offers")
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.total").value(1));
+    }
+
+    @Test
+    void listMineTransmetPageEtSize() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(jobOfferService.listMine(eq(userId), eq(2), eq(10)))
+                .thenReturn(new JobOfferPageResponse(List.of(), 2, 10, 0));
+
+        mockMvc.perform(get("/api/v1/job-offers").param("page", "2").param("size", "10")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(10));
+    }
+
+    @Test
+    void listMineRenvoie404SansProfilRecruteur() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(jobOfferService.listMine(eq(userId), isNull(), isNull()))
+                .thenThrow(new RecruiterNotFoundException());
+
+        mockMvc.perform(get("/api/v1/job-offers")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isNotFound());
     }
 
     @Test

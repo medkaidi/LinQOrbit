@@ -1,4 +1,6 @@
+import type { PublicJob } from "@/types/public-job";
 import type { JobOffer, JobOfferStatusValue, SeniorityValue } from "@/types/recruiter";
+import type { PublicJobArticleModel } from "@/features/job-offer/public-job-article";
 
 export const OFFER_SECTION_HEADER =
   "mx-6 pt-4 pb-4 flex items-start justify-between gap-4 border-b border-slate-border";
@@ -50,6 +52,44 @@ export function salaryLabel(
 export function locationLabel(city: string | null, country: string | null): string | null {
   const label = [city, country].filter(Boolean).join(", ");
   return label === "" ? null : label;
+}
+
+/** Ligne de méta-données d'une fiche publique (company · lieu · séniorité · …). */
+export function publicJobMetaLine(job: PublicJob): string[] {
+  const seniority = job.seniority
+    ? SENIORITY_LABELS[job.seniority as SeniorityValue] ?? null
+    : null;
+  return [
+    job.companyName,
+    locationLabel(job.city, job.country),
+    seniority,
+    job.contractType,
+    job.employmentType,
+    job.workMode,
+    salaryLabel(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod),
+  ].filter((part): part is string => Boolean(part));
+}
+
+/** Mapping PublicJob → modèle de l'article partagé (fiche publique + console admin). */
+export function toPublicJobArticleModel(job: PublicJob): PublicJobArticleModel {
+  return {
+    companyName: job.companyName,
+    title: job.title,
+    meta: publicJobMetaLine(job),
+    description: job.description,
+    skills: job.skills.map((skill) => ({
+      id: skill.skillId,
+      name: skill.name,
+      requirementType: skill.requirementType,
+    })),
+    languages: job.languages.map((language) => ({
+      id: language.languageId,
+      name: language.name,
+      level: language.level,
+    })),
+    degreeLabels: job.degreeLabels,
+    studyFieldLabels: job.studyFieldLabels,
+  };
 }
 
 /** Message d'infobulle quand l'offre est trop incomplète pour sortir du brouillon. */

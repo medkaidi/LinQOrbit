@@ -111,15 +111,13 @@ describe("DashboardSidebar", () => {
     expect(screen.queryByRole("link", { name: /administration/i })).not.toBeInTheDocument();
   });
 
-  it("links Administration for admin accounts and marks it active on /admin", () => {
-    pathnameMock.mockReturnValue("/admin");
+  it("links Administration for admin accounts — entry point to the (admin) route group", () => {
     useAuthStore.getState().setAuth({ token: "jwt-token", user: adminUser });
 
     render(<DashboardSidebar />);
 
     const link = screen.getByRole("link", { name: /administration/i });
     expect(link).toHaveAttribute("href", "/admin");
-    expect(link).toHaveAttribute("aria-current", "page");
   });
 
   it("keeps Administration inactive on other routes", () => {
@@ -184,14 +182,6 @@ describe("DashboardSidebar", () => {
         "aria-current",
         "page",
       );
-    });
-
-    it("keeps the Administration entry for admins", () => {
-      useAuthStore.getState().setAuth({ token: "jwt-token", user: adminUser });
-
-      render(<DashboardSidebar />);
-
-      expect(screen.getByRole("link", { name: /administration/i })).toBeInTheDocument();
     });
   });
 });

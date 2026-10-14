@@ -60,14 +60,7 @@ def has_content(offer: JobOfferSnapshot) -> bool:
     )
     if any(value is not None for value in scalar_fields):
         return True
-    return any(
-        (
-            offer.skills,
-            offer.languages,
-            offer.degree_labels,
-            offer.study_field_labels,
-        )
-    )
+    return any((offer.skills, offer.languages, offer.degree_labels, offer.study_field_labels))
 
 
 def normalize_job_offer(

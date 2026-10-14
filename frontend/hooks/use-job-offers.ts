@@ -1,6 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
 import {
@@ -25,10 +30,17 @@ import { queryKeys } from "@/hooks/query-keys";
 
 const OFFER_REFERENCES_STALE_TIME = 5 * 60_000;
 
-export function useJobOffers() {
-  return useQuery({
+/**
+ * Offres des companies du recruteur en infinite scroll (D34) : la taille de
+ * page reste décidée par le backend (jamais envoyée).
+ */
+export function useInfiniteJobOffers() {
+  return useInfiniteQuery({
     queryKey: queryKeys.jobOffers.list,
-    queryFn: listJobOffers,
+    queryFn: ({ pageParam, signal }) => listJobOffers({ page: pageParam }, { signal }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) =>
+      lastPage.page * lastPage.size < lastPage.total ? lastPage.page + 1 : undefined,
     staleTime: 30_000,
   });
 }

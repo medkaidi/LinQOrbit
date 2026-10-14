@@ -13,9 +13,11 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.util.BindErrorUtils;
 
+import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
 import com.linqorbit.admin.exception.InvalidSkillTypeException;
 import com.linqorbit.admin.exception.InvalidUserStatusException;
+import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
 import com.linqorbit.admin.exception.SuggestionNotFoundException;
 import com.linqorbit.admin.exception.UserNotFoundException;
@@ -189,6 +191,24 @@ public class GlobalExceptionHandler {
         problem.setTitle("Skill suggestion not found");
         problem.setDetail("No suggestion matches this identifier.");
         log.warn("Admin suggestion review rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidOfferStatusFilterException.class)
+    public ProblemDetail handleInvalidOfferStatusFilter(InvalidOfferStatusFilterException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Unsupported status filter");
+        problem.setDetail("Only draft, validated, published and closed can be used as a status filter.");
+        log.warn("Admin offers list rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(NormalizedProfileNotFoundException.class)
+    public ProblemDetail handleNormalizedProfileNotFound(NormalizedProfileNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Normalized profile not found");
+        problem.setDetail("No normalized profile has been produced for this element yet.");
+        log.warn("Admin normalized profile view rejected : {}", ex.getMessage());
         return problem;
     }
 

@@ -26,6 +26,8 @@ def get_model() -> ChatGoogleGenerativeAI:
     return ChatGoogleGenerativeAI(
         model=settings.llm_model,
         google_api_key=settings.google_api_key or None,
+        request_timeout=settings.llm_timeout_seconds,
+        retries=settings.llm_max_retries,
     )
 
 

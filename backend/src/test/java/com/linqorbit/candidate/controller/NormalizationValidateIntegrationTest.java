@@ -63,7 +63,9 @@ class NormalizationValidateIntegrationTest {
             jdbcTemplate.update("""
                     DELETE FROM normalized_profile np
                     WHERE NOT EXISTS (SELECT 1 FROM normalized_profile_candidate npc
-                                      WHERE npc.normalized_profile_id = np.normalized_profile_id)""");
+                                      WHERE npc.normalized_profile_id = np.normalized_profile_id)
+                      AND NOT EXISTS (SELECT 1 FROM normalized_profile_job_offer npo
+                                      WHERE npo.normalized_profile_id = np.normalized_profile_id)""");
             jdbcTemplate.update("DELETE FROM candidates WHERE id = ?", userId);
             jdbcTemplate.update("DELETE FROM users WHERE id = ?", userId);
         }

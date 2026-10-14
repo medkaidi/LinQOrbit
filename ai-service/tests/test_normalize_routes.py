@@ -53,7 +53,7 @@ def test_normalize_endpoint_returns_the_canonical_profile(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["title"] == "Full Stack Developer"
-    assert response.json()["schemaVersion"] == "2"
+    assert response.json()["schemaVersion"] == "3"
     assert isinstance(received["profile"], CandidateProfile)
     assert received["location"].current_city == "Paris"
     assert received["context"].study_fields == ["Computer Science"]

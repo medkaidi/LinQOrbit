@@ -22,6 +22,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import com.linqorbit.candidate.entity.Degree;
+import com.linqorbit.common.pagination.PageSizes;
 import com.linqorbit.candidate.entity.Language;
 import com.linqorbit.candidate.entity.NormalizationJobStatus;
 import com.linqorbit.candidate.entity.Skill;
@@ -42,8 +46,10 @@ import com.linqorbit.company.entity.CompanyMember;
 import com.linqorbit.company.repository.CompanyMemberRepository;
 import com.linqorbit.company.repository.CompanyRepository;
 import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
+import com.linqorbit.joboffer.dto.JobOfferAdminView;
 import com.linqorbit.joboffer.dto.JobOfferLanguageOption;
 import com.linqorbit.joboffer.dto.JobOfferLanguageRequest;
+import com.linqorbit.joboffer.dto.JobOfferPageResponse;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.JobOfferSkillOption;
 import com.linqorbit.joboffer.dto.JobOfferSkillRequest;
@@ -148,16 +154,29 @@ public class JobOfferService {
         return buildResponse(offer);
     }
 
-    public List<JobOfferResponse> listMine(UUID userId) {
+    /**
+     * Liste paginée des offres du recruteur (D34) : la taille de page est
+     * décidée par le backend (défaut 20, clamp 50 — les paramètres sont
+     * optionnels) et la valeur effective part dans l'enveloppe. Lecture
+     * seule : une tx unique pour toutes les requêtes de buildResponses
+     * (open-in-view est désactivé).
+     */
+    @Transactional(readOnly = true)
+    public JobOfferPageResponse listMine(UUID userId, Integer page, Integer size) {
+        int safePage = PageSizes.page(page);
+        int safeSize = PageSizes.clamp(size);
         requireRecruiter(userId);
         List<UUID> companyIds = companyIdsOf(userId);
         if (companyIds.isEmpty()) {
-            return List.of();
+            return new JobOfferPageResponse(List.of(), safePage, safeSize, 0);
         }
-        List<JobOfferResponse> responses = buildResponses(
-                jobOfferRepository.findByCompanyIdInOrderByCreatedAtDesc(companyIds));
-        log.info("Job offers listed : recruiterId={}, count={}", userId, responses.size());
-        return responses;
+        Page<JobOffer> result = jobOfferRepository.findByCompanyIdIn(companyIds,
+                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt")));
+        List<JobOfferResponse> responses = buildResponses(result.getContent());
+        log.info("Job offers listed : recruiterId={}, page={}, size={}, count={}, total={}",
+                userId, safePage, safeSize, responses.size(), result.getTotalElements());
+        return new JobOfferPageResponse(responses, result.getNumber(), result.getSize(),
+                result.getTotalElements());
     }
 
     public JobOfferResponse get(UUID userId, UUID offerId) {
@@ -183,6 +202,26 @@ public class JobOfferService {
             throw new JobOfferNotFoundException("Job offer not found.");
         }
         return buildPublicResponse(offer);
+    }
+
+    /**
+     * Vue admin (D33) : la fiche publique sans gate published / non expirée,
+     * augmentée de l'identifiant, du statut de vie et des horodatages —
+     * consultation seule depuis la console d'administration.
+     */
+    @Transactional(readOnly = true)
+    public JobOfferAdminView getAdminView(UUID offerId) {
+        JobOffer offer = jobOfferRepository.findById(offerId)
+                .orElseThrow(() -> {
+                    log.warn("Admin offer view rejected : unknown offerId={}", offerId);
+                    return new JobOfferNotFoundException("Job offer not found.");
+                });
+        return new JobOfferAdminView(
+                offer.getId(),
+                offer.getStatus().getApiValue(),
+                offer.getCreatedAt(),
+                offer.getUpdatedAt(),
+                buildPublicResponse(offer));
     }
 
     @Transactional
@@ -224,10 +263,10 @@ public class JobOfferService {
             log.warn("Job offer deletion rejected : offerId={}, status={}", offerId, offer.getStatus().getApiValue());
             throw new InvalidJobOfferStatusException(offer.getStatus(), "delete");
         }
-        jobOfferSkillRepository.deleteByJobOfferId(offerId);
-        jobOfferLanguageRepository.deleteByJobOfferId(offerId);
-        jobOfferDegreeRepository.deleteByJobOfferId(offerId);
-        jobOfferStudyFieldRepository.deleteByJobOfferId(offerId);
+        jobOfferSkillRepository.deleteAllByJobOfferId(offerId);
+        jobOfferLanguageRepository.deleteAllByJobOfferId(offerId);
+        jobOfferDegreeRepository.deleteAllByJobOfferId(offerId);
+        jobOfferStudyFieldRepository.deleteAllByJobOfferId(offerId);
         jobOfferRepository.delete(offer);
         log.info("Job offer deleted : offerId={}", offerId);
     }
@@ -402,10 +441,10 @@ public class JobOfferService {
 
     private void replaceChildren(UUID offerId, List<JobOfferSkillRequest> skills,
             List<JobOfferLanguageRequest> languages, List<UUID> degreeIds, List<UUID> studyFieldIds) {
-        jobOfferSkillRepository.deleteByJobOfferId(offerId);
-        jobOfferLanguageRepository.deleteByJobOfferId(offerId);
-        jobOfferDegreeRepository.deleteByJobOfferId(offerId);
-        jobOfferStudyFieldRepository.deleteByJobOfferId(offerId);
+        jobOfferSkillRepository.deleteAllByJobOfferId(offerId);
+        jobOfferLanguageRepository.deleteAllByJobOfferId(offerId);
+        jobOfferDegreeRepository.deleteAllByJobOfferId(offerId);
+        jobOfferStudyFieldRepository.deleteAllByJobOfferId(offerId);
 
         // Dédup par id (première occurrence gagne), miroir de unique() : la PK
         // composite rejeterait un doublon en 500 au lieu d'un 400 de validation.
@@ -525,8 +564,9 @@ public class JobOfferService {
         }
         requireAllSkillsExist(skills);
         requireAllLanguagesExist(languages);
-        requireAllExist(degreeIds, degreeRepository::existsById, "degree");
-        requireAllExist(studyFieldIds, studyFieldRepository::existsById, "study field");
+        requireAllExist(degreeIds, degreeRepository::countByIdIn, degreeRepository::existsById, "degree");
+        requireAllExist(studyFieldIds, studyFieldRepository::countByIdIn, studyFieldRepository::existsById,
+                "study field");
         requireExists(contractTypeId, contractTypeRepository::existsById, "contract type");
         requireExists(employmentTypeId, employmentTypeRepository::existsById, "employment type");
         requireExists(workModeId, workModeRepository::existsById, "work mode");
@@ -536,20 +576,39 @@ public class JobOfferService {
         Set<UUID> requested = skills.stream()
                 .map(JobOfferSkillRequest::skillId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        requireAllExist(requested, skillRepository::existsById, "skill");
+        requireAllExist(requested, skillRepository::countByIdIn, skillRepository::existsById, "skill");
     }
 
     private void requireAllLanguagesExist(List<JobOfferLanguageRequest> languages) {
         Set<UUID> requested = languages.stream()
                 .map(JobOfferLanguageRequest::languageId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        requireAllExist(requested, languageRepository::existsById, "language");
+        requireAllExist(requested, languageRepository::countByIdIn, languageRepository::existsById, "language");
     }
 
-    private static void requireAllExist(Collection<UUID> ids, Predicate<UUID> exists, String resource) {
-        for (UUID id : ids) {
-            requireExists(id, exists, resource);
+    /**
+     * Vérification en masse (TD-023) : une seule requête COUNT par collection
+     * au lieu de N existsById. Le chemin d'échec (rare) reboucle en existsById
+     * pour nommer précisément l'inconnu — contrat de message inchangé.
+     */
+    private void requireAllExist(Collection<UUID> ids, CountById countById, Predicate<UUID> exists,
+            String resource) {
+        Set<UUID> distinct = ids.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (distinct.isEmpty() || countById.count(distinct) == distinct.size()) {
+            return;
         }
+        for (UUID id : distinct) {
+            if (!exists.test(id)) {
+                throw new JobOfferReferenceNotFoundException(resource, id);
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface CountById {
+        long count(Collection<UUID> ids);
     }
 
     private static void requireExists(UUID id, Predicate<UUID> exists, String resource) {

@@ -25,7 +25,7 @@ vi.mock("@/hooks/use-companies", () => ({
 }));
 
 vi.mock("@/hooks/use-job-offers", () => ({
-  useJobOffers: useJobOffersMock,
+  useInfiniteJobOffers: useJobOffersMock,
   useJobOfferTransition: useJobOfferTransitionMock,
   useDeleteJobOffer: useDeleteJobOfferMock,
   useDuplicateJobOffer: useDuplicateJobOfferMock,
@@ -52,7 +52,15 @@ describe("RecruiterWorkspace", () => {
       isSuccess: false,
       error: null,
     });
-    useJobOffersMock.mockReturnValue({ data: [], isLoading: false, isError: false, refetch: vi.fn() });
+    useJobOffersMock.mockReturnValue({
+      data: { pages: [{ items: [], page: 0, size: 20, total: 0 }], pageParams: [0] },
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+      refetch: vi.fn(),
+    });
     useJobOfferTransitionMock.mockReturnValue({ mutate: vi.fn(), variables: undefined, error: null });
     useDeleteJobOfferMock.mockReturnValue({ mutate: vi.fn(), variables: undefined, error: null });
     useDuplicateJobOfferMock.mockReturnValue({ mutate: vi.fn(), variables: undefined, error: null });

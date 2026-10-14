@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { AdminGate } from "@/features/admin/admin-gate";
 import { AdminView } from "@/features/admin/admin-page";
 
 export const metadata: Metadata = {
@@ -9,9 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function AdminPage() {
-  return (
-    <AdminGate>
-      <AdminView />
-    </AdminGate>
-  );
+  return <AdminView />;
 }

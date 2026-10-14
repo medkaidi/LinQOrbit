@@ -44,7 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 public class JobOfferNormalizationService {
 
     /** Version du format canonique offre (miroir de schema_version / schemaVersion). */
-    static final String SCHEMA_VERSION = "1";
+    static final String SCHEMA_VERSION = "2";
 
     private final JobOfferRepository jobOfferRepository;
     private final NormalizedProfileRepository normalizedProfileRepository;

@@ -111,7 +111,7 @@ class NormalizationServiceTest {
         verify(normalizedProfileRepository).save(profileCaptor.capture());
         NormalizedProfile profile = profileCaptor.getValue();
         assertThat(profile.getVersion()).isEqualTo(1);
-        assertThat(profile.getSchemaVersion()).isEqualTo("2");
+        assertThat(profile.getSchemaVersion()).isEqualTo("3");
         assertThat(profile.getValidatedAt()).isNotNull();
         assertThat(profile.getContent()).isNull();
 

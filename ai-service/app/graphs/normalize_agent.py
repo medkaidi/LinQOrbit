@@ -54,9 +54,26 @@ Rules:
 - Evidence entries point to items of THIS response by 0-based index into the
   matching output array ("experience" -> experiences[], "project" ->
   projects[], "diploma" -> diplomas[], "certification" -> certifications[]).
+  The source "bio" points at the about section and carries a null index.
   Never invent evidence for an item that does not exist.
 - Dates must come back as 'YYYY-MM': '2021-03-05' and 'March 2021' both give
-  '2021-03'. end_date is null when the position or project is current.
+  'YYYY-MM'. end_date is null when the position or project is current.
+- Languages: entries from the stored languages section keep origin
+  "declared" and their level mapped to CEFR. A language a text names
+  ("fluent English", "worked in German for three years") may be added with
+  origin "inferred", evidence pointing at that text, and a level only when
+  the text states a CEFR-equivalent one — else null.
+- Diplomas: entries from the stored education section keep origin
+  "declared". A credential a text names explicitly ("MSc Computer Science,
+  Sorbonne, 2018") may be added with origin "inferred" and evidence
+  pointing at that text — only the details the text states, never a level,
+  institution or date it does not give. Studying a subject somewhere is not
+  a degree unless the text says so.
+- Certifications: entries split from stored certification links keep origin
+  "declared". A certification a text names explicitly ("AWS Solutions
+  Architect certified") may be added with origin "inferred" and evidence
+  pointing at that text. A tool mentioned in passing is not a
+  certification: it belongs in the skills index.
 - Language levels are CEFR grades ('A1' to 'C2'); map a free-form level only
   when it is clearly equivalent, otherwise null.
 - Keep the candidate's own wording for job titles, companies, schools,
@@ -82,19 +99,20 @@ Rules:
   professional summary written in first person, drawn only from the profile's
   own bio and content.
 - Never include identifiers of any kind: no UUIDs, no database ids.
-- Leave 'schemaVersion' at "2".
+- Leave 'schemaVersion' at "3".
 - Order experiences, projects and diplomas most recent first; list declared
   skills before inferred ones.
-- Missing field -> null. If a section is empty in the input, return [] for
-  it: never create experiences, projects, diplomas, languages, certifications
-  or links the input does not already list — only 'title', 'summary',
-  'seniority' and the skills index may be recomposed from the profile's own
-  content."""
+- Missing field -> null. Never create experiences, projects or links the
+  input does not already list. Diplomas, languages and certifications may
+  be created when a text of the profile names them explicitly (origin
+  "inferred" + evidence) — only when the words support them. Only 'title',
+  'summary', 'seniority' and the skills index may be freely recomposed from
+  the profile's own content."""
 
 PROMPT_EXAMPLE = """Example of the expected result (shape only, not content):
 
 {
-  "schemaVersion": "2",
+  "schemaVersion": "3",
   "title": "Senior Backend Engineer",
   "summary": "I design and operate high-throughput APIs. I enjoy mentoring and pragmatic testing.",
   "yearsOfExperience": 7,
@@ -138,14 +156,19 @@ PROMPT_EXAMPLE = """Example of the expected result (shape only, not content):
       "degreeLabel": "Master",
       "studyFieldLabel": "Computer Science",
       "startDate": "2016-09",
-      "endDate": "2018-06"
+      "endDate": "2018-06",
+      "origin": "declared",
+      "evidence": []
     }
   ],
   "languages": [
-    {"name": "English", "level": "C1"}
+    {"name": "English", "level": "C1", "origin": "declared", "evidence": []},
+    {"name": "German", "level": null, "origin": "inferred",
+     "evidence": [{"source": "experience", "index": 0}]}
   ],
   "certifications": [
-    {"name": "AWS SAA", "issuer": "Amazon Web Services", "issuedAt": "2024-05", "url": "https://aws.example.com/123"}
+    {"name": "AWS SAA", "issuer": "Amazon Web Services", "issuedAt": "2024-05",
+     "url": "https://aws.example.com/123", "origin": "declared", "evidence": []}
   ],
   "links": [
     {"label": "GitHub", "url": "https://github.com/camille"}
@@ -154,7 +177,9 @@ PROMPT_EXAMPLE = """Example of the expected result (shape only, not content):
     {"name": "Java", "category": "programming_language", "level": 4, "levelSource": "declared",
      "yearsExperience": 7, "origin": "declared", "evidence": [{"source": "experience", "index": 0}]},
     {"name": "AWS", "category": "tool", "level": null, "levelSource": null,
-     "yearsExperience": null, "origin": "inferred", "evidence": [{"source": "certification", "index": 0}]}
+     "yearsExperience": null, "origin": "inferred", "evidence": [{"source": "certification", "index": 0}]},
+    {"name": "Mentoring", "category": "soft_skill", "level": null, "levelSource": null,
+     "yearsExperience": null, "origin": "inferred", "evidence": [{"source": "bio"}]}
   ]
 }"""
 

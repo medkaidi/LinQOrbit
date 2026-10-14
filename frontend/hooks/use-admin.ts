@@ -1,20 +1,83 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 
 import {
   approveSkillSuggestion,
+  getAdminJobOffer,
+  getOfferNormalizedProfile,
+  getUserDetail,
+  getUserNormalizedProfile,
   linkSkillSuggestion,
+  listAllJobOffers,
   listSkillSuggestions,
   listUsers,
   rejectSkillSuggestion,
   updateUserStatus,
 } from "@/lib/api/admin.api";
-import type { AdminUser } from "@/types/admin";
+import type { AdminJobOfferStatus, AdminUser } from "@/types/admin";
 import { queryKeys } from "@/hooks/query-keys";
 
 export function useAdminUsers() {
   return useQuery({ queryKey: queryKeys.admin.users, queryFn: listUsers });
+}
+
+/** Fiche détail d'un compte (D33) — requête inactive sans userId. */
+export function useAdminUserDetail(userId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.admin.userDetail(userId ?? ""),
+    queryFn: () => getUserDetail(userId as string),
+    enabled: Boolean(userId),
+  });
+}
+
+/** Fiche normalisée d'un candidat (D33) — requête inactive sans userId. */
+export function useAdminUserNormalized(userId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.admin.userNormalized(userId ?? ""),
+    queryFn: () => getUserNormalizedProfile(userId as string),
+    enabled: Boolean(userId),
+  });
+}
+
+/**
+ * Liste globale des offres (D33) en infinite scroll (D34) : filtre statut
+ * optionnel, la taille de page reste décidée par le backend (jamais envoyée).
+ */
+export function useInfiniteAdminJobOffers(status: AdminJobOfferStatus | undefined) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.admin.jobOffersPage(status),
+    queryFn: ({ pageParam, signal }) =>
+      listAllJobOffers({ status, page: pageParam }, { signal }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) =>
+      lastPage.page * lastPage.size < lastPage.total ? lastPage.page + 1 : undefined,
+    staleTime: 30_000,
+  });
+}
+
+/** Détail d'une offre côté admin (D33) — requête inactive sans offerId. */
+export function useAdminJobOffer(offerId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.admin.jobOfferDetail(offerId ?? ""),
+    queryFn: () => getAdminJobOffer(offerId as string),
+    enabled: Boolean(offerId),
+  });
+}
+
+/** Fiche normalisée d'une offre (D33) — requête inactive sans offerId. */
+export function useAdminOfferNormalized(offerId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.admin.jobOfferNormalized(offerId ?? ""),
+    queryFn: () => getOfferNormalizedProfile(offerId as string),
+    enabled: Boolean(offerId),
+  });
 }
 
 export function useSkillSuggestions() {
@@ -27,7 +90,10 @@ export function useUpdateUserStatus() {
   return useMutation({
     mutationFn: ({ userId, status }: { userId: string; status: AdminUser["status"] }) =>
       updateUserStatus(userId, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.users }),
+    onSuccess: (_data, { userId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.users });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.userDetail(userId) });
+    },
   });
 }
 

@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -22,6 +24,7 @@ import jakarta.validation.Valid;
 
 import com.linqorbit.config.OpenApiConfig;
 import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
+import com.linqorbit.joboffer.dto.JobOfferPageResponse;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
 
@@ -46,13 +49,18 @@ public interface JobOfferApi {
 
     @GetMapping
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
-    @Operation(summary = "Lister mes offres", description = "Offres des companies dont le compte est membre (tous statuts), les plus récentes en premier.")
+    @Operation(summary = "Lister mes offres (paginé)",
+            description = "Offres des companies dont le compte est membre (tous statuts), les plus récentes en premier. "
+                    + "Taille de page décidée par le backend (défaut 20, max 50) et renvoyée dans l'enveloppe (D34).")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Liste renvoyée (vide si aucune)"),
+            @ApiResponse(responseCode = "200", description = "Page renvoyée (vide si aucune)"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
             @ApiResponse(responseCode = "404", description = "Aucun profil recruteur pour ce compte")
     })
-    ResponseEntity<List<JobOfferResponse>> listMine(Authentication authentication);
+    ResponseEntity<JobOfferPageResponse> listMine(
+            @Parameter(description = "Index de page (0-based)") @RequestParam(name = "page", required = false) Integer page,
+            @Parameter(description = "Taille de page (défaut 20, max 50) — valeur effective renvoyée dans la réponse") @RequestParam(name = "size", required = false) Integer size,
+            Authentication authentication);
 
     @GetMapping("/{offerId}")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)

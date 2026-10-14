@@ -1,5 +1,6 @@
 package com.linqorbit.candidate.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,4 +19,7 @@ public interface SkillRepository extends JpaRepository<Skill, UUID> {
 
     /** Présence au catalogue indifféremment de la casse (revue des suggestions). */
     Optional<Skill> findByNameIgnoreCase(String name);
+
+    /** Vérification en masse (une requête COUNT au lieu de N existsById). */
+    long countByIdIn(Collection<UUID> ids);
 }

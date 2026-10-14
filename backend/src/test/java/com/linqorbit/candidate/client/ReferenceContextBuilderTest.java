@@ -50,17 +50,21 @@ class ReferenceContextBuilderTest {
     }
 
     @Test
-    void buildForOfferNeContientQueLanguesEtSkills() {
+    void buildForOfferContientLanguesSkillsDiplomesEtDomainesEtudes() {
         when(languageRepository.findAllByOrderByNameAsc())
                 .thenReturn(List.of(Language.builder().name("English").build()));
+        when(degreeRepository.findAllByOrderByLabelAsc())
+                .thenReturn(List.of(Degree.builder().label("Master's degree").build()));
+        when(studyFieldRepository.findAllByOrderByLabelAsc())
+                .thenReturn(List.of(StudyField.builder().label("Computer Science").build()));
         when(skillRepository.findAllByOrderBySkillTypeAscNameAsc())
                 .thenReturn(List.of(Skill.builder().name("Java").category("Programming Languages").build()));
 
         ParseContext context = referenceContextBuilder.buildForOffer();
 
         assertThat(context.languages()).containsExactly("English");
-        assertThat(context.degrees()).isEmpty();
-        assertThat(context.studyFields()).isEmpty();
+        assertThat(context.degrees()).containsExactly("Master's degree");
+        assertThat(context.studyFields()).containsExactly("Computer Science");
         assertThat(context.skills()).containsEntry("Programming Languages", List.of("Java"));
     }
 }

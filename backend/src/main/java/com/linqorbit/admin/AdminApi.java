@@ -10,8 +10,10 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -19,7 +21,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 
+import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
+import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
+import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
 import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
+import com.linqorbit.admin.dto.AdminUserDetailResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.dto.ApproveSkillSuggestionRequest;
 import com.linqorbit.admin.dto.LinkSkillSuggestionRequest;
@@ -27,11 +33,12 @@ import com.linqorbit.admin.dto.UpdateUserStatusRequest;
 import com.linqorbit.config.OpenApiConfig;
 
 /**
- * Contrat d'API d'administration : comptes (liste, statut) et file de suggestions
- * de compétences (liste, approbation, lien, rejet). Implémenté par
- * {@link AdminController}, protégé par le rôle ADMIN (SecurityConfig).
+ * Contrat d'API d'administration : comptes (liste, détail, statut, fiche
+ * normalisée), offres globales (liste paginée, détail, fiche normalisée) et
+ * file de suggestions de compétences. Implémenté par {@link AdminController},
+ * protégé par le rôle ADMIN (SecurityConfig).
  */
-@Tag(name = "Admin", description = "Administration : comptes et suggestions de compétences (rôle ADMIN)")
+@Tag(name = "Admin", description = "Administration : comptes, offres globales et suggestions de compétences (rôle ADMIN)")
 public interface AdminApi {
 
     @GetMapping("/users")
@@ -43,6 +50,69 @@ public interface AdminApi {
             @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN")
     })
     ResponseEntity<List<AdminUserResponse>> listUsers();
+
+    @GetMapping("/users/{userId}")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Consulter un compte", description = "Fiche détail : identité complète saisie par l'utilisateur (jamais le hash du mot de passe), statut, rôles et drapeaux candidat / recruteur.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Compte renvoyé"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Compte introuvable")
+    })
+    ResponseEntity<AdminUserDetailResponse> getUserDetail(@PathVariable("userId") UUID userId);
+
+    @GetMapping("/users/{userId}/normalized-profile")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Consulter la fiche normalisée d'un candidat",
+            description = "Dernière version de l'objet canonique du candidat (schéma v2) + statut du job de normalisation. 404 si le compte n'est pas un candidat ou si aucune validation n'a encore produit de fiche.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Fiche normalisée renvoyée"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Compte introuvable ou aucune fiche normalisée")
+    })
+    ResponseEntity<AdminNormalizedProfileResponse> getCandidateNormalizedProfile(
+            @PathVariable("userId") UUID userId);
+
+    @GetMapping("/job-offers")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Lister toutes les offres du système",
+            description = "Vue globale de toutes les offres, filtre de statut optionnel (draft|validated|published|closed), pagination (défaut 20, max 50 — D34), tri createdAt décroissant.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Page d'offres renvoyée"),
+            @ApiResponse(responseCode = "400", description = "Filtre de statut non supporté"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN")
+    })
+    ResponseEntity<AdminJobOfferPageResponse> listJobOffers(
+            @Parameter(description = "Filtre de statut d'offre") @RequestParam(name = "status", required = false) String status,
+            @Parameter(description = "Index de page (0-based)") @RequestParam(name = "page", defaultValue = "0") int page,
+            @Parameter(description = "Taille de page (défaut 20, max 50) — valeur effective renvoyée dans la réponse") @RequestParam(name = "size", required = false) Integer size);
+
+    @GetMapping("/job-offers/{offerId}")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Consulter une offre",
+            description = "Fiche publique (labels résolus, HTML sanitisé) sans gate published / non expirée, augmentée de l'identifiant, du statut de vie et des horodatages. Lecture seule, tous statuts.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Offre renvoyée"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Offre introuvable")
+    })
+    ResponseEntity<AdminJobOfferDetailResponse> getJobOfferDetail(@PathVariable("offerId") UUID offerId);
+
+    @GetMapping("/job-offers/{offerId}/normalized-profile")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Consulter la fiche normalisée d'une offre",
+            description = "Dernière version de l'objet canonique de l'offre (schéma v1) + statut du job de normalisation. 404 si l'offre n'existe pas ou si aucune validation n'a encore produit de fiche.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Fiche normalisée renvoyée"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Offre introuvable ou aucune fiche normalisée")
+    })
+    ResponseEntity<AdminNormalizedProfileResponse> getOfferNormalizedProfile(@PathVariable("offerId") UUID offerId);
 
     @PatchMapping("/users/{userId}/status")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)

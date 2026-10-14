@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # Google Gemini — consumed by ChatGoogleGenerativeAI (see app/llm/client.py).
     google_api_key: str = ""
     llm_model: str = "gemini-3.1-flash-lite"
+    # Call bounds, passed to the SDK as request_timeout / retries: a hung call
+    # must fail instead of stalling the Spring worker (its own read timeout).
+    llm_timeout_seconds: float = 120.0
+    llm_max_retries: int = 2
 
 
 settings = Settings()

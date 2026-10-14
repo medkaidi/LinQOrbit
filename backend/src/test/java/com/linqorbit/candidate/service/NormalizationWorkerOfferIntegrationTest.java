@@ -154,7 +154,7 @@ class NormalizationWorkerOfferIntegrationTest {
                 .andExpect(jsonPath("$.normalizationFailed").value(false));
         mockMvc.perform(get("/api/v1/job-offers").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].normalizationInProgress").value(false));
+                .andExpect(jsonPath("$.items[0].normalizationInProgress").value(false));
     }
 
     @Test

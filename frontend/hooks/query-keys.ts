@@ -35,6 +35,15 @@ export const queryKeys = {
   },
   admin: {
     users: ["admin", "users"] as const,
+    userDetail: (userId: string) => ["admin", "users", userId] as const,
+    userNormalized: (userId: string) => ["admin", "users", userId, "normalized-profile"] as const,
+    jobOffers: ["admin", "job-offers"] as const,
+    /** Liste infinie (D34) : les pages sont implicites dans le cache TanStack. */
+    jobOffersPage: (status: string | undefined) =>
+      ["admin", "job-offers", status ?? "all"] as const,
+    jobOfferDetail: (offerId: string) => ["admin", "job-offers", offerId] as const,
+    jobOfferNormalized: (offerId: string) =>
+      ["admin", "job-offers", offerId, "normalized-profile"] as const,
     skillSuggestions: ["admin", "skill-suggestions"] as const,
   },
   publicJobs: {

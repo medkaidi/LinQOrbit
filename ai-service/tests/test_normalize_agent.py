@@ -1,11 +1,14 @@
 """Agent graph construction — compiled locally with a fake model, no LLM call."""
 
+import json
+
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
 from app.graphs.normalize_agent import (
     MODEL_CALL_LIMIT,
+    PROMPT_EXAMPLE,
     SYSTEM_PROMPT,
     build_normalize_agent,
     render_system_prompt,
@@ -62,13 +65,39 @@ def test_agent_loop_runs_offline_with_a_fake_model():
 def test_system_prompt_sets_the_hr_role_and_the_canonical_rules():
     assert "HR assistant" in SYSTEM_PROMPT
     assert "'YYYY-MM'" in SYSTEM_PROMPT
-    assert '"schemaVersion": "2"' in SYSTEM_PROMPT
+    assert '"schemaVersion": "3"' in SYSTEM_PROMPT
     assert "Never invent" in SYSTEM_PROMPT
     assert "no UUIDs" in SYSTEM_PROMPT
     assert '"summary"' in SYSTEM_PROMPT
     assert "origin \"inferred\"" in SYSTEM_PROMPT
     assert "certifications[]" in SYSTEM_PROMPT
     assert NormalizedProfile.model_json_schema()["title"] == "NormalizedProfile"
+
+
+def test_system_prompt_mines_languages_and_credentials_with_provenance():
+    """v3: languages/diplomas/certifications may be created from explicit texts."""
+    assert "origin" in SYSTEM_PROMPT
+    assert '"bio"' in SYSTEM_PROMPT
+    assert "carries a null index" in SYSTEM_PROMPT
+    assert "may be added with" in SYSTEM_PROMPT
+    assert "Studying a subject somewhere is not" in SYSTEM_PROMPT
+    assert "Never create experiences, projects or links" in SYSTEM_PROMPT
+
+
+def test_prompt_example_matches_the_output_schema():
+    """Golden test: the example the model sees must stay a valid profile."""
+    payload = json.loads(
+        PROMPT_EXAMPLE[PROMPT_EXAMPLE.index("{") : PROMPT_EXAMPLE.rindex("}") + 1]
+    )
+
+    profile = NormalizedProfile.model_validate(payload)
+
+    assert profile.schema_version == "3"
+    assert profile.languages[1].origin == "inferred"
+    assert profile.diplomas[0].origin == "declared"
+    assert profile.certifications[0].origin == "declared"
+    assert profile.skills[2].evidence[0].source == "bio"
+    assert profile.skills[2].evidence[0].index is None
 
 
 def test_render_system_prompt_without_context_is_the_default_prompt():

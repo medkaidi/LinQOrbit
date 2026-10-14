@@ -8,7 +8,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
+import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
+import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
 import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
+import com.linqorbit.admin.dto.AdminUserDetailResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.dto.ApproveSkillSuggestionRequest;
 import com.linqorbit.admin.dto.LinkSkillSuggestionRequest;
@@ -27,6 +31,31 @@ public class AdminController implements AdminApi {
     @Override
     public ResponseEntity<List<AdminUserResponse>> listUsers() {
         return ResponseEntity.ok(adminService.listUsers());
+    }
+
+    @Override
+    public ResponseEntity<AdminUserDetailResponse> getUserDetail(UUID userId) {
+        return ResponseEntity.ok(adminService.getUserDetail(userId));
+    }
+
+    @Override
+    public ResponseEntity<AdminNormalizedProfileResponse> getCandidateNormalizedProfile(UUID userId) {
+        return ResponseEntity.ok(adminService.getCandidateNormalizedProfile(userId));
+    }
+
+    @Override
+    public ResponseEntity<AdminJobOfferPageResponse> listJobOffers(String status, int page, Integer size) {
+        return ResponseEntity.ok(adminService.listJobOffers(status, page, size));
+    }
+
+    @Override
+    public ResponseEntity<AdminJobOfferDetailResponse> getJobOfferDetail(UUID offerId) {
+        return ResponseEntity.ok(adminService.getJobOfferDetail(offerId));
+    }
+
+    @Override
+    public ResponseEntity<AdminNormalizedProfileResponse> getOfferNormalizedProfile(UUID offerId) {
+        return ResponseEntity.ok(adminService.getOfferNormalizedProfile(offerId));
     }
 
     @Override

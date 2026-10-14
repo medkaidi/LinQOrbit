@@ -64,7 +64,7 @@ def test_agent_loop_runs_offline_with_a_fake_model():
 
 def test_system_prompt_sets_the_hr_role_and_the_canonical_rules():
     assert "HR assistant" in SYSTEM_PROMPT
-    assert '"schemaVersion": "1"' in SYSTEM_PROMPT
+    assert '"schemaVersion": "2"' in SYSTEM_PROMPT
     assert "Never invent" in SYSTEM_PROMPT
     assert "no UUIDs" in SYSTEM_PROMPT
     assert '"summary"' in SYSTEM_PROMPT
@@ -74,6 +74,18 @@ def test_system_prompt_sets_the_hr_role_and_the_canonical_rules():
     assert "permanent, fixed_term, freelance" in SYSTEM_PROMPT
     assert "remote, hybrid, on_site" in SYSTEM_PROMPT
     assert NormalizedJobOffer.model_json_schema()["title"] == "NormalizedJobOffer"
+
+
+def test_system_prompt_teaches_weights_and_mined_requirements():
+    """v2: every criterion is weighed, declared values are never overwritten."""
+    assert "weight 1-5" in SYSTEM_PROMPT
+    assert "keeps the recruiter's" in SYSTEM_PROMPT
+    assert "minYearsSource" in SYSTEM_PROMPT
+    assert "requiredYearsSource" in SYSTEM_PROMPT
+    assert "never overwrite it" in SYSTEM_PROMPT
+    assert "certifications[]" in SYSTEM_PROMPT
+    assert 'carries origin: "declared"' in SYSTEM_PROMPT
+    assert "when a text of the offer names it" in SYSTEM_PROMPT
 
 
 def test_render_system_prompt_without_context_is_the_default_prompt():
@@ -98,8 +110,16 @@ def test_prompt_example_matches_the_output_schema():
 
     offer = NormalizedJobOffer.model_validate(payload)
 
-    assert offer.schema_version == "1"
+    assert offer.schema_version == "2"
     assert offer.responsibilities[0].importance == "mandatory"
+    assert offer.responsibilities[0].weight == 5
+    assert offer.required_skills[0].weight == 5
+    assert offer.required_skills[0].min_years_source == "declared"
+    assert offer.required_years == 5
+    assert offer.required_years_source == "inferred"
+    assert offer.required_degrees[0].source == "inferred"
+    assert offer.languages[1].origin == "inferred"
+    assert offer.certifications[0].name == "AWS Solutions Architect"
     assert offer.required_skills[0].evidence[0].source == "responsibility"
 
 
