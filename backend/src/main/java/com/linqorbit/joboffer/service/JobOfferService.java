@@ -49,6 +49,7 @@ import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
 import com.linqorbit.joboffer.dto.JobOfferAdminView;
 import com.linqorbit.joboffer.dto.JobOfferLanguageOption;
 import com.linqorbit.joboffer.dto.JobOfferLanguageRequest;
+import com.linqorbit.joboffer.dto.JobOfferListItem;
 import com.linqorbit.joboffer.dto.JobOfferPageResponse;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.JobOfferSkillOption;
@@ -158,8 +159,9 @@ public class JobOfferService {
      * Liste paginée des offres du recruteur (D34) : la taille de page est
      * décidée par le backend (défaut 20, clamp 50 — les paramètres sont
      * optionnels) et la valeur effective part dans l'enveloppe. Lecture
-     * seule : une tx unique pour toutes les requêtes de buildResponses
-     * (open-in-view est désactivé).
+     * seule : une tx unique pour toutes les requêtes de buildListItems
+     * (open-in-view est désactivé). Les lignes sont légères — la description
+     * et les listes enfants ne sortent que par {@link #get}.
      */
     @Transactional(readOnly = true)
     public JobOfferPageResponse listMine(UUID userId, Integer page, Integer size) {
@@ -172,10 +174,10 @@ public class JobOfferService {
         }
         Page<JobOffer> result = jobOfferRepository.findByCompanyIdIn(companyIds,
                 PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt")));
-        List<JobOfferResponse> responses = buildResponses(result.getContent());
+        List<JobOfferListItem> items = buildListItems(result.getContent());
         log.info("Job offers listed : recruiterId={}, page={}, size={}, count={}, total={}",
-                userId, safePage, safeSize, responses.size(), result.getTotalElements());
-        return new JobOfferPageResponse(responses, result.getNumber(), result.getSize(),
+                userId, safePage, safeSize, items.size(), result.getTotalElements());
+        return new JobOfferPageResponse(items, result.getNumber(), result.getSize(),
                 result.getTotalElements());
     }
 
@@ -615,6 +617,52 @@ public class JobOfferService {
         if (id != null && !exists.test(id)) {
             throw new JobOfferReferenceNotFoundException(resource, id);
         }
+    }
+
+    /**
+     * Lignes de la liste (D34) : ni description, ni listes enfants — seuls
+     * le statut du dernier job et la présence d'au moins un skill (gate de
+     * complétude {@code readyToPublish}, miroir du frontend) sont joints.
+     */
+    private List<JobOfferListItem> buildListItems(List<JobOffer> offers) {
+        if (offers.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> offerIds = offers.stream().map(JobOffer::getId).toList();
+        Set<UUID> withSkills = new LinkedHashSet<>(jobOfferSkillRepository.findOfferIdsWithSkills(offerIds));
+        Map<UUID, NormalizationJobStatus> latestStatuses = latestJobStatuses(offerIds);
+
+        return offers.stream()
+                .map(offer -> new JobOfferListItem(
+                        offer.getId(),
+                        offer.getCompanyId(),
+                        offer.getStatus().getApiValue(),
+                        offer.getTitle(),
+                        offer.getPublicId(),
+                        offer.getSlug(),
+                        offer.getSeniority() == null ? null : offer.getSeniority().getApiValue(),
+                        offer.getCity(),
+                        offer.getCountry(),
+                        offer.getContractTypeId(),
+                        offer.getWorkModeId(),
+                        offer.getExpiresAt(),
+                        offer.getSalaryMin(),
+                        offer.getSalaryMax(),
+                        offer.getSalaryCurrency(),
+                        offer.getSalaryPeriod() == null ? null : offer.getSalaryPeriod().getApiValue(),
+                        (offer.getStatus() == JobOfferStatus.DRAFT
+                                 || offer.getStatus() == JobOfferStatus.VALIDATED)
+                                 && offer.getValidatedAt() != null
+                                 && offer.getUpdatedAt() != null
+                                 && offer.getUpdatedAt().isAfter(offer.getValidatedAt()),
+                        isInProgress(latestStatuses.get(offer.getId())),
+                        latestStatuses.get(offer.getId()) == NormalizationJobStatus.FAILED,
+                        offer.getDescription() != null
+                                && offer.getCountry() != null
+                                && offer.getEmploymentTypeId() != null
+                                && withSkills.contains(offer.getId()),
+                        offer.getCreatedAt()))
+                .toList();
     }
 
     private JobOfferResponse buildResponse(JobOffer offer) {

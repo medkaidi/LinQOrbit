@@ -51,7 +51,8 @@ public interface JobOfferApi {
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Lister mes offres (paginé)",
             description = "Offres des companies dont le compte est membre (tous statuts), les plus récentes en premier. "
-                    + "Taille de page décidée par le backend (défaut 20, max 50) et renvoyée dans l'enveloppe (D34).")
+                    + "Taille de page décidée par le backend (défaut 20, max 50) et renvoyée dans l'enveloppe (D34). "
+                    + "Lignes légères : la description et les listes enfants ne sont servies que par le détail.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Page renvoyée (vide si aucune)"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),

@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.linqorbit.config.SecurityConfig;
 import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
+import com.linqorbit.joboffer.dto.JobOfferListItem;
 import com.linqorbit.joboffer.dto.JobOfferPageResponse;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
@@ -218,15 +219,19 @@ class JobOfferControllerTest {
     }
 
     @Test
-    void listMineRenvoie200AvecEnveloppe() throws Exception {
+    void listMineRenvoie200AvecEnveloppeEtLignesLegeres() throws Exception {
         UUID userId = UUID.randomUUID();
         when(jobOfferService.listMine(eq(userId), isNull(), isNull()))
-                .thenReturn(new JobOfferPageResponse(List.of(draftResponse()), 0, 20, 1));
+                .thenReturn(new JobOfferPageResponse(List.of(draftListItem()), 0, 20, 1));
 
         mockMvc.perform(get("/api/v1/job-offers")
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].title").value("Backend Engineer"))
+                .andExpect(jsonPath("$.items[0].readyToPublish").value(false))
+                // La description ne quitte jamais la base pour la liste (fiche détail uniquement).
+                .andExpect(jsonPath("$.items[0].description").doesNotExist())
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.size").value(20))
                 .andExpect(jsonPath("$.total").value(1));
@@ -416,5 +421,14 @@ class JobOfferControllerTest {
                 null, null, null, null, null, null, null, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
                 false, false, false, List.of(), List.of(), List.of(), List.of(), null, null);
+    }
+
+    private JobOfferListItem draftListItem() {
+        return new JobOfferListItem(
+                OFFER_ID, UUID.randomUUID(), "draft", "Backend Engineer",
+                "abcdefghijkl", "backend-engineer",
+                null, null, null, null, null, null,
+                new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
+                false, false, false, false, null);
     }
 }

@@ -36,7 +36,7 @@ import { AdminView } from "@/features/admin/admin-page";
 import { ROLE } from "@/lib/utils/roles";
 import { useAuthStore } from "@/stores/auth-store";
 import type { AuthUser } from "@/types/auth";
-import type { AdminSkillSuggestion, AdminUser } from "@/types/admin";
+import type { AdminSkillSuggestion, AdminUser, AdminUserPage } from "@/types/admin";
 import type { SkillReference } from "@/types/candidate";
 
 const mockedListUsers = vi.mocked(listUsers);
@@ -54,6 +54,8 @@ const adminAccount: AdminUser = {
   lastName: "Admin",
   status: "ACTIVE",
   roles: [ROLE.ADMIN],
+  hasCandidateProfile: false,
+  hasRecruiterProfile: false,
 };
 
 const candidateAccount: AdminUser = {
@@ -63,7 +65,14 @@ const candidateAccount: AdminUser = {
   lastName: "Lovelace",
   status: "ACTIVE",
   roles: [],
+  hasCandidateProfile: true,
+  hasRecruiterProfile: false,
 };
+
+/** Enveloppe paginée du backend (D34) — une seule page dans les tests. */
+function usersPage(items: AdminUser[], overrides: Partial<AdminUserPage> = {}): AdminUserPage {
+  return { items, page: 0, size: 20, total: items.length, ...overrides };
+}
 
 const sessionUser: AuthUser = {
   ...adminAccount,
@@ -112,7 +121,7 @@ describe("AdminView", () => {
   });
 
   it("lists accounts with status, role badge and marks the current one", async () => {
-    mockedListUsers.mockResolvedValue([adminAccount, candidateAccount]);
+    mockedListUsers.mockResolvedValue(usersPage([adminAccount, candidateAccount]));
 
     renderAdminView();
 
@@ -120,6 +129,11 @@ describe("AdminView", () => {
     expect(screen.getByText("admin@linqorbit.local")).toBeInTheDocument();
     expect(screen.getAllByText("Active")).toHaveLength(2);
     expect(screen.getByText("Admin")).toBeInTheDocument();
+    // Chips de capacités issues des flags du payload.
+    expect(screen.getByText("Candidate")).toBeInTheDocument();
+    expect(screen.queryByText("Recruiter")).not.toBeInTheDocument();
+    // Avatar d'initiales du compte affiché.
+    expect(screen.getByText("AL")).toBeInTheDocument();
     expect(screen.getByText("Your account")).toBeInTheDocument();
     // Le compte courant n'a pas de bascule : une seule action, sur l'autre compte.
     expect(screen.getAllByRole("button", { name: "Deactivate" })).toHaveLength(1);
@@ -127,11 +141,10 @@ describe("AdminView", () => {
 
   it("deactivates an account through the API and reflects the new status", async () => {
     mockedListUsers
-      .mockResolvedValueOnce([adminAccount, candidateAccount])
-      .mockResolvedValueOnce([
-        adminAccount,
-        { ...candidateAccount, status: "INACTIVE" },
-      ]);
+      .mockResolvedValueOnce(usersPage([adminAccount, candidateAccount]))
+      .mockResolvedValueOnce(
+        usersPage([adminAccount, { ...candidateAccount, status: "INACTIVE" }]),
+      );
     mockedUpdateUserStatus.mockResolvedValue(undefined);
 
     renderAdminView();
@@ -145,7 +158,7 @@ describe("AdminView", () => {
   });
 
   it("shows the skill suggestions with author and date", async () => {
-    mockedListUsers.mockResolvedValue([adminAccount]);
+    mockedListUsers.mockResolvedValue(usersPage([adminAccount]));
     mockedListSkillSuggestions.mockResolvedValue([suggestion]);
 
     renderAdminView();
@@ -156,7 +169,7 @@ describe("AdminView", () => {
   });
 
   it("shows an empty state when there is no suggestion", async () => {
-    mockedListUsers.mockResolvedValue([adminAccount]);
+    mockedListUsers.mockResolvedValue(usersPage([adminAccount]));
 
     renderAdminView();
 
@@ -173,7 +186,7 @@ describe("AdminView", () => {
   });
 
   it("surfaces a failed status update without dropping the list", async () => {
-    mockedListUsers.mockResolvedValue([adminAccount, candidateAccount]);
+    mockedListUsers.mockResolvedValue(usersPage([adminAccount, candidateAccount]));
     mockedUpdateUserStatus.mockRejectedValue(new Error("boom"));
 
     renderAdminView();
@@ -185,7 +198,7 @@ describe("AdminView", () => {
   });
 
   it("rejects a suggestion through the API", async () => {
-    mockedListUsers.mockResolvedValue([adminAccount]);
+    mockedListUsers.mockResolvedValue(usersPage([adminAccount]));
     mockedListSkillSuggestions.mockResolvedValue([suggestion]);
     mockedRejectSkillSuggestion.mockResolvedValue(undefined);
 
@@ -197,7 +210,7 @@ describe("AdminView", () => {
   });
 
   it("surfaces a failed rejection without dropping the list", async () => {
-    mockedListUsers.mockResolvedValue([adminAccount]);
+    mockedListUsers.mockResolvedValue(usersPage([adminAccount]));
     mockedListSkillSuggestions.mockResolvedValue([suggestion]);
     mockedRejectSkillSuggestion.mockRejectedValue(new Error("boom"));
 
@@ -210,7 +223,7 @@ describe("AdminView", () => {
   });
 
   it("opens the review dialog and approves with a chosen category", async () => {
-    mockedListUsers.mockResolvedValue([adminAccount]);
+    mockedListUsers.mockResolvedValue(usersPage([adminAccount]));
     mockedListSkillSuggestions.mockResolvedValue([suggestion]);
     mockedApproveSkillSuggestion.mockResolvedValue(undefined);
 
@@ -237,7 +250,7 @@ describe("AdminView", () => {
   });
 
   it("links a suggestion to an existing catalog skill", async () => {
-    mockedListUsers.mockResolvedValue([adminAccount]);
+    mockedListUsers.mockResolvedValue(usersPage([adminAccount]));
     mockedListSkillSuggestions.mockResolvedValue([suggestion]);
     mockedLinkSkillSuggestion.mockResolvedValue(undefined);
 
@@ -260,7 +273,7 @@ describe("AdminView", () => {
   });
 
   it("keeps the dialog open and shows the error when the approval fails", async () => {
-    mockedListUsers.mockResolvedValue([adminAccount]);
+    mockedListUsers.mockResolvedValue(usersPage([adminAccount]));
     mockedListSkillSuggestions.mockResolvedValue([suggestion]);
     mockedApproveSkillSuggestion.mockRejectedValue(new Error("boom"));
 

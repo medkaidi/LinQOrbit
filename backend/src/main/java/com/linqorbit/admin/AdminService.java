@@ -22,6 +22,7 @@ import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
 import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
 import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
 import com.linqorbit.admin.dto.AdminUserDetailResponse;
+import com.linqorbit.admin.dto.AdminUserPageResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
@@ -57,6 +58,7 @@ import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.service.JobOfferService;
+import com.linqorbit.recruiter.entity.Recruiter;
 import com.linqorbit.recruiter.repository.RecruiterRepository;
 import com.linqorbit.user.User;
 import com.linqorbit.user.UserRepository;
@@ -100,23 +102,46 @@ public class AdminService {
     private final CompanyRepository companyRepository;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Liste paginée des comptes : tri nom/prénom, pagination bornée par
+     * {@link PageSizes} (défaut 20, max 50 — pattern D34). Rôles et drapeaux
+     * d'identité (candidat / recruteur) joints par lot pour la page courante
+     * uniquement.
+     */
     @Transactional(readOnly = true)
-    public List<AdminUserResponse> listUsers() {
-        log.info("Admin users list requested");
-        List<User> users = userRepository.findAllByOrderByLastNameAscFirstNameAsc();
-        Map<UUID, List<Short>> rolesByUser = userRoleRepository.findAll().stream()
-                .collect(Collectors.groupingBy(UserRole::getUserId,
-                        Collectors.mapping(UserRole::getRole, Collectors.toList())));
-        log.info("Admin users list returned : count={}", users.size());
-        return users.stream()
+    public AdminUserPageResponse listUsers(int page, Integer size) {
+        int safePage = PageSizes.page(page);
+        int safeSize = PageSizes.clamp(size);
+        Page<User> result = userRepository.findAllByOrderByLastNameAscFirstNameAsc(
+                PageRequest.of(safePage, safeSize));
+        List<UUID> userIds = result.getContent().stream().map(User::getId).toList();
+        Map<UUID, List<Short>> rolesByUser = userIds.isEmpty() ? Map.of()
+                : userRoleRepository.findByUserIdIn(userIds).stream()
+                        .collect(Collectors.groupingBy(UserRole::getUserId,
+                                Collectors.mapping(UserRole::getRole, Collectors.toList())));
+        Set<UUID> candidateIds = userIds.isEmpty() ? Set.of()
+                : candidateRepository.findAllById(userIds).stream()
+                        .map(Candidate::getId)
+                        .collect(Collectors.toSet());
+        Set<UUID> recruiterIds = userIds.isEmpty() ? Set.of()
+                : recruiterRepository.findAllById(userIds).stream()
+                        .map(Recruiter::getId)
+                        .collect(Collectors.toSet());
+        List<AdminUserResponse> items = result.getContent().stream()
                 .map(user -> new AdminUserResponse(
                         user.getId(),
                         user.getEmail(),
                         user.getFirstName(),
                         user.getLastName(),
                         user.getStatus().name(),
-                        rolesByUser.getOrDefault(user.getId(), List.of())))
+                        rolesByUser.getOrDefault(user.getId(), List.of()),
+                        candidateIds.contains(user.getId()),
+                        recruiterIds.contains(user.getId())))
                 .toList();
+        log.info("Admin users list returned : page={}, size={}, count={}, total={}",
+                safePage, safeSize, items.size(), result.getTotalElements());
+        return new AdminUserPageResponse(items, result.getNumber(), result.getSize(),
+                result.getTotalElements());
     }
 
     @Transactional
@@ -436,6 +461,22 @@ public class AdminService {
                         offer.getUpdatedAt(),
                         offer.getExpiresAt(),
                         offer.getPublishedAt(),
+                        offer.getSeniority() == null ? null : offer.getSeniority().getApiValue(),
+                        offer.getCity(),
+                        offer.getCountry(),
+                        offer.getContractTypeId(),
+                        offer.getWorkModeId(),
+                        offer.getSalaryMin(),
+                        offer.getSalaryMax(),
+                        offer.getSalaryCurrency(),
+                        offer.getSalaryPeriod() == null ? null : offer.getSalaryPeriod().getApiValue(),
+                        // Même règle que la liste recruteur (buildListItems) : le
+                        // dirty-flag n'a de sens que sur un statut éditable.
+                        (offer.getStatus() == JobOfferStatus.DRAFT
+                                 || offer.getStatus() == JobOfferStatus.VALIDATED)
+                                 && offer.getValidatedAt() != null
+                                 && offer.getUpdatedAt() != null
+                                 && offer.getUpdatedAt().isAfter(offer.getValidatedAt()),
                         jobStatuses.containsKey(offer.getId())
                                 ? jobStatuses.get(offer.getId()).name().toLowerCase(Locale.ROOT)
                                 : null))

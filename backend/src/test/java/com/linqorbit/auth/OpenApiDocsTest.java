@@ -71,7 +71,7 @@ class OpenApiDocsTest {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/users'].get.summary")
-                        .value("Lister les comptes"))
+                        .value("Lister les comptes (paginé)"))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/users/{userId}'].get.summary")
                         .value("Consulter un compte"))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/users/{userId}/profile'].get.summary")

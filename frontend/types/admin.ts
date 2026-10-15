@@ -1,4 +1,5 @@
 import type { PublicJob } from "@/types/public-job";
+import type { SalaryPeriodValue, SeniorityValue } from "@/types/recruiter";
 import type { NormalizedCandidateProfile, NormalizedJobOffer } from "@/types/normalized";
 
 /** Compte tel qu'exposé par l'administration (GET /api/v1/admin/users). */
@@ -10,6 +11,16 @@ export type AdminUser = {
   status: "ACTIVE" | "INACTIVE";
   /** Codes SMALLINT des rôles de capacité (1 = ADMIN). */
   roles: number[];
+  hasCandidateProfile: boolean;
+  hasRecruiterProfile: boolean;
+};
+
+/** Page de comptes (enveloppe backend, page 0-based — D34). */
+export type AdminUserPage = {
+  items: AdminUser[];
+  page: number;
+  size: number;
+  total: number;
 };
 
 /** Fiche détail d'un compte (GET /api/v1/admin/users/{userId}) — jamais le hash. */
@@ -21,8 +32,6 @@ export type AdminUserDetail = AdminUser & {
   currentCity: string | null;
   currentCountry: string | null;
   createdAt: string;
-  hasCandidateProfile: boolean;
-  hasRecruiterProfile: boolean;
 };
 
 /** Statut du job de normalisation (minuscules, miroir backend). */
@@ -46,7 +55,7 @@ export type AdminOfferNormalizedProfile = AdminNormalizedProfile<NormalizedJobOf
 /** Statut de vie d'une offre (valeurs API backend). */
 export type AdminJobOfferStatus = "draft" | "validated" | "published" | "closed";
 
-/** Ligne de la liste globale des offres (GET /api/v1/admin/job-offers). */
+/** Ligne de la liste globale des offres (GET /api/v1/admin/job-offers) — mêmes signaux que la carte recruteur. */
 export type AdminJobOfferListItem = {
   id: string;
   title: string;
@@ -58,6 +67,16 @@ export type AdminJobOfferListItem = {
   updatedAt: string;
   expiresAt: string | null;
   publishedAt: string | null;
+  seniority: SeniorityValue | null;
+  city: string | null;
+  country: string | null;
+  contractTypeId: string | null;
+  workModeId: string | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string | null;
+  salaryPeriod: SalaryPeriodValue | null;
+  hasUnvalidatedChanges: boolean;
   normalizationJobStatus: NormalizationJobStatus | null;
 };
 

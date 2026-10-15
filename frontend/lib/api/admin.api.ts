@@ -9,12 +9,20 @@ import type {
   AdminSkillSuggestion,
   AdminUser,
   AdminUserDetail,
+  AdminUserPage,
 } from "@/types/admin";
 
 const BASE = "/api/v1/admin";
 
-export async function listUsers(): Promise<AdminUser[]> {
-  const response = await api.get<AdminUser[]>(`${BASE}/users`);
+/** La taille de page n'est jamais envoyée : le backend décide (D34). */
+export async function listUsers(
+  params: { page?: number } = {},
+  options: { signal?: AbortSignal } = {},
+): Promise<AdminUserPage> {
+  const response = await api.get<AdminUserPage>(`${BASE}/users`, {
+    params: { ...(params.page !== undefined ? { page: params.page } : {}) },
+    signal: options.signal,
+  });
   return response.data;
 }
 

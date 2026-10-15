@@ -26,6 +26,7 @@ import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
 import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
 import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
 import com.linqorbit.admin.dto.AdminUserDetailResponse;
+import com.linqorbit.admin.dto.AdminUserPageResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.dto.ApproveSkillSuggestionRequest;
 import com.linqorbit.admin.dto.LinkSkillSuggestionRequest;
@@ -44,13 +45,17 @@ public interface AdminApi {
 
     @GetMapping("/users")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
-    @Operation(summary = "Lister les comptes", description = "Tous les comptes avec statut et rôles de capacité, triés par nom.")
+    @Operation(summary = "Lister les comptes (paginé)",
+            description = "Tous les comptes avec statut, rôles de capacité et drapeaux candidat / recruteur, triés par nom. "
+                    + "Pagination (défaut 20, max 50 — D34) : la taille effective est renvoyée dans l'enveloppe.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Comptes renvoyés"),
+            @ApiResponse(responseCode = "200", description = "Page de comptes renvoyée"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
             @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN")
     })
-    ResponseEntity<List<AdminUserResponse>> listUsers();
+    ResponseEntity<AdminUserPageResponse> listUsers(
+            @Parameter(description = "Index de page (0-based)") @RequestParam(name = "page", defaultValue = "0") int page,
+            @Parameter(description = "Taille de page (défaut 20, max 50) — valeur effective renvoyée dans la réponse") @RequestParam(name = "size", required = false) Integer size);
 
     @GetMapping("/users/{userId}")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)

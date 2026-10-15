@@ -27,8 +27,19 @@ import {
 import type { AdminJobOfferStatus, AdminUser } from "@/types/admin";
 import { queryKeys } from "@/hooks/query-keys";
 
-export function useAdminUsers() {
-  return useQuery({ queryKey: queryKeys.admin.users, queryFn: listUsers });
+/**
+ * Liste des comptes (D34) en infinite scroll : la taille de page reste
+ * décidée par le backend (jamais envoyée).
+ */
+export function useInfiniteAdminUsers() {
+  return useInfiniteQuery({
+    queryKey: queryKeys.admin.users,
+    queryFn: ({ pageParam, signal }) => listUsers({ page: pageParam }, { signal }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) =>
+      lastPage.page * lastPage.size < lastPage.total ? lastPage.page + 1 : undefined,
+    staleTime: 30_000,
+  });
 }
 
 /** Fiche détail d'un compte (D33) — requête inactive sans userId. */

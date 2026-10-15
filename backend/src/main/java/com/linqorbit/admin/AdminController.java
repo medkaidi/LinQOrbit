@@ -13,6 +13,7 @@ import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
 import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
 import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
 import com.linqorbit.admin.dto.AdminUserDetailResponse;
+import com.linqorbit.admin.dto.AdminUserPageResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.dto.ApproveSkillSuggestionRequest;
 import com.linqorbit.admin.dto.LinkSkillSuggestionRequest;
@@ -30,8 +31,8 @@ public class AdminController implements AdminApi {
     private final AdminService adminService;
 
     @Override
-    public ResponseEntity<List<AdminUserResponse>> listUsers() {
-        return ResponseEntity.ok(adminService.listUsers());
+    public ResponseEntity<AdminUserPageResponse> listUsers(int page, Integer size) {
+        return ResponseEntity.ok(adminService.listUsers(page, size));
     }
 
     @Override

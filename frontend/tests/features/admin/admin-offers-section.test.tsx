@@ -10,6 +10,14 @@ vi.mock("@/lib/api/admin.api", async (importOriginal) => {
   };
 });
 
+const useContractTypesMock = vi.hoisted(() => vi.fn());
+const useWorkModesMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/hooks/use-job-offers", () => ({
+  useContractTypes: useContractTypesMock,
+  useWorkModes: useWorkModesMock,
+}));
+
 import { listAllJobOffers } from "@/lib/api/admin.api";
 import { AdminOffersSection } from "@/features/admin/admin-offers-section";
 import type { AdminJobOfferListItem, AdminJobOfferPage } from "@/types/admin";
@@ -28,6 +36,16 @@ function makeOffer(overrides: Partial<AdminJobOfferListItem> = {}): AdminJobOffe
     updatedAt: "2026-10-05T10:00:00",
     expiresAt: null,
     publishedAt: "2026-10-02T10:00:00",
+    seniority: null,
+    city: null,
+    country: null,
+    contractTypeId: null,
+    workModeId: null,
+    salaryMin: null,
+    salaryMax: null,
+    salaryCurrency: null,
+    salaryPeriod: null,
+    hasUnvalidatedChanges: false,
     normalizationJobStatus: "done",
     ...overrides,
   };
@@ -51,12 +69,34 @@ function renderSection() {
 describe("AdminOffersSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useContractTypesMock.mockReturnValue({
+      data: [{ id: "ct1", label: "Permanent" }],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    useWorkModesMock.mockReturnValue({
+      data: [{ id: "wm1", label: "Hybrid" }],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
   });
 
-  it("lists offers with title link, company, status badge and view action", async () => {
+  it("lists offers with the shared recruiter card (company pill, meta, status) and view action", async () => {
     mockedListAllJobOffers.mockResolvedValue(
       makePage([
-        makeOffer(),
+        makeOffer({
+          seniority: "senior",
+          city: "Paris",
+          country: "FR",
+          contractTypeId: "ct1",
+          workModeId: "wm1",
+          salaryMin: 60000,
+          salaryMax: 75000,
+          salaryCurrency: "EUR",
+          salaryPeriod: "year",
+        }),
         makeOffer({
           id: "offer-2",
           title: "Frontend Engineer",
@@ -73,11 +113,20 @@ describe("AdminOffersSection", () => {
     const links = screen.getAllByRole("link", { name: "Backend Engineer" });
     expect(links[0]).toHaveAttribute("href", "/admin/offers/offer-1");
     expect(screen.getByText("Frontend Engineer")).toBeInTheDocument();
-    expect(screen.getByText(/Acme · published 2026-10-02 · updated 2026-10-05/)).toBeInTheDocument();
-    expect(screen.getByText(/No company · updated 2026-10-05/)).toBeInTheDocument();
+    // Pill company (seulement quand la company existe).
+    expect(screen.getByText("Acme")).toBeInTheDocument();
+    // Méta recruteur : séniorité, lieu+mode, contrat, salaire.
+    expect(screen.getByText("Senior")).toBeInTheDocument();
+    expect(screen.getByText("Hybrid · Paris, FR")).toBeInTheDocument();
+    expect(screen.getByText("Permanent")).toBeInTheDocument();
+    expect(screen.getByText("60,000 – 75,000 EUR per year")).toBeInTheDocument();
     // Deux pastilles de statut (hors boutons de filtre « Published »/« Draft »).
     expect(screen.getAllByText("Published").length).toBeGreaterThan(1);
     expect(screen.getAllByText("Draft").length).toBeGreaterThan(1);
+    // Action lecture seule : un lien « View » par offre.
+    const viewLinks = screen.getAllByRole("link", { name: "View" });
+    expect(viewLinks).toHaveLength(2);
+    expect(viewLinks[0]).toHaveAttribute("href", "/admin/offers/offer-1");
   });
 
   it("re-queries with the chosen status filter from the first page", async () => {

@@ -33,6 +33,7 @@ import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
 import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
 import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
 import com.linqorbit.admin.dto.AdminUserDetailResponse;
+import com.linqorbit.admin.dto.AdminUserPageResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
@@ -61,16 +62,34 @@ class AdminControllerTest {
     private JwtDecoder jwtDecoder;
 
     @Test
-    void listUsersRenvoie200AvecRoleAdmin() throws Exception {
-        when(adminService.listUsers()).thenReturn(List.of(
+    void listUsersRenvoie200AvecEnveloppeEtRoleAdmin() throws Exception {
+        when(adminService.listUsers(0, null)).thenReturn(new AdminUserPageResponse(List.of(
                 new AdminUserResponse(UUID.randomUUID(), "ada@example.com", "Ada", "Lovelace",
-                        "ACTIVE", List.of((short) 1))));
+                        "ACTIVE", List.of((short) 1), true, false)),
+                0, 20, 1));
 
         mockMvc.perform(get("/api/v1/admin/users").with(adminJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].email").value("ada@example.com"))
-                .andExpect(jsonPath("$[0].status").value("ACTIVE"))
-                .andExpect(jsonPath("$[0].roles[0]").value(1));
+                .andExpect(jsonPath("$.items[0].email").value("ada@example.com"))
+                .andExpect(jsonPath("$.items[0].status").value("ACTIVE"))
+                .andExpect(jsonPath("$.items[0].roles[0]").value(1))
+                .andExpect(jsonPath("$.items[0].hasCandidateProfile").value(true))
+                .andExpect(jsonPath("$.items[0].hasRecruiterProfile").value(false))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.total").value(1));
+    }
+
+    @Test
+    void listUsersTransmetPageEtSize() throws Exception {
+        when(adminService.listUsers(2, 10)).thenReturn(new AdminUserPageResponse(
+                List.of(), 2, 10, 0));
+
+        mockMvc.perform(get("/api/v1/admin/users").param("page", "2").param("size", "10")
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(10));
     }
 
     @Test
@@ -356,7 +375,10 @@ class AdminControllerTest {
                                 java.time.LocalDateTime.of(2026, 10, 1, 8, 0),
                                 java.time.LocalDateTime.of(2026, 10, 1, 9, 0),
                                 java.time.LocalDate.of(2026, 12, 31),
-                                java.time.LocalDateTime.of(2026, 10, 1, 10, 0), "done")),
+                                java.time.LocalDateTime.of(2026, 10, 1, 10, 0),
+                                "mid", "Paris", "FR", null, null,
+                                new java.math.BigDecimal("50000"), new java.math.BigDecimal("70000"),
+                                "EUR", "year", false, "done")),
                         1, 10, 42));
 
         mockMvc.perform(get("/api/v1/admin/job-offers")

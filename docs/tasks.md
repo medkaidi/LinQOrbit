@@ -91,6 +91,23 @@
 | T-42 | frontend | **Drawer normalisé : 50 % du contenu hors sidenav** (au lieu de `50vw` borné [560–840] — à 1440px le drawer prenait plus de la moitié du contenu) : var CSS `--sidenav-w` sur `<html>` posée par `AdminShell` (16rem dépliée / 5rem repliée = suit le repli de la sidenav, choix utilisateur : exactement 50 % même replié) ; constantes `SHEET_HALF_WIDTH`/`SHEET_HALF_PAD` dans `normalized-shared.ts` (plancher 560px, plafond supprimé) ; `ui/drawer` perd sa largeur en dur (injectée via `className` par `normalized-sheet-drawer`) ; 2 pages détail en `pr` miroir ; tests (var, classe panneau, 5 assertions migrées) | T-41 | Livré |
 | T-43 | frontend | **Lockup logo/wordmark — centrage optique du wordmark** : son encre flottait 2 unités (2,9 %) au-dessus du centre de son viewBox, d’où l’impression d’alignement « sur la ligne haute » dans les `flex items-center` (viewBox y `567.75`→`565.75`, encre `574→626` centre 600 = centre de la fenêtre ; le logo était déjà parfaitement centré). **Tailles inchangées** (`Logo h-5` + `Wordmark h-5` sidebars, `h-6`/`h-6` header marketing) : deux passes de réduction du logo (`h-4`, puis `h-4.5`/`h-5.5`) testées puis annulées à la demande de l’utilisateur — seule la correction d’alignement est retenue | T-42 | Livré |
 
+## Retours UI v3 — cartes partagées, comptes paginés, liste offres allégée (2026-10-15)
+
+> Troisième tour de retours. Les cartes d'offres de la console admin étaient
+> trop sobres → carte unique partagée avec la vue recruteur (action « View »
+> seule, console en lecture seule). La liste des comptes admin n'était pas
+> paginée et ses cartes trop sobres → infinite scroll (pattern D34) +
+> cartes enrichies avec chips de capacités. La liste des offres du recruteur
+> rapatriait la description et les listes enfants → payload léger, la
+> description ne sort qu'au détail (`readyToPublish` calculé serveur).
+
+| ID | Zone | Tâche | Dette | État |
+|---|---|---|---|---|
+| T-44 | full-stack | **Carte offre admin = carte recruteur (`JobOfferCard` partagée)** : extraction de la carte présentationnelle `features/job-offer/job-offer-card.tsx` (tuile, pill company, status pill à point, badges Expired/Analyzing…/Analysis failed/Unvalidated changes, « Created … », méta séniorité·lieu·contrat·salaire, slot `actions` ; `OFFER_LINK_PILL_CLASS` exportée) ; `AdminJobOfferListItem` enrichi (séniorité, ville/pays, vocabulaire, salaire, dirty-flag) ; section admin = carte + labels `useContractTypes`/`useWorkModes` + unique CTA « View » ; `normalizationJobStatus` → progress/failed ; tests BE (AdminServiceTest) + FE (admin-offers-section mineur/étendu) | T-43 | Livré |
+| T-45 | full-stack | **Comptes admin — pagination + cartes enrichies** : `GET /api/v1/admin/users` renvoie l'enveloppe `{items,page,size,total}` (`AdminUserPageResponse`, `PageSizes`, tri nom existant conservé) + flags `hasCandidateProfile`/`hasRecruiterProfile` (2 requêtes batch `findByUserIdIn`, jamais N+1) ; front `useInfiniteAdminUsers` (même clé `admin.users`, invalidation conservée) + `InfiniteList` + cartes enrichies (avatar initiales, pastille statut à point, badges Admin + chips Candidate/Recruiter) — jamais la taille de page côté front, valeur effective lue dans l'enveloppe ; tests BE + FE | T-44 | Livré |
+| T-46 | full-stack | **Liste offres recruteur allégée (description uniquement au détail)** : `GET /api/v1/job-offers/mine` sert `JobOfferListItem` (plus de description ni de listes enfants — plus de chargement des catalogues par page) ; `readyToPublish` calculé **serveur** (description/pays/employment type/≥1 skill) et `isOfferReadyToPublish` supprimée côté front ; `JobOfferListItem` / `JobOfferPage.items` en types FE ; tests BE (ServiceTest `never()` sur chargements enfants, ControllerTest payload) + FE | T-45 | Livré |
+| T-47 | docs | Micro-maj `frontend/AGENTS.md` (D41–D43, cartes partagées, comptes), `SPEC_PRODUIT.md` §14.10, tâches ; FE test (69 fichiers / 519) + lint + build complets, backend `./mvnw test` complet (351) | T-44→T-46 | Livré |
+
 ### Règles produit actées (validées 2026-10-14 — chantier fiche conforme, livré T-13→T-19)
 
 - **Poids** : échelle unique 1-5 sur `requiredSkills`, `preferredSkills`,

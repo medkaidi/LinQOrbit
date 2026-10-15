@@ -6,10 +6,11 @@ import Link from "next/link";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { InfiniteList } from "@/components/ui/infinite-list";
 import { RetryButton } from "@/features/admin/retry-button";
 import { SuggestionReviewDialog } from "@/features/admin/suggestion-review-dialog";
 import {
-  useAdminUsers,
+  useInfiniteAdminUsers,
   useRejectSkillSuggestion,
   useSkillSuggestions,
   useUpdateUserStatus
@@ -51,6 +52,22 @@ function Header() {
   );
 }
 
+/** Pastille de statut à point coloré (même motif que les cartes offre). */
+function StatusPill({ active }: { active: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-caps text-label-caps uppercase tracking-wider font-bold shrink-0 ${
+        active ? "bg-success-surface text-success-text" : "bg-slate-surface text-text-secondary"
+      }`}
+    >
+      <span
+        className={`w-1.5 h-1.5 rounded-full ${active ? "bg-tertiary" : "bg-slate-border"}`}
+      />
+      {active ? "Active" : "Inactive"}
+    </span>
+  );
+}
+
 function AccountRow({
   account,
   isCurrentUser,
@@ -63,28 +80,48 @@ function AccountRow({
   onToggle: (account: AdminUser) => void;
 }) {
   const active = account.status === "ACTIVE";
+  const fullName = [account.firstName, account.lastName].filter(Boolean).join(" ");
+  const initials =
+    [account.firstName, account.lastName]
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("") || "?";
   return (
     <li
       className={`${ITEM_CARD} flex flex-wrap items-center justify-between gap-4`}
     >
-      <div className="min-w-0">
-        <p className="text-body-md font-body-md text-text-primary font-semibold truncate">
-          <Link
-            href={`/admin/users/${account.id}`}
-            className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-          >
-            {[account.firstName, account.lastName].filter(Boolean).join(" ")}
-          </Link>
-        </p>
-        <p className={`${MUTED} truncate`}>{account.email}</p>
+      <div className="flex items-center gap-4 min-w-0">
+        <div
+          aria-hidden="true"
+          className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-orange-subtle text-orange-deep font-label-lg text-label-lg font-light"
+        >
+          {initials}
+        </div>
+        <div className="min-w-0 flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-headline-sm text-headline-sm text-text-primary truncate">
+              <Link
+                href={`/admin/users/${account.id}`}
+                className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+              >
+                {fullName}
+              </Link>
+            </h3>
+            <StatusPill active={active} />
+            {account.roles.includes(ROLE.ADMIN) && (
+              <Badge tone="neutral">Admin</Badge>
+            )}
+            {account.hasCandidateProfile && (
+              <Badge tone="neutral">Candidate</Badge>
+            )}
+            {account.hasRecruiterProfile && (
+              <Badge tone="neutral">Recruiter</Badge>
+            )}
+          </div>
+          <p className={`${MUTED} truncate`}>{account.email}</p>
+        </div>
       </div>
       <div className="flex items-center gap-3 shrink-0">
-        <Badge tone={active ? "success" : "neutral"}>
-          {active ? "Active" : "Inactive"}
-        </Badge>
-        {account.roles.includes(ROLE.ADMIN) && (
-          <Badge tone="neutral">Admin</Badge>
-        )}
         {isCurrentUser ? (
           <span className={MUTED}>Your account</span>
         ) : (
@@ -103,8 +140,10 @@ function AccountRow({
 
 function AccountsSection() {
   const currentUser = useAuthStore((state) => state.user);
-  const { data, isLoading, isError, refetch } = useAdminUsers();
+  const users = useInfiniteAdminUsers();
   const statusMutation = useUpdateUserStatus();
+  const items = users.data?.pages.flatMap((page) => page.items) ?? [];
+  const total = users.data?.pages[0]?.total ?? 0;
 
   const toggle = (account: AdminUser) => {
     statusMutation.mutate({
@@ -117,8 +156,8 @@ function AccountsSection() {
     <section className="bg-canvas-white rounded-2xl shadow-sm">
       <header className={SECTION_HEADER}>
         <h2 className={SECTION_TITLE}>Accounts</h2>
-        {data && (
-          <span className={`${MUTED} shrink-0`}>{data.length} accounts</span>
+        {users.data && (
+          <span className={`${MUTED} shrink-0`}>{total} accounts</span>
         )}
       </header>
       <div className="px-6 pt-5 pb-6 flex flex-col gap-3">
@@ -131,21 +170,28 @@ function AccountsSection() {
             />
           </Alert>
         )}
-        {isLoading && <p className={MUTED}>Loading accounts…</p>}
-        {isError && (
+        {users.isError && (
           <Alert variant="error" title="Unable to load accounts">
-            <RetryButton onRetry={() => void refetch()} label="Try again" />
+            <RetryButton onRetry={() => void users.refetch()} label="Try again" />
           </Alert>
         )}
-        {data?.map((account) => (
-          <AccountRow
-            key={account.id}
-            account={account}
-            isCurrentUser={account.id === currentUser?.id}
-            busy={statusMutation.isPending}
-            onToggle={toggle}
-          />
-        ))}
+        <InfiniteList
+          items={items}
+          keyExtractor={(account) => account.id}
+          renderItem={(account) => (
+            <AccountRow
+              account={account}
+              isCurrentUser={account.id === currentUser?.id}
+              busy={statusMutation.isPending}
+              onToggle={toggle}
+            />
+          )}
+          hasNextPage={users.hasNextPage}
+          isFetchingNextPage={users.isFetchingNextPage}
+          fetchNextPage={() => void users.fetchNextPage()}
+          loading={users.isLoading}
+          empty={<p className={MUTED}>No accounts.</p>}
+        />
       </div>
     </section>
   );

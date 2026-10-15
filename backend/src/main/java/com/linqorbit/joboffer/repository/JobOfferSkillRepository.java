@@ -19,6 +19,13 @@ public interface JobOfferSkillRepository extends JpaRepository<JobOfferSkill, Jo
 
     List<JobOfferSkill> findByJobOfferId(UUID jobOfferId);
 
+    /**
+     * Ids des offres ayant au moins une compétence — présence seule, sans
+     * charger les lignes (gate {@code readyToPublish} de la liste légère).
+     */
+    @Query("select distinct s.jobOfferId from JobOfferSkill s where s.jobOfferId in :jobOfferIds")
+    List<UUID> findOfferIdsWithSkills(List<UUID> jobOfferIds);
+
     /** Suppression bulk (une requête SQL, pas de select + delete par ligne). */
     @Modifying
     @Query("delete from JobOfferSkill s where s.jobOfferId = :jobOfferId")

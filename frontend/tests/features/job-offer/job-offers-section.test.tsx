@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { JobOffersSection } from "@/features/job-offer/job-offers-section";
-import type { Company, JobOffer } from "@/types/recruiter";
+import type { Company, JobOfferListItem } from "@/types/recruiter";
 
 const useInfiniteJobOffersMock = vi.hoisted(() => vi.fn());
 const useJobOfferTransitionMock = vi.hoisted(() => vi.fn());
@@ -24,54 +24,36 @@ const companies: Company[] = [
   { id: "c1", name: "Acme Inc.", description: null, isOwner: true },
 ];
 
-function draftOffer(overrides: Partial<JobOffer> = {}): JobOffer {
+function draftOffer(overrides: Partial<JobOfferListItem> = {}): JobOfferListItem {
   return {
     id: "o1",
     companyId: "c1",
-    recruiterId: "r1",
+    status: "draft",
     title: "Backend Engineer",
     publicId: "abcdefghijkl",
     slug: "backend-engineer",
-    description: "<p>Build APIs.</p>",
-    status: "draft",
     seniority: null,
-    requiredExpYear: null,
     city: null,
     country: "FR",
     contractTypeId: "ct1",
-    employmentTypeId: "et1",
     workModeId: "wm1",
+    expiresAt: null,
     salaryMin: null,
     salaryMax: null,
     salaryCurrency: null,
     salaryPeriod: null,
-    validatedAt: null,
-    publishedAt: null,
-    expiresAt: null,
     hasUnvalidatedChanges: false,
     normalizationInProgress: false,
     normalizationFailed: false,
-    skills: [
-      {
-        skillId: "s1",
-        name: "Java",
-        requirementType: "mandatory",
-        weight: 3,
-        yearsExperience: null,
-      },
-    ],
-    languages: [],
-    degreeIds: [],
-    studyFieldIds: [],
+    readyToPublish: true,
     createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
   };
 }
 
 /** Forme retournée par useInfiniteJobOffers (une seule page chargée). */
 function infiniteResult(
-  offers: JobOffer[],
+  offers: JobOfferListItem[],
   overrides: {
     isLoading?: boolean;
     isError?: boolean;
@@ -265,14 +247,7 @@ describe("JobOffersSection", () => {
     const transition = mutation();
     useJobOfferTransitionMock.mockReturnValue(transition);
     useInfiniteJobOffersMock.mockReturnValue(
-      infiniteResult([
-        draftOffer({
-          description: null,
-          country: null,
-          employmentTypeId: null,
-          skills: [],
-        }),
-      ]),
+      infiniteResult([draftOffer({ readyToPublish: false })]),
     );
 
     render(<JobOffersSection companies={companies} />);
@@ -291,7 +266,7 @@ describe("JobOffersSection", () => {
     const transition = mutation();
     useJobOfferTransitionMock.mockReturnValue(transition);
     useInfiniteJobOffersMock.mockReturnValue(
-      infiniteResult([draftOffer({ status: "validated", skills: [] })]),
+      infiniteResult([draftOffer({ status: "validated", readyToPublish: false })]),
     );
 
     render(<JobOffersSection companies={companies} />);
@@ -458,7 +433,7 @@ describe("JobOffersSection", () => {
     expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
   });
 
-  function renderOffers(offers: JobOffer[]) {
+  function renderOffers(offers: JobOfferListItem[]) {
     useInfiniteJobOffersMock.mockReturnValue(infiniteResult(offers));
 
     render(<JobOffersSection companies={companies} />);

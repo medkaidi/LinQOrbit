@@ -97,18 +97,6 @@ export const OFFER_INCOMPLETE_TOOLTIP =
   "Add a description, a country, an employment type and at least one skill before publishing.";
 
 /**
- * Complétude minimale d'une offre (miroir des validations backend/Zod) :
- * description, country, employment type et au moins une compétence.
- */
-export function isOfferReadyToPublish(
-  offer: Pick<JobOffer, "description" | "country" | "employmentTypeId" | "skills">,
-): boolean {
-  return Boolean(
-    offer.description && offer.country && offer.employmentTypeId && offer.skills.length > 0,
-  );
-}
-
-/**
  * Offre publiée expirée (miroir de getPublic : `expiresAt` strictement avant
  * aujourd'hui — à date d'expiry l'offre reste visible). La page publique rend
  * 404 ; ce signal aligne la liste sur ce comportement.

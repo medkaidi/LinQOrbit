@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,6 +21,9 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import com.linqorbit.candidate.repository.DegreeRepository;
 import com.linqorbit.candidate.repository.LanguageRepository;
@@ -28,6 +33,8 @@ import com.linqorbit.company.entity.CompanyMember;
 import com.linqorbit.company.repository.CompanyMemberRepository;
 import com.linqorbit.company.repository.CompanyRepository;
 import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
+import com.linqorbit.joboffer.dto.JobOfferListItem;
+import com.linqorbit.joboffer.dto.JobOfferPageResponse;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
 import com.linqorbit.joboffer.entity.JobOffer;
@@ -373,6 +380,70 @@ class JobOfferServiceTest {
 
         assertThatThrownBy(() -> jobOfferService.get(RECRUITER_ID, OFFER_ID))
                 .isInstanceOf(JobOfferNotFoundException.class);
+    }
+
+    @Test
+    void listMineRenvoieDesLignesLegeresSansChargerLesEnfants() {
+        stubRecruiter(true);
+        stubMembership(RECRUITER_ID, false);
+        JobOffer complete = JobOffer.builder()
+                .id(OFFER_ID).companyId(COMPANY_ID).recruiterId(RECRUITER_ID)
+                .status(JobOfferStatus.DRAFT).title("Backend Engineer")
+                .publicId("abcdefghijkl").slug("backend-engineer")
+                .description("Build APIs").country("FR").employmentTypeId(UUID.randomUUID())
+                .createdAt(LocalDateTime.now())
+                .build();
+        JobOffer incomplete = JobOffer.builder()
+                .id(COPY_ID).companyId(COMPANY_ID).recruiterId(RECRUITER_ID)
+                .status(JobOfferStatus.DRAFT).title("Frontend Engineer")
+                .build();
+        when(jobOfferRepository.findByCompanyIdIn(eq(List.of(COMPANY_ID)), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(complete, incomplete), PageRequest.of(0, 20), 2));
+        when(jobOfferSkillRepository.findOfferIdsWithSkills(List.of(OFFER_ID, COPY_ID)))
+                .thenReturn(List.of(OFFER_ID));
+
+        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, null, null);
+
+        assertThat(response.items()).hasSize(2);
+        JobOfferListItem first = response.items().get(0);
+        assertThat(first.title()).isEqualTo("Backend Engineer");
+        assertThat(first.readyToPublish()).isTrue();
+        assertThat(first.hasUnvalidatedChanges()).isFalse();
+        assertThat(response.items().get(1).readyToPublish()).isFalse();
+        assertThat(response.page()).isZero();
+        assertThat(response.size()).isEqualTo(20);
+        assertThat(response.total()).isEqualTo(2);
+        // Lignes légères : ni lignes enfants ni catalogues chargés pour la liste.
+        verify(jobOfferSkillRepository, never()).findByJobOfferIdIn(any());
+        verify(jobOfferLanguageRepository, never()).findByJobOfferIdIn(any());
+        verify(jobOfferDegreeRepository, never()).findByJobOfferIdIn(any());
+        verify(jobOfferStudyFieldRepository, never()).findByJobOfferIdIn(any());
+    }
+
+    @Test
+    void listMineBorneLaPagination() {
+        stubRecruiter(true);
+        stubMembership(RECRUITER_ID, false);
+        when(jobOfferRepository.findByCompanyIdIn(eq(List.of(COMPANY_ID)), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 50), 0));
+
+        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, -3, 500);
+
+        assertThat(response.page()).isZero();
+        assertThat(response.size()).isEqualTo(50);
+    }
+
+    @Test
+    void listMineSansCompanyRenvoieUnePageVide() {
+        stubRecruiter(true);
+        when(companyMemberRepository.findByRecruiterId(RECRUITER_ID)).thenReturn(List.of());
+
+        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, null, 10);
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.size()).isEqualTo(10);
+        assertThat(response.total()).isZero();
+        verify(jobOfferRepository, never()).findByCompanyIdIn(any(), any());
     }
 
     private JobOffer draftOffer() {

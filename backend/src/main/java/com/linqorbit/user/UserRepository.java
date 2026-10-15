@@ -1,9 +1,10 @@
 package com.linqorbit.user;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserRepository extends JpaRepository<User, UUID> {
@@ -12,5 +13,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     boolean existsByEmail(String email);
 
-    List<User> findAllByOrderByLastNameAscFirstNameAsc();
+    /** Page des comptes triée par nom puis prénom (liste admin). */
+    Page<User> findAllByOrderByLastNameAscFirstNameAsc(Pageable pageable);
 }

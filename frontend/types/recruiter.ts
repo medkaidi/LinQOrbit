@@ -75,9 +75,39 @@ export type JobOfferLabelOption = {
   label: string;
 };
 
+/**
+ * Ligne de la liste des offres (D34) : vue légère — la description et les
+ * listes enfants (skills, langues, diplômes, domaines) ne sont servies que
+ * par la fiche détail (`JobOffer`).
+ */
+export type JobOfferListItem = {
+  id: string;
+  companyId: string;
+  status: JobOfferStatusValue;
+  title: string;
+  publicId: string;
+  slug: string;
+  seniority: SeniorityValue | null;
+  city: string | null;
+  country: string | null;
+  contractTypeId: string | null;
+  workModeId: string | null;
+  expiresAt: string | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string | null;
+  salaryPeriod: SalaryPeriodValue | null;
+  hasUnvalidatedChanges: boolean;
+  normalizationInProgress: boolean;
+  normalizationFailed: boolean;
+  /** Gate de complétude calculé serveur (description, pays, type d'emploi, ≥ 1 skill). */
+  readyToPublish: boolean;
+  createdAt: string;
+};
+
 /** Page d'offres du recruteur (enveloppe backend, page 0-based — D34). */
 export type JobOfferPage = {
-  items: JobOffer[];
+  items: JobOfferListItem[];
   page: number;
   size: number;
   total: number;

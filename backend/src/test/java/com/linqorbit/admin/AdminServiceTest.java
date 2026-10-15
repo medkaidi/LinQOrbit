@@ -11,6 +11,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,6 +33,7 @@ import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
 import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
 import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
 import com.linqorbit.admin.dto.AdminUserDetailResponse;
+import com.linqorbit.admin.dto.AdminUserPageResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
@@ -64,10 +66,13 @@ import com.linqorbit.joboffer.dto.JobOfferAdminView;
 import com.linqorbit.joboffer.dto.PublicJobResponse;
 import com.linqorbit.joboffer.entity.JobOffer;
 import com.linqorbit.joboffer.entity.JobOfferStatus;
+import com.linqorbit.joboffer.entity.SalaryPeriod;
+import com.linqorbit.joboffer.entity.Seniority;
 import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.service.JobOfferService;
+import com.linqorbit.recruiter.entity.Recruiter;
 import com.linqorbit.recruiter.repository.RecruiterRepository;
 import com.linqorbit.user.Role;
 import com.linqorbit.user.User;
@@ -121,23 +126,54 @@ class AdminServiceTest {
     }
 
     @Test
-    void listUsersRetourneLesComptesAvecStatutEtRoles() {
+    void listUsersRetourneLaPageAvecStatutRolesEtDrapeaux() {
         User ada = User.builder().id(UUID.randomUUID()).email("ada@example.com")
                 .firstName("Ada").lastName("Lovelace").status(UserStatus.ACTIVE).build();
         User bob = User.builder().id(UUID.randomUUID()).email("bob@example.com")
                 .firstName("Bob").lastName("Morris").status(UserStatus.INACTIVE).build();
-        when(userRepository.findAllByOrderByLastNameAscFirstNameAsc()).thenReturn(List.of(ada, bob));
-        when(userRoleRepository.findAll()).thenReturn(List.of(
-                UserRole.of(ada.getId(), Role.ADMIN)));
+        Pageable pageable = PageRequest.of(0, 20);
+        when(userRepository.findAllByOrderByLastNameAscFirstNameAsc(pageable))
+                .thenReturn(new PageImpl<>(List.of(ada, bob), pageable, 2));
+        when(userRoleRepository.findByUserIdIn(List.of(ada.getId(), bob.getId())))
+                .thenReturn(List.of(UserRole.of(ada.getId(), Role.ADMIN)));
+        when(candidateRepository.findAllById(List.of(ada.getId(), bob.getId())))
+                .thenReturn(List.of(Candidate.builder().id(ada.getId()).build()));
+        when(recruiterRepository.findAllById(List.of(ada.getId(), bob.getId())))
+                .thenReturn(List.of(Recruiter.builder().id(bob.getId()).build()));
 
-        List<AdminUserResponse> users = adminService.listUsers();
+        AdminUserPageResponse response = adminService.listUsers(0, null);
 
-        assertThat(users).hasSize(2);
-        assertThat(users.get(0).email()).isEqualTo("ada@example.com");
-        assertThat(users.get(0).status()).isEqualTo("ACTIVE");
-        assertThat(users.get(0).roles()).containsExactly((short) 1);
-        assertThat(users.get(1).status()).isEqualTo("INACTIVE");
-        assertThat(users.get(1).roles()).isEmpty();
+        assertThat(response.items()).hasSize(2);
+        assertThat(response.page()).isZero();
+        assertThat(response.size()).isEqualTo(20);
+        assertThat(response.total()).isEqualTo(2);
+        AdminUserResponse adaResponse = response.items().get(0);
+        assertThat(adaResponse.email()).isEqualTo("ada@example.com");
+        assertThat(adaResponse.status()).isEqualTo("ACTIVE");
+        assertThat(adaResponse.roles()).containsExactly((short) 1);
+        assertThat(adaResponse.hasCandidateProfile()).isTrue();
+        assertThat(adaResponse.hasRecruiterProfile()).isFalse();
+        assertThat(response.items().get(1).status()).isEqualTo("INACTIVE");
+        assertThat(response.items().get(1).roles()).isEmpty();
+        assertThat(response.items().get(1).hasCandidateProfile()).isFalse();
+        assertThat(response.items().get(1).hasRecruiterProfile()).isTrue();
+    }
+
+    @Test
+    void listUsersBorneLaPagination() {
+        Pageable pageable = PageRequest.of(0, 50);
+        when(userRepository.findAllByOrderByLastNameAscFirstNameAsc(pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        AdminUserPageResponse response = adminService.listUsers(-2, 500);
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.page()).isZero();
+        assertThat(response.size()).isEqualTo(50);
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(userRepository).findAllByOrderByLastNameAscFirstNameAsc(pageableCaptor.capture());
+        assertThat(pageableCaptor.getValue().getPageNumber()).isZero();
+        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(50);
     }
 
     @Test
@@ -682,7 +718,11 @@ class AdminServiceTest {
                 .slug("dev-java").createdAt(LocalDateTime.of(2026, 10, 1, 8, 0))
                 .updatedAt(LocalDateTime.of(2026, 10, 1, 9, 0))
                 .expiresAt(LocalDate.of(2026, 12, 31))
-                .publishedAt(LocalDateTime.of(2026, 10, 1, 10, 0)).build();
+                .publishedAt(LocalDateTime.of(2026, 10, 1, 10, 0))
+                .seniority(Seniority.MID).city("Paris").country("FR")
+                .salaryMin(new BigDecimal("50000")).salaryMax(new BigDecimal("70000"))
+                .salaryCurrency("EUR").salaryPeriod(SalaryPeriod.YEAR)
+                .build();
         Page<JobOffer> page = new PageImpl<>(List.of(offer),
                 PageRequest.of(0, 20, org.springframework.data.domain.Sort.by(
                         org.springframework.data.domain.Sort.Direction.DESC, "createdAt")),
@@ -708,7 +748,31 @@ class AdminServiceTest {
         assertThat(item.slug()).isEqualTo("dev-java");
         assertThat(item.expiresAt()).isEqualTo(LocalDate.of(2026, 12, 31));
         assertThat(item.publishedAt()).isEqualTo(LocalDateTime.of(2026, 10, 1, 10, 0));
+        assertThat(item.seniority()).isEqualTo("mid");
+        assertThat(item.city()).isEqualTo("Paris");
+        assertThat(item.country()).isEqualTo("FR");
+        assertThat(item.salaryMin()).isEqualByComparingTo("50000");
+        assertThat(item.salaryMax()).isEqualByComparingTo("70000");
+        assertThat(item.salaryCurrency()).isEqualTo("EUR");
+        assertThat(item.salaryPeriod()).isEqualTo("year");
+        assertThat(item.hasUnvalidatedChanges()).isFalse();
         assertThat(item.normalizationJobStatus()).isEqualTo("done");
+    }
+
+    @Test
+    void listJobOffersMarqueLeDirtyFlagSurStatutEditable() {
+        UUID offerId = UUID.randomUUID();
+        JobOffer offer = JobOffer.builder().id(offerId).companyId(UUID.randomUUID())
+                .status(JobOfferStatus.VALIDATED).title("Dev Java")
+                .validatedAt(LocalDateTime.of(2026, 10, 1, 8, 0))
+                .updatedAt(LocalDateTime.of(2026, 10, 2, 8, 0))
+                .build();
+        when(jobOfferRepository.findAll(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(offer), PageRequest.of(0, 20), 1));
+
+        AdminJobOfferPageResponse response = adminService.listJobOffers(null, 0, 20);
+
+        assertThat(response.items().get(0).hasUnvalidatedChanges()).isTrue();
     }
 
     @Test

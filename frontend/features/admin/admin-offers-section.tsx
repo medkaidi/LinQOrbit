@@ -4,22 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { InfiniteList } from "@/components/ui/infinite-list";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
-import {
-  ADMIN_OFFER_STATUS_TONES,
-  adminOfferStatusLabel,
-} from "@/features/admin/admin-offer-status";
 import { RetryButton } from "@/features/admin/retry-button";
+import { JobOfferCard, OFFER_LINK_PILL_CLASS } from "@/features/job-offer/job-offer-card";
+import { isOfferExpired } from "@/features/job-offer/job-offer-shared";
 import { useInfiniteAdminJobOffers } from "@/hooks/use-admin";
+import { useContractTypes, useWorkModes } from "@/hooks/use-job-offers";
 import type { AdminJobOfferListItem, AdminJobOfferStatus } from "@/types/admin";
 
 const SECTION_HEADER =
   "mx-6 pt-4 pb-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-border";
 const SECTION_TITLE =
   "font-headline-md text-headline-md text-text-primary font-bold tracking-tight min-w-0";
-const ITEM_CARD = "rounded-2xl border border-slate-border bg-item-surface/50 p-4";
 const MUTED = "text-body-sm font-body-sm text-text-secondary";
 
 type StatusFilter = AdminJobOfferStatus | undefined;
@@ -32,36 +29,49 @@ const FILTER_OPTIONS: SegmentedOption<"all" | AdminJobOfferStatus>[] = [
   { value: "closed", label: "Closed" },
 ];
 
-function OfferRow({ offer }: { offer: AdminJobOfferListItem }) {
+/** Console en lecture seule (D33/D38) : la carte partage la présentation recruteur, une seule action « View ». */
+function OfferRow({
+  offer,
+  contractTypeLabel,
+  workModeLabel,
+}: {
+  offer: AdminJobOfferListItem;
+  contractTypeLabel: string | null;
+  workModeLabel: string | null;
+}) {
   return (
-    <li className={`${ITEM_CARD} flex flex-wrap items-center justify-between gap-4`}>
-      <div className="min-w-0">
-        <p className="text-body-md font-body-md text-text-primary font-semibold truncate">
-          <Link
-            href={`/admin/offers/${offer.id}`}
-            className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-          >
-            {offer.title}
+    <JobOfferCard
+      status={offer.status}
+      title={offer.title}
+      titleHref={`/admin/offers/${offer.id}`}
+      companyName={offer.companyName}
+      seniority={offer.seniority}
+      city={offer.city}
+      country={offer.country}
+      workModeLabel={workModeLabel}
+      contractTypeLabel={contractTypeLabel}
+      salaryMin={offer.salaryMin}
+      salaryMax={offer.salaryMax}
+      salaryCurrency={offer.salaryCurrency}
+      salaryPeriod={offer.salaryPeriod}
+      expired={isOfferExpired(offer)}
+      normalization={
+        offer.normalizationJobStatus === "pending" || offer.normalizationJobStatus === "running"
+          ? "progress"
+          : offer.normalizationJobStatus === "failed"
+            ? "failed"
+            : null
+      }
+      unvalidatedChanges={offer.hasUnvalidatedChanges}
+      createdAt={offer.createdAt}
+      actions={
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Link href={`/admin/offers/${offer.id}`} className={OFFER_LINK_PILL_CLASS}>
+            View
           </Link>
-        </p>
-        <p className={`${MUTED} truncate`}>
-          {offer.companyName || "No company"}
-          {offer.publishedAt ? ` · published ${offer.publishedAt.slice(0, 10)}` : ""}
-          {` · updated ${offer.updatedAt.slice(0, 10)}`}
-        </p>
-      </div>
-      <div className="flex items-center gap-3 shrink-0">
-        <Badge tone={ADMIN_OFFER_STATUS_TONES[offer.status]}>
-          {adminOfferStatusLabel(offer.status)}
-        </Badge>
-        <Link
-          href={`/admin/offers/${offer.id}`}
-          className={`${MUTED} hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep`}
-        >
-          View
-        </Link>
-      </div>
-    </li>
+        </div>
+      }
+    />
   );
 }
 
@@ -70,8 +80,16 @@ export function AdminOffersSection() {
   const [filter, setFilter] = useState<"all" | AdminJobOfferStatus>("all");
   const status: StatusFilter = filter === "all" ? undefined : filter;
   const offers = useInfiniteAdminJobOffers(status);
+  const contractTypes = useContractTypes();
+  const workModes = useWorkModes();
   const items = offers.data?.pages.flatMap((page) => page.items) ?? [];
   const total = offers.data?.pages[0]?.total ?? 0;
+  const contractLabels = new Map(
+    (contractTypes.data ?? []).map((option) => [option.id, option.label] as const),
+  );
+  const workModeLabels = new Map(
+    (workModes.data ?? []).map((option) => [option.id, option.label] as const),
+  );
 
   return (
     <section className="bg-canvas-white rounded-2xl shadow-sm">
@@ -99,7 +117,17 @@ export function AdminOffersSection() {
         <InfiniteList
           items={items}
           keyExtractor={(offer) => offer.id}
-          renderItem={(offer) => <OfferRow offer={offer} />}
+          renderItem={(offer) => (
+            <OfferRow
+              offer={offer}
+              contractTypeLabel={
+                offer.contractTypeId ? contractLabels.get(offer.contractTypeId) ?? null : null
+              }
+              workModeLabel={
+                offer.workModeId ? workModeLabels.get(offer.workModeId) ?? null : null
+              }
+            />
+          )}
           hasNextPage={offers.hasNextPage}
           isFetchingNextPage={offers.isFetchingNextPage}
           fetchNextPage={() => void offers.fetchNextPage()}

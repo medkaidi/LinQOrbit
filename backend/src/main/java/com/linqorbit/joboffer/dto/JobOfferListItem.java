@@ -1,0 +1,37 @@
+package com.linqorbit.joboffer.dto;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+/**
+ * Ligne de la liste des offres d'un recruteur (D34) : vue légère — la
+ * description et les listes enfants (skills, langues, diplômes, domaines)
+ * ne sont servies que par la fiche détail ({@link JobOfferResponse}).
+ * {@code readyToPublish} porte le gate de complétude frontend (description,
+ * pays, type d'emploi, au moins un skill) sans exposer la description.
+ */
+public record JobOfferListItem(
+        UUID id,
+        UUID companyId,
+        String status,
+        String title,
+        String publicId,
+        String slug,
+        String seniority,
+        String city,
+        String country,
+        UUID contractTypeId,
+        UUID workModeId,
+        LocalDate expiresAt,
+        BigDecimal salaryMin,
+        BigDecimal salaryMax,
+        String salaryCurrency,
+        String salaryPeriod,
+        boolean hasUnvalidatedChanges,
+        boolean normalizationInProgress,
+        boolean normalizationFailed,
+        boolean readyToPublish,
+        LocalDateTime createdAt) {
+}
