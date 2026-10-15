@@ -1,266 +1,414 @@
-import { Badge } from "@/components/ui/badge";
+import type { ReactNode } from "react";
+
+import { OriginBadge } from "@/features/admin/normalized/normalized-origin-badge";
+import { SectionBlock } from "@/features/admin/normalized/normalized-section-block";
+import { NormalizedSheetRail } from "@/features/admin/normalized/normalized-sheet-rail";
 import {
-  NORMALIZED_BLOCK_TITLE,
+  SpecGrid,
+  type SpecCell,
+} from "@/features/admin/normalized/normalized-spec-grid";
+import {
   NORMALIZED_ITEM_CARD,
   NORMALIZED_MUTED,
   PROJECT_CONTEXT_LABELS,
   SENIORITY_LABELS,
+  candidateSheetStats,
+  categoryLabel,
+  evidenceLabel,
   formatMonth,
   formatPeriod,
 } from "@/features/admin/normalized/normalized-shared";
-import { NormalizedSkillRow } from "@/features/admin/normalized/normalized-skill-row";
-import type { NormalizedCandidateProfile } from "@/types/normalized";
+import type {
+  NormalizedCandidateProfile,
+  NormalizedDiploma,
+  NormalizedExperience,
+  NormalizedProject,
+} from "@/types/normalized";
 
-function OriginBadge({ origin }: { origin?: string }) {
-  if (!origin) {
+const KIND_TONES = {
+  Experience: "bg-orange-subtle border-orange-border text-orange-deep",
+  Project: "bg-blue-surface border-blue-border text-blue-deep",
+  Diploma: "bg-success-surface border-success-border text-success-text",
+} as const;
+
+const KIND_LABELS = {
+  Experience: "Experience",
+  Project: "Project",
+  Diploma: "Diploma",
+} as const;
+
+type TimelineKind = keyof typeof KIND_TONES;
+
+type TimelineEntry = {
+  id: string;
+  kind: TimelineKind;
+  /** startDate YYYY-MM, null = sans date → trié en fin. */
+  startedAt: string | null;
+  order: number;
+  period: string | null;
+  ongoing: boolean;
+  title: string;
+  meta?: string | null;
+  origin?: string | null;
+  body: ReactNode;
+};
+
+function TechChips({ technologies }: { technologies?: string[] }) {
+  if (!technologies || technologies.length === 0) {
     return null;
   }
   return (
-    <Badge tone={origin === "inferred" ? "neutral" : "success"}>
-      {origin === "inferred" ? "Inferred" : "Declared"}
-    </Badge>
+    <ul className="flex flex-wrap gap-1.5 pt-1">
+      {technologies.map((technology, index) => (
+        <li
+          key={index}
+          className="rounded-md border border-slate-border bg-canvas-white px-2 py-0.5 font-mono text-[11px] font-semibold text-text-secondary"
+        >
+          {technology}
+        </li>
+      ))}
+    </ul>
   );
+}
+
+function toTimelineEntries(profile: NormalizedCandidateProfile): TimelineEntry[] {
+  let order = 0;
+  const experiences: TimelineEntry[] = (profile.experiences ?? []).map(
+    (experience: NormalizedExperience, index) => ({
+      id: `experience-${index}`,
+      kind: "Experience",
+      startedAt: experience.startDate ?? null,
+      order: order++,
+      period: formatPeriod(experience.startDate, experience.endDate),
+      ongoing: Boolean(experience.startDate) && experience.endDate == null,
+      title: [
+        experience.positionTitle ?? "Experience",
+        experience.companyName,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      meta: experience.domain,
+      body: (
+        <>
+          {experience.description && (
+            <p className="text-body-sm font-body-sm text-text-primary leading-relaxed">
+              {experience.description}
+            </p>
+          )}
+          <TechChips technologies={experience.technologies} />
+          {experience.achievements && experience.achievements.length > 0 && (
+            <ul className="flex flex-col gap-1">
+              {experience.achievements.map((achievement, achievementIndex) => (
+                <li
+                  key={achievementIndex}
+                  className="text-body-sm font-body-sm text-text-primary"
+                >
+                  · {achievement}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ),
+    }),
+  );
+  const projects: TimelineEntry[] = (profile.projects ?? []).map(
+    (project: NormalizedProject, index) => ({
+      id: `project-${index}`,
+      kind: "Project",
+      startedAt: project.startDate ?? null,
+      order: order++,
+      period: formatPeriod(project.startDate, project.endDate),
+      ongoing: Boolean(project.startDate) && project.endDate == null,
+      title: [project.name ?? "Project", project.role].filter(Boolean).join(" · "),
+      meta: project.context ? PROJECT_CONTEXT_LABELS[project.context] ?? project.context : null,
+      body: (
+        <>
+          {project.description && (
+            <p className="text-body-sm font-body-sm text-text-primary leading-relaxed">
+              {project.description}
+            </p>
+          )}
+          <TechChips technologies={project.technologies} />
+        </>
+      ),
+    }),
+  );
+  const diplomas: TimelineEntry[] = (profile.diplomas ?? []).map(
+    (diploma: NormalizedDiploma, index) => ({
+      id: `diploma-${index}`,
+      kind: "Diploma",
+      startedAt: diploma.startDate ?? null,
+      order: order++,
+      period: formatPeriod(diploma.startDate, diploma.endDate),
+      ongoing: Boolean(diploma.startDate) && diploma.endDate == null,
+      title: [diploma.title ?? "Diploma", diploma.institution].filter(Boolean).join(" · "),
+      meta: [diploma.degreeLabel, diploma.studyFieldLabel].filter(Boolean).join(" · ") || null,
+      origin: diploma.origin,
+      body: null,
+    }),
+  );
+
+  return [...experiences, ...projects, ...diplomas].sort((a, b) => {
+    const byDate = (b.startedAt ?? "").localeCompare(a.startedAt ?? "");
+    return byDate !== 0 ? byDate : a.order - b.order;
+  });
 }
 
 /**
  * Fiche normalisée candidat schema v3 (D36) : rendu friendly du contenu
- * canonique — jamais de JSON brut. Tolère tout champ absent ou null.
+ * canonique — jamais de JSON brut. Grille 8/4 : sections lettrées A-F à
+ * gauche (spec-grid identité, tableau compétences, timeline fusionnée
+ * expériences+projets+diplômes, langues, certifications, liens), rail de
+ * provenance/couverture à droite. Tolère tout champ absent ou null.
  */
 export function NormalizedCandidateView({ profile }: { profile: NormalizedCandidateProfile }) {
   const skills = profile.skills ?? [];
-  const experiences = profile.experiences ?? [];
-  const projects = profile.projects ?? [];
-  const diplomas = profile.diplomas ?? [];
   const languages = profile.languages ?? [];
   const certifications = profile.certifications ?? [];
   const links = profile.links ?? [];
+  const timelineEntries = toTimelineEntries(profile);
 
-  const headerBits = [
-    profile.seniority ? SENIORITY_LABELS[profile.seniority] ?? profile.seniority : null,
-    profile.yearsOfExperience != null ? `${profile.yearsOfExperience} yrs experience` : null,
-    profile.location
-      ? [profile.location.city, profile.location.country].filter(Boolean).join(", ") || null
-      : null,
-    profile.searchStatus ?? null,
-    profile.targetRole ?? null,
-  ].filter((bit): bit is string => Boolean(bit));
+  const identityCells: SpecCell[] = [
+    {
+      label: "Seniority",
+      value: profile.seniority
+        ? SENIORITY_LABELS[profile.seniority] ?? profile.seniority
+        : null,
+    },
+    {
+      label: "Experience",
+      value: profile.yearsOfExperience != null ? `${profile.yearsOfExperience} yrs` : null,
+    },
+    {
+      label: "Location",
+      value: profile.location
+        ? [profile.location.city, profile.location.country].filter(Boolean).join(", ") ||
+          null
+        : null,
+    },
+    { label: "Search status", value: profile.searchStatus },
+    { label: "Target role", value: profile.targetRole },
+  ];
+  const hasOverview = Boolean(profile.title || profile.summary) || identityCells.some(
+    (cell) => cell.value,
+  );
+
+  const isEmpty =
+    skills.length === 0 &&
+    timelineEntries.length === 0 &&
+    languages.length === 0 &&
+    certifications.length === 0 &&
+    links.length === 0;
 
   return (
-    <div className="flex flex-col gap-6">
-      <header>
-        {profile.title && (
-          <h3 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
-            {profile.title}
-          </h3>
+    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <div className="xl:col-span-8 flex flex-col gap-6 min-w-0">
+        {hasOverview && (
+          <SectionBlock index={1} title={profile.title ?? "Profile overview"}>
+            <div className="flex flex-col gap-4">
+              <SpecGrid cells={identityCells} />
+              {profile.summary && (
+                <p className="text-body-md font-body-md text-text-primary leading-relaxed">
+                  {profile.summary}
+                </p>
+              )}
+            </div>
+          </SectionBlock>
         )}
-        {headerBits.length > 0 && (
-          <p className={`${NORMALIZED_MUTED} mt-1`}>{headerBits.join(" · ")}</p>
-        )}
-        {profile.summary && (
-          <p className="mt-3 text-body-md font-body-md text-text-primary leading-relaxed">
-            {profile.summary}
-          </p>
-        )}
-      </header>
 
-      {experiences.length > 0 && (
-        <section>
-          <h4 className={NORMALIZED_BLOCK_TITLE}>Experience</h4>
-          <ul className="mt-2 flex flex-col gap-3">
-            {experiences.map((experience, index) => (
-              <li key={index} className={NORMALIZED_ITEM_CARD}>
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="text-body-md font-body-md text-text-primary font-semibold">
-                    {experience.positionTitle ?? "Experience"}
-                    {experience.companyName ? ` · ${experience.companyName}` : ""}
-                  </p>
-                  <span className={`${NORMALIZED_MUTED} shrink-0`}>
-                    {formatPeriod(experience.startDate, experience.endDate)}
-                  </span>
-                </div>
-                {experience.domain && (
-                  <p className={`${NORMALIZED_MUTED} mt-1`}>{experience.domain}</p>
-                )}
-                {experience.description && (
-                  <p className="mt-2 text-body-sm font-body-sm text-text-primary leading-relaxed">
-                    {experience.description}
-                  </p>
-                )}
-                {experience.technologies && experience.technologies.length > 0 && (
-                  <p className={`${NORMALIZED_MUTED} mt-2`}>
-                    {experience.technologies.join(", ")}
-                  </p>
-                )}
-                {experience.achievements && experience.achievements.length > 0 && (
-                  <ul className="mt-2 flex flex-col gap-1">
-                    {experience.achievements.map((achievement, achievementIndex) => (
-                      <li key={achievementIndex} className="text-body-sm font-body-sm text-text-primary">
-                        · {achievement}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        {skills.length > 0 && (
+          <SectionBlock index={2} title="Skills" meta={`${skills.length} entries`}>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[540px] text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-border">
+                    <th className="py-2.5 pr-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
+                      Skill
+                    </th>
+                    <th className="py-2.5 pr-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
+                      Level
+                    </th>
+                    <th className="py-2.5 pr-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
+                      Years
+                    </th>
+                    <th className="py-2.5 pr-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
+                      Evidence
+                    </th>
+                    <th className="py-2.5 pr-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
+                      Origin
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-border text-body-sm font-body-sm">
+                  {skills.map((skill, index) => {
+                    const evidence = evidenceLabel(skill.evidence);
+                    const category = categoryLabel(skill.category);
+                    return (
+                      <tr key={index} className="hover:bg-item-surface/50 transition-colors">
+                        <td className="py-3 pr-3 min-w-40">
+                          <span className="block font-semibold text-text-primary">
+                            {skill.name ?? "Unnamed skill"}
+                          </span>
+                          {category && (
+                            <span className="block text-text-secondary">{category}</span>
+                          )}
+                        </td>
+                        <td className="py-3 pr-3 font-mono text-text-primary">
+                          {skill.level != null ? `${skill.level}/5` : "—"}
+                        </td>
+                        <td className="py-3 pr-3 font-mono text-text-primary">
+                          {skill.yearsExperience != null ? `${skill.yearsExperience} yrs` : "—"}
+                        </td>
+                        <td className="py-3 pr-3 text-text-secondary">{evidence ?? "—"}</td>
+                        <td className="py-3 pr-3">
+                          {skill.origin ? (
+                            <OriginBadge origin={skill.origin} />
+                          ) : (
+                            <span className="text-text-tertiary">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </SectionBlock>
+        )}
 
-      {projects.length > 0 && (
-        <section>
-          <h4 className={NORMALIZED_BLOCK_TITLE}>Projects</h4>
-          <ul className="mt-2 flex flex-col gap-3">
-            {projects.map((project, index) => (
-              <li key={index} className={NORMALIZED_ITEM_CARD}>
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="text-body-md font-body-md text-text-primary font-semibold">
-                    {project.name ?? "Project"}
-                    {project.role ? ` · ${project.role}` : ""}
-                  </p>
-                  <span className={`${NORMALIZED_MUTED} shrink-0`}>
-                    {formatPeriod(project.startDate, project.endDate)}
+        {timelineEntries.length > 0 && (
+          <SectionBlock
+            index={3}
+            title="Career timeline"
+            meta={`${timelineEntries.length} events`}
+          >
+            <ul className="relative flex flex-col gap-4 before:absolute before:left-[7px] before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-border">
+              {timelineEntries.map((entry) => (
+                <li key={entry.id} className="relative pl-8">
+                  <span
+                    aria-hidden="true"
+                    className={`absolute left-0 top-4 w-3.5 h-3.5 rounded-full ring-4 ring-canvas-white ${KIND_TONES[entry.kind]}`}
+                  />
+                  <div className={NORMALIZED_ITEM_CARD}>
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-2 mb-2 border-b border-slate-border">
+                      <div className="flex flex-wrap items-center gap-2 min-w-0">
+                        {entry.period && (
+                          <span
+                            className={
+                              entry.ongoing
+                                ? "rounded-full border border-success-border bg-success-surface px-2.5 py-1 font-label-caps text-label-caps uppercase tracking-wider text-success-text shrink-0"
+                                : "rounded-full border border-slate-border bg-canvas-white px-2.5 py-1 font-label-caps text-label-caps uppercase tracking-wider text-text-secondary shrink-0"
+                            }
+                          >
+                            {entry.period}
+                          </span>
+                        )}
+                        <span
+                          className={`rounded-full border px-2.5 py-1 font-label-caps text-label-caps uppercase tracking-wider shrink-0 ${KIND_TONES[entry.kind]}`}
+                        >
+                          {KIND_LABELS[entry.kind]}
+                        </span>
+                        <span className="font-label-lg text-label-lg font-semibold text-text-primary min-w-0">
+                          {entry.title}
+                        </span>
+                      </div>
+                      <OriginBadge origin={entry.origin ?? undefined} />
+                    </div>
+                    {entry.meta && (
+                      <p className="text-body-sm font-body-sm text-text-secondary">
+                        {entry.meta}
+                      </p>
+                    )}
+                    <div className={entry.meta ? "mt-2 flex flex-col gap-2" : "flex flex-col gap-2"}>
+                      {entry.body}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </SectionBlock>
+        )}
+
+        {languages.length > 0 && (
+          <SectionBlock index={4} title="Languages" meta={`${languages.length} entries`}>
+            <ul className="flex flex-wrap gap-2">
+              {languages.map((language, index) => (
+                <li
+                  key={index}
+                  className="flex items-center gap-2 rounded-full border border-slate-border bg-item-surface/50 px-3 py-1 text-body-sm font-body-sm text-text-primary"
+                >
+                  <span>
+                    {language.name ?? "Language"}
+                    {language.level ? ` · ${language.level}` : ""}
                   </span>
-                </div>
-                {project.context && (
+                  <OriginBadge origin={language.origin} />
+                </li>
+              ))}
+            </ul>
+          </SectionBlock>
+        )}
+
+        {certifications.length > 0 && (
+          <SectionBlock
+            index={5}
+            title="Certifications"
+            meta={`${certifications.length} entries`}
+          >
+            <ul className="flex flex-col gap-3">
+              {certifications.map((certification, index) => (
+                <li key={index} className={NORMALIZED_ITEM_CARD}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-body-md font-body-md text-text-primary font-semibold">
+                      {certification.name ?? "Certification"}
+                    </p>
+                    <OriginBadge origin={certification.origin} />
+                  </div>
                   <p className={`${NORMALIZED_MUTED} mt-1`}>
-                    {PROJECT_CONTEXT_LABELS[project.context] ?? project.context}
+                    {[certification.issuer, formatMonth(certification.issuedAt)]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </p>
-                )}
-                {project.description && (
-                  <p className="mt-2 text-body-sm font-body-sm text-text-primary leading-relaxed">
-                    {project.description}
-                  </p>
-                )}
-                {project.technologies && project.technologies.length > 0 && (
-                  <p className={`${NORMALIZED_MUTED} mt-2`}>{project.technologies.join(", ")}</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+                </li>
+              ))}
+            </ul>
+          </SectionBlock>
+        )}
 
-      {diplomas.length > 0 && (
-        <section>
-          <h4 className={NORMALIZED_BLOCK_TITLE}>Education</h4>
-          <ul className="mt-2 flex flex-col gap-3">
-            {diplomas.map((diploma, index) => (
-              <li key={index} className={NORMALIZED_ITEM_CARD}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-body-md font-body-md text-text-primary font-semibold">
-                    {diploma.title ?? "Diploma"}
-                    {diploma.institution ? ` · ${diploma.institution}` : ""}
-                  </p>
-                  <OriginBadge origin={diploma.origin} />
-                </div>
-                <p className={`${NORMALIZED_MUTED} mt-1`}>
-                  {[
-                    diploma.degreeLabel,
-                    diploma.studyFieldLabel,
-                    formatPeriod(diploma.startDate, diploma.endDate),
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        {links.length > 0 && (
+          <SectionBlock index={6} title="Links" meta={`${links.length} entries`}>
+            <ul className="flex flex-col gap-2">
+              {links.map((link, index) => (
+                <li key={index} className="text-body-sm font-body-sm">
+                  <span className="text-text-secondary">{link.label ?? "Link"}: </span>
+                  {link.url ? (
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-orange-deep hover:underline break-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+                    >
+                      {link.url}
+                    </a>
+                  ) : (
+                    <span className={NORMALIZED_MUTED}>—</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </SectionBlock>
+        )}
 
-      {languages.length > 0 && (
-        <section>
-          <h4 className={NORMALIZED_BLOCK_TITLE}>Languages</h4>
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {languages.map((language, index) => (
-              <li
-                key={index}
-                className="flex items-center gap-2 rounded-full border border-slate-border bg-item-surface/50 px-3 py-1 text-body-sm font-body-sm text-text-primary"
-              >
-                <span>
-                  {language.name ?? "Language"}
-                  {language.level ? ` · ${language.level}` : ""}
-                </span>
-                <OriginBadge origin={language.origin} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {certifications.length > 0 && (
-        <section>
-          <h4 className={NORMALIZED_BLOCK_TITLE}>Certifications</h4>
-          <ul className="mt-2 flex flex-col gap-3">
-            {certifications.map((certification, index) => (
-              <li key={index} className={NORMALIZED_ITEM_CARD}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-body-md font-body-md text-text-primary font-semibold">
-                    {certification.name ?? "Certification"}
-                  </p>
-                  <OriginBadge origin={certification.origin} />
-                </div>
-                <p className={`${NORMALIZED_MUTED} mt-1`}>
-                  {[
-                    certification.issuer,
-                    formatMonth(certification.issuedAt),
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {links.length > 0 && (
-        <section>
-          <h4 className={NORMALIZED_BLOCK_TITLE}>Links</h4>
-          <ul className="mt-2 flex flex-col gap-2">
-            {links.map((link, index) => (
-              <li key={index} className="text-body-sm font-body-sm">
-                <span className="text-text-secondary">{link.label ?? "Link"}: </span>
-                {link.url ? (
-                  <a
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-orange-deep hover:underline break-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-                  >
-                    {link.url}
-                  </a>
-                ) : (
-                  <span className={NORMALIZED_MUTED}>—</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {skills.length > 0 && (
-        <section>
-          <h4 className={NORMALIZED_BLOCK_TITLE}>Skills</h4>
-          <ul className="mt-2 flex flex-col gap-3">
-            {skills.map((skill, index) => (
-              <NormalizedSkillRow key={index} skill={skill} />
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {skills.length === 0 &&
-        experiences.length === 0 &&
-        projects.length === 0 &&
-        diplomas.length === 0 &&
-        languages.length === 0 &&
-        certifications.length === 0 &&
-        links.length === 0 && (
+        {isEmpty && (
           <p className={NORMALIZED_MUTED}>
             The normalized profile is empty — the AI service found no content to extract.
           </p>
         )}
+      </div>
+
+      <div className="xl:col-span-4 min-w-0">
+        <NormalizedSheetRail stats={candidateSheetStats(profile)} />
+      </div>
     </div>
   );
 }

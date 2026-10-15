@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/axios";
+import type { CandidateProfile } from "@/types/candidate";
 import type {
   AdminCandidateNormalizedProfile,
   AdminJobOfferDetail,
@@ -22,11 +23,27 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail> {
   return response.data;
 }
 
+/** Profil professionnel d'un candidat, même payload que la vue du candidat (D38). */
+export async function getAdminUserProfile(userId: string): Promise<CandidateProfile> {
+  const response = await api.get<CandidateProfile>(`${BASE}/users/${userId}/profile`);
+  return response.data;
+}
+
 export async function getUserNormalizedProfile(
   userId: string,
 ): Promise<AdminCandidateNormalizedProfile> {
   const response = await api.get<AdminCandidateNormalizedProfile>(
     `${BASE}/users/${userId}/normalized-profile`,
+  );
+  return response.data;
+}
+
+/** Historique des versions (D37) : toutes les versions, de la plus récente à la plus ancienne. */
+export async function getUserNormalizedProfileVersions(
+  userId: string,
+): Promise<AdminCandidateNormalizedProfile[]> {
+  const response = await api.get<AdminCandidateNormalizedProfile[]>(
+    `${BASE}/users/${userId}/normalized-profile/versions`,
   );
   return response.data;
 }
@@ -59,6 +76,16 @@ export async function getOfferNormalizedProfile(
 ): Promise<AdminOfferNormalizedProfile> {
   const response = await api.get<AdminOfferNormalizedProfile>(
     `${BASE}/job-offers/${offerId}/normalized-profile`,
+  );
+  return response.data;
+}
+
+/** Historique des versions (D37) : toutes les versions, de la plus récente à la plus ancienne. */
+export async function getOfferNormalizedProfileVersions(
+  offerId: string,
+): Promise<AdminOfferNormalizedProfile[]> {
+  const response = await api.get<AdminOfferNormalizedProfile[]>(
+    `${BASE}/job-offers/${offerId}/normalized-profile/versions`,
   );
   return response.data;
 }

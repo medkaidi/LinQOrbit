@@ -40,6 +40,7 @@ import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
 import com.linqorbit.admin.exception.SuggestionNotFoundException;
 import com.linqorbit.admin.exception.UserNotFoundException;
+import com.linqorbit.candidate.dto.CandidateProfileResponse;
 import com.linqorbit.config.SecurityConfig;
 import com.linqorbit.user.UserStatus;
 
@@ -254,6 +255,35 @@ class AdminControllerTest {
     }
 
     @Test
+    void candidateProfileRenvoie200AvecLeProfilDuCandidat() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(adminService.getCandidateProfile(userId)).thenReturn(new CandidateProfileResponse(
+                null, java.util.List.of(), java.util.List.of(), java.util.List.of(),
+                java.util.List.of(), java.util.List.of(), java.util.List.of(),
+                60, true, false, false));
+
+        mockMvc.perform(get("/api/v1/admin/users/{userId}/profile", userId).with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.completionPercentage").value(60))
+                .andExpect(jsonPath("$.hasUnvalidatedChanges").value(true))
+                .andExpect(jsonPath("$.normalizationFailed").value(false))
+                .andExpect(jsonPath("$.normalizationInProgress").value(false))
+                .andExpect(jsonPath("$.experiences").isArray())
+                .andExpect(jsonPath("$.experiences").isEmpty());
+    }
+
+    @Test
+    void candidateProfileRenvoie404SansProfilCandidat() throws Exception {
+        doThrow(new UserNotFoundException(UUID.randomUUID()))
+                .when(adminService).getCandidateProfile(any());
+
+        mockMvc.perform(get("/api/v1/admin/users/{userId}/profile", UUID.randomUUID())
+                        .with(adminJwt()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("User not found"));
+    }
+
+    @Test
     void candidateNormalizedProfileRenvoie200AvecContenu() throws Exception {
         UUID userId = UUID.randomUUID();
         ObjectNode content = JsonNodeFactory.instance.objectNode();
@@ -278,6 +308,41 @@ class AdminControllerTest {
 
         mockMvc.perform(get("/api/v1/admin/users/{userId}/normalized-profile", UUID.randomUUID())
                         .with(adminJwt()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Normalized profile not found"));
+    }
+
+    @Test
+    void candidateNormalizedProfileVersionsRenvoie200AvecListe() throws Exception {
+        UUID userId = UUID.randomUUID();
+        ObjectNode v3 = JsonNodeFactory.instance.objectNode();
+        v3.put("seniority", "mid");
+        ObjectNode v2 = JsonNodeFactory.instance.objectNode();
+        v2.put("seniority", "junior");
+        when(adminService.getCandidateNormalizedProfileVersions(userId)).thenReturn(List.of(
+                new AdminNormalizedProfileResponse(userId, 3, "2",
+                        java.time.LocalDateTime.of(2026, 10, 1, 12, 0), "done", v3),
+                new AdminNormalizedProfileResponse(userId, 2, "2",
+                        java.time.LocalDateTime.of(2026, 9, 1, 12, 0), "done", v2)));
+
+        mockMvc.perform(get("/api/v1/admin/users/{userId}/normalized-profile/versions", userId)
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].version").value(3))
+                .andExpect(jsonPath("$[0].jobStatus").value("done"))
+                .andExpect(jsonPath("$[0].content.seniority").value("mid"))
+                .andExpect(jsonPath("$[1].version").value(2))
+                .andExpect(jsonPath("$[1].content.seniority").value("junior"));
+    }
+
+    @Test
+    void candidateNormalizedProfileVersionsRenvoie404SansFiche() throws Exception {
+        doThrow(new NormalizedProfileNotFoundException(true))
+                .when(adminService).getCandidateNormalizedProfileVersions(any());
+
+        mockMvc.perform(get("/api/v1/admin/users/{userId}/normalized-profile/versions",
+                        UUID.randomUUID()).with(adminJwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("Normalized profile not found"));
     }
@@ -345,6 +410,40 @@ class AdminControllerTest {
                 .andExpect(jsonPath("$.schemaVersion").value("1"))
                 .andExpect(jsonPath("$.jobStatus").value("failed"))
                 .andExpect(jsonPath("$.content.title").value("Dev Java"));
+    }
+
+    @Test
+    void offerNormalizedProfileVersionsRenvoie200AvecListe() throws Exception {
+        UUID offerId = UUID.randomUUID();
+        ObjectNode v2 = JsonNodeFactory.instance.objectNode();
+        v2.put("title", "Dev Java");
+        ObjectNode v1 = JsonNodeFactory.instance.objectNode();
+        v1.put("title", "Dev");
+        when(adminService.getOfferNormalizedProfileVersions(offerId)).thenReturn(List.of(
+                new AdminNormalizedProfileResponse(offerId, 2, "1",
+                        java.time.LocalDateTime.of(2026, 10, 2, 9, 0), "done", v2),
+                new AdminNormalizedProfileResponse(offerId, 1, "1",
+                        java.time.LocalDateTime.of(2026, 9, 2, 9, 0), "failed", v1)));
+
+        mockMvc.perform(get("/api/v1/admin/job-offers/{offerId}/normalized-profile/versions",
+                        offerId).with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].version").value(2))
+                .andExpect(jsonPath("$[0].content.title").value("Dev Java"))
+                .andExpect(jsonPath("$[1].version").value(1))
+                .andExpect(jsonPath("$[1].jobStatus").value("failed"));
+    }
+
+    @Test
+    void offerNormalizedProfileVersionsRenvoie404SansFiche() throws Exception {
+        doThrow(new NormalizedProfileNotFoundException(false))
+                .when(adminService).getOfferNormalizedProfileVersions(any());
+
+        mockMvc.perform(get("/api/v1/admin/job-offers/{offerId}/normalized-profile/versions",
+                        UUID.randomUUID()).with(adminJwt()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Normalized profile not found"));
     }
 
     @Test

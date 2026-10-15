@@ -17,6 +17,7 @@ import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.dto.ApproveSkillSuggestionRequest;
 import com.linqorbit.admin.dto.LinkSkillSuggestionRequest;
 import com.linqorbit.admin.dto.UpdateUserStatusRequest;
+import com.linqorbit.candidate.dto.CandidateProfileResponse;
 import com.linqorbit.common.security.CurrentUserId;
 
 import lombok.RequiredArgsConstructor;
@@ -39,8 +40,19 @@ public class AdminController implements AdminApi {
     }
 
     @Override
+    public ResponseEntity<CandidateProfileResponse> getCandidateProfile(UUID userId) {
+        return ResponseEntity.ok(adminService.getCandidateProfile(userId));
+    }
+
+    @Override
     public ResponseEntity<AdminNormalizedProfileResponse> getCandidateNormalizedProfile(UUID userId) {
         return ResponseEntity.ok(adminService.getCandidateNormalizedProfile(userId));
+    }
+
+    @Override
+    public ResponseEntity<List<AdminNormalizedProfileResponse>> getCandidateNormalizedProfileVersions(
+            UUID userId) {
+        return ResponseEntity.ok(adminService.getCandidateNormalizedProfileVersions(userId));
     }
 
     @Override
@@ -56,6 +68,12 @@ public class AdminController implements AdminApi {
     @Override
     public ResponseEntity<AdminNormalizedProfileResponse> getOfferNormalizedProfile(UUID offerId) {
         return ResponseEntity.ok(adminService.getOfferNormalizedProfile(offerId));
+    }
+
+    @Override
+    public ResponseEntity<List<AdminNormalizedProfileResponse>> getOfferNormalizedProfileVersions(
+            UUID offerId) {
+        return ResponseEntity.ok(adminService.getOfferNormalizedProfileVersions(offerId));
     }
 
     @Override

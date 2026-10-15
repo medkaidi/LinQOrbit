@@ -1,6 +1,17 @@
 @import "tailwindcss";
 
 /*
+ * Largeur de la sidenav (rail admin + dashboard repliables) exposée comme
+ * variable CSS : le drawer normalisé (portailé sur <body>) et les pages
+ * détail s'en servent pour se calquer à 50 % du contenu hors sidenav — la
+ * var est posée sur <html> par `AdminShell` (jamais sur un div : le portail
+ * n'hériterait pas). Défaut = sidenav dépliée.
+ */
+:root {
+  --sidenav-w: 16rem;
+}
+
+/*
  * Design tokens portés à l'identique du template LinQOrbit (template/login.html)
  * : palette Material-3, échelle typographique, rayons et ombres.
  */
@@ -240,6 +251,23 @@
   float: left;
   height: 0;
   pointer-events: none;
+}
+
+/*
+ * Drawer latéral (D39) : entrée glissée depuis la droite — la règle
+ * mouvement réduit ci-dessous neutralise la durée.
+ */
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.drawer-in {
+  animation: drawer-in 180ms ease-out;
 }
 
 /*

@@ -31,7 +31,7 @@ import {
 import { me } from "@/lib/api/auth.api";
 import type { CandidateProfile } from "@/types/candidate";
 import type { AuthUser } from "@/types/auth";
-import { ProfileView } from "@/features/candidate/profile-view";
+import { ProfileSections, ProfileView } from "@/features/candidate/profile-view";
 
 const mockedGetProfile = vi.mocked(getProfile);
 const mockedValidateProfile = vi.mocked(validateProfile);
@@ -306,5 +306,43 @@ describe("ProfileView", () => {
     await waitFor(() => {
       expect(mockedGetProfile).toHaveBeenCalledTimes(2);
     });
+  });
+});
+
+describe("ProfileSections compact (D39, retours UI 2026-10-15)", () => {
+  function renderSections(compact: boolean) {
+    return render(
+      <ProfileSections profile={filledProfile} account={accountUser} readOnly compact={compact} />,
+    );
+  }
+
+  it("never lays two sections side by side, even in compact mode", () => {
+    const { container } = renderSections(true);
+
+    // Une section par ligne : aucun wrapper grille 2 colonnes (l'ancien
+    // `@2xl:grid-cols-2` compact est supprimé).
+    expect(container.querySelector('[class*="@2xl:grid-cols-2"]')).toBeNull();
+    const experience = within(container).getByRole("heading", { name: "Experience" });
+    const skills = within(container).getByRole("heading", { name: "Skills" });
+    // Les sections sont des sœurs dans la même pile (même parent).
+    expect(experience.closest("section")?.parentElement).toBe(
+      skills.closest("section")?.parentElement,
+    );
+  });
+
+  it("collapses the About grid to one column in compact mode", () => {
+    const { container } = renderSections(true);
+
+    // Placements explicites et 2e colonne lg neutralisés (ils casseraient à mi-largeur).
+    expect(container.querySelector('[class*="lg:col-start"]')).toBeNull();
+    expect(container.querySelector(".lg\\:grid-cols-2")).toBeNull();
+  });
+
+  it("keeps the default About 2-column layout without compact", () => {
+    const { container } = renderSections(false);
+
+    expect(container.querySelector('[class*="@2xl:grid-cols-2"]')).toBeNull();
+    // La grille About garde son placement explicite 2 colonnes.
+    expect(container.querySelector('[class*="lg:col-start"]')).not.toBeNull();
   });
 });

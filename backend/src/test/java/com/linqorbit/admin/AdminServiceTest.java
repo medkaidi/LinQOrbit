@@ -45,7 +45,9 @@ import com.linqorbit.candidate.entity.Candidate;
 import com.linqorbit.candidate.entity.NormalizationJob;
 import com.linqorbit.candidate.entity.NormalizationJobStatus;
 import com.linqorbit.candidate.entity.NormalizedProfile;
+import com.linqorbit.candidate.dto.CandidateProfileResponse;
 import com.linqorbit.candidate.repository.CandidateRepository;
+import com.linqorbit.candidate.service.CandidateService;
 import com.linqorbit.candidate.entity.SkillType;
 import com.linqorbit.candidate.entity.CandidateSkill;
 import com.linqorbit.candidate.entity.Skill;
@@ -91,6 +93,7 @@ class AdminServiceTest {
     private NormalizationJobRepository normalizationJobRepository;
     private JobOfferRepository jobOfferRepository;
     private JobOfferService jobOfferService;
+    private CandidateService candidateService;
     private CompanyRepository companyRepository;
     private AdminService adminService;
 
@@ -108,12 +111,13 @@ class AdminServiceTest {
         normalizationJobRepository = mock(NormalizationJobRepository.class);
         jobOfferRepository = mock(JobOfferRepository.class);
         jobOfferService = mock(JobOfferService.class);
+        candidateService = mock(CandidateService.class);
         companyRepository = mock(CompanyRepository.class);
         adminService = new AdminService(userRepository, userRoleRepository, skillSuggestionRepository,
                 skillRepository, candidateRepository, candidateSkillRepository, recruiterRepository,
                 normalizedProfileRepository, normalizedProfileJobOfferRepository,
-                normalizationJobRepository, jobOfferRepository, jobOfferService, companyRepository,
-                new ObjectMapper());
+                normalizationJobRepository, jobOfferRepository, jobOfferService, candidateService,
+                companyRepository, new ObjectMapper());
     }
 
     @Test
@@ -445,6 +449,32 @@ class AdminServiceTest {
     }
 
     @Test
+    void getCandidateProfileDelegueAuServiceCandidatQuandLeCompteExiste() {
+        UUID candidateId = UUID.randomUUID();
+        CandidateProfileResponse profile = new CandidateProfileResponse(null, List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), 60, true, false, false);
+        when(candidateRepository.existsById(candidateId)).thenReturn(true);
+        when(candidateService.getProfile(candidateId)).thenReturn(profile);
+
+        CandidateProfileResponse response = adminService.getCandidateProfile(candidateId);
+
+        assertThat(response).isSameAs(profile);
+        assertThat(response.completionPercentage()).isEqualTo(60);
+        assertThat(response.hasUnvalidatedChanges()).isTrue();
+        verify(candidateService).getProfile(candidateId);
+    }
+
+    @Test
+    void getCandidateProfileRejetteUnCompteInconnuOuSansProfilCandidat() {
+        UUID unknownId = UUID.randomUUID();
+        when(candidateRepository.existsById(unknownId)).thenReturn(false);
+
+        assertThatThrownBy(() -> adminService.getCandidateProfile(unknownId))
+                .isInstanceOf(UserNotFoundException.class);
+        verify(candidateService, never()).getProfile(any());
+    }
+
+    @Test
     void getCandidateNormalizedProfileParseLeContenuEtLeStatutDuJob() {
         UUID candidateId = UUID.randomUUID();
         UUID profileId = UUID.randomUUID();
@@ -531,6 +561,115 @@ class AdminServiceTest {
                 .thenReturn(List.of());
 
         assertThatThrownBy(() -> adminService.getOfferNormalizedProfile(offerId))
+                .isInstanceOf(NormalizedProfileNotFoundException.class);
+    }
+
+    @Test
+    void getCandidateNormalizedProfileVersionsMappeToutesLesVersionsDecroissantes() {
+        UUID candidateId = UUID.randomUUID();
+        UUID profileIdV3 = UUID.randomUUID();
+        UUID profileIdV2 = UUID.randomUUID();
+        NormalizedProfile v3 = NormalizedProfile.builder()
+                .id(profileIdV3).version(3).schemaVersion("2")
+                .content("{\"seniority\":\"mid\"}")
+                .validatedAt(LocalDateTime.of(2026, 10, 1, 12, 0)).build();
+        NormalizedProfile v2 = NormalizedProfile.builder()
+                .id(profileIdV2).version(2).schemaVersion("2")
+                .content("{\"seniority\":\"junior\"}")
+                .validatedAt(LocalDateTime.of(2026, 9, 1, 12, 0)).build();
+        when(candidateRepository.existsById(candidateId)).thenReturn(true);
+        when(normalizedProfileRepository.findLatestByCandidateId(eq(candidateId), eq(Pageable.unpaged())))
+                .thenReturn(List.of(v3, v2));
+        when(normalizationJobRepository.findById(profileIdV3))
+                .thenReturn(Optional.of(NormalizationJob.builder()
+                        .id(profileIdV3).status(NormalizationJobStatus.DONE).build()));
+        when(normalizationJobRepository.findById(profileIdV2)).thenReturn(Optional.empty());
+
+        List<AdminNormalizedProfileResponse> versions =
+                adminService.getCandidateNormalizedProfileVersions(candidateId);
+
+        assertThat(versions).hasSize(2);
+        assertThat(versions.get(0).version()).isEqualTo(3);
+        assertThat(versions.get(0).schemaVersion()).isEqualTo("2");
+        assertThat(versions.get(0).content().get("seniority").asString()).isEqualTo("mid");
+        assertThat(versions.get(0).jobStatus()).isEqualTo("done");
+        assertThat(versions.get(1).version()).isEqualTo(2);
+        assertThat(versions.get(1).content().get("seniority").asString()).isEqualTo("junior");
+        assertThat(versions.get(1).jobStatus()).isNull();
+        verify(normalizedProfileRepository).findLatestByCandidateId(eq(candidateId), eq(Pageable.unpaged()));
+    }
+
+    @Test
+    void getCandidateNormalizedProfileVersionsRejetteUnCompteNonCandidat() {
+        UUID unknownId = UUID.randomUUID();
+        when(candidateRepository.existsById(unknownId)).thenReturn(false);
+
+        assertThatThrownBy(() -> adminService.getCandidateNormalizedProfileVersions(unknownId))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Test
+    void getCandidateNormalizedProfileVersionsRejetteUnCompteSansFiche() {
+        UUID candidateId = UUID.randomUUID();
+        when(candidateRepository.existsById(candidateId)).thenReturn(true);
+        when(normalizedProfileRepository.findLatestByCandidateId(eq(candidateId), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> adminService.getCandidateNormalizedProfileVersions(candidateId))
+                .isInstanceOf(NormalizedProfileNotFoundException.class);
+    }
+
+    @Test
+    void getOfferNormalizedProfileVersionsMappeToutesLesVersionsDecroissantes() {
+        UUID offerId = UUID.randomUUID();
+        UUID profileIdV2 = UUID.randomUUID();
+        UUID profileIdV1 = UUID.randomUUID();
+        NormalizedProfile v2 = NormalizedProfile.builder()
+                .id(profileIdV2).version(2).schemaVersion("1")
+                .content("{\"title\":\"Dev Java\"}")
+                .validatedAt(LocalDateTime.of(2026, 10, 2, 9, 0)).build();
+        NormalizedProfile v1 = NormalizedProfile.builder()
+                .id(profileIdV1).version(1).schemaVersion("1")
+                .content("{\"title\":\"Dev\"}")
+                .validatedAt(LocalDateTime.of(2026, 9, 2, 9, 0)).build();
+        when(jobOfferRepository.existsById(offerId)).thenReturn(true);
+        when(normalizedProfileJobOfferRepository.findLatestByOfferId(eq(offerId), eq(Pageable.unpaged())))
+                .thenReturn(List.of(v2, v1));
+        when(normalizationJobRepository.findById(profileIdV2))
+                .thenReturn(Optional.of(NormalizationJob.builder()
+                        .id(profileIdV2).status(NormalizationJobStatus.FAILED).build()));
+        when(normalizationJobRepository.findById(profileIdV1)).thenReturn(Optional.empty());
+
+        List<AdminNormalizedProfileResponse> versions =
+                adminService.getOfferNormalizedProfileVersions(offerId);
+
+        assertThat(versions).hasSize(2);
+        assertThat(versions.get(0).version()).isEqualTo(2);
+        assertThat(versions.get(0).content().get("title").asString()).isEqualTo("Dev Java");
+        assertThat(versions.get(0).jobStatus()).isEqualTo("failed");
+        assertThat(versions.get(1).version()).isEqualTo(1);
+        assertThat(versions.get(1).content().get("title").asString()).isEqualTo("Dev");
+        assertThat(versions.get(1).jobStatus()).isNull();
+        verify(normalizedProfileJobOfferRepository).findLatestByOfferId(eq(offerId), eq(Pageable.unpaged()));
+    }
+
+    @Test
+    void getOfferNormalizedProfileVersionsRejetteUneOffreInconnue() {
+        UUID unknownId = UUID.randomUUID();
+        when(jobOfferRepository.existsById(unknownId)).thenReturn(false);
+
+        assertThatThrownBy(() -> adminService.getOfferNormalizedProfileVersions(unknownId))
+                .isInstanceOf(JobOfferNotFoundException.class);
+    }
+
+    @Test
+    void getOfferNormalizedProfileVersionsRejetteUneOffreSansFiche() {
+        UUID offerId = UUID.randomUUID();
+        when(jobOfferRepository.existsById(offerId)).thenReturn(true);
+        when(normalizedProfileJobOfferRepository.findLatestByOfferId(eq(offerId), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> adminService.getOfferNormalizedProfileVersions(offerId))
                 .isInstanceOf(NormalizedProfileNotFoundException.class);
     }
 

@@ -62,4 +62,21 @@ describe("DashboardHeader", () => {
     expect(screen.getByText("Ada L.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Account menu" })).toBeInTheDocument();
   });
+
+  it("follows the sidebar collapse with its left offset (T-40)", () => {
+    const { container } = renderWithQueryClient(<DashboardHeader collapsed />);
+
+    const header = container.querySelector("header");
+    expect(header).toHaveClass("left-0");
+    expect(header).toHaveClass("lg:left-20");
+    expect(header).not.toHaveClass("lg:left-64");
+  });
+
+  it("stays offset by the full sidebar when expanded", () => {
+    const { container } = renderWithQueryClient(<DashboardHeader collapsed={false} />);
+
+    const header = container.querySelector("header");
+    expect(header).toHaveClass("lg:left-64");
+    expect(header).not.toHaveClass("lg:left-20");
+  });
 });

@@ -4,10 +4,21 @@ import { Logo } from "@/components/brand/logo";
 import { UserMenu } from "@/components/navigation/user-menu";
 import { Icon } from "@/components/ui/icon";
 import { ViewModeToggle } from "@/components/ui/view-mode-toggle";
+import { cn } from "@/lib/utils/cn";
 
-export function DashboardHeader() {
+/**
+ * Top bar du dashboard : recherche + vue Candidate/Recruiter + notifications
+ * (désactivées) + menu utilisateur. `collapsed` suit le repli du sidenav
+ * (`DashboardShell`, T-40) : le bord gauche du header épouse le rail.
+ */
+export function DashboardHeader({ collapsed }: { collapsed?: boolean }) {
   return (
-    <header className="fixed top-0 left-0 lg:left-64 right-0 h-16 bg-canvas-white/95 backdrop-blur-sm border-b border-slate-border z-40 flex items-center justify-between px-4 lg:px-8 gap-4">
+    <header
+      className={cn(
+        "fixed top-0 right-0 h-16 bg-canvas-white/95 backdrop-blur-sm border-b border-slate-border z-40 flex items-center justify-between px-4 lg:px-8 gap-4",
+        collapsed ? "left-0 lg:left-20" : "left-0 lg:left-64",
+      )}
+    >
       <div className="flex items-center gap-4 flex-1 max-w-xl">
         <Link
           href="/dashboard"

@@ -10,24 +10,88 @@
 
 ## En cours / à faire
 
-> **Chantier « fiche conforme » validé le 2026-10-14** (utilisateur) :
-> extraction maximale des deux côtés, poids 1-5 partout, langues
-> déclarées + inférées, certifications aussi sur l'offre, minYears
-> déductible même sur skill déclaré, versionnement par fiche confirmé.
-> Livré le 2026-10-14 (T-13→T-19, phases P1→P7) — voir D35/D36 (SPEC §14.7)
-> et la table Livré ci-dessous.
+> **Chantier « redesign fiches normalisées » (2026-10-14)**, inspiré de
+> `frontend/template/normalized_profile.html` — **maquette = inspiration
+> visuelle uniquement** : couper chrome dashboard et widgets sans donnée
+> réelle (confiance, checksum, entropie, O*NET/ESCO, compensation,
+> affinité matching, viewer JSON, toggle candidat/offre). Une **page
+> dédiée** par fiche (pas modal, pas inline) porte le bandeau
+> d'identité + actions (Copy/Download JSON) + historique des versions.
+> L'admin voit aussi le profil professionnel du candidat (mode lecture,
+> identique à sa vue) et l'offre source au look « fiche » (remplace
+> `PublicJobArticle`). Livraison P1→P7, chaque phase = suite verte.
+> Décisions : D37/D38 à écrire en SPEC §14 en P7.
 
 | ID | Zone | Tâche | Dette | État |
 |---|---|---|---|---|
-| T-13 | ai-service | **P1 — Schéma offre v1 → v2** (`schemas/job_offer.py`) : input restauré (`JobOfferSkillInput.weight`, `required_exp_year`, `degree_labels`, `study_field_labels` + null-coercion) ; output : `SCHEMA_VERSION="2"`, `OfferSkillRequirement.weight` (1-5, toujours présent) + `min_years_source`, `NormalizedResponsibility.weight` (1-5, toujours inféré), `required_years` + `required_years_source`, `required_degrees[]`/`required_study_fields[]` (`{label, source}`), `certifications[]` (minées, pas d'invention), `JobOfferLanguageRequirement.origin`, docstrings | TD-033 | Livré |
-| T-14 | ai-service | **P2 — Prompt offre v2** (`graphs/job_offer_normalize_agent.py`) : règles poids (déclaré verbatim / inféré = centralité du poste, 5=pivot 1-2=mention), minYears déductible sur skills déclarés sans years (source `inferred`), requiredYears total uniquement (déclaré jamais écrasé), degrees/studyFields déclarés + minés, certifications nommées explicitement, langues origin, example enrichi, "2" | TD-034 | Livré |
-| T-15 | ai-service | **P3 — Tests offre v2** : `test_job_offer_schemas`, `test_job_offer_normalize`, `test_job_offer_agent`, `test_job_offer_routes` | — | Livré |
-| T-16 | backend | **P4 — Miroirs Java** : `JobOfferNormalizationService.SCHEMA_VERSION="2"`, `NormalizationService.SCHEMA_VERSION="3"`, `buildForOffer` + degrees/studyFields (repos déjà injectés) ; tests | — | Livré |
-| T-17 | ai-service | **P5 — Candidat v2 → v3** (`schemas/normalize.py` + `graphs/normalize_agent.py`) : `SCHEMA_VERSION="3"` ; `NormalizedLanguage {name, level, origin, evidence}` ; `NormalizedDiploma`/`NormalizedCertification` + `origin`+`evidence` (créables quand un texte nomme explicitement le credential, sinon interdit) ; evidence `source:"bio"` (index null) sur skills/langues/diplômes/certifications ; prompt : langues/diplômes/certifications minés depuis bio/expériences/projets, expériences/projets/links jamais créés ; tests candidat | — | Livré |
-| T-18 | frontend | **P6 — Vues** : `types/normalized.ts` (poids, sources, exigences, certifications offre, langues candidat) ; `normalized-offer-view.tsx` (weight, required experience, education, certifications, badges origin) ; vue candidat (badges origin langues/diplômes/certifications) ; tests | — | Livré |
-| T-19 | docs | **P7 — SPEC** : D35 (fiche offre v2), D36 (candidat v3), note §6.2 (fin « ni minés ni persistés »), §4.3 (languages/diplomas/certifications enrichis), règle matching `declared`=filtre dur / `inferred`=advisory ; tasks Livré ; TECH_DEBT TD-033/TD-036 reformulées | TD-033, TD-036 | Livré |
+| T-20 | frontend | **P1 — Fondations redesign + vue candidat** : `normalized-shared.ts` (`sheetStats(content)` = declared/inferred + couverture sections, `SpecGrid` cellules label mono + valeur, `SectionBlock` point coloré + titre lettré) ; `normalized-profile-section.tsx` → bandeau d'identité réel (`profileId` tronqué mono, `v{version}`, `schema`, `validatedAt`, statut job) + actions Copy JSON (libellé « Copied » 2 s) / Download JSON (Blob `normalized-profile-v{n}.json`) / History (slot) ; refactor `normalized-candidate-view.tsx` en grille `xl:grid-cols-12` (gauche 8 : A identity spec-grid + summary, B tableau skills : name/category, level n/5, years, evidence, origin ; C timeline fusionnée expériences+projets+diplômes triée date desc avec chips période + badge type ; D langues, E certifications, F links) ; rail droite 4 : widget Provenance (barre declared/inferred) + widget Sections (couverture réelle) ; tests vues + section | — | Livré |
+| T-21 | frontend | **P2 — Vue offre redesign** : même grille 8/4 ; A SpecGrid (domain, contract, work time, seniority, work mode, location, salary) + summary + company + description ; B tableau skills unique colonnes Skill/Requirement (Required/Preferred)/Weight/Level/Min years/Evidence/Origin ; C responsibilities (cartes + weight + importance) ; D Requirements (required experience + education, sous-labels conservés) ; E Languages ; F Certifications ; G Benefits ; rail (`offerSheetStats`) ; **tolérance fiches v1** (champs absents → « — », aucun badge origin fabriqué) ; tests | — | Livré |
+| T-22 | backend | **P3 — Historique des versions** : `GET /api/v1/admin/users/{userId}/normalized-profile/versions` + `GET /api/v1/admin/job-offers/{offerId}/normalized-profile/versions` → `List<AdminNormalizedProfileResponse>` triée version desc (réutilise les queries existantes avec `Pageable.unpaged()`), 404 miroirs des endpoints courants, contrat dans `AdminApi`, tests `AdminControllerTest` + `AdminServiceTest` (+ `OpenApiDocsTest` si nécessaire) | — | Livré |
+| T-23 | frontend | **P4 — Pages dédiées + historique UI** : routes `(admin)/admin/users/[userId]/sheet/page.tsx` + `admin/offers/[offerId]/sheet/page.tsx` (fil d'Ariane retour, bandeau + 3 actions, panneau History lazy `admin.normalizedVersions(id)` : liste `v · schema · validatedAt · status`, sélection = affichage de cette version avec badge « Viewing v2 — current is v3 » + « Back to current », JSON = contenu de la version affichée) ; sur les pages détail : la section inline est remplacée par une **carte CTA** (badge statut + « Open sheet » → page dédiée ; jamais validé → message) ; `admin.api.ts` + `query-keys.ts` ; tests | T-20→T-22 | Livré |
+| T-24 | backend+frontend | **P5 — Profil professionnel du candidat côté admin** : `GET /api/v1/admin/users/{userId}/profile` (même shape que `CandidateProfileResponse`, 404 si pas de candidat) + affichage sur la page détail compte **en mode lecture identique à la vue du candidat** (réutiliser les composants/sections de lecture — extraire les props nécessaires plutôt que dupliquer) ; tests BE (controller/service) + FE | — | Livré |
+| T-25 | frontend | **P6 — Détail offre : vue source style « fiche »** : remplacer `PublicJobArticle` (`toPublicJobArticleModel`) par un composant admin qui rend l'offre **stockée** (labels résolus, HTML sanitisé) avec le look de l'ancienne `normalized-offer-view` (header bits + summary + description + skills avec weight/years/requirementType BD + langues + degrees/study fields + salary ; pas de responsibilities/benefits — non stockés) ; tests | — | Livré |
+| T-26 | docs | **P7 — SPEC** : D37 (redesign vues + pages dédiées + historique), D38 (profil candidat admin + offre source, remplace PublicJobArticle) en §14 ; tâches Livré ; `frontend/AGENTS.md` phrase console admin (actions JSON + historique + page dédiée) | T-20→T-25 | Livré |
 
-### Règles produit actées (validées 2026-10-14)
+> **Chantier « drawer de comparaison » (2026-10-14)**, décision produit D39 :
+> la fiche normalisée s'ouvre dans un **drawer latéral droit non-modal** depuis
+> les deux pages détail (compte + offre) — le source reste visible ET
+> interactif derrière (comparaison des deux volets) ; largeur 50 % viewport
+> bornée [560px, 840px], plein écran sous `lg`. **Remplacement total** des
+> pages dédiées `/sheet` (supprimées, une seule façon de faire) ; deep-link
+> `?sheet=open` ; toutes les opérations de l'ancienne page (Copy/Download
+> JSON, History, sélection de version, badge Viewing + Back to current)
+> sont conservées dans le drawer. CTA « Open sheet » = `CtaButton`
+> `tone="secondary"` (bleu), plus un `NavPill`. Source compacté en
+> 2 colonnes pour la comparaison. T-30 : sidenav admin repliable (rail
+> icônes) pour libérer la largeur.
+
+| ID | Zone | Tâche | Dette | État |
+|---|---|---|---|---|
+| T-27 | frontend | **Drawer + corps de fiche partagé** : `components/ui/drawer.tsx` (shell side **non-modal** : portail, `role="dialog"` sans `aria-modal` — la source derrière reste scrollable/cliquable, Esc ferme, focus au montage + retour au CTA, largeur `lg:w-[50vw]` min 560 max 840, plein écran sous `lg`, slide-in respectant `prefers-reduced-motion`) ; `normalized-sheet-body.tsx` extrait de `NormalizedSheetView` (hooks + `NormalizedProfileSection` + actions History/version + vues friendly — **rien n'est retiré**) ; `normalized-sheet-drawer.tsx` wraps `Drawer` + body (titre « Normalized sheet » + nom entité depuis le détail déjà chargé) ; CTA des 2 pages détail = **bouton** (`CtaButton tone="secondary"`) ouvrant le drawer, état `?sheet=open` (router, refresh/back restaurent) ; **suppression** des routes `…/sheet/page.tsx` + `normalized-sheet-view.tsx` ; tests (ouverture/Esc, sélection de version dans le drawer, 404/erreur inchangés) | T-20→T-26 | Livré |
+| T-28 | frontend | **Source compacté 2 colonnes** : `ProfileSections` accepte `compact` (grille 2 colonnes au-dessus de `xl`, `items-start`) + `AboutSection` repli 1 colonne en compact (les placements `lg:col-start-*` cassent à mi-largeur) ; `AdminOfferSourceView` en 2 colonnes (description full-width, blocs restants en grille) ; `/profile` inchangé (défaut `compact=false`) ; tests | T-27 | Livré |
+| T-29 | docs | **D39** en SPEC §14 (drawer non-modal de comparaison, remplace les pages dédiées, `?sheet=open`, CTA bleu, source 2 colonnes, D40 sidenav si livré) ; phrase console admin `frontend/AGENTS.md` ; tâches Livré | T-27→T-28 | Livré |
+| T-30 | frontend | **Sidenav admin repliable** : bouton toggle dans `AdminSidebar` (rail icônes ~`w-20` replié avec `title`/`aria-label`, chevron d'ouverture), largeur layout `lg:pl-64` ↔ `lg:pl-20`, état persisté (Zustand `linqorbit.adminSidebar`), tests | T-27→T-28 | Livré |
+
+> **Retours UI drawer/sidenav (2026-10-14, 7 remarques)** : le drawer
+> recouvrait le bon tiers des pages détail (sections inaccessibles) — la
+> source se réduit (`pr` calé sur la largeur du drawer) à l'ouverture et
+> revient pleine largeur à la fermeture ; bandeau CTA remonté ; fiche
+> compactée (arrondis `rounded-md` sur les blocs internes — calés/ajustés
+> sur la maquette — textes qui repassent à la ligne, paddings réduits) ;
+> sections numérotées (motif `ItemIndex`) au lieu de pastilles colorées ;
+> toggle sidenav remonté en haut + logo/wordmark resserrés ; actions JSON
+> unifiées sur `CtaButton` grise.
+
+| ID | Zone | Tâche | Dette | État |
+|---|---|---|---|---|
+| T-31 | frontend | **Source réduite à l'ouverture du drawer** : racine des 2 pages détail `lg:pr-[clamp(560px,50vw,840px)]` quand `sheetOpen` (le contenu ne passe jamais sous le drawer) ; `compact={sheetOpen}` sur `ProfileSections` + prop `compact` sur `AdminOfferSourceView` ; seuil 2 colonnes en **container query** (`@container` + `@[40rem]:grid-cols-2`) ; fermé = affichage antérieur pleine largeur ; tests fermé/ouvert | T-27→T-30 | Livré |
+| T-32 | frontend | **Bandeau CTA remonté** : candidat = entre l'en-tête « Professional profile » et « Personal Information » ; offre = entre le h1 et la ligne company (`AdminOfferSourceView`) ; tests d'ordre DOM | T-31 | Livré |
+| T-33 | frontend | **Compacité fiche + arrondis + boutons JSON** : `SpecGrid` cellules `rounded-md px-3 py-2.5 gap-2`, `truncate` → wrap (`break-words`/`break-all`) ; `NORMALIZED_ITEM_CARD` → `rounded-md p-3.5` ; rail `p-4` + internes `rounded-md p-2.5` ; drawer/section paddings `mx-4/px-4 pt-4 pb-5` ; Copy/Download JSON → `CtaButton tone="neutral"` (unification CTA plateforme) ; tests | T-30 | Livré |
+| T-34 | frontend | **Sections numérotées** : `SectionBlock` pastille numérotée motif `ItemIndex` (supprime `tone`/point coloré, `letter` → `index`, titre nu) ; call sites candidat (1–6) + offre (1–n) ; tests « A. X » → titres nus | T-33 | Livré |
+| T-35 | frontend | **Sidenav : toggle en haut + logo resserré** : chevron déplacé en haut à droite du conteneur logo (bouton icône compact, plus de `w-full`) ; conteneur logo `rounded-xl px-2.5 py-2` sans bordure (différencié des nav links `rounded-full`) ; Logo + Wordmark `h-5` ; tests | T-30 | Livré |
+| T-36 | docs | Micro-maj `frontend/AGENTS.md` (toggle haut, arrondis fiche) ; tâches Livré ; FE test+lint+build complets | T-31→T-35 | Livré |
+
+## Retours UI v2 — contenu principal, wordmark, toggle dashboard (2026-10-15)
+
+> Deuxième tour de retours sur la console admin et le shell. Contenu
+> principal (hors fiche normalisée) aligné sur les arrondis de la vue
+> candidat (`rounded-2xl`) ; une section par ligne toujours (suppression
+> des grilles 2 colonnes compact) ; offre : chaque section dans sa propre
+> carte blanche (motif `ViewSection`) ; wordmark affiné partout (composant
+> unique) ; toggle de repli étendu au sidebar du dashboard candidat/
+> recruteur.
+
+| ID | Zone | Tâche | Dette | État |
+|---|---|---|---|---|
+| T-37 | frontend | **Une section par ligne (toujours)** : supprimer les grilles 2 colonnes compact (`@container` + `@2xl:grid-cols-2`) de `ProfileSections` et `AdminOfferSourceView` — les sections/blocs restent empilés pleine largeur, drawer ouvert ou fermé ; `compact` ne sert plus qu'au repli `AboutSection` 1 colonne interne ; tests fermé/ouvert | T-31 | Livré |
+| T-38 | frontend | **Offre : cartes blanches par section + arrondis vue candidat** : chaque section de `AdminOfferSourceView` (Description, Required/Preferred skills, Languages, Education) dans sa propre carte `bg-canvas-white rounded-2xl shadow-sm` (motif `ViewSection`) ; items skills → `rounded-2xl p-4` (fin des tokens `NORMALIZED_ITEM_CARD` dans la source offre — la fiche normalisée du drawer est inchangée) ; chips langues/éducation restent `rounded-full` ; tests | T-37 | Livré |
+| T-39 | frontend | **Wordmark affiné (composant unique → partout)** : `fontWeight` 500 → 400, trait des cercles 4.5 → 3.5 (`components/brand/wordmark.tsx` — dashboard, admin, auth, marketing impactés d'un coup) | — | Livré |
+| T-40 | frontend | **Toggle repli du dashboard sidebar** : store `stores/dashboard-sidebar-store.ts` (clé `linqorbit.dashboardSidebar`, miroir admin) ; toggle en haut à droite du conteneur logo ; rail icônes `w-20` (labels + badge « 3 AI » + carte AI Telemetry masqués, API Help en icône seule, Wordmark masqué) ; `DashboardShell` client (miroir `AdminShell`) qui pilote padding `main` (`lg:pl-64`↔`lg:pl-20`) et `left` du header (`lg:left-64`↔`lg:left-20`) ; tests | T-35 | Livré |
+| T-41 | docs | Micro-maj `frontend/AGENTS.md` (shell dashboard repliable, arrondis offre) ; tâches Livré ; FE test+lint+build complets | T-37→T-40 | Livré |
+| T-42 | frontend | **Drawer normalisé : 50 % du contenu hors sidenav** (au lieu de `50vw` borné [560–840] — à 1440px le drawer prenait plus de la moitié du contenu) : var CSS `--sidenav-w` sur `<html>` posée par `AdminShell` (16rem dépliée / 5rem repliée = suit le repli de la sidenav, choix utilisateur : exactement 50 % même replié) ; constantes `SHEET_HALF_WIDTH`/`SHEET_HALF_PAD` dans `normalized-shared.ts` (plancher 560px, plafond supprimé) ; `ui/drawer` perd sa largeur en dur (injectée via `className` par `normalized-sheet-drawer`) ; 2 pages détail en `pr` miroir ; tests (var, classe panneau, 5 assertions migrées) | T-41 | Livré |
+| T-43 | frontend | **Lockup logo/wordmark — centrage optique du wordmark** : son encre flottait 2 unités (2,9 %) au-dessus du centre de son viewBox, d’où l’impression d’alignement « sur la ligne haute » dans les `flex items-center` (viewBox y `567.75`→`565.75`, encre `574→626` centre 600 = centre de la fenêtre ; le logo était déjà parfaitement centré). **Tailles inchangées** (`Logo h-5` + `Wordmark h-5` sidebars, `h-6`/`h-6` header marketing) : deux passes de réduction du logo (`h-4`, puis `h-4.5`/`h-5.5`) testées puis annulées à la demande de l’utilisateur — seule la correction d’alignement est retenue | T-42 | Livré |
+
+### Règles produit actées (validées 2026-10-14 — chantier fiche conforme, livré T-13→T-19)
 
 - **Poids** : échelle unique 1-5 sur `requiredSkills`, `preferredSkills`,
   `responsibilities`. Déclaré (skill stocké) = verbatim, jamais recalculé.

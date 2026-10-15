@@ -5,12 +5,22 @@ import Link from "next/link";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { NormalizedCandidateView } from "@/features/admin/normalized/normalized-candidate-view";
-import { NormalizedProfileSection } from "@/features/admin/normalized/normalized-profile-section";
-import { NORMALIZED_MUTED } from "@/features/admin/normalized/normalized-shared";
+import { NORMALIZED_MUTED, SHEET_HALF_PAD } from "@/features/admin/normalized/normalized-shared";
+import { NormalizedSheetCta } from "@/features/admin/normalized/normalized-sheet-cta";
+import { NormalizedSheetDrawer } from "@/features/admin/normalized/normalized-sheet-drawer";
 import { RetryButton } from "@/features/admin/retry-button";
-import { useAdminUserDetail, useAdminUserNormalized, useUpdateUserStatus } from "@/hooks/use-admin";
+import { ProfileSections } from "@/features/candidate/profile-view";
+import { fullName } from "@/features/candidate/profile-shared";
+import {
+  useAdminUserDetail,
+  useAdminUserProfile,
+  useAdminUserNormalized,
+  useUpdateUserStatus,
+} from "@/hooks/use-admin";
+import { useSheetQueryParam } from "@/hooks/use-sheet-query-param";
 import { useAuthStore } from "@/stores/auth-store";
+import { cn } from "@/lib/utils/cn";
+import { getApiErrorMessage } from "@/lib/utils/api-error";
 import { ROLE } from "@/lib/utils/roles";
 
 const MUTED = "text-body-sm font-body-sm text-text-secondary";
@@ -26,13 +36,17 @@ function Field({ label, value }: { label: string; value: string | null }) {
 
 /**
  * Fiche détail d'un compte (D33) : identité complète saisie par l'utilisateur
- * (jamais le hash), badges, activation / désactivation, fiche normalisée.
+ * (jamais le hash), badges, activation / désactivation, sections du profil
+ * professionnel en lecture seule (D38, sans CTA d'édition), carte CTA ouvrant
+ * le drawer de comparaison de la fiche normalisée (D37/D39).
  */
 export function UserDetailView({ userId }: { userId: string }) {
   const currentUser = useAuthStore((state) => state.user);
   const detail = useAdminUserDetail(userId);
+  const profile = useAdminUserProfile(userId);
   const normalized = useAdminUserNormalized(userId);
   const statusMutation = useUpdateUserStatus();
+  const [sheetOpen, setSheetOpen] = useSheetQueryParam();
 
   if (detail.isLoading) {
     return <p className={MUTED}>Loading account…</p>;
@@ -59,7 +73,14 @@ export function UserDetailView({ userId }: { userId: string }) {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div
+      className={cn(
+        "flex flex-col gap-6",
+        // Drawer ouvert (D39) : le contenu se réduit à la zone visible —
+        // jamais recouvert par le panneau fixed.
+        sheetOpen && SHEET_HALF_PAD,
+      )}
+    >
       <div className="pb-6 border-b border-slate-border">
         <nav
           aria-label="Breadcrumb"
@@ -132,20 +153,53 @@ export function UserDetailView({ userId }: { userId: string }) {
       </section>
 
       {account.hasCandidateProfile && (
-        <NormalizedProfileSection
-          isLoading={normalized.isLoading}
-          isError={normalized.isError}
-          error={normalized.error}
-          profile={normalized.data}
-          onRetry={() => void normalized.refetch()}
-        >
-          {(content) => <NormalizedCandidateView profile={content} />}
-        </NormalizedProfileSection>
+        <>
+          <div>
+            <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
+              Professional profile
+            </h2>
+            <p className={`${MUTED} mt-1`}>
+              Read-only — the candidate&apos;s own profile view.
+            </p>
+          </div>
+          {profile.isLoading && <p className={MUTED}>Loading profile…</p>}
+          {profile.isError && (
+            <Alert variant="error" title="Unable to load the professional profile">
+              {getApiErrorMessage(profile.error)}{" "}
+              <RetryButton onRetry={() => void profile.refetch()} label="Try again" />
+            </Alert>
+          )}
+          {/* CTA remonté juste au-dessus de « Personal Information » (retour UI). */}
+          <NormalizedSheetCta
+            isLoading={normalized.isLoading}
+            isError={normalized.isError}
+            error={normalized.error}
+            profile={normalized.data}
+            onRetry={() => void normalized.refetch()}
+            onOpen={() => setSheetOpen(true)}
+          />
+          {profile.data && (
+            <ProfileSections
+              profile={profile.data}
+              account={account}
+              readOnly
+              compact={sheetOpen}
+            />
+          )}
+        </>
       )}
       {!account.hasCandidateProfile && (
         <p className={NORMALIZED_MUTED}>
           This account has no candidate profile — no normalized sheet to display.
         </p>
+      )}
+      {sheetOpen && (
+        <NormalizedSheetDrawer
+          kind="user"
+          id={userId}
+          entityLabel={fullName(account) || account.email}
+          onClose={() => setSheetOpen(false)}
+        />
       )}
     </div>
   );

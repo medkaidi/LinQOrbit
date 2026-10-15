@@ -11,9 +11,12 @@ import {
 import {
   approveSkillSuggestion,
   getAdminJobOffer,
+  getAdminUserProfile,
   getOfferNormalizedProfile,
+  getOfferNormalizedProfileVersions,
   getUserDetail,
   getUserNormalizedProfile,
+  getUserNormalizedProfileVersions,
   linkSkillSuggestion,
   listAllJobOffers,
   listSkillSuggestions,
@@ -37,12 +40,37 @@ export function useAdminUserDetail(userId: string | undefined) {
   });
 }
 
+/** Profil professionnel d'un candidat (D38) — requête inactive sans userId. */
+export function useAdminUserProfile(userId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.admin.userProfile(userId ?? ""),
+    queryFn: () => getAdminUserProfile(userId as string),
+    enabled: Boolean(userId),
+  });
+}
+
 /** Fiche normalisée d'un candidat (D33) — requête inactive sans userId. */
 export function useAdminUserNormalized(userId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.admin.userNormalized(userId ?? ""),
     queryFn: () => getUserNormalizedProfile(userId as string),
     enabled: Boolean(userId),
+  });
+}
+
+/**
+ * Historique des fiches normalisées d'un candidat (D37) — requête inactive
+ * sans userId ; `enabled: false` permet de rester lazy (panneau History
+ * ouvert à la demande).
+ */
+export function useAdminUserNormalizedVersions(
+  userId: string | undefined,
+  options: { enabled?: boolean } = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.admin.userNormalizedVersions(userId ?? ""),
+    queryFn: () => getUserNormalizedProfileVersions(userId as string),
+    enabled: Boolean(userId) && (options.enabled ?? true),
   });
 }
 
@@ -77,6 +105,22 @@ export function useAdminOfferNormalized(offerId: string | undefined) {
     queryKey: queryKeys.admin.jobOfferNormalized(offerId ?? ""),
     queryFn: () => getOfferNormalizedProfile(offerId as string),
     enabled: Boolean(offerId),
+  });
+}
+
+/**
+ * Historique des fiches normalisées d'une offre (D37) — requête inactive sans
+ * offerId ; `enabled: false` permet de rester lazy (panneau History ouvert à
+ * la demande).
+ */
+export function useAdminOfferNormalizedVersions(
+  offerId: string | undefined,
+  options: { enabled?: boolean } = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.admin.jobOfferNormalizedVersions(offerId ?? ""),
+    queryFn: () => getOfferNormalizedProfileVersions(offerId as string),
+    enabled: Boolean(offerId) && (options.enabled ?? true),
   });
 }
 

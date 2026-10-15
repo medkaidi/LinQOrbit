@@ -38,6 +38,7 @@ import com.linqorbit.candidate.entity.SkillType;
 import com.linqorbit.candidate.entity.CandidateSkill;
 import com.linqorbit.candidate.entity.Skill;
 import com.linqorbit.candidate.entity.SkillSuggestion;
+import com.linqorbit.candidate.dto.CandidateProfileResponse;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
 import com.linqorbit.candidate.repository.CandidateRepository;
 import com.linqorbit.candidate.repository.CandidateSkillRepository;
@@ -45,6 +46,7 @@ import com.linqorbit.candidate.repository.NormalizationJobRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.candidate.repository.SkillRepository;
 import com.linqorbit.candidate.repository.SkillSuggestionRepository;
+import com.linqorbit.candidate.service.CandidateService;
 import com.linqorbit.common.pagination.PageSizes;
 import com.linqorbit.company.entity.Company;
 import com.linqorbit.company.repository.CompanyRepository;
@@ -94,6 +96,7 @@ public class AdminService {
     private final NormalizationJobRepository normalizationJobRepository;
     private final JobOfferRepository jobOfferRepository;
     private final JobOfferService jobOfferService;
+    private final CandidateService candidateService;
     private final CompanyRepository companyRepository;
     private final ObjectMapper objectMapper;
 
@@ -313,6 +316,21 @@ public class AdminService {
     }
 
     /**
+     * Profil professionnel d'un candidat (D38) : même payload que la vue du
+     * candidat lui-même (sections, complétion, signaux de normalisation),
+     * assemblé en lecture seule par {@link CandidateService}. 404 si le compte
+     * n'existe pas ou n'est pas un candidat (miroir de la fiche normalisée).
+     */
+    @Transactional(readOnly = true)
+    public CandidateProfileResponse getCandidateProfile(UUID candidateId) {
+        if (!candidateRepository.existsById(candidateId)) {
+            throw new UserNotFoundException(candidateId);
+        }
+        log.info("Admin candidate profile read : candidateId={}", candidateId);
+        return candidateService.getProfile(candidateId);
+    }
+
+    /**
      * Fiche normalisée d'un candidat (D33) : dernière version produite +
      * statut du job associé + contenu pass-through (JsonNode). 404 si le
      * compte n'est pas un candidat ou si aucune validation n'a encore produit
@@ -332,6 +350,25 @@ public class AdminService {
     }
 
     /**
+     * Historique des fiches normalisées d'un candidat (D37) : toutes les
+     * versions produites, de la plus récente à la plus ancienne, chacune avec
+     * son statut de job et son contenu pass-through. 404 mêmes cas que la fiche
+     * courante (compte introuvable ou aucune fiche).
+     */
+    @Transactional(readOnly = true)
+    public List<AdminNormalizedProfileResponse> getCandidateNormalizedProfileVersions(UUID candidateId) {
+        if (!candidateRepository.existsById(candidateId)) {
+            throw new UserNotFoundException(candidateId);
+        }
+        List<NormalizedProfile> versions = normalizedProfileRepository
+                .findLatestByCandidateId(candidateId, Pageable.unpaged());
+        if (versions.isEmpty()) {
+            throw new NormalizedProfileNotFoundException(true);
+        }
+        return versions.stream().map(this::toNormalizedResponse).toList();
+    }
+
+    /**
      * Fiche normalisée d'une offre (D33) : dernière version produite + statut
      * du job associé + contenu pass-through (JsonNode). 404 si l'offre
      * n'existe pas ou si aucune validation n'a encore produit de fiche.
@@ -347,6 +384,25 @@ public class AdminService {
             throw new NormalizedProfileNotFoundException(false);
         }
         return toNormalizedResponse(latest.get(0));
+    }
+
+    /**
+     * Historique des fiches normalisées d'une offre (D37) : toutes les
+     * versions produites, de la plus récente à la plus ancienne, chacune avec
+     * son statut de job et son contenu pass-through. 404 mêmes cas que la fiche
+     * courante (offre introuvable ou aucune fiche).
+     */
+    @Transactional(readOnly = true)
+    public List<AdminNormalizedProfileResponse> getOfferNormalizedProfileVersions(UUID offerId) {
+        if (!jobOfferRepository.existsById(offerId)) {
+            throw new JobOfferNotFoundException("Job offer not found.");
+        }
+        List<NormalizedProfile> versions = normalizedProfileJobOfferRepository
+                .findLatestByOfferId(offerId, Pageable.unpaged());
+        if (versions.isEmpty()) {
+            throw new NormalizedProfileNotFoundException(false);
+        }
+        return versions.stream().map(this::toNormalizedResponse).toList();
     }
 
     /**

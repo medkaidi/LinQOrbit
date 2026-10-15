@@ -31,6 +31,7 @@ import type {
   ProjectItem,
   SkillItem,
 } from "@/types/candidate";
+import type { AuthUser } from "@/types/auth";
 
 const MONTHS = [
   "Jan",
@@ -154,11 +155,12 @@ function PeriodBadge({
   );
 }
 
-function EmptyState({ message, cta }: { message: string; cta: string }) {
+/** État vide d'une section : message seul en lecture seule (pas de CTA vers l'édition). */
+function EmptyState({ message, cta }: { message: string; cta: string | null }) {
   return (
     <div className="flex flex-col items-start gap-4">
       <p className="text-body-sm font-body-sm text-text-secondary max-w-3xl">{message}</p>
-      <NavPill icon="add" label={cta} href="/profile/edit" />
+      {cta ? <NavPill icon="add" label={cta} href="/profile/edit" /> : null}
     </div>
   );
 }
@@ -208,11 +210,17 @@ function LinkInfoBox({ linkType, links }: { linkType: string; links: LinkItem[] 
 function AboutSection({
   about,
   links,
+  account,
+  editable,
+  compact = false,
 }: {
   about: CandidateProfile["about"];
   links: LinkItem[];
+  account: AuthUser | null;
+  editable: boolean;
+  /** Variante compacte (source derrière le drawer admin, D39) : une seule colonne — les placements `lg:col-start-*` cassent à mi-largeur. */
+  compact?: boolean;
 }) {
-  const { account } = useAccount();
   const statusLabels = SEARCH_STATUS_LABELS as Record<string, string | undefined>;
   const statusLabel = about.searchStatus ? statusLabels[about.searchStatus] : null;
   const position = about.title?.trim() || "Not provided";
@@ -231,8 +239,15 @@ function AboutSection({
       icon={SECTION_ICONS.about}
     >
       <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
-          <div className="flex items-center gap-4 lg:col-start-1 lg:row-start-1">
+        <div
+          className={cn("grid grid-cols-1 gap-x-8 gap-y-4", !compact && "lg:grid-cols-2")}
+        >
+          <div
+            className={cn(
+              "flex items-center gap-4",
+              !compact && "lg:col-start-1 lg:row-start-1",
+            )}
+          >
             {account ? <IdentityAvatar account={account} /> : null}
             <div className="min-w-0">
               {account ? (
@@ -251,27 +266,27 @@ function AboutSection({
             </div>
           </div>
           {account ? (
-            <div className="lg:col-start-1 lg:row-start-2">
+            <div className={cn(!compact && "lg:col-start-1 lg:row-start-2")}>
               <InfoBox label="Email" value={account.email} />
             </div>
           ) : null}
           {account ? (
-            <div className="lg:col-start-1 lg:row-start-3">
+            <div className={cn(!compact && "lg:col-start-1 lg:row-start-3")}>
               <InfoBox label="Phone" value={account.phone?.trim() || "Not provided"} />
             </div>
           ) : null}
           {account ? (
-            <div className="lg:col-start-1 lg:row-start-4">
+            <div className={cn(!compact && "lg:col-start-1 lg:row-start-4")}>
               <InfoBox label="Current location" value={currentLocation} />
             </div>
           ) : null}
-          <div className="lg:col-start-2 lg:row-start-2">
+          <div className={cn(!compact && "lg:col-start-2 lg:row-start-2")}>
             <InfoBox label="Search status" value={statusLabel ?? "Not provided"} />
           </div>
-          <div className="lg:col-start-2 lg:row-start-3">
+          <div className={cn(!compact && "lg:col-start-2 lg:row-start-3")}>
             <LinkInfoBox linkType="github" links={links} />
           </div>
-          <div className="lg:col-start-2 lg:row-start-4">
+          <div className={cn(!compact && "lg:col-start-2 lg:row-start-4")}>
             <LinkInfoBox linkType="linkedin" links={links} />
           </div>
         </div>
@@ -286,7 +301,7 @@ function AboutSection({
           ) : (
             <EmptyState
               message="Your headline and summary are not written yet."
-              cta="Write your about"
+              cta={editable ? "Write your about" : null}
             />
           )}
         </div>
@@ -295,7 +310,13 @@ function AboutSection({
   );
 }
 
-function ExperienceSection({ experiences }: { experiences: ExperienceItem[] }) {
+function ExperienceSection({
+  experiences,
+  editable,
+}: {
+  experiences: ExperienceItem[];
+  editable: boolean;
+}) {
   return (
     <ViewSection
       id="experiences"
@@ -306,7 +327,7 @@ function ExperienceSection({ experiences }: { experiences: ExperienceItem[] }) {
       {experiences.length === 0 ? (
         <EmptyState
           message="No experience added yet. Recruiters look at this section first."
-          cta="Add experience"
+          cta={editable ? "Add experience" : null}
         />
       ) : (
         <ol className="flex flex-col gap-3">
@@ -343,7 +364,13 @@ function ExperienceSection({ experiences }: { experiences: ExperienceItem[] }) {
   );
 }
 
-function ProjectsSection({ projects }: { projects: ProjectItem[] }) {
+function ProjectsSection({
+  projects,
+  editable,
+}: {
+  projects: ProjectItem[];
+  editable: boolean;
+}) {
   return (
     <ViewSection
       id="projects"
@@ -354,7 +381,7 @@ function ProjectsSection({ projects }: { projects: ProjectItem[] }) {
       {projects.length === 0 ? (
         <EmptyState
           message="No project added yet. Side projects and open-source work show what you can build."
-          cta="Add project"
+          cta={editable ? "Add project" : null}
         />
       ) : (
         <ol className="flex flex-col gap-3">
@@ -392,7 +419,13 @@ function ProjectsSection({ projects }: { projects: ProjectItem[] }) {
   );
 }
 
-function EducationSection({ diplomas }: { diplomas: DiplomaItem[] }) {
+function EducationSection({
+  diplomas,
+  editable,
+}: {
+  diplomas: DiplomaItem[];
+  editable: boolean;
+}) {
   return (
     <ViewSection
       id="education"
@@ -401,7 +434,7 @@ function EducationSection({ diplomas }: { diplomas: DiplomaItem[] }) {
       count={diplomas.length > 0 ? plural(diplomas.length, "diploma") : undefined}
     >
       {diplomas.length === 0 ? (
-        <EmptyState message="No diploma added yet." cta="Add education" />
+        <EmptyState message="No diploma added yet." cta={editable ? "Add education" : null} />
       ) : (
         <div className="flex flex-col gap-3">
           {diplomas.map((item, index) => {
@@ -438,7 +471,7 @@ function EducationSection({ diplomas }: { diplomas: DiplomaItem[] }) {
   );
 }
 
-function SkillsSection({ skills }: { skills: SkillItem[] }) {
+function SkillsSection({ skills, editable }: { skills: SkillItem[]; editable: boolean }) {
   return (
     <ViewSection
       id="skills"
@@ -447,7 +480,7 @@ function SkillsSection({ skills }: { skills: SkillItem[] }) {
       count={skills.length > 0 ? plural(skills.length, "skill") : undefined}
     >
       {skills.length === 0 ? (
-        <EmptyState message="No skill added yet." cta="Add skills" />
+        <EmptyState message="No skill added yet." cta={editable ? "Add skills" : null} />
       ) : (
         <ul className="flex flex-wrap gap-2">
           {skills.map((skill) => (
@@ -469,7 +502,13 @@ function SkillsSection({ skills }: { skills: SkillItem[] }) {
   );
 }
 
-function LanguagesSection({ languages }: { languages: CandidateProfile["languages"] }) {
+function LanguagesSection({
+  languages,
+  editable,
+}: {
+  languages: CandidateProfile["languages"];
+  editable: boolean;
+}) {
   return (
     <ViewSection
       id="languages"
@@ -478,7 +517,7 @@ function LanguagesSection({ languages }: { languages: CandidateProfile["language
       count={languages.length > 0 ? plural(languages.length, "language") : undefined}
     >
       {languages.length === 0 ? (
-        <EmptyState message="No language added yet." cta="Add language" />
+        <EmptyState message="No language added yet." cta={editable ? "Add language" : null} />
       ) : (
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {languages.map((language) => (
@@ -500,7 +539,7 @@ function LanguagesSection({ languages }: { languages: CandidateProfile["language
   );
 }
 
-function LinksSection({ links }: { links: LinkItem[] }) {
+function LinksSection({ links, editable }: { links: LinkItem[]; editable: boolean }) {
   return (
     <ViewSection
       id="links"
@@ -509,7 +548,10 @@ function LinksSection({ links }: { links: LinkItem[] }) {
       count={links.length > 0 ? plural(links.length, "link") : undefined}
     >
       {links.length === 0 ? (
-        <EmptyState message="No link or certification added yet." cta="Add a link" />
+        <EmptyState
+          message="No link or certification added yet."
+          cta={editable ? "Add a link" : null}
+        />
       ) : (
         <ul className="flex flex-col gap-3">
           {links.map((link) => (
@@ -591,8 +633,56 @@ function Header() {
   );
 }
 
+/**
+ * Sections de lecture du profil (partagées : espace candidat + console admin
+ * en mode lecture seule — D38) : About → Goals, sans bannière de validation
+ * ni jauge de complétion (propres à l'espace candidat). `readOnly` masque les
+ * CTA vers l'édition (`/profile/edit`) dans les états vides. `compact`
+ * (source derrière le drawer ouvert, D39) empile les sections dans une
+ * grille 2 colonnes **au-delà de 672 px de largeur réelle** (container
+ * query — le drawer réduit la zone visible, le viewport ne décide pas) ;
+ * `/profile` garde le défaut `compact=false` (colonne unique).
+ */
+export function ProfileSections({
+  profile,
+  account,
+  readOnly = false,
+  compact = false,
+}: {
+  profile: CandidateProfile;
+  account: AuthUser | null;
+  readOnly?: boolean;
+  /**
+   * Variante compacte (source derrière le drawer admin, D39) : une section
+   * par ligne, pleine largeur — jamais deux sections côte à côte. `compact`
+   * ne pilote plus que le repli 1 colonne interne d'`AboutSection`.
+   */
+  compact?: boolean;
+}) {
+  const editable = !readOnly;
+  return (
+    <>
+      <AboutSection
+        about={profile.about}
+        links={profile.links}
+        account={account}
+        editable={editable}
+        compact={compact}
+      />
+      <ExperienceSection experiences={profile.experiences} editable={editable} />
+      <ProjectsSection projects={profile.projects} editable={editable} />
+      <EducationSection diplomas={profile.diplomas} editable={editable} />
+      <SkillsSection skills={profile.skills} editable={editable} />
+      <LanguagesSection languages={profile.languages} editable={editable} />
+      <LinksSection links={profile.links} editable={editable} />
+      <GoalsSection />
+    </>
+  );
+}
+
 export function ProfileView() {
   const { data, isLoading, isError, refetch } = useCandidateProfile();
+  const { account } = useAccount();
 
   if (isError && !data) {
     return (
@@ -621,14 +711,7 @@ export function ProfileView() {
         action={<NavPill icon="edit" label="Edit profile" href="/profile/edit" />}
       />
 
-      <AboutSection about={data.about} links={data.links} />
-      <ExperienceSection experiences={data.experiences} />
-      <ProjectsSection projects={data.projects} />
-      <EducationSection diplomas={data.diplomas} />
-      <SkillsSection skills={data.skills} />
-      <LanguagesSection languages={data.languages} />
-      <LinksSection links={data.links} />
-      <GoalsSection />
+      <ProfileSections profile={data} account={account} />
     </div>
   );
 }

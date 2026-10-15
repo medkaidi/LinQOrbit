@@ -30,6 +30,7 @@ import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.dto.ApproveSkillSuggestionRequest;
 import com.linqorbit.admin.dto.LinkSkillSuggestionRequest;
 import com.linqorbit.admin.dto.UpdateUserStatusRequest;
+import com.linqorbit.candidate.dto.CandidateProfileResponse;
 import com.linqorbit.config.OpenApiConfig;
 
 /**
@@ -62,6 +63,18 @@ public interface AdminApi {
     })
     ResponseEntity<AdminUserDetailResponse> getUserDetail(@PathVariable("userId") UUID userId);
 
+    @GetMapping("/users/{userId}/profile")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Consulter le profil professionnel d'un candidat",
+            description = "Même forme que le profil du candidat connecté (lecture seule, jamais d'écriture) : sections du profil, pourcentage de complétion et signaux de normalisation (D38). 404 si le compte n'existe pas ou n'est pas un candidat.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Profil renvoyé"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Compte introuvable ou sans profil candidat")
+    })
+    ResponseEntity<CandidateProfileResponse> getCandidateProfile(@PathVariable("userId") UUID userId);
+
     @GetMapping("/users/{userId}/normalized-profile")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Consulter la fiche normalisée d'un candidat",
@@ -73,6 +86,19 @@ public interface AdminApi {
             @ApiResponse(responseCode = "404", description = "Compte introuvable ou aucune fiche normalisée")
     })
     ResponseEntity<AdminNormalizedProfileResponse> getCandidateNormalizedProfile(
+            @PathVariable("userId") UUID userId);
+
+    @GetMapping("/users/{userId}/normalized-profile/versions")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Consulter l'historique des fiches normalisées d'un candidat",
+            description = "Toutes les versions produites de l'objet canonique du candidat, de la plus récente à la plus ancienne, avec statut de job et contenu de chaque version (D37). 404 si le compte n'est pas un candidat ou si aucune validation n'a encore produit de fiche.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Historique renvoyé (liste vide impossible)"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Compte introuvable ou aucune fiche normalisée")
+    })
+    ResponseEntity<List<AdminNormalizedProfileResponse>> getCandidateNormalizedProfileVersions(
             @PathVariable("userId") UUID userId);
 
     @GetMapping("/job-offers")
@@ -113,6 +139,19 @@ public interface AdminApi {
             @ApiResponse(responseCode = "404", description = "Offre introuvable ou aucune fiche normalisée")
     })
     ResponseEntity<AdminNormalizedProfileResponse> getOfferNormalizedProfile(@PathVariable("offerId") UUID offerId);
+
+    @GetMapping("/job-offers/{offerId}/normalized-profile/versions")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Consulter l'historique des fiches normalisées d'une offre",
+            description = "Toutes les versions produites de l'objet canonique de l'offre, de la plus récente à la plus ancienne, avec statut de job et contenu de chaque version (D37). 404 si l'offre n'existe pas ou si aucune validation n'a encore produit de fiche.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Historique renvoyé (liste vide impossible)"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Offre introuvable ou aucune fiche normalisée")
+    })
+    ResponseEntity<List<AdminNormalizedProfileResponse>> getOfferNormalizedProfileVersions(
+            @PathVariable("offerId") UUID offerId);
 
     @PatchMapping("/users/{userId}/status")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
