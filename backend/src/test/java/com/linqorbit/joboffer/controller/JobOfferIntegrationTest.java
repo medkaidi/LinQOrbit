@@ -403,6 +403,71 @@ class JobOfferIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    /**
+     * Liste paginée du recruteur de bout en bout : appel nominal sans
+     * paramètres (enveloppe complète), clés vides ≡ absentes, bornes de
+     * pagination appliquées au niveau HTTP, page hors plage, paramètres non
+     * numériques → 400 générique.
+     */
+    @Test
+    void listeMineSansParametresVidesEtBornes() throws Exception {
+        String token = signup("pagination");
+        becomeRecruiter(token);
+        UUID companyId = createCompany(token, "Pagination Co");
+        UUID first = createOffer(token, companyId, "Backend Engineer");
+        UUID second = createOffer(token, companyId, "Frontend Engineer");
+        createdOfferIds.add(first);
+        createdOfferIds.add(second);
+
+        mockMvc.perform(get("/api/v1/job-offers").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.total").value(2));
+
+        mockMvc.perform(get("/api/v1/job-offers").param("page", "").param("size", "")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.total").value(2));
+
+        mockMvc.perform(get("/api/v1/job-offers").param("size", "1")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(1))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.total").value(2));
+
+        mockMvc.perform(get("/api/v1/job-offers").param("size", "500")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(50));
+
+        mockMvc.perform(get("/api/v1/job-offers").param("size", "0")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(1));
+
+        mockMvc.perform(get("/api/v1/job-offers").param("page", "-3")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0));
+
+        mockMvc.perform(get("/api/v1/job-offers").param("page", "9999")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(9999))
+                .andExpect(jsonPath("$.total").value(2))
+                .andExpect(jsonPath("$.items").isEmpty());
+
+        mockMvc.perform(get("/api/v1/job-offers").param("page", "abc")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad Request"))
+                .andExpect(jsonPath("$.detail").value("The request could not be processed."));
+    }
+
     private UUID createOffer(String token, UUID companyId, String title) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/job-offers")
                         .header("Authorization", "Bearer " + token)

@@ -9,6 +9,7 @@ import type {
   AdminSkillSuggestion,
   AdminUser,
   AdminUserDetail,
+  AdminUserFilters,
   AdminUserPage,
 } from "@/types/admin";
 
@@ -16,11 +17,16 @@ const BASE = "/api/v1/admin";
 
 /** La taille de page n'est jamais envoyée : le backend décide (D34). */
 export async function listUsers(
-  params: { page?: number } = {},
+  params: { page?: number } & AdminUserFilters = {},
   options: { signal?: AbortSignal } = {},
 ): Promise<AdminUserPage> {
   const response = await api.get<AdminUserPage>(`${BASE}/users`, {
-    params: { ...(params.page !== undefined ? { page: params.page } : {}) },
+    params: {
+      ...(params.page !== undefined ? { page: params.page } : {}),
+      ...(params.q ? { q: params.q } : {}),
+      ...(params.status ? { status: params.status } : {}),
+      ...(params.capability ? { capability: params.capability } : {}),
+    },
     signal: options.signal,
   });
   return response.data;

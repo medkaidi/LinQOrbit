@@ -10,7 +10,7 @@ import { NormalizedSheetCta } from "@/features/admin/normalized/normalized-sheet
 import { NormalizedSheetDrawer } from "@/features/admin/normalized/normalized-sheet-drawer";
 import { RetryButton } from "@/features/admin/retry-button";
 import { ProfileSections } from "@/features/candidate/profile-view";
-import { fullName } from "@/features/candidate/profile-shared";
+import { countryLabel, fullName } from "@/features/candidate/profile-shared";
 import {
   useAdminUserDetail,
   useAdminUserProfile,
@@ -24,6 +24,13 @@ import { getApiErrorMessage } from "@/lib/utils/api-error";
 import { ROLE } from "@/lib/utils/roles";
 
 const MUTED = "text-body-sm font-body-sm text-text-secondary";
+
+/** Valeurs stockées par le schéma d'inscription (`male|female|other`) → libellés. */
+const SEX_LABELS: Record<string, string> = {
+  male: "Male",
+  female: "Female",
+  other: "Other",
+};
 
 function Field({ label, value }: { label: string; value: string | null }) {
   return (
@@ -95,6 +102,15 @@ export function UserDetailView({ userId }: { userId: string }) {
           <span aria-hidden="true" className="text-text-tertiary">
             /
           </span>
+          <Link
+            href="/admin"
+            className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+          >
+            Accounts
+          </Link>
+          <span aria-hidden="true" className="text-text-tertiary">
+            /
+          </span>
           <span className="text-text-primary font-semibold">
             {[account.firstName, account.lastName].filter(Boolean).join(" ") || account.email}
           </span>
@@ -103,11 +119,18 @@ export function UserDetailView({ userId }: { userId: string }) {
           <h1 className="font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight min-w-0">
             {[account.firstName, account.lastName].filter(Boolean).join(" ") || account.email}
           </h1>
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
             <Badge tone={active ? "success" : "neutral"}>{active ? "Active" : "Inactive"}</Badge>
             {account.roles.includes(ROLE.ADMIN) && <Badge tone="neutral">Admin</Badge>}
             {account.hasCandidateProfile && <Badge tone="neutral">Candidate</Badge>}
             {account.hasRecruiterProfile && <Badge tone="neutral">Recruiter</Badge>}
+            {isCurrentUser ? (
+              <span className={MUTED}>Your account</span>
+            ) : (
+              <Button variant="outline-sm" busy={statusMutation.isPending} onClick={toggle}>
+                {active ? "Deactivate" : "Activate"}
+              </Button>
+            )}
           </div>
         </div>
         <p className={`${MUTED} mt-1`}>{account.email}</p>
@@ -119,15 +142,6 @@ export function UserDetailView({ userId }: { userId: string }) {
           <RetryButton onRetry={() => statusMutation.reset()} label="Dismiss" />
         </Alert>
       )}
-      {isCurrentUser ? (
-        <p className={MUTED}>This is your own account — status changes are not allowed here.</p>
-      ) : (
-        <div>
-          <Button variant="outline-sm" busy={statusMutation.isPending} onClick={toggle}>
-            {active ? "Deactivate" : "Activate"}
-          </Button>
-        </div>
-      )}
 
       <section className="bg-canvas-white rounded-2xl shadow-sm">
         <header className="mx-6 pt-4 pb-4 border-b border-slate-border">
@@ -137,15 +151,16 @@ export function UserDetailView({ userId }: { userId: string }) {
         </header>
         <div className="px-6 pt-5 pb-6 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
           <Field label="Phone" value={account.phone} />
-          <Field label="Sex" value={account.sex} />
           <Field
-            label="Home country"
-            value={account.homeCountry}
+            label="Sex"
+            value={account.sex ? SEX_LABELS[account.sex] ?? account.sex : null}
           />
+          <Field label="Home country" value={countryLabel(account.homeCountry)} />
           <Field
             label="Current location"
             value={
-              [account.currentCity, account.currentCountry].filter(Boolean).join(", ") || null
+              [account.currentCity, countryLabel(account.currentCountry)].filter(Boolean).join(", ") ||
+              null
             }
           />
           <Field label="Created at" value={account.createdAt.slice(0, 10)} />

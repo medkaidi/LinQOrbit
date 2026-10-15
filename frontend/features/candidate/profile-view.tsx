@@ -7,6 +7,7 @@ import { LINK_TYPE_LABELS } from "@/features/candidate/links-section";
 import { CEFR_LABELS } from "@/features/candidate/languages-section";
 import {
   CompletenessCard,
+  countryLabel,
   fullName,
   IdentityAvatar,
   InfoBox,
@@ -19,7 +20,6 @@ import {
 import { useAccount } from "@/hooks/use-account";
 import { useCandidateProfile } from "@/hooks/use-candidate-profile";
 import { ValidateProfileBanner } from "@/features/candidate/validate-profile-banner";
-import { countryOptions } from "@/config/countries";
 import { Icon } from "@/components/ui/icon";
 import { NavPill } from "@/components/ui/nav-pill";
 import { cn } from "@/lib/utils/cn";
@@ -47,8 +47,6 @@ const MONTHS = [
   "Nov",
   "Dec",
 ];
-
-const COUNTRY_LABELS = new Map(countryOptions.map((option) => [option.value, option.label]));
 
 const SKILL_LEVEL_LABELS: Record<number, string> = {
   1: "Beginner",
@@ -88,11 +86,6 @@ function durationLabel(startDate: string, endDate: string | null): string {
   const monthsLabel = `${rest} mo${rest === 1 ? "" : "s"}`;
   if (years === 0) return monthsLabel;
   return rest === 0 ? yearsLabel : `${yearsLabel} ${monthsLabel}`;
-}
-
-function countryLabel(code: string | null): string | null {
-  if (!code) return null;
-  return COUNTRY_LABELS.get(code) ?? code;
 }
 
 function plural(count: number, noun: string): string {

@@ -157,15 +157,24 @@ describe("UserDetailView", () => {
     expect(screen.getAllByText("Active")).toHaveLength(1);
     expect(screen.getByText("Candidate")).toBeInTheDocument();
 
+    // Breadcrumb à trois niveaux : Administration / Accounts / {nom}.
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(breadcrumb).getByRole("link", { name: "Accounts" })).toHaveAttribute(
+      "href",
+      "/admin",
+    );
+    expect(within(breadcrumb).getByText("Ada Lovelace")).toBeInTheDocument();
+
     const accountDetails = screen
       .getByRole("heading", { name: "Account details" })
       .closest("section");
     expect(accountDetails).not.toBeNull();
     const card = accountDetails as HTMLElement;
     expect(within(card).getByText("+33 6 00 00 00 00")).toBeInTheDocument();
-    expect(within(card).getByText("female")).toBeInTheDocument();
-    expect(within(card).getByText("FR")).toBeInTheDocument();
-    expect(within(card).getByText("Paris, FR")).toBeInTheDocument();
+    expect(within(card).getByText("Female")).toBeInTheDocument();
+    // Codes ISO → libellés lisibles (Home country + Current location).
+    expect(within(card).getByText("France")).toBeInTheDocument();
+    expect(within(card).getByText("Paris, France")).toBeInTheDocument();
     expect(within(card).getByText("2026-09-01")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/password/i);
   });
@@ -197,7 +206,8 @@ describe("UserDetailView", () => {
     renderUserDetail(sessionUser.id);
 
     await screen.findByRole("heading", { name: "Ada Lovelace" });
-    expect(screen.getByText(/This is your own account/)).toBeInTheDocument();
+    // Bascule remontée dans l'en-tête : ligne du compte courant sans action.
+    expect(screen.getByText("Your account")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Deactivate" })).not.toBeInTheDocument();
   });
 

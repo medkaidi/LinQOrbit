@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -38,6 +39,7 @@ import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
 import com.linqorbit.admin.exception.InvalidSkillTypeException;
+import com.linqorbit.admin.exception.InvalidUserCapabilityFilterException;
 import com.linqorbit.admin.exception.InvalidUserStatusException;
 import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
@@ -132,7 +134,7 @@ class AdminServiceTest {
         User bob = User.builder().id(UUID.randomUUID()).email("bob@example.com")
                 .firstName("Bob").lastName("Morris").status(UserStatus.INACTIVE).build();
         Pageable pageable = PageRequest.of(0, 20);
-        when(userRepository.findAllByOrderByLastNameAscFirstNameAsc(pageable))
+        when(userRepository.searchUsers(null, null, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(ada, bob), pageable, 2));
         when(userRoleRepository.findByUserIdIn(List.of(ada.getId(), bob.getId())))
                 .thenReturn(List.of(UserRole.of(ada.getId(), Role.ADMIN)));
@@ -141,7 +143,7 @@ class AdminServiceTest {
         when(recruiterRepository.findAllById(List.of(ada.getId(), bob.getId())))
                 .thenReturn(List.of(Recruiter.builder().id(bob.getId()).build()));
 
-        AdminUserPageResponse response = adminService.listUsers(0, null);
+        AdminUserPageResponse response = adminService.listUsers(null, null, null, 0, null);
 
         assertThat(response.items()).hasSize(2);
         assertThat(response.page()).isZero();
@@ -162,18 +164,53 @@ class AdminServiceTest {
     @Test
     void listUsersBorneLaPagination() {
         Pageable pageable = PageRequest.of(0, 50);
-        when(userRepository.findAllByOrderByLastNameAscFirstNameAsc(pageable))
+        when(userRepository.searchUsers(null, null, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-        AdminUserPageResponse response = adminService.listUsers(-2, 500);
+        AdminUserPageResponse response = adminService.listUsers(null, null, null, -2, 500);
 
         assertThat(response.items()).isEmpty();
         assertThat(response.page()).isZero();
         assertThat(response.size()).isEqualTo(50);
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        verify(userRepository).findAllByOrderByLastNameAscFirstNameAsc(pageableCaptor.capture());
+        verify(userRepository).searchUsers(isNull(), isNull(), isNull(), pageableCaptor.capture());
         assertThat(pageableCaptor.getValue().getPageNumber()).isZero();
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(50);
+    }
+
+    @Test
+    void listUsersNormaliseRechercheEtTransmetLesFiltres() {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(userRepository.searchUsers(eq("%ada%"), eq(UserStatus.INACTIVE), eq("candidate"), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        AdminUserPageResponse response = adminService.listUsers("  Ada ", "inactive", "CANDIDATE", 0, null);
+
+        assertThat(response.items()).isEmpty();
+        verify(userRepository).searchUsers("%ada%", UserStatus.INACTIVE, "candidate", pageable);
+    }
+
+    @Test
+    void listUsersTraiteLesFiltresVidesCommeAbsents() {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(userRepository.searchUsers(isNull(), isNull(), eq("recruiter"), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        adminService.listUsers("   ", "", "recruiter", 0, null);
+
+        verify(userRepository).searchUsers(isNull(), isNull(), eq("recruiter"), eq(pageable));
+    }
+
+    @Test
+    void listUsersRefuseUnFiltreDeStatutNonSupporte() {
+        assertThatThrownBy(() -> adminService.listUsers(null, "suspended", null, 0, null))
+                .isInstanceOf(InvalidUserStatusException.class);
+    }
+
+    @Test
+    void listUsersRefuseUnFiltreDeCapaciteInconnu() {
+        assertThatThrownBy(() -> adminService.listUsers(null, null, "admin", 0, null))
+                .isInstanceOf(InvalidUserCapabilityFilterException.class);
     }
 
     @Test
@@ -784,6 +821,17 @@ class AdminServiceTest {
 
         assertThat(response.items()).isEmpty();
         assertThat(response.page()).isEqualTo(1);
+        verify(jobOfferRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listJobOffersAccepteLaCasseMajuscule() {
+        when(jobOfferRepository.findByStatus(eq(JobOfferStatus.PUBLISHED), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        AdminJobOfferPageResponse response = adminService.listJobOffers("PUBLISHED", 0, 20);
+
+        assertThat(response.items()).isEmpty();
         verify(jobOfferRepository, never()).findAll(any(Pageable.class));
     }
 

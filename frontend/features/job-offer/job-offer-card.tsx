@@ -25,8 +25,8 @@ const STATUS_PILL_TONES: Record<JobOfferStatusValue, { pill: string; dot: string
   closed: { pill: "bg-slate-surface text-text-secondary", dot: "bg-slate-border" },
 };
 
-/** Pastille de statut à point coloré — inspirée du template offers_listing. */
-function StatusPill({ status }: { status: JobOfferStatusValue }) {
+/** Pastille de statut à point coloré — partagée carte / détail admin (source unique). */
+export function OfferStatusPill({ status }: { status: JobOfferStatusValue }) {
   const tone = STATUS_PILL_TONES[status];
   return (
     <span
@@ -173,8 +173,12 @@ export function JobOfferCard({
               <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-text-primary font-label-caps text-label-caps uppercase shrink-0">
                 {companyName}
               </span>
-            ) : null}
-            <StatusPill status={status} />
+            ) : (
+              <span className="font-label-caps text-label-caps uppercase text-text-tertiary shrink-0">
+                No company
+              </span>
+            )}
+            <OfferStatusPill status={status} />
             {expired ? <Badge tone="neutral">Expired</Badge> : null}
             {normalization === "progress" ? (
               <Badge>Analyzing…</Badge>

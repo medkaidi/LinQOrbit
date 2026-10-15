@@ -137,6 +137,21 @@ class AuthFlowIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    /**
+     * Corps JSON malformé : entrée client invalide, pas une panne — 400
+     * générique (régression : HttpMessageNotReadableException tombait dans le
+     * catch-all en 500 sous Boot 4, elle n'implémente pas ErrorResponse).
+     */
+    @Test
+    void corpsJsonMalformeRenvoie400Generique() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"broken\""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad Request"))
+                .andExpect(jsonPath("$.detail").value("The request could not be processed."));
+    }
+
     @Test
     void requeteAvecUnBearerValideEstAcceptee() throws Exception {
         String email = "bearer-" + UUID.randomUUID() + "@example.com";

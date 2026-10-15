@@ -23,6 +23,16 @@ export type AdminUserPage = {
   total: number;
 };
 
+/**
+ * Filtres de la liste des comptes (T-48) — valeurs API en minuscules comme le
+ * backend (`status` : active | inactive ; `capability` : identité de profil).
+ */
+export type AdminUserFilters = {
+  q?: string;
+  status?: "active" | "inactive";
+  capability?: "candidate" | "recruiter";
+};
+
 /** Fiche détail d'un compte (GET /api/v1/admin/users/{userId}) — jamais le hash. */
 export type AdminUserDetail = AdminUser & {
   phone: string | null;

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -24,21 +25,23 @@ import {
   rejectSkillSuggestion,
   updateUserStatus,
 } from "@/lib/api/admin.api";
-import type { AdminJobOfferStatus, AdminUser } from "@/types/admin";
+import type { AdminJobOfferStatus, AdminUser, AdminUserFilters } from "@/types/admin";
 import { queryKeys } from "@/hooks/query-keys";
 
 /**
- * Liste des comptes (D34) en infinite scroll : la taille de page reste
- * décidée par le backend (jamais envoyée).
+ * Liste des comptes (D34) en infinite scroll, filtrable (T-48) : recherche
+ * nom/email, statut et capacité — la taille de page reste décidée par le
+ * backend (jamais envoyée).
  */
-export function useInfiniteAdminUsers() {
+export function useInfiniteAdminUsers(filters: AdminUserFilters = {}) {
   return useInfiniteQuery({
-    queryKey: queryKeys.admin.users,
-    queryFn: ({ pageParam, signal }) => listUsers({ page: pageParam }, { signal }),
+    queryKey: queryKeys.admin.usersPage(filters),
+    queryFn: ({ pageParam, signal }) => listUsers({ ...filters, page: pageParam }, { signal }),
     initialPageParam: 0,
     getNextPageParam: (lastPage) =>
       lastPage.page * lastPage.size < lastPage.total ? lastPage.page + 1 : undefined,
     staleTime: 30_000,
+    placeholderData: keepPreviousData,
   });
 }
 

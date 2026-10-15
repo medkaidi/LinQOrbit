@@ -81,14 +81,17 @@ export function AdminSidebar() {
     >
       <div className="flex flex-col">
         <div
-          className={cn("h-16 flex items-center gap-1", collapsed ? "mx-2 justify-center" : "mx-3")}
+          className={cn(
+            "relative h-16 flex items-center gap-1",
+            collapsed ? "mx-2 justify-center" : "mx-3",
+          )}
         >
           <Link
             href="/admin"
             aria-label="Administration home"
             className={cn(
               "flex items-center rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep",
-              collapsed ? "p-1.5" : "gap-2.5 px-2.5 py-2",
+              collapsed ? "p-1.5" : "gap-2.5 px-3 py-2",
             )}
           >
             <Logo className="h-5 w-auto" strokeScale={2} />
@@ -101,8 +104,8 @@ export function AdminSidebar() {
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-expanded={!collapsed}
             className={cn(
-              "flex items-center justify-center shrink-0 w-7 h-7 rounded-full text-text-secondary hover:text-text-primary hover:bg-slate-surface transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep",
-              collapsed ? "" : "ml-auto",
+              "flex items-center justify-center shrink-0 rounded-full text-text-secondary hover:text-text-primary hover:bg-slate-surface transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep",
+              collapsed ? "absolute -right-1.5 top-1/2 -translate-y-1/2 w-6 h-6" : "ml-auto w-7 h-7",
             )}
           >
             <Icon name={collapsed ? "chevron_right" : "chevron_left"} className="text-[16px]!" />

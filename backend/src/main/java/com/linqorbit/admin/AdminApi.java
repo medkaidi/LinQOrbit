@@ -47,13 +47,19 @@ public interface AdminApi {
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Lister les comptes (paginé)",
             description = "Tous les comptes avec statut, rôles de capacité et drapeaux candidat / recruteur, triés par nom. "
+                    + "Filtres optionnels : recherche `q` (prénom, nom ou email), `status` (active | inactive) et "
+                    + "`capability` (candidate | recruiter — identité de profil). "
                     + "Pagination (défaut 20, max 50 — D34) : la taille effective est renvoyée dans l'enveloppe.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Page de comptes renvoyée"),
+            @ApiResponse(responseCode = "400", description = "Filtre de statut ou de capacité non supporté"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
             @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN")
     })
     ResponseEntity<AdminUserPageResponse> listUsers(
+            @Parameter(description = "Recherche prénom / nom / email (LIKE, insensible à la casse)") @RequestParam(name = "q", required = false) String q,
+            @Parameter(description = "Filtre de statut : active | inactive") @RequestParam(name = "status", required = false) String status,
+            @Parameter(description = "Filtre de capacité : candidate | recruiter") @RequestParam(name = "capability", required = false) String capability,
             @Parameter(description = "Index de page (0-based)") @RequestParam(name = "page", defaultValue = "0") int page,
             @Parameter(description = "Taille de page (défaut 20, max 50) — valeur effective renvoyée dans la réponse") @RequestParam(name = "size", required = false) Integer size);
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@/lib/api/admin.api", async (importOriginal) => {
@@ -127,7 +127,8 @@ describe("AdminView", () => {
 
     expect(await screen.findByText("Platform Admin")).toBeInTheDocument();
     expect(screen.getByText("admin@linqorbit.local")).toBeInTheDocument();
-    expect(screen.getAllByText("Active")).toHaveLength(2);
+    // Pastilles de statut des lignes (le filtre a aussi un segment « Active »).
+    expect(within(screen.getByRole("list")).getAllByText("Active")).toHaveLength(2);
     expect(screen.getByText("Admin")).toBeInTheDocument();
     // Chips de capacités issues des flags du payload.
     expect(screen.getByText("Candidate")).toBeInTheDocument();
@@ -155,6 +156,139 @@ describe("AdminView", () => {
       expect(mockedUpdateUserStatus).toHaveBeenCalledWith("user-2", "INACTIVE"),
     );
     expect(await screen.findByRole("button", { name: "Activate" })).toBeInTheDocument();
+  });
+
+  it("keeps the busy state on the clicked row only", async () => {
+    const otherAccount: AdminUser = {
+      ...candidateAccount,
+      id: "user-3",
+      email: "grace@example.com",
+      firstName: "Grace",
+      lastName: "Hopper",
+    };
+    mockedListUsers.mockResolvedValue(usersPage([adminAccount, candidateAccount, otherAccount]));
+    let resolveUpdate!: () => void;
+    mockedUpdateUserStatus.mockReturnValue(
+      new Promise((resolve) => {
+        resolveUpdate = () => resolve(undefined);
+      }),
+    );
+
+    renderAdminView();
+
+    const buttons = await screen.findAllByRole("button", { name: "Deactivate" });
+    fireEvent.click(buttons[0]);
+
+    await waitFor(() => expect(buttons[0]).toHaveAttribute("aria-busy", "true"));
+    expect(buttons[1]).not.toHaveAttribute("aria-busy");
+
+    resolveUpdate();
+    await waitFor(() => expect(buttons[0]).not.toHaveAttribute("aria-busy"));
+  });
+
+  it("shows a loading state while the first accounts page loads", async () => {
+    mockedListUsers.mockReturnValue(new Promise(() => {}));
+
+    renderAdminView();
+
+    expect(await screen.findByText("Loading accounts…")).toBeInTheDocument();
+  });
+
+  it("searches accounts with a debounced query", async () => {
+    mockedListUsers.mockResolvedValue(usersPage([candidateAccount]));
+
+    renderAdminView();
+    await screen.findByText("Ada Lovelace");
+
+    // 1ʳᵉ requête : page seule, aucune clé de filtre.
+    expect(mockedListUsers).toHaveBeenCalledWith({ page: 0 }, expect.anything());
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search accounts" }), {
+      target: { value: " ada " },
+    });
+
+    await waitFor(() =>
+      expect(mockedListUsers).toHaveBeenCalledWith(
+        expect.objectContaining({ q: "ada", page: 0 }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("clears the search back to the unfiltered list", async () => {
+    // Réponses dépendantes du filtre : la recherche restreint la liste.
+    mockedListUsers.mockImplementation(async (params = {}) =>
+      params.q
+        ? usersPage([candidateAccount])
+        : usersPage([adminAccount, candidateAccount]),
+    );
+
+    renderAdminView();
+    await screen.findByText("Platform Admin");
+
+    const searchBox = screen.getByRole("textbox", { name: "Search accounts" });
+    fireEvent.change(searchBox, { target: { value: "ada" } });
+
+    await waitFor(() =>
+      expect(mockedListUsers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: "ada" }),
+        expect.anything(),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Platform Admin")).not.toBeInTheDocument(),
+    );
+
+    fireEvent.change(searchBox, { target: { value: "" } });
+
+    // Champ vide ⇒ retour à la liste non filtrée (la clé TanStack sans filtre
+    // est déjà en cache — aucun appel supplémentaire n'est nécessaire).
+    expect(await screen.findByText("Platform Admin")).toBeInTheDocument();
+  });
+
+  it("filters accounts by status and capability, combined", async () => {
+    mockedListUsers.mockResolvedValue(usersPage([candidateAccount]));
+
+    renderAdminView();
+    await screen.findByText("Ada Lovelace");
+
+    const statusGroup = screen.getByRole("group", { name: "Filter accounts by status" });
+    fireEvent.click(within(statusGroup).getByRole("button", { name: "Inactive" }));
+
+    await waitFor(() =>
+      expect(mockedListUsers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: "inactive" }),
+        expect.anything(),
+      ),
+    );
+
+    const capabilityGroup = screen.getByRole("group", {
+      name: "Filter accounts by capability",
+    });
+    fireEvent.click(within(capabilityGroup).getByRole("button", { name: "Recruiters" }));
+
+    await waitFor(() =>
+      expect(mockedListUsers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: "inactive", capability: "recruiter" }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("shows a filter-aware empty state", async () => {
+    mockedListUsers.mockResolvedValue(usersPage([]));
+
+    renderAdminView();
+    await screen.findByText("No accounts.");
+
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Filter accounts by status" })).getByRole(
+        "button",
+        { name: "Inactive" },
+      ),
+    );
+
+    expect(await screen.findByText("No accounts match these filters.")).toBeInTheDocument();
   });
 
   it("shows the skill suggestions with author and date", async () => {
@@ -197,7 +331,7 @@ describe("AdminView", () => {
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
   });
 
-  it("rejects a suggestion through the API", async () => {
+  it("rejects a suggestion through the API after confirmation", async () => {
     mockedListUsers.mockResolvedValue(usersPage([adminAccount]));
     mockedListSkillSuggestions.mockResolvedValue([suggestion]);
     mockedRejectSkillSuggestion.mockResolvedValue(undefined);
@@ -205,8 +339,26 @@ describe("AdminView", () => {
     renderAdminView();
 
     fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reject this suggestion?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reject" }));
 
     await waitFor(() => expect(mockedRejectSkillSuggestion).toHaveBeenCalledWith("s1"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("does not reject when the confirmation is cancelled", async () => {
+    mockedListUsers.mockResolvedValue(usersPage([adminAccount]));
+    mockedListSkillSuggestions.mockResolvedValue([suggestion]);
+
+    renderAdminView();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reject this suggestion?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mockedRejectSkillSuggestion).not.toHaveBeenCalled();
+    expect(screen.getByText("Rust")).toBeInTheDocument();
   });
 
   it("surfaces a failed rejection without dropping the list", async () => {
@@ -217,6 +369,8 @@ describe("AdminView", () => {
     renderAdminView();
 
     fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reject this suggestion?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reject" }));
 
     expect(await screen.findByText("Unable to reject the suggestion")).toBeInTheDocument();
     expect(screen.getByText("Rust")).toBeInTheDocument();

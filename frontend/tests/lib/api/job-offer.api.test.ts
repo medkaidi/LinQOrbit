@@ -1,7 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { toJobOfferPayload } from "@/lib/api/job-offer.api";
+import { listJobOffers, toJobOfferPayload } from "@/lib/api/job-offer.api";
 import type { JobOfferValues } from "@/lib/validations/job-offer.schemas";
+
+vi.mock("@/lib/api/axios", () => ({
+  api: { get: vi.fn() },
+}));
+
+import { api } from "@/lib/api/axios";
+
+const mockedGet = vi.mocked(api.get);
 
 const COMPANY_ID = "33333333-3333-4333-8333-333333333333";
 
@@ -114,5 +122,29 @@ describe("toJobOfferPayload", () => {
     );
 
     expect(payload.description).toBeNull();
+  });
+});
+
+describe("listJobOffers", () => {
+  it("sends no key at all when page is absent", async () => {
+    mockedGet.mockResolvedValue({ data: { items: [], page: 0, size: 20, total: 0 } });
+
+    await listJobOffers();
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/job-offers", {
+      params: {},
+      signal: undefined,
+    });
+  });
+
+  it("sends only the page when defined, and never a size", async () => {
+    mockedGet.mockResolvedValue({ data: { items: [], page: 2, size: 20, total: 50 } });
+
+    await listJobOffers({ page: 2 });
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/job-offers", {
+      params: { page: 2 },
+      signal: undefined,
+    });
   });
 });

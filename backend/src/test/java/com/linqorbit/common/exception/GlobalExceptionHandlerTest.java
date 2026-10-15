@@ -9,10 +9,12 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.ErrorResponseException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.linqorbit.candidate.exception.AiServiceException;
@@ -56,6 +58,20 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getDetail())
                 .isEqualTo("An unexpected error occurred. It has been logged for our team.");
         assertThat(problem.getDetail()).doesNotContain("boom");
+    }
+
+    @Test
+    void handleUnreadableClientInputRenvoie400Generique() {
+        ProblemDetail mismatch = handler
+                .handleUnreadableClientInput(mock(MethodArgumentTypeMismatchException.class));
+        ProblemDetail unreadable = handler
+                .handleUnreadableClientInput(mock(HttpMessageNotReadableException.class));
+
+        assertThat(mismatch.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(mismatch.getTitle()).isEqualTo("Bad Request");
+        assertThat(mismatch.getDetail()).isEqualTo("The request could not be processed.");
+        assertThat(unreadable.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(unreadable.getDetail()).isEqualTo("The request could not be processed.");
     }
 
     @Test

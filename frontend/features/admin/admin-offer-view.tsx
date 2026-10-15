@@ -3,11 +3,7 @@
 import Link from "next/link";
 
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import {
-  ADMIN_OFFER_STATUS_TONES,
-  adminOfferStatusLabel,
-} from "@/features/admin/admin-offer-status";
+import { OfferStatusPill } from "@/features/job-offer/job-offer-card";
 import { AdminOfferSourceView } from "@/features/admin/admin-offer-source-view";
 import { NormalizedSheetCta } from "@/features/admin/normalized/normalized-sheet-cta";
 import { NormalizedSheetDrawer } from "@/features/admin/normalized/normalized-sheet-drawer";
@@ -84,9 +80,7 @@ export function AdminOfferDetailView({ offerId }: { offerId: string }) {
             {data.detail.title}
           </h1>
           <div className="flex items-center gap-3 shrink-0">
-            <Badge tone={ADMIN_OFFER_STATUS_TONES[data.status]}>
-              {adminOfferStatusLabel(data.status)}
-            </Badge>
+            <OfferStatusPill status={data.status} />
             {data.detail.expiresAt && (
               <span className={MUTED}>expires {data.detail.expiresAt.slice(0, 10)}</span>
             )}

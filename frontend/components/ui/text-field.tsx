@@ -6,6 +6,8 @@ export type TextFieldProps = Omit<ComponentPropsWithRef<"input">, "className"> &
   label: string;
   /** Contenu aligné à droite sur la ligne de label (indice, lien « forgot password »…). */
   labelAction?: ReactNode;
+  /** Masque visuellement le label (barres de filtres) — il reste lu par les lecteurs d'écran. */
+  hideLabel?: boolean;
   icon?: string;
   error?: string;
   trailing?: ReactNode;
@@ -14,6 +16,7 @@ export type TextFieldProps = Omit<ComponentPropsWithRef<"input">, "className"> &
 export function TextField({
   label,
   labelAction,
+  hideLabel = false,
   icon,
   error,
   trailing,
@@ -26,12 +29,24 @@ export function TextField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-3">
-        <label htmlFor={inputId} className="font-label-md text-label-md text-text-secondary">
+      {!hideLabel || labelAction ? (
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor={inputId}
+            className={cn(
+              "font-label-md text-label-md text-text-secondary",
+              hideLabel && "sr-only",
+            )}
+          >
+            {label}
+          </label>
+          {labelAction}
+        </div>
+      ) : (
+        <label htmlFor={inputId} className="sr-only">
           {label}
         </label>
-        {labelAction}
-      </div>
+      )}
       <div className="relative flex items-center">
         {icon ? (
           <Icon

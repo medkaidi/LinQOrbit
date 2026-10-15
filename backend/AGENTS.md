@@ -130,10 +130,11 @@ Autorisations :
 - **401/403** : `config/ProblemSecurityHandler` (entry point + access denied, branchés dans `SecurityConfig`) écrit le corps ProblemDetail directement (pas de `sendError` → pas de dispatch `/error`), détail sûr constant ; déclaré en `@Bean` dans `SecurityConfig` (les slices `@WebMvcTest` ne scannent pas les `@Component`) avec l'`ObjectMapper` **Jackson 3** (`tools.jackson`) — le bean `com.fasterxml` n'existe pas sous Boot 4 ;
 - exception assumée : `AiClientErrors.extractDetail` (partagé par `CvParseClient` et `ProfileNormalizeClient`) relit le `detail` des 4xx du service IA (nos propres messages) ; les 5xx IA sont déjà mappées en génériques.
 
-Trois pièges déjà rencontrés :
+Pièges déjà rencontrés :
 - un corps `List<…>` validé par méthode (`@Valid @RequestBody List<…>`) est traité par Spring 7 via `HandlerMethodValidationException`, pas par `MethodArgumentNotValidException` → handler dédié sinon 500 ;
 - la validation d'un champ `String` vide (`""`) par Bean Validation n'atteint pas toujours le même handler : vérifier le flux complet d'un 400 ;
-- `assertThat(generic.getClaim(...))` sur une méthode à retour générique (`<T> T`) rend l'overload AssertJ ambigu : typer en `Object` dans une variable locale avant l'assertion.
+- `assertThat(generic.getClaim(...))` sur une méthode à retour générique (`<T> T`) rend l'overload AssertJ ambigu : typer en `Object` dans une variable locale avant l'assertion ;
+- `MethodArgumentTypeMismatchException` (`?page=abc`, chemin non UUID) et `HttpMessageNotReadableException` (JSON malformé) n'implémentent **pas** `ErrorResponse` sous Boot 4 : sans handler dédié, le catch-all les transforme en 500 — traités par `handleUnreadableClientInput` (400 générique), épinglé par tests d'intégration.
 
 ## Logging (SLF4J)
 
@@ -154,6 +155,7 @@ Trois pièges déjà rencontrés :
 - Sécurité : `spring-security-test` est prêt (MockMvc + `SecurityMockMvcRequestPostProcessors`) — l'utiliser dès que l'auth arrivera, sans créer de faux système d'auth pour un test. Tout endpoint sous `.authenticated()` doit recevoir `jwt()` dans ses tests : sans jeton, le test échoue en 403 et non par la validation métier attendue.
 - MapStruct : ne tester que les mappings avec logique/transformations réelles, jamais les getters/setters générés.
 - Philosophie : couverture des comportements importants (règles métier, validations, transformations, erreurs, cas limites), pas 100 % à tout prix, pas de tests de plumbing.
+- **Complétude des entrées facultatives** (règle racine) : tout endpoint de liste filtrable reçoit un test d'intégration HTTP de l'appel **nominal sans aucun paramètre**, plus les variantes — **vide ≡ absent** (`?q=`, `?status=`, `?page=`, `?size=`), casse, invalide → 400 générique — et les bornes de pagination (`PageSizes`) appliquées au niveau HTTP. Toute requête dont le comportement dépend d'un paramètre nullable (JPQL, derived) se valide sur PostgreSQL réel : les mocks ne voient pas le SQL.
 - Une fonctionnalité n'est pas terminée parce qu'elle compile : elle doit venir avec ses tests.
 
 ## Conventions

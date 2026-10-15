@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Alert } from "@/components/ui/alert";
 import { CtaButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { countryOptions } from "@/config/countries";
 import type { AuthUser } from "@/types/auth";
 import type { CandidateProfile } from "@/types/candidate";
 
@@ -52,6 +53,16 @@ export function InfoBox({ label, value }: { label: string; value: string }) {
 
 export function fullName(account: AuthUser): string {
   return `${account.firstName} ${account.lastName}`.trim();
+}
+
+const COUNTRY_LABELS = new Map(countryOptions.map((option) => [option.value, option.label]));
+
+/** Code ISO alpha-2 → libellé anglais ; code inconnu renvoyé tel quel, vide → null. */
+export function countryLabel(code: string | null): string | null {
+  if (!code) {
+    return null;
+  }
+  return COUNTRY_LABELS.get(code) ?? code;
 }
 
 function initialsOf(account: AuthUser): string {

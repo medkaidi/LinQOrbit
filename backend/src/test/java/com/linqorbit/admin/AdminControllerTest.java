@@ -37,6 +37,7 @@ import com.linqorbit.admin.dto.AdminUserPageResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
+import com.linqorbit.admin.exception.InvalidUserCapabilityFilterException;
 import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
 import com.linqorbit.admin.exception.SuggestionNotFoundException;
@@ -63,7 +64,7 @@ class AdminControllerTest {
 
     @Test
     void listUsersRenvoie200AvecEnveloppeEtRoleAdmin() throws Exception {
-        when(adminService.listUsers(0, null)).thenReturn(new AdminUserPageResponse(List.of(
+        when(adminService.listUsers(null, null, null, 0, null)).thenReturn(new AdminUserPageResponse(List.of(
                 new AdminUserResponse(UUID.randomUUID(), "ada@example.com", "Ada", "Lovelace",
                         "ACTIVE", List.of((short) 1), true, false)),
                 0, 20, 1));
@@ -82,7 +83,7 @@ class AdminControllerTest {
 
     @Test
     void listUsersTransmetPageEtSize() throws Exception {
-        when(adminService.listUsers(2, 10)).thenReturn(new AdminUserPageResponse(
+        when(adminService.listUsers(null, null, null, 2, 10)).thenReturn(new AdminUserPageResponse(
                 List.of(), 2, 10, 0));
 
         mockMvc.perform(get("/api/v1/admin/users").param("page", "2").param("size", "10")
@@ -90,6 +91,31 @@ class AdminControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page").value(2))
                 .andExpect(jsonPath("$.size").value(10));
+    }
+
+    @Test
+    void listUsersTransmetLesFiltres() throws Exception {
+        when(adminService.listUsers("ada", "active", "candidate", 0, null))
+                .thenReturn(new AdminUserPageResponse(List.of(), 0, 20, 0));
+
+        mockMvc.perform(get("/api/v1/admin/users")
+                        .param("q", "ada")
+                        .param("status", "active")
+                        .param("capability", "candidate")
+                        .with(adminJwt()))
+                .andExpect(status().isOk());
+
+        verify(adminService).listUsers("ada", "active", "candidate", 0, null);
+    }
+
+    @Test
+    void listUsersRenvoie400PourUnFiltreDeCapaciteInconnu() throws Exception {
+        when(adminService.listUsers(null, null, "admin", 0, null))
+                .thenThrow(new InvalidUserCapabilityFilterException("admin"));
+
+        mockMvc.perform(get("/api/v1/admin/users").param("capability", "admin").with(adminJwt()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Unsupported capability filter"));
     }
 
     @Test

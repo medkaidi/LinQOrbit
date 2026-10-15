@@ -5,17 +5,20 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.util.BindErrorUtils;
 
 import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
 import com.linqorbit.admin.exception.InvalidSkillTypeException;
+import com.linqorbit.admin.exception.InvalidUserCapabilityFilterException;
 import com.linqorbit.admin.exception.InvalidUserStatusException;
 import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
@@ -162,8 +165,17 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleInvalidUserStatus(InvalidUserStatusException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
         problem.setTitle("Unsupported status");
-        problem.setDetail("Only ACTIVE and INACTIVE can be set through this endpoint.");
+        problem.setDetail("Only ACTIVE and INACTIVE are supported.");
         log.warn("Admin status update rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidUserCapabilityFilterException.class)
+    public ProblemDetail handleInvalidUserCapabilityFilter(InvalidUserCapabilityFilterException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Unsupported capability filter");
+        problem.setDetail("Only candidate and recruiter can be used as a capability filter.");
+        log.warn("Admin accounts list rejected : {}", ex.getMessage());
         return problem;
     }
 
@@ -290,6 +302,24 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Entrée client illisible ou non convertible : paramètre de requête non
+     * numérique ({@code ?page=abc}), chemin non UUID, corps JSON malformé.
+     * Ces exceptions n'implémentent pas {@link ErrorResponse} (Boot 4) : sans
+     * ce handler elles tomberaient dans le catch-all en 500 alors que c'est la
+     * requête du client qui est invalide → 400, détail générique (le message
+     * framework brut — noms de paramètres internes compris — ne part jamais
+     * au client).
+     */
+    @ExceptionHandler({ MethodArgumentTypeMismatchException.class, HttpMessageNotReadableException.class })
+    public ProblemDetail handleUnreadableClientInput(Exception ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Bad Request");
+        problem.setDetail("The request could not be processed.");
+        log.warn("Request rejected : {} : {}", ex.getClass().getSimpleName(), ex.getMessage());
+        return problem;
+    }
+
+    /**
      * Échec de l'appel au service IA : le statut (415, 422, 429, 502, 504…) est
      * porté par l'exception elle-même pour refléter la couche qui a échoué.
      */
@@ -313,7 +343,7 @@ public class GlobalExceptionHandler {
 
     /**
      * Filet de sécurité pour tout ce qui n'a pas de handler dédié : exceptions
-     * framework (route morte,405, JSON illisible…), erreurs de programme
+     * framework typées (route morte, 405…), erreurs de programme
      * (IllegalArgumentException…), bugs inattendus.
      *
      * <p>Règle : le message brut d'une exception n'est <strong>jamais</strong> renvoyé

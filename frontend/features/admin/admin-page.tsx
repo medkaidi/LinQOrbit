@@ -6,7 +6,11 @@ import Link from "next/link";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { InfiniteList } from "@/components/ui/infinite-list";
+import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
+import { Spinner } from "@/components/ui/spinner";
+import { TextField } from "@/components/ui/text-field";
 import { RetryButton } from "@/features/admin/retry-button";
 import { SuggestionReviewDialog } from "@/features/admin/suggestion-review-dialog";
 import {
@@ -15,6 +19,7 @@ import {
   useSkillSuggestions,
   useUpdateUserStatus
 } from "@/hooks/use-admin";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useAuthStore } from "@/stores/auth-store";
 import { ROLE } from "@/lib/utils/roles";
 import type { AdminSkillSuggestion, AdminUser } from "@/types/admin";
@@ -26,6 +31,21 @@ const SECTION_TITLE =
 const ITEM_CARD =
   "rounded-2xl border border-slate-border bg-item-surface/50 p-4";
 const MUTED = "text-body-sm font-body-sm text-text-secondary";
+
+type StatusFilter = "all" | "active" | "inactive";
+type CapabilityFilter = "all" | "candidate" | "recruiter";
+
+const STATUS_FILTER_OPTIONS: SegmentedOption<StatusFilter>[] = [
+  { value: "all", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
+
+const CAPABILITY_FILTER_OPTIONS: SegmentedOption<CapabilityFilter>[] = [
+  { value: "all", label: "All" },
+  { value: "candidate", label: "Candidates" },
+  { value: "recruiter", label: "Recruiters" },
+];
 
 function Header() {
   return (
@@ -140,10 +160,20 @@ function AccountRow({
 
 function AccountsSection() {
   const currentUser = useAuthStore((state) => state.user);
-  const users = useInfiniteAdminUsers();
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [capabilityFilter, setCapabilityFilter] = useState<CapabilityFilter>("all");
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const users = useInfiniteAdminUsers({
+    ...(debouncedSearch.trim() ? { q: debouncedSearch.trim() } : {}),
+    ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+    ...(capabilityFilter !== "all" ? { capability: capabilityFilter } : {}),
+  });
   const statusMutation = useUpdateUserStatus();
   const items = users.data?.pages.flatMap((page) => page.items) ?? [];
   const total = users.data?.pages[0]?.total ?? 0;
+  const filtered =
+    search.trim() !== "" || statusFilter !== "all" || capabilityFilter !== "all";
 
   const toggle = (account: AdminUser) => {
     statusMutation.mutate({
@@ -161,6 +191,30 @@ function AccountsSection() {
         )}
       </header>
       <div className="px-6 pt-5 pb-6 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-full sm:w-64">
+            <TextField
+              label="Search accounts"
+              hideLabel
+              icon="search"
+              placeholder="Search name or email"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          <SegmentedControl
+            label="Filter accounts by status"
+            value={statusFilter}
+            options={STATUS_FILTER_OPTIONS}
+            onChange={setStatusFilter}
+          />
+          <SegmentedControl
+            label="Filter accounts by capability"
+            value={capabilityFilter}
+            options={CAPABILITY_FILTER_OPTIONS}
+            onChange={setCapabilityFilter}
+          />
+        </div>
         {statusMutation.isError && (
           <Alert variant="error" title="Unable to update the status">
             The account status could not be changed.{" "}
@@ -175,6 +229,12 @@ function AccountsSection() {
             <RetryButton onRetry={() => void users.refetch()} label="Try again" />
           </Alert>
         )}
+        {users.isLoading && (
+          <p className="flex items-center gap-2 text-body-sm text-text-secondary">
+            <Spinner />
+            Loading accounts…
+          </p>
+        )}
         <InfiniteList
           items={items}
           keyExtractor={(account) => account.id}
@@ -182,7 +242,7 @@ function AccountsSection() {
             <AccountRow
               account={account}
               isCurrentUser={account.id === currentUser?.id}
-              busy={statusMutation.isPending}
+              busy={statusMutation.isPending && statusMutation.variables?.userId === account.id}
               onToggle={toggle}
             />
           )}
@@ -190,7 +250,11 @@ function AccountsSection() {
           isFetchingNextPage={users.isFetchingNextPage}
           fetchNextPage={() => void users.fetchNextPage()}
           loading={users.isLoading}
-          empty={<p className={MUTED}>No accounts.</p>}
+          empty={
+            <p className={MUTED}>
+              {filtered ? "No accounts match these filters." : "No accounts."}
+            </p>
+          }
         />
       </div>
     </section>
@@ -201,6 +265,7 @@ function SuggestionsSection() {
   const { data, isLoading, isError, refetch } = useSkillSuggestions();
   const rejectMutation = useRejectSkillSuggestion();
   const [reviewing, setReviewing] = useState<AdminSkillSuggestion | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<AdminSkillSuggestion | null>(null);
 
   return (
     <section className="bg-canvas-white rounded-2xl shadow-sm">
@@ -267,8 +332,7 @@ function SuggestionsSection() {
                 </Button>
                 <Button
                   variant="outline-sm"
-                  busy={rejectMutation.isPending}
-                  onClick={() => rejectMutation.mutate(suggestion.id)}
+                  onClick={() => setRejectTarget(suggestion)}
                 >
                   Reject
                 </Button>
@@ -281,6 +345,22 @@ function SuggestionsSection() {
         <SuggestionReviewDialog
           suggestion={reviewing}
           onClose={() => setReviewing(null)}
+        />
+      )}
+      {rejectTarget && (
+        <ConfirmDialog
+          title="Reject this suggestion?"
+          message="The candidate is not notified and the skill stays out of the catalog."
+          confirmLabel="Reject"
+          tone="danger"
+          icon="delete"
+          busy={rejectMutation.isPending}
+          onConfirm={() =>
+            rejectMutation.mutate(rejectTarget.id, {
+              onSettled: () => setRejectTarget(null),
+            })
+          }
+          onCancel={() => setRejectTarget(null)}
         />
       )}
     </section>

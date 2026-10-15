@@ -31,8 +31,9 @@ public class AdminController implements AdminApi {
     private final AdminService adminService;
 
     @Override
-    public ResponseEntity<AdminUserPageResponse> listUsers(int page, Integer size) {
-        return ResponseEntity.ok(adminService.listUsers(page, size));
+    public ResponseEntity<AdminUserPageResponse> listUsers(String q, String status, String capability,
+            int page, Integer size) {
+        return ResponseEntity.ok(adminService.listUsers(q, status, capability, page, size));
     }
 
     @Override

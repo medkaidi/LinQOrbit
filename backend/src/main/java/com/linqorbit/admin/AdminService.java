@@ -27,6 +27,7 @@ import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
 import com.linqorbit.admin.exception.InvalidSkillTypeException;
+import com.linqorbit.admin.exception.InvalidUserCapabilityFilterException;
 import com.linqorbit.admin.exception.InvalidUserStatusException;
 import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
@@ -104,16 +105,20 @@ public class AdminService {
 
     /**
      * Liste paginée des comptes : tri nom/prénom, pagination bornée par
-     * {@link PageSizes} (défaut 20, max 50 — pattern D34). Rôles et drapeaux
-     * d'identité (candidat / recruteur) joints par lot pour la page courante
-     * uniquement.
+     * {@link PageSizes} (défaut 20, max 50 — pattern D34). Filtres optionnels
+     * (T-48) : {@code q} cherche dans prénom / nom / email, {@code status}
+     * (active | inactive) et {@code capability} (candidate | recruiter —
+     * identité de profil, jamais un rôle). Rôles et drapeaux d'identité
+     * (candidat / recruteur) joints par lot pour la page courante uniquement.
      */
     @Transactional(readOnly = true)
-    public AdminUserPageResponse listUsers(int page, Integer size) {
+    public AdminUserPageResponse listUsers(String q, String status, String capability, int page,
+            Integer size) {
         int safePage = PageSizes.page(page);
         int safeSize = PageSizes.clamp(size);
-        Page<User> result = userRepository.findAllByOrderByLastNameAscFirstNameAsc(
-                PageRequest.of(safePage, safeSize));
+        Page<User> result = userRepository.searchUsers(
+                userSearchPattern(q), parseUserStatusFilter(status),
+                parseUserCapabilityFilter(capability), PageRequest.of(safePage, safeSize));
         List<UUID> userIds = result.getContent().stream().map(User::getId).toList();
         Map<UUID, List<Short>> rolesByUser = userIds.isEmpty() ? Map.of()
                 : userRoleRepository.findByUserIdIn(userIds).stream()
@@ -138,8 +143,8 @@ public class AdminService {
                         candidateIds.contains(user.getId()),
                         recruiterIds.contains(user.getId())))
                 .toList();
-        log.info("Admin users list returned : page={}, size={}, count={}, total={}",
-                safePage, safeSize, items.size(), result.getTotalElements());
+        log.info("Admin users list returned : page={}, size={}, q={}, status={}, capability={}, count={}, total={}",
+                safePage, safeSize, q, status, capability, items.size(), result.getTotalElements());
         return new AdminUserPageResponse(items, result.getNumber(), result.getSize(),
                 result.getTotalElements());
     }
@@ -521,10 +526,47 @@ public class AdminService {
 
     private JobOfferStatus parseOfferStatus(String status) {
         try {
-            return JobOfferStatus.fromApiValue(status.trim());
+            return JobOfferStatus.fromApiValue(status.trim().toLowerCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
             throw new InvalidOfferStatusFilterException(status);
         }
+    }
+
+    /**
+     * Recherche vide ou absente → null (pas de filtre) ; sinon motif LIKE
+     * « %terme% » en minuscules — construit ici, pas dans le JPQL : un
+     * paramètre brut concaténé à des littéraux n'a pas de type inférable et
+     * PostgreSQL le résout mal quand il vaut null.
+     */
+    private String userSearchPattern(String q) {
+        return (q == null || q.isBlank()) ? null : "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
+    }
+
+    /** Filtre de statut de la liste des comptes : active | inactive (jamais SUSPENDED). */
+    private UserStatus parseUserStatusFilter(String status) {
+        if (status == null || status.isBlank()) {
+            return null;
+        }
+        String value = status.trim().toLowerCase(Locale.ROOT);
+        if ("active".equals(value)) {
+            return UserStatus.ACTIVE;
+        }
+        if ("inactive".equals(value)) {
+            return UserStatus.INACTIVE;
+        }
+        throw new InvalidUserStatusException(status);
+    }
+
+    /** Filtre de capacité de la liste des comptes : candidate | recruiter. */
+    private String parseUserCapabilityFilter(String capability) {
+        if (capability == null || capability.isBlank()) {
+            return null;
+        }
+        String value = capability.trim().toLowerCase(Locale.ROOT);
+        if (!"candidate".equals(value) && !"recruiter".equals(value)) {
+            throw new InvalidUserCapabilityFilterException(capability);
+        }
+        return value;
     }
 
     private Map<UUID, String> companyNamesOf(List<JobOffer> offers) {

@@ -9,6 +9,8 @@
  * - Invalider une famille = la clé racine de cette famille
  *   (`queryKeys.candidate.reference` rafraîchit les 4 listes de référence).
  */
+import type { AdminUserFilters } from "@/types/admin";
+
 export const queryKeys = {
   auth: {
     me: ["auth", "me"] as const,
@@ -35,6 +37,9 @@ export const queryKeys = {
   },
   admin: {
     users: ["admin", "users"] as const,
+    /** Liste infinie filtrée (D34/T-48) : les filtres entrent dans la clé (le préfixe `users` invalide tout). */
+    usersPage: (filters: AdminUserFilters) =>
+      ["admin", "users", "page", filters] as const,
     userDetail: (userId: string) => ["admin", "users", userId] as const,
     userProfile: (userId: string) => ["admin", "users", userId, "profile"] as const,
     userNormalized: (userId: string) => ["admin", "users", userId, "normalized-profile"] as const,

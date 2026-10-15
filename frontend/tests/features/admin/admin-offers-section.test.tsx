@@ -113,8 +113,9 @@ describe("AdminOffersSection", () => {
     const links = screen.getAllByRole("link", { name: "Backend Engineer" });
     expect(links[0]).toHaveAttribute("href", "/admin/offers/offer-1");
     expect(screen.getByText("Frontend Engineer")).toBeInTheDocument();
-    // Pill company (seulement quand la company existe).
+    // Pill company (seulement quand la company existe), libellé muted sinon.
     expect(screen.getByText("Acme")).toBeInTheDocument();
+    expect(screen.getByText("No company")).toBeInTheDocument();
     // Méta recruteur : séniorité, lieu+mode, contrat, salaire.
     expect(screen.getByText("Senior")).toBeInTheDocument();
     expect(screen.getByText("Hybrid · Paris, FR")).toBeInTheDocument();
@@ -135,8 +136,13 @@ describe("AdminOffersSection", () => {
     renderSection();
 
     await screen.findByText("Backend Engineer");
+    // 1ʳᵉ requête : filtre absent (clé undefined) et page 0.
+    expect(mockedListAllJobOffers).toHaveBeenCalledWith(
+      { status: undefined, page: 0 },
+      expect.anything(),
+    );
     mockedListAllJobOffers.mockClear();
-    mockedListAllJobOffers.mockResolvedValue(makePage([]));
+    mockedListAllJobOffers.mockResolvedValue(makePage([], { total: 7 }));
 
     fireEvent.click(screen.getByRole("button", { name: "Draft" }));
 
@@ -146,7 +152,9 @@ describe("AdminOffersSection", () => {
         { signal: expect.any(AbortSignal) },
       ),
     );
-    expect(await screen.findByText(/No offers match this filter/)).toBeInTheDocument();
+    // Le total de l'en-tête suit la réponse filtrée, l'état vide reste filtré.
+    expect(await screen.findByText("7 offers")).toBeInTheDocument();
+    expect(screen.getByText(/No offers match this filter/)).toBeInTheDocument();
   });
 
   it("loads the next page through the load-more fallback", async () => {
@@ -176,12 +184,26 @@ describe("AdminOffersSection", () => {
     expect(await screen.findByText("Frontend Engineer")).toBeInTheDocument();
   });
 
-  it("shows an empty state when nothing matches", async () => {
-    mockedListAllJobOffers.mockResolvedValue(makePage([]));
+  it("shows the header with the global count and an unfiltered empty state", async () => {
+    mockedListAllJobOffers.mockResolvedValue(makePage([], { total: 0 }));
 
     renderSection();
 
-    expect(await screen.findByText(/No offers match this filter/)).toBeInTheDocument();
+    expect(await screen.findByText("No offers yet.")).toBeInTheDocument();
+    expect(screen.getByText("0 offers")).toBeInTheDocument();
+    // Le filtre vit dans l'en-tête (h1 + count), la section n'est qu'une liste.
+    expect(screen.getByRole("heading", { level: 1, name: "Job offers" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Administration" }),
+    ).toHaveAttribute("href", "/admin");
+  });
+
+  it("shows a loading state with a spinner while the first page loads", async () => {
+    mockedListAllJobOffers.mockReturnValue(new Promise(() => {}));
+
+    renderSection();
+
+    expect(await screen.findByText("Loading offers…")).toBeInTheDocument();
   });
 
   it("surfaces a load error with a retry that re-queries", async () => {
