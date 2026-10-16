@@ -159,6 +159,17 @@ class JobOfferIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hasUnvalidatedChanges").value(true));
 
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/validate")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/job-offers/" + offerId).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("validated"))
+                .andExpect(jsonPath("$.hasUnvalidatedChanges").value(false));
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM normalized_profile_job_offer WHERE job_offer_id = ?",
+                Long.class, offerId)).isEqualTo(2L);
+
         mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/publish")
                         .header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isNoContent());

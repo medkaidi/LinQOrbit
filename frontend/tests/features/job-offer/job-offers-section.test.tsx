@@ -482,6 +482,11 @@ describe("JobOffersSection", () => {
     renderOffers([draftOffer({ status: "validated", normalizationFailed: true })]);
 
     fireEvent.click(screen.getByRole("button", { name: "Validate again" }));
+
+    expect(
+      screen.getByText("We could not finish analyzing this offer. You can try again."),
+    ).toBeInTheDocument();
+
     // Même garde que Validate en draft : confirmation avant la mutation (D13).
     fireEvent.click(
       within(screen.getByRole("dialog")).getByRole("button", { name: "Validate" }),
@@ -491,6 +496,40 @@ describe("JobOffersSection", () => {
       { offerId: "o1", action: "validate" },
       expect.anything(),
     );
+  });
+
+  it("offers a Validate again action on unvalidated changes", () => {
+    const transition = mutation();
+    useJobOfferTransitionMock.mockReturnValue(transition);
+    renderOffers([draftOffer({ status: "validated", hasUnvalidatedChanges: true })]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Validate again" }));
+
+    expect(
+      screen.getByText("You've made changes to this offer. Validate again to refresh its analysis."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Validate" }),
+    );
+
+    expect(transition.mutate).toHaveBeenCalledWith(
+      { offerId: "o1", action: "validate" },
+      expect.anything(),
+    );
+  });
+
+  it("hides Validate again while the analysis is in progress", () => {
+    renderOffers([
+      draftOffer({
+        status: "validated",
+        hasUnvalidatedChanges: true,
+        normalizationInProgress: true,
+      }),
+    ]);
+
+    expect(screen.getByText("Analyzing…")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Validate again" })).not.toBeInTheDocument();
   });
 
   it("does not offer Validate again when the analysis is healthy", () => {

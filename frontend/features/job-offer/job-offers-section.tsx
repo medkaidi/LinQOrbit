@@ -79,6 +79,16 @@ const TRANSITION_CONFIRM: Record<
   },
 };
 
+function validateConfirmMessage(offer: JobOfferListItem): string {
+  if (offer.normalizationFailed) {
+    return "We could not finish analyzing this offer. You can try again.";
+  }
+  if (offer.hasUnvalidatedChanges) {
+    return "You've made changes to this offer. Validate again to refresh its analysis.";
+  }
+  return TRANSITION_CONFIRM.validate.message;
+}
+
 function OfferActions({
   offer,
   busy,
@@ -94,6 +104,8 @@ function OfferActions({
 }) {
   const ready = offer.readyToPublish;
   const blocked = ready ? undefined : OFFER_INCOMPLETE_TOOLTIP;
+  const canRevalidate =
+    !offer.normalizationInProgress && (offer.normalizationFailed || offer.hasUnvalidatedChanges);
   return (
     <div className="flex flex-wrap items-center gap-2 shrink-0">
       {offer.status === "draft" && (
@@ -120,7 +132,7 @@ function OfferActions({
       )}
       {offer.status === "validated" && (
         <>
-          {offer.normalizationFailed && (
+          {canRevalidate && (
             <Button variant="outline-sm" busy={busy} onClick={() => onTransition("validate")}>
               Validate again
             </Button>
@@ -339,7 +351,11 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
         {confirmTransition ? (
           <ConfirmDialog
             title={TRANSITION_CONFIRM[confirmTransition.action].title}
-            message={TRANSITION_CONFIRM[confirmTransition.action].message}
+            message={
+              confirmTransition.action === "validate"
+                ? validateConfirmMessage(confirmTransition.offer)
+                : TRANSITION_CONFIRM[confirmTransition.action].message
+            }
             confirmLabel={TRANSITION_CONFIRM[confirmTransition.action].confirmLabel}
             icon={TRANSITION_CONFIRM[confirmTransition.action].icon}
             busy={transition.isPending}
