@@ -19,6 +19,12 @@ export type InfiniteListProps<T> = {
   /** Message affiché quand la liste est vide, hors chargement. */
   empty?: ReactNode;
   loadMoreLabel?: string;
+  /**
+   * Classes **complètes** de la `<ul>` — remplace le défaut (jamais
+   * concaténées, `cn()` n'est pas un tailwind-merge) ; le board public y
+   * passe sa grille deux colonnes.
+   */
+  listClassName?: string;
 };
 
 /**
@@ -36,6 +42,7 @@ export function InfiniteList<T>({
   loading = false,
   empty,
   loadMoreLabel = "Load more",
+  listClassName = "flex flex-col gap-3",
 }: InfiniteListProps<T>) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const canFetch = hasNextPage && !isFetchingNextPage;
@@ -66,7 +73,7 @@ export function InfiniteList<T>({
 
   return (
     <>
-      <ul className="flex flex-col gap-3">
+      <ul className={listClassName}>
         {items.map((item) => (
           <Fragment key={keyExtractor(item)}>{renderItem(item)}</Fragment>
         ))}

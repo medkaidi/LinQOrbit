@@ -7,9 +7,7 @@ export const metadata: Metadata = {
   description: "A published job offer on LinQOrbit.",
 };
 
-export default async function PublicJobPage({
-  params,
-}: PageProps<"/jobs/[job]">) {
+export default async function PublicJobPage({ params }: PageProps<"/jobs/[job]">) {
   const { job } = await params;
   return <PublicJobView jobParam={job} />;
 }

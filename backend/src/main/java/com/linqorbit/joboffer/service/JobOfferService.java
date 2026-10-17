@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -109,6 +110,9 @@ public class JobOfferService {
 
     private static final String BASE36 = "0123456789abcdefghijklmnopqrstuvwxyz";
 
+    /** Nombre maximal d'« autres offres » de la même entreprise (taille décidée backend). */
+    private static final int RELATED_PUBLIC_JOBS_LIMIT = 3;
+
     private final JobOfferRepository jobOfferRepository;
     private final JobOfferSkillRepository jobOfferSkillRepository;
     private final JobOfferLanguageRepository jobOfferLanguageRepository;
@@ -208,6 +212,31 @@ public class JobOfferService {
      * expiré — aucune distinction côté client.
      */
     public PublicJobResponse getPublic(String publicId) {
+        return buildPublicResponse(loadPublicOffer(publicId));
+    }
+
+    /**
+     * « Autres offres » de la fiche publique (T-74) : endpoint séparé pour ne
+     * pas alourdir le détail — les autres offres PUBLISHED non expirées de la
+     * même entreprise, de la plus récente à la plus ancienne, bornées par le
+     * backend. Mêmes règles d'accès que la fiche (404 sûr sur l'offre de
+     * référence).
+     */
+    @Transactional(readOnly = true)
+    public List<PublicJobListItem> listRelatedPublic(String publicId) {
+        JobOffer offer = loadPublicOffer(publicId);
+        Page<JobOffer> result = jobOfferRepository.findPublicRelated(
+                JobOfferStatus.PUBLISHED, LocalDate.now(), offer.getCompanyId(), publicId,
+                PageRequest.of(0, RELATED_PUBLIC_JOBS_LIMIT,
+                        Sort.by(Sort.Direction.DESC, "publishedAt")));
+        List<PublicJobListItem> items = buildPublicListItems(result.getContent());
+        log.info("Related public jobs listed : publicId={}, companyId={}, count={}",
+                publicId, offer.getCompanyId(), items.size());
+        return items;
+    }
+
+    /** Offre publiée lisible publiquement — 404 sûr unique (inconnu, non publié, expiré). */
+    private JobOffer loadPublicOffer(String publicId) {
         JobOffer offer = jobOfferRepository.findByPublicId(publicId)
                 .orElseThrow(() -> {
                     log.warn("Public job offer rejected : unknown publicId={}", publicId);
@@ -219,15 +248,16 @@ public class JobOfferService {
                     publicId, offer.getStatus().getApiValue(), offer.getExpiresAt());
             throw new JobOfferNotFoundException("Job offer not found.");
         }
-        return buildPublicResponse(offer);
+        return offer;
     }
 
     /**
      * Job board public (T-72) : offres PUBLISHED non expirées, triées de la
      * plus récemment publiée à la plus ancienne. Même enveloppe D34 que les
      * autres listes — seule {@code page} est exposée, la taille reste
-     * décidée par le backend. Labels résolus en batch (companies + 3
-     * vocabulaires) : le visiteur n'a pas les référentiels, jamais de N+1.
+     * décidée par le backend. Labels résolus en batch (companies,
+     * vocabulaires, compétences) : le visiteur n'a pas les référentiels,
+     * jamais de N+1.
      */
     @Transactional(readOnly = true)
     public PublicJobPageResponse listPublic(Integer page) {
@@ -243,9 +273,10 @@ public class JobOfferService {
     }
 
     /**
-     * Lignes du job board : ni description ni listes enfants — company et
-     * vocabulaires résolus en labels par requêtes batch (pas de requête par
-     * ligne).
+     * Lignes du job board : ni description ni listes enfants — company,
+     * vocabulaires et compétences résolus en labels par requêtes batch (pas de
+     * requête par ligne). Les compétences sont toutes exposées (transparence
+     * candidat), triées poids décroissant puis nom.
      */
     private List<PublicJobListItem> buildPublicListItems(List<JobOffer> offers) {
         if (offers.isEmpty()) {
@@ -266,6 +297,10 @@ public class JobOfferService {
                 workModeRepository.findAllById(nonNullIds(offers.stream()
                         .map(JobOffer::getWorkModeId).toList())),
                 WorkMode::getId, WorkMode::getLabel);
+        List<JobOfferSkill> skills = jobOfferSkillRepository.findByJobOfferIdIn(
+                offers.stream().map(JobOffer::getId).toList());
+        Map<UUID, Skill> skillVocabulary = loadSkills(skills);
+        Map<UUID, List<JobOfferSkill>> skillsByOffer = groupBy(skills, JobOfferSkill::getJobOfferId);
 
         return offers.stream()
                 .map(offer -> new PublicJobListItem(
@@ -279,12 +314,31 @@ public class JobOfferService {
                         contractTypes.get(offer.getContractTypeId()),
                         employmentTypes.get(offer.getEmploymentTypeId()),
                         workModes.get(offer.getWorkModeId()),
+                        orderedSkillLabels(skillsByOffer.get(offer.getId()), skillVocabulary),
                         offer.getSalaryMin(),
                         offer.getSalaryMax(),
                         offer.getSalaryCurrency(),
                         offer.getSalaryPeriod() == null ? null : offer.getSalaryPeriod().getApiValue(),
                         offer.getPublishedAt(),
                         offer.getExpiresAt()))
+                .toList();
+    }
+
+    /**
+     * Libellés de toutes les compétences d'une offre, poids décroissant puis
+     * nom croissant (poids égal), les références vocabulaire absentes étant
+     * ignorées.
+     */
+    private static List<String> orderedSkillLabels(List<JobOfferSkill> offerSkills, Map<UUID, Skill> skills) {
+        if (offerSkills == null || offerSkills.isEmpty()) {
+            return List.of();
+        }
+        return offerSkills.stream()
+                .sorted(Comparator.comparing(JobOfferSkill::getWeight).reversed()
+                        .thenComparing(skill -> skillName(skills, skill.getSkillId()),
+                                Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(skill -> skillName(skills, skill.getSkillId()))
+                .filter(Objects::nonNull)
                 .toList();
     }
 

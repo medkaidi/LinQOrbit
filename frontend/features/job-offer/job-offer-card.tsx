@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import {
   companyInitials,
+  expiryCountdown,
   locationLabel,
   relativeTimeLabel,
   salaryLabel,
@@ -19,10 +20,6 @@ import type {
   SalaryPeriodValue,
   SeniorityValue,
 } from "@/types/recruiter";
-
-/** Pilule outline-sm habillant un lien (jamais de <button> dans un <a>). */
-export const OFFER_LINK_PILL_CLASS =
-  "group inline-flex items-center justify-center gap-2 h-8 px-4 rounded-full bg-surface-container-lowest shadow-sm hover:bg-canvas-subtle text-text-primary font-bold text-xs transition-[background-color] duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep";
 
 const OFFER_ROW_CARD = "bg-canvas-white rounded-2xl border border-slate-border p-4 shadow-sm";
 
@@ -59,32 +56,6 @@ export function OfferStatusPill({ status }: { status: JobOfferStatusValue }) {
       {STATUS_LABELS[status]}
     </span>
   );
-}
-
-/** « Expires in N days » (≤ 30 jours) — la pastille « Expired » couvre le passé. */
-function expiryCountdown(
-  expiresAt: string,
-): { label: string; urgent: boolean } | null {
-  const date = new Date(`${expiresAt.slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const days = Math.round((date.getTime() - today.getTime()) / 86_400_000);
-  if (days < 0) {
-    return null;
-  }
-  if (days === 0) {
-    return { label: "Expires today", urgent: true };
-  }
-  if (days === 1) {
-    return { label: "Expires tomorrow", urgent: true };
-  }
-  if (days <= 30) {
-    return { label: `Expires in ${days} days`, urgent: days <= 7 };
-  }
-  return null;
 }
 
 /** Chip méta d'une carte d'offre (icône + libellé) — langage visuel partagé carte recruteur / job board. */

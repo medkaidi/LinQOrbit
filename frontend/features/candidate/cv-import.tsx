@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 
 import type { CvImportPlan } from "@/features/candidate/cv-parsing";
 import { SKILL_NOT_IN_LIST } from "@/features/candidate/cv-parsing";
-import { SectionIcon } from "@/features/candidate/profile-shared";
 import type { ParsedCv, SkillReference } from "@/types/candidate";
 import { Button, CtaButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { Select, type SelectOption } from "@/components/ui/select";
 
 /** Échec de l'analyse : message du backend (ProblemDetail) en role="alert". */
@@ -131,7 +131,7 @@ export function CvImportPreview({
       className="bg-canvas-white rounded-2xl p-6 shadow-sm flex flex-col gap-4 min-h-0"
     >
       <header className="flex items-start gap-3 shrink-0">
-        <SectionIcon name="upload_file" />
+        <IconBadge icon="upload_file" />
         <div className="min-w-0 flex-1">
           <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight">
             Review your CV import

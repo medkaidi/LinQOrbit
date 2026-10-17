@@ -1,11 +1,14 @@
 package com.linqorbit.joboffer.controller;
 
+import java.util.List;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import lombok.RequiredArgsConstructor;
 
+import com.linqorbit.joboffer.dto.PublicJobListItem;
 import com.linqorbit.joboffer.dto.PublicJobPageResponse;
 import com.linqorbit.joboffer.dto.PublicJobResponse;
 import com.linqorbit.joboffer.service.JobOfferService;
@@ -29,5 +32,10 @@ public class JobPublicController implements JobPublicApi {
     @Override
     public ResponseEntity<PublicJobResponse> getJob(String publicId) {
         return ResponseEntity.ok(jobOfferService.getPublic(publicId));
+    }
+
+    @Override
+    public ResponseEntity<List<PublicJobListItem>> listRelatedJobs(String publicId) {
+        return ResponseEntity.ok(jobOfferService.listRelatedPublic(publicId));
     }
 }

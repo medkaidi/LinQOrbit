@@ -1,5 +1,5 @@
 import { api } from "@/lib/api/axios";
-import type { PublicJob, PublicJobPage } from "@/types/public-job";
+import type { PublicJob, PublicJobListItem, PublicJobPage } from "@/types/public-job";
 
 /**
  * Lecture publique d'une offre publiée (V15) : sans jeton — le backend
@@ -23,5 +23,20 @@ export async function listPublicJobs(
     params: { ...(params.page !== undefined ? { page: params.page } : {}) },
     signal: options.signal,
   });
+  return response.data;
+}
+
+/**
+ * « More from this company » (T-74) : autres offres publiées non expirées de
+ * la même entreprise — tableau borné par le backend, jamais une page.
+ */
+export async function getRelatedPublicJobs(
+  publicId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<PublicJobListItem[]> {
+  const response = await api.get<PublicJobListItem[]>(
+    `/api/v1/jobs/${publicId}/related`,
+    { signal: options.signal },
+  );
   return response.data;
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
-import { listPublicJobs } from "@/lib/api/public-jobs.api";
+import { listPublicJobs, getRelatedPublicJobs } from "@/lib/api/public-jobs.api";
 import { queryKeys } from "@/hooks/query-keys";
 
 /**
@@ -17,5 +17,20 @@ export function useInfinitePublicJobs() {
     getNextPageParam: (lastPage) =>
       lastPage.page * lastPage.size < lastPage.total ? lastPage.page + 1 : undefined,
     staleTime: 30_000,
+  });
+}
+
+/**
+ * « More from this company » de la fiche publique (T-74) : endpoint dédié
+ * `GET /api/v1/jobs/{publicId}/related` — les autres offres publiées non
+ * expirées de la même entreprise, tri et limite décidés par le backend.
+ * `enabled` n'ouvre la requête qu'une fois la fiche chargée (inutile en 404).
+ */
+export function useRelatedPublicJobs(publicId: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.publicJobs.related(publicId),
+    queryFn: ({ signal }) => getRelatedPublicJobs(publicId, { signal }),
+    enabled: options?.enabled ?? true,
+    staleTime: 60_000,
   });
 }

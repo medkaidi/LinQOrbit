@@ -38,7 +38,7 @@ function labelOf(options: { id: string; label: string }[] | undefined, id: strin
   return options?.find((option) => option.id === id)?.label ?? null;
 }
 
-/** Même rendu que la fiche publique, labels résolus côté membre. */
+/** Même rendu que la fiche publique, labels résolus côté membre (sans actions : l'offre n'est pas publique). */
 function toArticle(
   offer: JobOffer,
   companyName: string | null,
@@ -52,14 +52,15 @@ function toArticle(
   return {
     companyName,
     title: offer.title,
-    meta: [
-      seniority,
-      locationLabel(offer.city, offer.country),
-      contractType,
-      employmentType,
-      workMode,
-      salaryLabel(offer.salaryMin, offer.salaryMax, offer.salaryCurrency, offer.salaryPeriod),
-    ].filter((part): part is string => Boolean(part)),
+    seniority,
+    location: locationLabel(offer.city, offer.country),
+    contractType,
+    employmentType,
+    workMode,
+    salary: salaryLabel(offer.salaryMin, offer.salaryMax, offer.salaryCurrency, offer.salaryPeriod),
+    requiredExpYear: offer.requiredExpYear,
+    publishedAt: offer.publishedAt,
+    expiresAt: offer.expiresAt,
     description: offer.description,
     skills: offer.skills.map((skill) => ({
       id: skill.skillId,
@@ -155,9 +156,8 @@ export function JobOfferPreview({ offerId }: { offerId: string }) {
       <Alert variant="info" title="Not public yet">
         This is how the offer will look once published.
       </Alert>
-      <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <PublicJobArticle article={article} />
-      </section>
+      {/* Article autonome (T-73) : pas de wrapper blanc, chaque bloc porte sa carte. */}
+      <PublicJobArticle article={article} />
       {data.questions.length > 0 ? (
         <section className="bg-canvas-white rounded-2xl shadow-sm">
           <header className={OFFER_SECTION_HEADER}>

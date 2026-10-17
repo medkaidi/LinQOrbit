@@ -22,6 +22,7 @@ import { useCandidateProfile } from "@/hooks/use-candidate-profile";
 import { ValidateProfileBanner } from "@/features/candidate/validate-profile-banner";
 import { CvSection } from "@/features/candidate/cv-section";
 import { Icon } from "@/components/ui/icon";
+import { IndexBadge } from "@/components/ui/index-badge";
 import { NavPill } from "@/components/ui/nav-pill";
 import { cn } from "@/lib/utils/cn";
 import { plural } from "@/lib/utils/format";
@@ -107,15 +108,6 @@ function linkTypeLabel(linkType: string): string {
 function cefrLabel(level: string): string {
   const labels = CEFR_LABELS as Record<string, string | undefined>;
   return labels[level] ?? level;
-}
-
-/** Pastille numérotée d'un item (expérience / diplôme), plus petite que celle des titres. */
-function ItemIndex({ index }: { index: number }) {
-  return (
-    <span className="w-7 h-7 shrink-0 rounded-full bg-canvas-white border border-slate-border text-blue-deep flex items-center justify-center text-[12px] font-semibold">
-      {index}
-    </span>
-  );
 }
 
 /** Période d'un item : pilule blanche bordée de gris, vert quand le poste est en cours. */
@@ -327,7 +319,7 @@ function ExperienceSection({
               <li key={item.id} className={ITEM_CLASSES}>
                 <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
                   <div className="flex items-center gap-3 min-w-0">
-                    <ItemIndex index={index + 1} />
+                    <IndexBadge>{index + 1}</IndexBadge>
                     <div className="min-w-0">
                       <h3 className="font-label-md text-label-md text-text-primary">
                         {item.positionTitle}
@@ -379,7 +371,7 @@ function ProjectsSection({
             <li key={item.id} className={ITEM_CLASSES}>
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
                 <div className="flex items-center gap-3 min-w-0">
-                  <ItemIndex index={index + 1} />
+                  <IndexBadge>{index + 1}</IndexBadge>
                   <div className="min-w-0">
                     <h3 className="font-label-md text-label-md text-text-primary">{item.name}</h3>
                     {item.role ? (
@@ -434,7 +426,7 @@ function EducationSection({
               <article key={item.id} className={ITEM_CLASSES}>
                 <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
                   <div className="flex items-center gap-3 min-w-0">
-                    <ItemIndex index={index + 1} />
+                    <IndexBadge>{index + 1}</IndexBadge>
                     <div className="min-w-0">
                       <h3 className="font-label-md text-label-md text-text-primary">
                         {item.title}

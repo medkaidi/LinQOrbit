@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { JobOfferPreview } from "@/features/job-offer/job-offer-preview";
 import type { JobOffer } from "@/types/recruiter";
@@ -126,13 +126,22 @@ describe("JobOfferPreview", () => {
       screen.getByText("This is how the offer will look once published."),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Backend Engineer" })).toBeInTheDocument();
-    expect(screen.getByText("Acme Inc.")).toBeInTheDocument();
-    expect(
-      screen.getByText("Mid · Paris, FR · Permanent · Full-time · Hybrid"),
-    ).toBeInTheDocument();
+    const hero = screen.getByRole("region", { name: "Job overview" });
+    expect(within(hero).getByText("Acme Inc.")).toBeInTheDocument();
+    expect(within(hero).getByText("Mid")).toBeInTheDocument();
+    expect(within(hero).getByText("Paris, FR")).toBeInTheDocument();
+    expect(within(hero).getByText("Permanent")).toBeInTheDocument();
+    expect(within(hero).getByText("Full-time")).toBeInTheDocument();
+    expect(within(hero).getByText("Hybrid")).toBeInTheDocument();
     expect(screen.getByText("Build APIs.")).toBeInTheDocument();
+    expect(screen.getByText("Java")).toBeInTheDocument();
     expect(screen.getByText("Bachelor's degree")).toBeInTheDocument();
     expect(screen.queryByText("Screening questions")).not.toBeInTheDocument();
+    // La prévisualisation ne porte jamais les actions de la fiche publique (T-73).
+    expect(screen.queryByRole("link", { name: "Apply for this job" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "More from this company" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the recruiter-only screening questions with type labels and preferred options", () => {

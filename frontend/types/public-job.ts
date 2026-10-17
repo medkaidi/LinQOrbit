@@ -32,8 +32,9 @@ export type PublicJob = {
 
 /**
  * Ligne du job board public (T-72) — `GET /api/v1/jobs`. Vue légère : ni
- * description ni listes enfants (réservées à la fiche), vocabulaires déjà
- * résolus en labels.
+ * description ni autres listes enfants (réservées à la fiche), toutes les
+ * compétences exposées en libellés (T-76, transparence candidat — poids
+ * décroissant puis nom côté backend), vocabulaires déjà résolus en labels.
  */
 export type PublicJobListItem = {
   publicId: string;
@@ -46,6 +47,7 @@ export type PublicJobListItem = {
   contractType: string | null;
   employmentType: string | null;
   workMode: string | null;
+  skills: string[];
   salaryMin: number | null;
   salaryMax: number | null;
   salaryCurrency: string | null;

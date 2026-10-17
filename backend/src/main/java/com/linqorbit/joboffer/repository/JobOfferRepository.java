@@ -43,6 +43,19 @@ public interface JobOfferRepository extends JpaRepository<JobOffer, UUID> {
               and (o.expiresAt is null or o.expiresAt >= :today)""")
     Page<JobOffer> findPublic(JobOfferStatus status, LocalDate today, Pageable pageable);
 
+    /**
+     * « Autres offres » de la fiche publique (T-74) : offres publiées non
+     * expirées de la même entreprise, l'offre de référence exclue.
+     */
+    @Query("""
+            select o from JobOffer o
+            where o.status = :status
+              and o.companyId = :companyId
+              and o.publicId <> :publicId
+              and (o.expiresAt is null or o.expiresAt >= :today)""")
+    Page<JobOffer> findPublicRelated(JobOfferStatus status, LocalDate today, UUID companyId,
+            String publicId, Pageable pageable);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from JobOffer o where o.id = :id")
     Optional<JobOffer> findByIdForUpdate(UUID id);

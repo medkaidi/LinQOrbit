@@ -4,12 +4,13 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink, CtaLink } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { InfiniteList } from "@/components/ui/infinite-list";
 import { Spinner } from "@/components/ui/spinner";
-import { MetaChip, OFFER_SALARY_CHIP } from "@/features/job-offer/job-offer-card";
 import {
   companyInitials,
+  expiryCountdown,
   locationLabel,
   publicJobPath,
   relativeTimeLabel,
@@ -25,6 +26,16 @@ import type { SeniorityValue } from "@/types/recruiter";
 /** Tuile bleue (accent secondaire) : sur un board tout est publié, la couleur porte l'identité, pas un statut. */
 const TILE_CLASS = "bg-blue-surface text-blue-deep";
 
+/**
+ * Pill de compétence uniforme (neutre) : le board n'hiérarchise pas les
+ * compétences — la carte les expose toutes (T-76, transparence candidat).
+ */
+const SKILL_PILL =
+  "rounded-full border border-slate-border bg-item-surface/50 px-3 py-1 font-body-sm text-body-sm text-text-secondary";
+
+const META_LINE_ITEM = "inline-flex items-center gap-1.5";
+const META_LINE_ICON = "text-[16px] text-text-tertiary";
+
 function PublicJobCard({ job }: { job: PublicJobListItem }) {
   const location = locationLabel(job.city, job.country);
   const seniorityLabel = job.seniority
@@ -37,57 +48,64 @@ function PublicJobCard({ job }: { job: PublicJobListItem }) {
     job.salaryPeriod,
   );
   const posted = job.publishedAt ? relativeTimeLabel(job.publishedAt) : null;
+  const expiry = job.expiresAt ? expiryCountdown(job.expiresAt) : null;
+  const jobPath = publicJobPath(job.publicId, job.slug);
 
-  const metaChips: ReactNode[] = [];
+  const meta: ReactNode[] = [];
   if (seniorityLabel) {
-    metaChips.push(
-      <MetaChip key="seniority" icon="signal_cellular_alt">
+    meta.push(
+      <span key="seniority" className={META_LINE_ITEM}>
+        <Icon name="signal_cellular_alt" className={META_LINE_ICON} />
         {seniorityLabel}
-      </MetaChip>,
+      </span>,
     );
   }
   if (location) {
-    metaChips.push(
-      <MetaChip key="location" icon="location_on">
+    meta.push(
+      <span key="location" className={META_LINE_ITEM}>
+        <Icon name="location_on" className={META_LINE_ICON} />
         {location}
-      </MetaChip>,
+      </span>,
     );
   }
   if (job.workMode) {
-    metaChips.push(
-      <MetaChip key="work-mode" icon={workModeIcon(job.workMode)}>
+    meta.push(
+      <span key="work-mode" className={META_LINE_ITEM}>
+        <Icon name={workModeIcon(job.workMode)} className={META_LINE_ICON} />
         {job.workMode}
-      </MetaChip>,
+      </span>,
     );
   }
   if (job.contractType) {
-    metaChips.push(
-      <MetaChip key="contract" icon="badge">
+    meta.push(
+      <span key="contract" className={META_LINE_ITEM}>
+        <Icon name="badge" className={META_LINE_ICON} />
         {job.contractType}
-      </MetaChip>,
+      </span>,
     );
   }
   if (job.employmentType) {
-    metaChips.push(
-      <MetaChip key="employment-type" icon="schedule">
+    meta.push(
+      <span key="employment-type" className={META_LINE_ITEM}>
+        <Icon name="schedule" className={META_LINE_ICON} />
         {job.employmentType}
-      </MetaChip>,
+      </span>,
     );
   }
   if (salary) {
-    metaChips.push(
-      <span key="salary" className={OFFER_SALARY_CHIP}>
-        <Icon name="payments" className="text-[14px]" />
+    meta.push(
+      <span key="salary" className={`${META_LINE_ITEM} font-semibold text-text-primary`}>
+        <Icon name="payments" className={META_LINE_ICON} />
         {salary}
       </span>,
     );
   }
 
   return (
-    <li className="rounded-2xl border border-slate-border bg-canvas-white p-4 shadow-sm group/job-board-card flex flex-col gap-3">
-      <div className="flex items-start gap-4 min-w-0">
+    <li className="rounded-3xl border border-slate-border bg-canvas-white p-6 shadow-sm transition-colors hover:border-orange-border group/job-board-card flex flex-col gap-4">
+      <div className="flex min-w-0 items-center gap-3">
         <div
-          className={`w-12 h-12 mt-0.5 rounded-xl flex items-center justify-center shrink-0 font-label-lg text-label-lg font-bold ${TILE_CLASS}`}
+          className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 font-label-lg text-label-lg font-bold ${TILE_CLASS}`}
           aria-hidden="true"
         >
           {job.companyName ? (
@@ -96,30 +114,61 @@ function PublicJobCard({ job }: { job: PublicJobListItem }) {
             <Icon name="work" className="text-[24px]" />
           )}
         </div>
-        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-            <span
-              className={`font-label-md text-label-md uppercase tracking-wider shrink-0 ${job.companyName ? "text-text-primary" : "text-text-tertiary"}`}
-            >
-              {job.companyName ?? "No company"}
-            </span>
-            {posted ? (
-              <span className="font-body-sm text-body-sm text-text-tertiary">
-                Posted {posted}
-              </span>
-            ) : null}
-          </div>
-          <h2 className="font-headline-sm text-headline-sm text-text-primary group-hover/job-board-card:text-orange-deep transition-colors truncate">
-            <Link
-              href={publicJobPath(job.publicId, job.slug)}
-              className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-            >
-              {job.title}
-            </Link>
-          </h2>
-          {metaChips.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2">{metaChips}</div>
+        <div className="min-w-0">
+          <p
+            className={`font-label-md text-label-md uppercase tracking-wider truncate ${job.companyName ? "text-text-primary" : "text-text-tertiary"}`}
+          >
+            {job.companyName ?? "No company"}
+          </p>
+          {posted ? (
+            <p className="font-body-sm text-body-sm text-text-tertiary">Posted {posted}</p>
           ) : null}
+        </div>
+      </div>
+
+      <h2 className="font-headline-sm text-headline-sm text-text-primary group-hover/job-board-card:text-orange-deep transition-colors">
+        <Link
+          href={jobPath}
+          className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+        >
+          {job.title}
+        </Link>
+      </h2>
+
+      {meta.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 font-body-sm text-body-sm text-text-secondary">
+          {meta}
+        </div>
+      ) : null}
+
+      {job.skills.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {job.skills.map((skill) => (
+            <span key={skill} className={SKILL_PILL}>
+              {skill}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-auto pt-4 border-t border-slate-border flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        {expiry ? (
+          <span
+            className={`inline-flex items-center gap-1.5 font-body-sm text-body-sm ${
+              expiry.urgent ? "text-orange-deep font-semibold" : "text-text-tertiary"
+            }`}
+          >
+            <Icon name="event" className="text-[16px]" />
+            {expiry.label}
+          </span>
+        ) : null}
+        <div className="ml-auto flex items-center gap-2">
+          <ButtonLink variant="outline-sm" href={jobPath}>
+            View job
+          </ButtonLink>
+          <CtaLink icon="bolt" href={`${jobPath}/apply`}>
+            Apply
+          </CtaLink>
         </div>
       </div>
     </li>
@@ -127,8 +176,10 @@ function PublicJobCard({ job }: { job: PublicJobListItem }) {
 }
 
 /**
- * Job board public (T-72) : offres publiées non expirées, infinite scroll —
- * la taille de page est décidée par le backend (D34), aucun filtre à ce jour.
+ * Job board (T-72, intégré au shell dashboard en T-74, refonte cartes T-76) :
+ * offres publiées non expirées, flux en grille deux colonnes ≥ xl et
+ * chargement automatique en bas de liste (`InfiniteList`) — la taille de page
+ * est décidée par le backend (D34), aucun filtre à ce jour.
  */
 export function PublicJobsView() {
   const query = useInfinitePublicJobs();
@@ -136,20 +187,31 @@ export function PublicJobsView() {
   const total = query.data?.pages[0]?.total ?? 0;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-10 lg:py-14">
-      <header>
-        <p className="font-label-md text-label-md uppercase tracking-wider text-primary-container">
-          Job board
-        </p>
-        <h1 className="mt-2 font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
-          Open positions
-        </h1>
-        <p className="mt-3 text-body-md font-body-md text-text-secondary">
-          Published offers across LinQOrbit companies, most recent first.
-        </p>
+    <div className="flex flex-col gap-6">
+      <header className="pb-6 border-b border-slate-border">
+        <div className="min-w-0">
+          <nav
+            aria-label="Breadcrumb"
+            className="flex flex-wrap items-center gap-2 text-body-sm font-body-sm text-text-secondary"
+          >
+            <Link
+              href="/dashboard"
+              className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+            >
+              Candidate space
+            </Link>
+            <span aria-hidden="true" className="text-text-tertiary">
+              /
+            </span>
+            <span className="text-text-primary font-semibold">Browse offers</span>
+          </nav>
+          <h1 className="mt-1 font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
+            Open positions
+          </h1>
+        </div>
       </header>
 
-      <div className="mt-8">
+      <div className="w-full">
         {query.isLoading ? (
           <div className="flex items-center gap-2 text-body-sm font-body-sm text-text-secondary">
             <Spinner />
@@ -181,22 +243,15 @@ export function PublicJobsView() {
             <p className="font-body-sm text-body-sm text-text-tertiary">
               {total} {total === 1 ? "offer" : "offers"}
             </p>
-            <ul className="flex flex-col gap-4">
-              {jobs.map((job) => (
-                <PublicJobCard key={job.publicId} job={job} />
-              ))}
-            </ul>
-            {query.hasNextPage ? (
-              <div className="flex justify-center pt-2">
-                <Button
-                  variant="outline"
-                  busy={query.isFetchingNextPage}
-                  onClick={() => query.fetchNextPage()}
-                >
-                  Load more
-                </Button>
-              </div>
-            ) : null}
+            <InfiniteList
+              items={jobs}
+              keyExtractor={(job) => job.publicId}
+              renderItem={(job) => <PublicJobCard job={job} />}
+              hasNextPage={query.hasNextPage}
+              isFetchingNextPage={query.isFetchingNextPage}
+              fetchNextPage={query.fetchNextPage}
+              listClassName="grid grid-cols-1 gap-4 xl:grid-cols-2"
+            />
           </div>
         )}
       </div>

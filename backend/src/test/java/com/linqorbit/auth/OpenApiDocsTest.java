@@ -186,7 +186,9 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.paths['/api/v1/jobs'].get.summary")
                         .value("Lister les offres publiées (paginé)"))
                 .andExpect(jsonPath("$.paths['/api/v1/jobs/{publicId}'].get.summary")
-                        .value("Lire une offre publiée"));
+                        .value("Lire une offre publiée"))
+                .andExpect(jsonPath("$.paths['/api/v1/jobs/{publicId}/related'].get.summary")
+                        .value("Autres offres de la même entreprise"));
     }
 
     @Test

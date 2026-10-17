@@ -60,6 +60,7 @@ export const queryKeys = {
   publicJobs: {
     list: ["public-jobs", "list"] as const,
     detail: (publicId: string) => ["public-jobs", publicId] as const,
+    related: (publicId: string) => ["public-jobs", "related", publicId] as const,
   },
   applications: {
     mine: ["applications", "mine"] as const,

@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import Link from "next/link";
 
 import { Alert } from "@/components/ui/alert";
-import { Button, CtaButton } from "@/components/ui/button";
+import { Button, ButtonLink, CtaButton } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Icon } from "@/components/ui/icon";
 import { InfiniteList } from "@/components/ui/infinite-list";
+import { MenuItem, MenuPanel, MenuSeparator } from "@/components/ui/menu";
 import { NavPill } from "@/components/ui/nav-pill";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -22,7 +22,8 @@ import {
 } from "@/hooks/use-job-offers";
 import { getJobOfferErrorMessage } from "@/lib/api/job-offer.api";
 import type { Company, JobOfferListItem } from "@/types/recruiter";
-import { JobOfferCard, OFFER_LINK_PILL_CLASS } from "@/features/job-offer/job-offer-card";
+import { CopyPublicLinkButton } from "@/features/job-offer/copy-public-link-button";
+import { JobOfferCard } from "@/features/job-offer/job-offer-card";
 import {
   isOfferExpired,
   OFFER_INCOMPLETE_TOOLTIP,
@@ -30,33 +31,6 @@ import {
   OFFER_SECTION_TITLE,
   publicJobPath,
 } from "@/features/job-offer/job-offer-shared";
-
-/** Copie l'URL publique absolue dans le presse-papiers, avec retour visuel « Copied » (2 s). */
-function CopyPublicLinkButton({ publicId, slug }: { publicId: string; slug: string }) {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) {
-      return;
-    }
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
-
-  return (
-    <Button
-      variant="outline-sm"
-      aria-label={copied ? "Link copied" : "Copy link"}
-      onClick={() => {
-        const url = new URL(publicJobPath(publicId, slug), window.location.origin).toString();
-        void navigator.clipboard.writeText(url).then(() => setCopied(true));
-      }}
-    >
-      <Icon name={copied ? "check" : "content_copy"} className="text-[14px]" />
-      {copied ? "Copied" : "Copy link"}
-    </Button>
-  );
-}
 
 /** Contenu de la confirmation selon l'action (validate / publish). */
 const TRANSITION_CONFIRM: Record<
@@ -89,14 +63,6 @@ function validateConfirmMessage(offer: JobOfferListItem): string {
 
 /** Mutation en cours sur une ligne (busy ciblé : primaire = transition, kebab = tout le reste). */
 type OfferAction = "transition" | "duplicate" | "delete";
-
-const MENU_CLASS =
-  "absolute right-0 top-full mt-2 w-48 rounded-2xl bg-canvas-white border border-slate-border shadow-md p-2 z-50 origin-top-right transition-[opacity,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] starting:opacity-0 starting:scale-95 motion-reduce:transition-none";
-const MENU_ITEM_CLASS =
-  "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-body-md font-body-md text-text-primary hover:bg-canvas-subtle transition-colors cursor-pointer";
-const MENU_ITEM_DANGER_CLASS =
-  "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-body-md font-body-md text-danger hover:bg-canvas-subtle transition-colors cursor-pointer";
-const MENU_ITEM_ICON = "text-[18px] text-text-secondary";
 
 /**
  * Actions d'une offre : une action primaire contextuelle (prochain pas du
@@ -155,31 +121,15 @@ function OfferActions({
   };
 
   const duplicateItem = (
-    <button
-      key="duplicate"
-      type="button"
-      role="menuitem"
-      className={MENU_ITEM_CLASS}
-      onClick={() => runMenuItem(onDuplicate)}
-    >
-      <Icon name="content_copy" className={MENU_ITEM_ICON} />
+    <MenuItem key="duplicate" icon="content_copy" onClick={() => runMenuItem(onDuplicate)}>
       Duplicate
-    </button>
+    </MenuItem>
   );
-  const separatorItem = (
-    <div key="separator" className="my-1 h-px bg-slate-border" role="separator" />
-  );
+  const separatorItem = <MenuSeparator key="separator" />;
   const closeItem = (
-    <button
-      key="close"
-      type="button"
-      role="menuitem"
-      className={MENU_ITEM_CLASS}
-      onClick={() => runMenuItem(() => onTransition("close"))}
-    >
-      <Icon name="close" className={MENU_ITEM_ICON} />
+    <MenuItem key="close" icon="close" onClick={() => runMenuItem(() => onTransition("close"))}>
       Close
-    </button>
+    </MenuItem>
   );
 
   const menuItems: ReactNode[] = [];
@@ -187,41 +137,34 @@ function OfferActions({
     menuItems.push(
       duplicateItem,
       separatorItem,
-      <button
+      <MenuItem
         key="delete"
-        type="button"
-        role="menuitem"
-        className={MENU_ITEM_DANGER_CLASS}
+        icon="delete"
+        tone="danger"
         onClick={() => runMenuItem(onDelete)}
       >
-        <Icon name="delete" className="text-[18px]" />
         Delete
-      </button>,
+      </MenuItem>,
     );
   } else if (offer.status === "validated") {
     menuItems.push(
-      <Link
+      <MenuItem
         key="preview"
+        icon="visibility"
         href={`/recruiter/offers/${offer.id}/preview`}
-        role="menuitem"
-        className={MENU_ITEM_CLASS}
         onClick={() => setMenuOpen(false)}
       >
-        <Icon name="visibility" className={MENU_ITEM_ICON} />
         Preview
-      </Link>,
+      </MenuItem>,
       ...(canRevalidate
         ? [
-            <button
+            <MenuItem
               key="revalidate"
-              type="button"
-              role="menuitem"
-              className={MENU_ITEM_CLASS}
+              icon="check_circle"
               onClick={() => runMenuItem(() => onTransition("validate"))}
             >
-              <Icon name="check_circle" className={MENU_ITEM_ICON} />
               Validate again
-            </button>,
+            </MenuItem>,
           ]
         : []),
       duplicateItem,
@@ -245,9 +188,9 @@ function OfferActions({
           >
             Validate
           </CtaButton>
-          <Link href={`/recruiter/offers/${offer.id}/edit`} className={OFFER_LINK_PILL_CLASS}>
+          <ButtonLink href={`/recruiter/offers/${offer.id}/edit`} variant="outline-sm">
             Edit
-          </Link>
+          </ButtonLink>
         </>
       )}
       {offer.status === "validated" && (
@@ -261,23 +204,23 @@ function OfferActions({
           >
             Publish
           </CtaButton>
-          <Link href={`/recruiter/offers/${offer.id}/edit`} className={OFFER_LINK_PILL_CLASS}>
+          <ButtonLink href={`/recruiter/offers/${offer.id}/edit`} variant="outline-sm">
             Edit
-          </Link>
+          </ButtonLink>
         </>
       )}
       {offer.status === "published" && (
         <>
           <CopyPublicLinkButton publicId={offer.publicId} slug={offer.slug} />
-          <Link
+          <ButtonLink
             href={publicJobPath(offer.publicId, offer.slug)}
-            className={OFFER_LINK_PILL_CLASS}
+            variant="outline-sm"
             target="_blank"
             rel="noopener noreferrer"
           >
             <Icon name="open_in_new" className="text-[14px]" />
             View public page
-          </Link>
+          </ButtonLink>
         </>
       )}
       {menuItems.length > 0 ? (
@@ -294,9 +237,9 @@ function OfferActions({
             {busyAction === null ? <Icon name="more_vert" className="text-[20px]" /> : null}
           </Button>
           {menuOpen ? (
-            <div role="menu" aria-label="More actions" className={MENU_CLASS}>
+            <MenuPanel label="More actions" className="w-48">
               {menuItems}
-            </div>
+            </MenuPanel>
           ) : null}
         </>
       ) : null}
@@ -362,6 +305,11 @@ function OfferRow({
   );
 }
 
+/** Dialogue de confirmation ouvert au-dessus de la liste — un seul état pour les deux modales. */
+type OfferDialog =
+  | { kind: "transition"; offer: JobOfferListItem; action: "validate" | "publish" }
+  | { kind: "delete"; offer: JobOfferListItem };
+
 /**
  * Liste des offres des companies du recruteur (D12–D13) : un seul état de
  * mutation partagé par les actions, erreurs en `Alert` sans perdre la liste.
@@ -374,11 +322,7 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
   const contractTypes = useContractTypes();
   const employmentTypes = useEmploymentTypes();
   const workModes = useWorkModes();
-  const [deleteTarget, setDeleteTarget] = useState<JobOfferListItem | null>(null);
-  const [confirmTransition, setConfirmTransition] = useState<{
-    offer: JobOfferListItem;
-    action: "validate" | "publish";
-  } | null>(null);
+  const [dialog, setDialog] = useState<OfferDialog | null>(null);
 
   const companyNames = new Map(companies.map((company) => [company.id, company.name]));
   const contractLabels = new Map(
@@ -474,10 +418,10 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
               onTransition={(action) =>
                 action === "close"
                   ? transition.mutate({ offerId: offer.id, action })
-                  : setConfirmTransition({ offer, action })
+                  : setDialog({ kind: "transition", offer, action })
               }
               onDuplicate={() => duplicate.mutate(offer.id)}
-              onDelete={() => setDeleteTarget(offer)}
+              onDelete={() => setDialog({ kind: "delete", offer })}
             />
           )}
           hasNextPage={offers.hasNextPage}
@@ -490,27 +434,27 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
             </p>
           }
         />
-        {confirmTransition ? (
+        {dialog?.kind === "transition" ? (
           <ConfirmDialog
-            title={TRANSITION_CONFIRM[confirmTransition.action].title}
+            title={TRANSITION_CONFIRM[dialog.action].title}
             message={
-              confirmTransition.action === "validate"
-                ? validateConfirmMessage(confirmTransition.offer)
-                : TRANSITION_CONFIRM[confirmTransition.action].message
+              dialog.action === "validate"
+                ? validateConfirmMessage(dialog.offer)
+                : TRANSITION_CONFIRM[dialog.action].message
             }
-            confirmLabel={TRANSITION_CONFIRM[confirmTransition.action].confirmLabel}
-            icon={TRANSITION_CONFIRM[confirmTransition.action].icon}
+            confirmLabel={TRANSITION_CONFIRM[dialog.action].confirmLabel}
+            icon={TRANSITION_CONFIRM[dialog.action].icon}
             busy={transition.isPending}
             onConfirm={() => {
               transition.mutate(
-                { offerId: confirmTransition.offer.id, action: confirmTransition.action },
-                { onSettled: () => setConfirmTransition(null) },
+                { offerId: dialog.offer.id, action: dialog.action },
+                { onSettled: () => setDialog(null) },
               );
             }}
-            onCancel={() => setConfirmTransition(null)}
+            onCancel={() => setDialog(null)}
           />
         ) : null}
-        {deleteTarget ? (
+        {dialog?.kind === "delete" ? (
           <ConfirmDialog
             title="Delete this draft offer?"
             message="This cannot be undone."
@@ -519,11 +463,11 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
             icon="delete"
             busy={remove.isPending}
             onConfirm={() => {
-              remove.mutate(deleteTarget.id, {
-                onSettled: () => setDeleteTarget(null),
+              remove.mutate(dialog.offer.id, {
+                onSettled: () => setDialog(null),
               });
             }}
-            onCancel={() => setDeleteTarget(null)}
+            onCancel={() => setDialog(null)}
           />
         ) : null}
       </div>

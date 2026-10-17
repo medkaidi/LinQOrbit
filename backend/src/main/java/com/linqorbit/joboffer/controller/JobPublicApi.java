@@ -1,5 +1,7 @@
 package com.linqorbit.joboffer.controller;
 
+import java.util.List;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -10,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import com.linqorbit.joboffer.dto.PublicJobListItem;
 import com.linqorbit.joboffer.dto.PublicJobPageResponse;
 import com.linqorbit.joboffer.dto.PublicJobResponse;
 
@@ -35,4 +38,12 @@ public interface JobPublicApi {
             @ApiResponse(responseCode = "404", description = "Offre inconnue, non publiée, clôturée ou expirée")
     })
     ResponseEntity<PublicJobResponse> getJob(@PathVariable String publicId);
+
+    @GetMapping("/{publicId}/related")
+    @Operation(summary = "Autres offres de la même entreprise", description = "Sans authentification. Endpoint séparé de la fiche : les autres offres publiées et non expirées de la même entreprise (l'offre courante exclue), de la plus récente à la plus ancienne, bornées par le backend — liste vide si l'entreprise n'a pas d'autre ouverture. 404 si l'offre de référence est inconnue, non publiée, clôturée ou expirée.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Autres offres de l'entreprise renvoyées (liste possiblement vide)"),
+            @ApiResponse(responseCode = "404", description = "Offre de référence inconnue, non publiée, clôturée ou expirée")
+    })
+    ResponseEntity<List<PublicJobListItem>> listRelatedJobs(@PathVariable String publicId);
 }

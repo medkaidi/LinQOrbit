@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/icon";
+import { MenuItem, MenuPanel, MenuSeparator } from "@/components/ui/menu";
 import { useAuth } from "@/hooks/use-auth";
 import { useRecruiterProfile } from "@/hooks/use-recruiter";
 import { useViewMode } from "@/hooks/use-view-mode";
@@ -91,11 +91,7 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
       </button>
 
       {open ? (
-        <div
-          role="menu"
-          aria-label="Account menu"
-          className="absolute right-0 top-full mt-2 w-64 rounded-2xl bg-canvas-white border border-slate-border shadow-md p-2 z-50 origin-top-right transition-[opacity,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] starting:opacity-0 starting:scale-95 motion-reduce:transition-none"
-        >
+        <MenuPanel label="Account menu" className="w-64">
           <div className="px-3 py-2 border-b border-slate-border mb-1">
             <p className="text-body-md font-body-md font-bold text-text-primary truncate">
               {user.firstName} {user.lastName}
@@ -103,48 +99,28 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
             <p className="text-body-sm font-body-sm text-text-tertiary truncate">{user.email}</p>
           </div>
 
-          <Link
-            href="/account"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-3 px-3 py-2 rounded-xl text-body-md font-body-md text-text-primary hover:bg-canvas-subtle transition-colors"
-          >
-            <Icon name="person" className="text-[18px] text-text-secondary" />
+          <MenuItem icon="person" href="/account" onClick={() => setOpen(false)}>
             My Account
-          </Link>
+          </MenuItem>
           {isRecruiterMode ? (
-            <Link
+            <MenuItem
+              icon="badge"
               href="/recruiter/settings"
-              role="menuitem"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-xl text-body-md font-body-md text-text-primary hover:bg-canvas-subtle transition-colors"
             >
-              <Icon name="badge" className="text-[18px] text-text-secondary" />
               Recruiter settings
-            </Link>
+            </MenuItem>
           ) : null}
-          <Link
-            href="/change-password"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-3 px-3 py-2 rounded-xl text-body-md font-body-md text-text-primary hover:bg-canvas-subtle transition-colors"
-          >
-            <Icon name="lock" className="text-[18px] text-text-secondary" />
+          <MenuItem icon="lock" href="/change-password" onClick={() => setOpen(false)}>
             Change password
-          </Link>
+          </MenuItem>
 
-          <div className="my-1 h-px bg-slate-border" role="separator" />
+          <MenuSeparator />
 
-          <button
-            type="button"
-            role="menuitem"
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-body-md font-body-md text-error hover:bg-canvas-subtle transition-colors cursor-pointer"
-          >
-            <Icon name="logout" className="text-[18px]" />
+          <MenuItem icon="logout" tone="danger" onClick={logout}>
             Log out
-          </button>
-        </div>
+          </MenuItem>
+        </MenuPanel>
       ) : null}
     </div>
   );

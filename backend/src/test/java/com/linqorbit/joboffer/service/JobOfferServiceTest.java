@@ -9,6 +9,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,6 +30,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
+import com.linqorbit.candidate.entity.Skill;
 import com.linqorbit.candidate.repository.DegreeRepository;
 import com.linqorbit.candidate.repository.LanguageRepository;
 import com.linqorbit.candidate.repository.SkillRepository;
@@ -90,6 +92,9 @@ class JobOfferServiceTest {
     private static final UUID OFFER_ID = UUID.fromString("44444444-4444-4444-8444-444444444444");
     private static final UUID COPY_ID = UUID.fromString("55555555-5555-4555-8555-555555555555");
     private static final UUID SKILL_ID = UUID.fromString("a0000000-0000-4000-8000-000000000001");
+    private static final UUID SKILL_AWS_ID = UUID.fromString("a0000000-0000-4000-8000-000000000023");
+    private static final UUID SKILL_K8S_ID = UUID.fromString("a0000000-0000-4000-8000-000000000020");
+    private static final UUID UNKNOWN_SKILL_ID = UUID.fromString("a0000000-0000-4000-8000-0000000000ff");
     private static final UUID LANGUAGE_ID = UUID.fromString("b0000000-0000-4000-8000-000000000002");
     private static final UUID DEGREE_ID = UUID.fromString("c0000000-0000-4000-8000-000000000003");
     private static final UUID STUDY_FIELD_ID = UUID.fromString("d0000000-0000-4000-8000-000000000001");
@@ -476,7 +481,7 @@ class JobOfferServiceTest {
     }
 
     @Test
-    void listPublicNeChargePasLesEnfantsEtResoutLesLabelsEnBatch() {
+    void listPublicResoutLesLabelsEnBatchEtExposeToutesLesCompetencesTriees() {
         JobOffer published = JobOffer.builder()
                 .id(OFFER_ID).companyId(COMPANY_ID).recruiterId(RECRUITER_ID)
                 .status(JobOfferStatus.PUBLISHED).title("Backend Engineer")
@@ -493,6 +498,15 @@ class JobOfferServiceTest {
                 .thenReturn(List.of(ContractType.builder().id(CONTRACT_TYPE_ID).label("Full-time").build()));
         when(workModeRepository.findAllById(List.of(WORK_MODE_ID)))
                 .thenReturn(List.of(WorkMode.builder().id(WORK_MODE_ID).label("Remote").build()));
+        when(jobOfferSkillRepository.findByJobOfferIdIn(List.of(OFFER_ID))).thenReturn(List.of(
+                JobOfferSkill.builder().jobOfferId(OFFER_ID).skillId(SKILL_ID).weight(2).build(),
+                JobOfferSkill.builder().jobOfferId(OFFER_ID).skillId(SKILL_AWS_ID).weight(5).build(),
+                JobOfferSkill.builder().jobOfferId(OFFER_ID).skillId(UNKNOWN_SKILL_ID).weight(4).build(),
+                JobOfferSkill.builder().jobOfferId(OFFER_ID).skillId(SKILL_K8S_ID).weight(5).build()));
+        when(skillRepository.findAllById(any())).thenReturn(List.of(
+                Skill.builder().id(SKILL_ID).name("Java").build(),
+                Skill.builder().id(SKILL_AWS_ID).name("AWS").build(),
+                Skill.builder().id(SKILL_K8S_ID).name("Kubernetes").build()));
 
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
         PublicJobPageResponse response = jobOfferService.listPublic(1);
@@ -510,11 +524,35 @@ class JobOfferServiceTest {
         assertThat(item.contractType()).isEqualTo("Full-time");
         assertThat(item.workMode()).isEqualTo("Remote");
         assertThat(item.employmentType()).isNull();
+        // Toutes les compétences, poids décroissant puis nom (poids égal) ; le
+        // libellé introuvable au vocabulaire est ignoré.
+        assertThat(item.skills()).containsExactly("AWS", "Kubernetes", "Java");
         assertThat(response.total()).isEqualTo(1);
-        // Ligne légère : jamais de requête par entité ni de chargement des enfants.
+        // Ligne légère : batches uniquement, jamais de requête par entité.
+        verify(jobOfferSkillRepository, times(1)).findByJobOfferIdIn(List.of(OFFER_ID));
+        verify(skillRepository, times(1)).findAllById(any());
         verify(companyRepository, never()).findById(any());
         verify(contractTypeRepository, never()).findById(any());
-        verify(jobOfferSkillRepository, never()).findByJobOfferIdIn(any());
+    }
+
+    @Test
+    void listPublicExposeUneListeVideDeCompetencesSansLigne() {
+        JobOffer published = JobOffer.builder()
+                .id(OFFER_ID).companyId(COMPANY_ID).recruiterId(RECRUITER_ID)
+                .status(JobOfferStatus.PUBLISHED).title("Backend Engineer")
+                .publicId("abcdefghijkl").slug("backend-engineer")
+                .publishedAt(LocalDateTime.now())
+                .build();
+        when(jobOfferRepository.findPublic(eq(JobOfferStatus.PUBLISHED), any(LocalDate.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(published), PageRequest.of(0, 20), 1));
+        when(companyRepository.findAllById(List.of(COMPANY_ID)))
+                .thenReturn(List.of(Company.builder().id(COMPANY_ID).name("Acme").build()));
+
+        PublicJobPageResponse response = jobOfferService.listPublic(0);
+
+        assertThat(response.items().get(0).skills()).isEmpty();
+        verify(jobOfferSkillRepository).findByJobOfferIdIn(List.of(OFFER_ID));
+        verify(skillRepository, never()).findAllById(any());
     }
 
     @Test

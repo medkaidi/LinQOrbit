@@ -22,6 +22,7 @@ function job(overrides: Partial<PublicJobListItem> = {}): PublicJobListItem {
     contractType: "Permanent",
     employmentType: "Full-time",
     workMode: "Remote",
+    skills: ["Docker", "Kubernetes"],
     salaryMin: 60000,
     salaryMax: 80000,
     salaryCurrency: "EUR",
@@ -56,7 +57,7 @@ describe("PublicJobsView", () => {
     useInfinitePublicJobsMock.mockReset();
   });
 
-  it("lists published offers with identity, chips and the public link", () => {
+  it("lists published offers with identity, meta, every skill and the actions", () => {
     useInfinitePublicJobsMock.mockReturnValue(infiniteResult([job()], {}, 42));
 
     render(<PublicJobsView />);
@@ -72,9 +73,22 @@ describe("PublicJobsView", () => {
     expect(screen.getByText("Permanent")).toBeInTheDocument();
     expect(screen.getByText("Full-time")).toBeInTheDocument();
     expect(screen.getByText("60,000 – 80,000 EUR per year")).toBeInTheDocument();
+
+    // Toutes les compétences sont rendues (T-76, pas de plafond).
+    expect(screen.getByText("Docker")).toBeInTheDocument();
+    expect(screen.getByText("Kubernetes")).toBeInTheDocument();
+
+    expect(screen.getByRole("link", { name: "View job" })).toHaveAttribute(
+      "href",
+      "/jobs/abcdefghijkl-backend-engineer",
+    );
+    expect(screen.getByRole("link", { name: "Apply" })).toHaveAttribute(
+      "href",
+      "/jobs/abcdefghijkl-backend-engineer/apply",
+    );
   });
 
-  it("tolerates missing optional fields (no company, everything else null)", () => {
+  it("tolerates missing optional fields (no company, no skills, everything else null)", () => {
     useInfinitePublicJobsMock.mockReturnValue(
       infiniteResult([
         job({
@@ -85,6 +99,7 @@ describe("PublicJobsView", () => {
           contractType: null,
           employmentType: null,
           workMode: null,
+          skills: [],
           salaryMin: null,
           salaryMax: null,
           salaryCurrency: null,
@@ -99,6 +114,21 @@ describe("PublicJobsView", () => {
     expect(screen.getByRole("link", { name: "Backend Engineer" })).toBeInTheDocument();
     expect(screen.getByText("No company")).toBeInTheDocument();
     expect(screen.queryByText(/EUR/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Docker")).not.toBeInTheDocument();
+    // Les actions restent disponibles sans aucune méta.
+    expect(screen.getByRole("link", { name: "View job" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Apply" })).toBeInTheDocument();
+  });
+
+  it("shows the expiry countdown when the offer is about to expire", () => {
+    const inThreeDays = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    useInfinitePublicJobsMock.mockReturnValue(
+      infiniteResult([job({ expiresAt: inThreeDays })]),
+    );
+
+    render(<PublicJobsView />);
+
+    expect(screen.getByText("Expires in 3 days")).toBeInTheDocument();
   });
 
   it("shows the loading state", () => {
@@ -134,7 +164,7 @@ describe("PublicJobsView", () => {
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 
-  it("loads the next page on demand", () => {
+  it("keeps an accessible load-more fallback and the two-column grid classes", () => {
     const fetchNextPage = vi.fn();
     useInfinitePublicJobsMock.mockReturnValue(
       infiniteResult([job()], { hasNextPage: true, fetchNextPage }, 25),
@@ -142,7 +172,13 @@ describe("PublicJobsView", () => {
 
     render(<PublicJobsView />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    expect(screen.getByRole("list")).toHaveClass("grid", "xl:grid-cols-2");
+
+    // Le repli clavier est invisible tant qu'il n'a pas le focus (InfiniteList).
+    const fallback = screen.getByRole("button", { name: "Load more" });
+    expect(fallback).toHaveClass("sr-only");
+
+    fireEvent.click(fallback);
 
     expect(fetchNextPage).toHaveBeenCalledTimes(1);
   });

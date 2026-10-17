@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Alert } from "@/components/ui/alert";
 import { CtaButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { IconBadge } from "@/components/ui/icon-badge";
 import { countryOptions } from "@/config/countries";
 import type { AuthUser } from "@/types/auth";
 import type { CandidateProfile } from "@/types/candidate";
@@ -103,19 +104,6 @@ export function IdentityAvatar({
 }
 
 /**
- * Pastille d'icône devant le titre : même bleu (accent secondaire) pour toutes
- * les sections. La taille et la graisse du glyphe viennent de la règle
- * `.section-icon` de globals.css (16px/300).
- */
-export function SectionIcon({ name }: { name: string }) {
-  return (
-    <span className="section-icon w-8 h-8 rounded-full bg-blue-surface border border-blue-border text-blue-deep flex items-center justify-center shrink-0">
-      <Icon name={name} />
-    </span>
-  );
-}
-
-/**
  * Section d'affichage : même découpage que la carte d'édition (`SectionCard`) —
  * titre `headline-md`, compteur en texte muet à droite, corps en `px-6 pb-6`.
  */
@@ -136,7 +124,7 @@ export function ViewSection({
     <section id={id} className="bg-canvas-white rounded-2xl shadow-sm scroll-mt-24">
       <header className="mx-6 pt-4 pb-4 flex items-start justify-between gap-4 border-b border-slate-border">
         <div className="flex items-center gap-2.5 min-w-0">
-          <SectionIcon name={icon} />
+          <IconBadge icon={icon} />
           <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight min-w-0">
             {title}
           </h2>

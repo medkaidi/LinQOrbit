@@ -130,6 +130,30 @@ export function locationLabel(city: string | null, country: string | null): stri
   return label === "" ? null : label;
 }
 
+/** « Expires in N days » (≤ 30 jours) — la pastille « Expired » couvre le passé. */
+export function expiryCountdown(expiresAt: string): { label: string; urgent: boolean } | null {
+  const date = new Date(`${expiresAt.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((date.getTime() - today.getTime()) / 86_400_000);
+  if (days < 0) {
+    return null;
+  }
+  if (days === 0) {
+    return { label: "Expires today", urgent: true };
+  }
+  if (days === 1) {
+    return { label: "Expires tomorrow", urgent: true };
+  }
+  if (days <= 30) {
+    return { label: `Expires in ${days} days`, urgent: days <= 7 };
+  }
+  return null;
+}
+
 /** Ligne de méta-données d'une fiche publique (company · lieu · séniorité · …). */
 export function publicJobMetaLine(job: PublicJob): string[] {
   const seniority = job.seniority
@@ -146,12 +170,22 @@ export function publicJobMetaLine(job: PublicJob): string[] {
   ].filter((part): part is string => Boolean(part));
 }
 
-/** Mapping PublicJob → modèle de l'article partagé (fiche publique + console admin). */
+/** Mapping PublicJob → modèle de l'article partagé (fiche publique + prévisualisation). */
 export function toPublicJobArticleModel(job: PublicJob): PublicJobArticleModel {
   return {
     companyName: job.companyName,
     title: job.title,
-    meta: publicJobMetaLine(job),
+    seniority: job.seniority
+      ? SENIORITY_LABELS[job.seniority as SeniorityValue] ?? null
+      : null,
+    location: locationLabel(job.city, job.country),
+    contractType: job.contractType,
+    employmentType: job.employmentType,
+    workMode: job.workMode,
+    salary: salaryLabel(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod),
+    requiredExpYear: job.requiredExpYear,
+    publishedAt: job.publishedAt,
+    expiresAt: job.expiresAt,
     description: job.description,
     skills: job.skills.map((skill) => ({
       id: skill.skillId,

@@ -40,6 +40,11 @@ import com.linqorbit.candidate.service.NormalizationWorker;
 class JobPublicIntegrationTest {
 
     private static final String SKILL_ID = "a0000000-0000-4000-8000-000000000001";
+    private static final String SKILL_AWS_ID = "a0000000-0000-4000-8000-000000000023";
+    private static final String SKILL_K8S_ID = "a0000000-0000-4000-8000-000000000020";
+    private static final String SKILL_REACT_ID = "a0000000-0000-4000-8000-000000000005";
+    private static final String SKILL_PG_ID = "a0000000-0000-4000-8000-000000000015";
+    private static final String SKILL_DOCKER_ID = "a0000000-0000-4000-8000-000000000019";
     private static final String LANGUAGE_ID = "b0000000-0000-4000-8000-000000000002";
     private static final String CONTRACT_TYPE_ID = "b0000000-0000-4000-8000-000000000001";
     private static final String EMPLOYMENT_TYPE_ID = "b1000000-0000-4000-8000-000000000001";
@@ -119,6 +124,11 @@ class JobPublicIntegrationTest {
         assertThat(body.has("recruiterId")).isFalse();
         assertThat(body.has("status")).isFalse();
         assertThat(body.has("hasUnvalidatedChanges")).isFalse();
+
+        // Aucune autre offre dans l'entreprise : liste vide, pas d'erreur.
+        mockMvc.perform(get("/api/v1/jobs/" + publicId + "/related"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test
@@ -152,6 +162,93 @@ class JobPublicIntegrationTest {
 
         mockMvc.perform(get("/api/v1/jobs/zzzzzzzzzzzz"))
                 .andExpect(status().isNotFound());
+
+        // Les « autres offres » suivent le même gate : 404 sûr sur l'offre de référence.
+        mockMvc.perform(get("/api/v1/jobs/" + publicIdOf(draftId) + "/related"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/jobs/" + publicIdOf(closedId) + "/related"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/jobs/" + publicIdOf(expiredId) + "/related"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/jobs/zzzzzzzzzzzz/related"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void relatedRenvoieLesAutresOffresPublieesDeLaMemeCompany() throws Exception {
+        String token = ownerWithCompany("Acme");
+        UUID currentId = createOffer(token, "Current Offer");
+        publish(token, currentId);
+        UUID secondId = createOffer(token, "Second Offer");
+        publish(token, secondId);
+        UUID thirdId = createOffer(token, "Third Offer");
+        publish(token, thirdId);
+        UUID expiredId = createOffer(token, "Expired Offer");
+        publish(token, expiredId);
+        jdbcTemplate.update("UPDATE job_offer SET expires_at = CURRENT_DATE - 1 WHERE id = ?", expiredId);
+        createOffer(token, "Draft Offer");
+        // Autre entreprise : jamais mélangée.
+        String otherToken = ownerWithCompany("Globex");
+        UUID globexId = createOffer(otherToken, "Globex Offer");
+        publish(otherToken, globexId);
+        // Ordre de publication forcé : Third (le plus récent) > Second > Current.
+        jdbcTemplate.update("UPDATE job_offer SET published_at = now() - interval '2 second' WHERE id = ?",
+                currentId);
+        jdbcTemplate.update("UPDATE job_offer SET published_at = now() - interval '1 second' WHERE id = ?",
+                secondId);
+
+        MvcResult result = mockMvc.perform(get("/api/v1/jobs/" + publicIdOf(currentId) + "/related"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].title").value("Third Offer"))
+                .andExpect(jsonPath("$[1].title").value("Second Offer"))
+                .andExpect(jsonPath("$[0].companyName").value("Acme"))
+                .andExpect(jsonPath("$[0].publicId").isNotEmpty())
+                .andExpect(jsonPath("$[0].skills[0]").value("Java"))
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        List<String> publicIds = new ArrayList<>();
+        List<String> titles = new ArrayList<>();
+        for (JsonNode item : body) {
+            publicIds.add(item.get("publicId").asText());
+            titles.add(item.get("title").asText());
+        }
+        assertThat(publicIds).doesNotContain(publicIdOf(currentId), publicIdOf(expiredId),
+                publicIdOf(globexId));
+        assertThat(titles).doesNotContain("Current Offer", "Draft Offer", "Expired Offer", "Globex Offer");
+        // Ligne légère : ni description, ni statut, ni signal de gestion.
+        assertThat(body.get(0).has("description")).isFalse();
+        assertThat(body.get(0).has("status")).isFalse();
+        assertThat(body.get(0).has("recruiterId")).isFalse();
+
+        // Symétrie : la fiche de la seconde offre liste les deux autres.
+        mockMvc.perform(get("/api/v1/jobs/" + publicIdOf(secondId) + "/related"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].title").value("Third Offer"))
+                .andExpect(jsonPath("$[1].title").value("Current Offer"));
+    }
+
+    @Test
+    void relatedBorneLaListeParLeBackend() throws Exception {
+        String token = ownerWithCompany("Acme");
+        UUID currentId = createOffer(token, "Current Offer");
+        publish(token, currentId);
+        for (int i = 1; i <= 4; i++) {
+            UUID id = createOffer(token, "Extra Offer " + i);
+            publish(token, id);
+            jdbcTemplate.update(
+                    "UPDATE job_offer SET published_at = now() - interval '" + (5 - i) + " second' WHERE id = ?",
+                    id);
+        }
+
+        mockMvc.perform(get("/api/v1/jobs/" + publicIdOf(currentId) + "/related"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].title").value("Extra Offer 4"))
+                .andExpect(jsonPath("$[1].title").value("Extra Offer 3"))
+                .andExpect(jsonPath("$[2].title").value("Extra Offer 2"));
     }
 
     @Test
@@ -183,6 +280,8 @@ class JobPublicIntegrationTest {
                 .andExpect(jsonPath("$.items[0].companyName").value("Acme"))
                 .andExpect(jsonPath("$.items[0].publicId").isNotEmpty())
                 .andExpect(jsonPath("$.items[0].contractType").value("Permanent"))
+                .andExpect(jsonPath("$.items[0].skills[0]").value("Java"))
+                .andExpect(jsonPath("$.items[0].skills.length()").value(1))
                 .andExpect(jsonPath("$.items[1].title").value("Older Offer"))
                 .andReturn();
 
@@ -193,6 +292,34 @@ class JobPublicIntegrationTest {
         assertThat(body.get("items").get(0).has("description")).isFalse();
         assertThat(body.get("items").get(0).has("status")).isFalse();
         assertThat(body.get("items").get(0).has("recruiterId")).isFalse();
+    }
+
+    @Test
+    void jobBoardExposeToutesLesCompetencesOrdonneesParPoidsPuisNom() throws Exception {
+        String token = ownerWithCompany("Acme");
+        // Six compétences, volontairement dans le désordre : aucune n'est omise
+        // (pas de plafond T-76), poids décroissant puis nom croissant à poids égal.
+        UUID offerId = createOffer(token, "Skills Offer", """
+                {"skillId": "%s", "requirementType": "mandatory", "weight": 2},
+                {"skillId": "%s", "requirementType": "preferred", "weight": 5},
+                {"skillId": "%s", "requirementType": "preferred", "weight": 4},
+                {"skillId": "%s", "requirementType": "mandatory", "weight": 5},
+                {"skillId": "%s", "requirementType": "preferred", "weight": 2},
+                {"skillId": "%s", "requirementType": "mandatory", "weight": 4}
+                """.formatted(SKILL_ID, SKILL_AWS_ID, SKILL_REACT_ID, SKILL_K8S_ID, SKILL_PG_ID,
+                SKILL_DOCKER_ID));
+        publish(token, offerId);
+
+        mockMvc.perform(get("/api/v1/jobs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].title").value("Skills Offer"))
+                .andExpect(jsonPath("$.items[0].skills.length()").value(6))
+                .andExpect(jsonPath("$.items[0].skills[0]").value("AWS"))
+                .andExpect(jsonPath("$.items[0].skills[1]").value("Kubernetes"))
+                .andExpect(jsonPath("$.items[0].skills[2]").value("Docker"))
+                .andExpect(jsonPath("$.items[0].skills[3]").value("React"))
+                .andExpect(jsonPath("$.items[0].skills[4]").value("Java"))
+                .andExpect(jsonPath("$.items[0].skills[5]").value("PostgreSQL"));
     }
 
     @Test
@@ -295,6 +422,11 @@ class JobPublicIntegrationTest {
     }
 
     private UUID createOffer(String token, String title) throws Exception {
+        return createOffer(token, title, "{\"skillId\": \"%s\", \"requirementType\": \"mandatory\", \"weight\": 4}"
+                .formatted(SKILL_ID));
+    }
+
+    private UUID createOffer(String token, String title, String skillsJson) throws Exception {
         UUID companyId = createdCompanyIds.get(createdCompanyIds.size() - 1);
         MvcResult result = mockMvc.perform(post("/api/v1/job-offers")
                         .header("Authorization", "Bearer " + token)
@@ -311,14 +443,14 @@ class JobPublicIntegrationTest {
                                   "employmentTypeId": "%s",
                                   "workModeId": "%s",
                                   "skills": [
-                                    {"skillId": "%s", "requirementType": "mandatory", "weight": 4}
+                                    %s
                                   ],
                                   "languages": [
                                     {"languageId": "%s", "level": "B2", "isRequired": true}
                                   ]
                                 }
                                 """.formatted(companyId, title, CONTRACT_TYPE_ID, EMPLOYMENT_TYPE_ID,
-                                WORK_MODE_ID, SKILL_ID, LANGUAGE_ID)))
+                                WORK_MODE_ID, skillsJson, LANGUAGE_ID)))
                 .andExpect(status().isCreated())
                 .andReturn();
         UUID offerId = UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())

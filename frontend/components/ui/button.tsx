@@ -1,4 +1,6 @@
 import type { ComponentPropsWithRef } from "react";
+import Link from "next/link";
+
 import { Icon } from "@/components/ui/icon";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils/cn";
@@ -10,7 +12,8 @@ export type ButtonVariant =
   | "icon-sm"
   | "ghost"
   | "soft"
-  | "cta";
+  | "cta"
+  | "menu";
 
 export type ButtonProps = ComponentPropsWithRef<"button"> & {
   variant?: ButtonVariant;
@@ -41,6 +44,10 @@ const variantClasses: Record<ButtonVariant, string> = {
   // la couleur vient du tone (`ctaToneClasses`). Sans w-full ni h-* pour ne pas
   // entrer en conflit avec un className appelant (cn() est un simple join).
   cta: "group inline-flex items-center gap-2 py-1 px-2.5 rounded-full font-bold text-xs transition-[background-color,color] duration-200 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none",
+  // Ligne de menu déroulant (MenuItem) : anatomie de ligne pleine largeur —
+  // PAS une pilule — la couleur de texte vient du tone porté par `MenuItem`
+  // (même partage que `cta`/`ctaToneClasses`).
+  menu: "group w-full flex items-center gap-3 px-3 py-2 rounded-xl text-body-md font-body-md transition-colors hover:bg-canvas-subtle cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep disabled:opacity-60 disabled:cursor-not-allowed",
 };
 
 export type CtaTone = "primary" | "secondary" | "danger" | "neutral";
@@ -84,6 +91,29 @@ export function Button({
       {busy ? <Spinner /> : null}
       {children}
     </button>
+  );
+}
+
+export type ButtonLinkProps = ComponentPropsWithRef<typeof Link> & {
+  /** Variante visuelle — mêmes classes que `Button` (défaut `primary`). */
+  variant?: ButtonVariant;
+};
+
+/**
+ * Lien de navigation portant une variante de `Button` : une seule définition
+ * des classes (`variantClasses`), jamais recopiées par les appelants — les
+ * CTA qui naviguent restent des `<a>` (jamais un `<button>` dans un `<Link>`).
+ */
+export function ButtonLink({
+  variant = "primary",
+  className,
+  children,
+  ...props
+}: ButtonLinkProps) {
+  return (
+    <Link {...props} className={cn(variantClasses[variant], className)}>
+      {children}
+    </Link>
   );
 }
 
@@ -136,5 +166,34 @@ export function CtaButton({
       </span>
       <span className="leading-none transition-colors duration-200">{children}</span>
     </Button>
+  );
+}
+
+export type CtaLinkProps = ComponentPropsWithRef<typeof Link> & {
+  /** Glyphe Material Symbols du badge circulaire. */
+  icon: string;
+  /** Couleur de la pilule et du badge (défaut `primary` = orange). */
+  tone?: CtaTone;
+};
+
+/**
+ * CTA standard en lien de navigation : même anatomie que `CtaButton`
+ * (pilule + badge qui s'inverse au survol) — un CTA qui navigue reste un
+ * `<a>`, jamais un `<button>` dans un `<Link>`.
+ */
+export function CtaLink({ icon, tone = "primary", className, children, ...props }: CtaLinkProps) {
+  const toneClasses = ctaToneClasses[tone];
+  return (
+    <Link {...props} className={cn(variantClasses.cta, toneClasses.button, className)}>
+      <span
+        className={cn(
+          "w-6 h-6 -ml-1.5 rounded-full flex items-center justify-center shrink-0 transition-colors duration-200",
+          toneClasses.badge,
+        )}
+      >
+        <Icon name={icon} className="text-[14px]" />
+      </span>
+      <span className="leading-none transition-colors duration-200">{children}</span>
+    </Link>
   );
 }

@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { InfiniteList, type InfiniteListProps } from "@/components/ui/infinite-list";
 
 function renderList(props: Partial<InfiniteListProps<string>> = {}) {
   const fetchNextPage = vi.fn();
-  render(
+  const view = render(
     <InfiniteList
       items={["alpha", "beta"]}
       keyExtractor={(item) => item}
@@ -16,7 +16,7 @@ function renderList(props: Partial<InfiniteListProps<string>> = {}) {
       {...props}
     />,
   );
-  return { fetchNextPage };
+  return { fetchNextPage, ...view };
 }
 
 describe("InfiniteList", () => {
@@ -50,6 +50,14 @@ describe("InfiniteList", () => {
     expect(screen.queryByText("Loading more…")).not.toBeInTheDocument();
   });
 
+  it("applies the provided list classes instead of the default", () => {
+    renderList({ listClassName: "grid grid-cols-1 gap-4 xl:grid-cols-2" });
+
+    const list = screen.getByRole("list");
+    expect(list).toHaveClass("grid", "xl:grid-cols-2");
+    expect(list).not.toHaveClass("flex", "flex-col");
+  });
+
   it("shows the empty message when there is nothing to render", () => {
     renderList({ items: [], empty: <p>Nothing here</p> });
 
@@ -69,5 +77,69 @@ describe("InfiniteList", () => {
 
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * jsdom ne fournit pas IntersectionObserver : le composant court-circuite
+ * l'observation (le repli clavier sert alors de filet). Ces tests stubent
+ * l'API pour exercer le vrai chemin d'auto-chargement.
+ */
+class MockIntersectionObserver {
+  static instances: MockIntersectionObserver[] = [];
+
+  observe = vi.fn();
+  disconnect = vi.fn();
+  private callback: IntersectionObserverCallback;
+
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+    MockIntersectionObserver.instances.push(this);
+  }
+
+  trigger(isIntersecting: boolean) {
+    this.callback(
+      [{ isIntersecting } as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver,
+    );
+  }
+}
+
+describe("InfiniteList — sentinel automatique", () => {
+  beforeEach(() => {
+    MockIntersectionObserver.instances = [];
+    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("fetches the next page when the sentinel becomes visible, not otherwise", () => {
+    const { fetchNextPage } = renderList();
+
+    const observer = MockIntersectionObserver.instances.at(-1)!;
+    expect(observer.observe).toHaveBeenCalledOnce();
+
+    observer.trigger(false);
+    expect(fetchNextPage).not.toHaveBeenCalled();
+
+    observer.trigger(true);
+    expect(fetchNextPage).toHaveBeenCalledOnce();
+  });
+
+  it("does not observe the sentinel while a page is already loading", () => {
+    renderList({ isFetchingNextPage: true });
+
+    expect(MockIntersectionObserver.instances).toHaveLength(0);
+  });
+
+  it("disconnects the observer on unmount", () => {
+    const { unmount } = renderList();
+    const observer = MockIntersectionObserver.instances.at(-1)!;
+
+    unmount();
+
+    expect(observer.disconnect).toHaveBeenCalledOnce();
   });
 });

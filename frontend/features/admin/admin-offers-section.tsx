@@ -4,11 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 
 import { Alert } from "@/components/ui/alert";
+import { ButtonLink } from "@/components/ui/button";
 import { InfiniteList } from "@/components/ui/infinite-list";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
 import { Spinner } from "@/components/ui/spinner";
 import { RetryButton } from "@/features/admin/retry-button";
-import { JobOfferCard, OFFER_LINK_PILL_CLASS } from "@/features/job-offer/job-offer-card";
+import { JobOfferCard } from "@/features/job-offer/job-offer-card";
 import { isOfferExpired } from "@/features/job-offer/job-offer-shared";
 import { useInfiniteAdminJobOffers } from "@/hooks/use-admin";
 import { useContractTypes, useWorkModes } from "@/hooks/use-job-offers";
@@ -65,9 +66,9 @@ function OfferRow({
       expiresAt={offer.expiresAt}
       actions={
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <Link href={`/admin/offers/${offer.id}`} className={OFFER_LINK_PILL_CLASS}>
+          <ButtonLink href={`/admin/offers/${offer.id}`} variant="outline-sm">
             View
-          </Link>
+          </ButtonLink>
         </div>
       }
     />

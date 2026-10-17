@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, CtaButton } from "@/components/ui/button";
-import { SectionIcon } from "@/features/candidate/profile-shared";
+import { IconBadge } from "@/components/ui/icon-badge";
 
 export type SectionCardProps = {
   id: string;
@@ -43,7 +43,7 @@ export function SectionCard({
     <section id={id} className="bg-canvas-white rounded-2xl shadow-sm scroll-mt-24">
       <header className="mx-6 pt-4 pb-4 flex items-start justify-between gap-4 border-b border-slate-border">
         <div className="flex items-center gap-2.5 min-w-0">
-          {icon ? <SectionIcon name={icon} /> : null}
+          {icon ? <IconBadge icon={icon} /> : null}
           <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight min-w-0">
             {title}
           </h2>

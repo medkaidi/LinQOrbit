@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getPublicJob, listPublicJobs } from "@/lib/api/public-jobs.api";
+import { getPublicJob, getRelatedPublicJobs, listPublicJobs } from "@/lib/api/public-jobs.api";
 
 vi.mock("@/lib/api/axios", () => ({
   api: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
@@ -50,5 +50,19 @@ describe("public-jobs.api", () => {
       params: { page: 2 },
       signal: controller.signal,
     });
+  });
+
+  it("reads the related offers of a published offer without params — size never sent", async () => {
+    const items = [{ publicId: "zyxwvutsrqpo", title: "Frontend Engineer" }];
+    mockedGet.mockResolvedValue({ data: items });
+    const controller = new AbortController();
+
+    const result = await getRelatedPublicJobs("abcdefghijkl", { signal: controller.signal });
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/jobs/abcdefghijkl/related", {
+      signal: controller.signal,
+    });
+    expect(mockedGet.mock.calls[0][1]).not.toHaveProperty("params");
+    expect(result).toEqual(items);
   });
 });
