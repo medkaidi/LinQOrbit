@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useRef } from "react";
 
 import type { CvImportPlan } from "@/features/candidate/cv-parsing";
 import { SKILL_NOT_IN_LIST } from "@/features/candidate/cv-parsing";
@@ -10,45 +9,6 @@ import type { ParsedCv, SkillReference } from "@/types/candidate";
 import { Button, CtaButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Select, type SelectOption } from "@/components/ui/select";
-
-/** Bouton « Upload CV » du header : ouvre le sélecteur de fichier PDF. */
-export function CvUploadButton({
-  isParsing,
-  onSelect,
-}: {
-  isParsing: boolean;
-  onSelect: (file: File) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  return (
-    <>
-      <CtaButton
-        type="button"
-        icon="upload_file"
-        busy={isParsing}
-        onClick={() => inputRef.current?.click()}
-      >
-        {isParsing ? "Analyzing…" : "Upload CV"}
-      </CtaButton>
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".pdf,application/pdf"
-        className="sr-only"
-        tabIndex={-1}
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          // Re-arm the input so the same file can be picked again after a failure.
-          event.target.value = "";
-          if (file) {
-            onSelect(file);
-          }
-        }}
-      />
-    </>
-  );
-}
 
 /** Échec de l'analyse : message du backend (ProblemDetail) en role="alert". */
 export function CvImportError({ message }: { message: string }) {

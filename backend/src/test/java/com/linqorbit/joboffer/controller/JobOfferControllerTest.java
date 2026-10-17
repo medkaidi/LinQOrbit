@@ -185,6 +185,73 @@ class JobOfferControllerTest {
     }
 
     @Test
+    void createRenvoie400PourUneQuestionSansLabel() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createJsonWithQuestions("""
+                                [{"label": "  ", "type": "text", "sortOrder": 0}]
+                                """)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createRenvoie400PourUnOrdreDeQuestionNegatif() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createJsonWithQuestions("""
+                                [{"label": "Q?", "type": "text", "sortOrder": -1}]
+                                """)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createRenvoie400PourUneQuestionSansOrdre() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createJsonWithQuestions("""
+                                [{"label": "Q?", "type": "text"}]
+                                """)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createRenvoie400PourUneOptionSansLabel() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createJsonWithQuestions("""
+                                [{"label": "Q?", "type": "single_choice", "sortOrder": 0,
+                                  "options": [{"label": "", "sortOrder": 0}]}]
+                                """)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createRenvoie400PourUnOrdreDOptionNegatif() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createJsonWithQuestions("""
+                                [{"label": "Q?", "type": "multiple_choice", "sortOrder": 0,
+                                  "options": [{"label": "A", "sortOrder": -1}]}]
+                                """)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void createRenvoie404SansProfilRecruteur() throws Exception {
         UUID userId = UUID.randomUUID();
         when(jobOfferService.create(eq(userId), any(CreateJobOfferRequest.class)))
@@ -400,6 +467,22 @@ class JobOfferControllerTest {
                 """.formatted(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
     }
 
+    private String createJsonWithQuestions(String questionsJson) {
+        return """
+                {
+                  "companyId": "%s",
+                  "title": "Backend Engineer",
+                  "description": "Build APIs.",
+                  "country": "FR",
+                  "employmentTypeId": "%s",
+                  "skills": [
+                    {"skillId": "%s", "requirementType": "mandatory", "weight": 3}
+                  ],
+                  "questions": %s
+                }
+                """.formatted(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), questionsJson);
+    }
+
     private String validUpdateJson() {
         return """
                 {
@@ -420,15 +503,15 @@ class JobOfferControllerTest {
                 "abcdefghijkl", "backend-engineer", null,
                 null, null, null, null, null, null, null, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
-                false, false, false, List.of(), List.of(), List.of(), List.of(), null, null);
+                false, false, false, List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
     }
 
     private JobOfferListItem draftListItem() {
         return new JobOfferListItem(
                 OFFER_ID, UUID.randomUUID(), "draft", "Backend Engineer",
                 "abcdefghijkl", "backend-engineer",
-                null, null, null, null, null, null,
+                null, null, null, null, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
-                false, false, false, false, null);
+                false, false, false, false, null, null);
     }
 }

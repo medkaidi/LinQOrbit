@@ -157,10 +157,11 @@ function toTimelineEntries(profile: NormalizedCandidateProfile): TimelineEntry[]
 
 /**
  * Fiche normalisée candidat schema v3 (D36) : rendu friendly du contenu
- * canonique — jamais de JSON brut. Grille 8/4 : sections lettrées A-F à
- * gauche (spec-grid identité, tableau compétences, timeline fusionnée
- * expériences+projets+diplômes, langues, certifications, liens), rail de
- * provenance/couverture à droite. Tolère tout champ absent ou null.
+ * canonique — jamais de JSON brut. Sections numérotées pleine largeur
+ * (spec-grid identité, tableau compétences, timeline fusionnée
+ * expériences+projets+diplômes, langues, certifications, liens), widgets
+ * provenance/couverture en rangée basse deux colonnes (empilés sous `md`).
+ * Tolère tout champ absent ou null.
  */
 export function NormalizedCandidateView({ profile }: { profile: NormalizedCandidateProfile }) {
   const skills = profile.skills ?? [];
@@ -202,8 +203,8 @@ export function NormalizedCandidateView({ profile }: { profile: NormalizedCandid
     links.length === 0;
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-      <div className="xl:col-span-8 flex flex-col gap-6 min-w-0">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6 min-w-0">
         {hasOverview && (
           <SectionBlock index={1} title={profile.title ?? "Profile overview"}>
             <div className="flex flex-col gap-4">
@@ -297,15 +298,15 @@ export function NormalizedCandidateView({ profile }: { profile: NormalizedCandid
                           <span
                             className={
                               entry.ongoing
-                                ? "rounded-full border border-success-border bg-success-surface px-2.5 py-1 font-label-caps text-label-caps uppercase tracking-wider text-success-text shrink-0"
-                                : "rounded-full border border-slate-border bg-canvas-white px-2.5 py-1 font-label-caps text-label-caps uppercase tracking-wider text-text-secondary shrink-0"
+                                ? "rounded-full border border-success-border bg-success-surface px-2.5 py-1 font-label-caps text-label-caps normal-case tracking-normal text-success-text shrink-0"
+                                : "rounded-full border border-slate-border bg-canvas-white px-2.5 py-1 font-label-caps text-label-caps normal-case tracking-normal text-text-secondary shrink-0"
                             }
                           >
                             {entry.period}
                           </span>
                         )}
                         <span
-                          className={`rounded-full border px-2.5 py-1 font-label-caps text-label-caps uppercase tracking-wider shrink-0 ${KIND_TONES[entry.kind]}`}
+                          className={`rounded-full border px-2.5 py-1 font-label-caps text-label-caps normal-case tracking-normal shrink-0 ${KIND_TONES[entry.kind]}`}
                         >
                           {KIND_LABELS[entry.kind]}
                         </span>
@@ -406,9 +407,7 @@ export function NormalizedCandidateView({ profile }: { profile: NormalizedCandid
         )}
       </div>
 
-      <div className="xl:col-span-4 min-w-0">
-        <NormalizedSheetRail stats={candidateSheetStats(profile)} />
-      </div>
+      <NormalizedSheetRail stats={candidateSheetStats(profile)} />
     </div>
   );
 }

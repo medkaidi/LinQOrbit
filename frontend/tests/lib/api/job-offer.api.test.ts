@@ -32,6 +32,7 @@ const emptyValues: JobOfferValues = {
   languages: [],
   degreeIds: [],
   studyFieldIds: [],
+  questions: [],
 };
 
 describe("toJobOfferPayload", () => {
@@ -101,6 +102,55 @@ describe("toJobOfferPayload", () => {
     });
     expect(payload.degreeIds).toEqual(["c0000000-0000-4000-8000-000000000003"]);
     expect(payload.studyFieldIds).toEqual([]);
+    expect(payload.questions).toEqual([]);
+  });
+
+  it("derives question and option sort orders from their index and drops options outside choice types", () => {
+    const payload = toJobOfferPayload(
+      {
+        ...emptyValues,
+        questions: [
+          {
+            label: "Where?",
+            type: "single_choice",
+            isRequired: true,
+            options: [
+              { label: "Remote", preferred: true },
+              { label: "On-site", preferred: false },
+            ],
+          },
+          {
+            label: "Tell us more",
+            type: "text",
+            isRequired: false,
+            // Ligne fantôme impossible par l'UI (le changement de type vide les
+            // options) — la couche API masque quand même : jamais d'options hors choix.
+            options: [{ label: "Stale", preferred: false }],
+          },
+        ],
+      },
+      COMPANY_ID,
+    );
+
+    expect(payload.questions).toEqual([
+      {
+        label: "Where?",
+        type: "single_choice",
+        isRequired: true,
+        sortOrder: 0,
+        options: [
+          { label: "Remote", preferred: true, sortOrder: 0 },
+          { label: "On-site", preferred: false, sortOrder: 1 },
+        ],
+      },
+      {
+        label: "Tell us more",
+        type: "text",
+        isRequired: false,
+        sortOrder: 1,
+        options: [],
+      },
+    ]);
   });
 
   it("sanitizes rich description HTML before sending", () => {

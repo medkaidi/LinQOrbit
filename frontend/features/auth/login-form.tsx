@@ -15,8 +15,13 @@ import { Icon } from "@/components/ui/icon";
 import { PasswordField } from "@/components/ui/password-field";
 import { TextField } from "@/components/ui/text-field";
 
-export function LoginForm() {
-  const { login, isPending, errorMessage } = useAuth();
+/**
+ * Formulaire de connexion — `returnTo` (chemin interne déjà validé par
+ * `safeReturnTo`) ramène l'utilisateur à la route demandée et se propage au
+ * lien « Sign up » pour survivre à la création de compte.
+ */
+export function LoginForm({ returnTo }: { returnTo?: string | null }) {
+  const { login, isPending, errorMessage } = useAuth(returnTo);
   const {
     register,
     handleSubmit,
@@ -92,7 +97,7 @@ export function LoginForm() {
       <p className="mt-6 text-center font-body-md text-body-md text-text-secondary">
         Don&apos;t have an account?{" "}
         <Link
-          href="/signup"
+          href={returnTo ? `/signup?next=${encodeURIComponent(returnTo)}` : "/signup"}
           className="font-label-md text-label-md text-primary-container hover:text-orange-deep transition-colors"
         >
           Sign up

@@ -33,6 +33,7 @@ const baseValues = {
   languages: [],
   degreeIds: [],
   studyFieldIds: [],
+  questions: [],
 };
 
 describe("createJobOfferSchema", () => {
@@ -130,6 +131,70 @@ describe("createJobOfferSchema", () => {
     if (!result.success) {
       expect(result.error.issues.some((issue) => issue.path.includes("salaryMax"))).toBe(true);
     }
+  });
+
+  it("rejects an empty question label and an empty option label", () => {
+    const blankQuestion = createJobOfferSchema.safeParse({
+      ...baseValues,
+      questions: [{ label: "  ", type: "text", isRequired: false, options: [] }],
+    });
+    expect(blankQuestion.success).toBe(false);
+
+    const blankOption = createJobOfferSchema.safeParse({
+      ...baseValues,
+      questions: [
+        {
+          label: "Where?",
+          type: "single_choice",
+          isRequired: false,
+          options: [{ label: "", preferred: false }],
+        },
+      ],
+    });
+    expect(blankOption.success).toBe(false);
+    if (!blankOption.success) {
+      expect(
+        blankOption.error.issues.some(
+          (issue) =>
+            issue.path.join(".") === "questions.0.options.0.label" &&
+            issue.message === "Option label is required",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("rejects a choice question without options and accepts it with options", () => {
+    const withoutOptions = createJobOfferSchema.safeParse({
+      ...baseValues,
+      questions: [{ label: "Where?", type: "multiple_choice", isRequired: true, options: [] }],
+    });
+    expect(withoutOptions.success).toBe(false);
+    if (!withoutOptions.success) {
+      expect(
+        withoutOptions.error.issues.some(
+          (issue) =>
+            issue.path.join(".") === "questions.0.options" &&
+            issue.message === "Add at least one option",
+        ),
+      ).toBe(true);
+    }
+
+    const complete = createJobOfferSchema.safeParse({
+      ...baseValues,
+      questions: [
+        {
+          label: "Where?",
+          type: "multiple_choice",
+          isRequired: true,
+          options: [
+            { label: "Remote", preferred: true },
+            { label: "On-site", preferred: false },
+          ],
+        },
+        { label: "Years with Java?", type: "number", isRequired: false, options: [] },
+      ],
+    });
+    expect(complete.success).toBe(true);
   });
 
   it("accepts a coherent salary range", () => {

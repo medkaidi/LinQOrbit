@@ -2,23 +2,12 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import { NavPill } from "@/components/ui/nav-pill";
 import { Spinner } from "@/components/ui/spinner";
 import { PublicJobArticle } from "@/features/job-offer/public-job-article";
-import { toPublicJobArticleModel } from "@/features/job-offer/job-offer-shared";
+import { parsePublicId, toPublicJobArticleModel } from "@/features/job-offer/job-offer-shared";
 import { getPublicJob } from "@/lib/api/public-jobs.api";
 import { queryKeys } from "@/hooks/query-keys";
-
-/** publicId = 12 caractères base36 sans tiret ; le reste de l'URL est le slug cosmétique. */
-const PUBLIC_ID_PATTERN = /^[0-9a-z]{12}$/;
-
-function parsePublicId(param: string): string | null {
-  const separator = param.indexOf("-");
-  if (separator !== 12) {
-    return null;
-  }
-  const publicId = param.slice(0, separator);
-  return PUBLIC_ID_PATTERN.test(publicId) ? publicId : null;
-}
 
 function NotFound() {
   return (
@@ -33,7 +22,7 @@ function NotFound() {
   );
 }
 
-function PublicJobDetail({ publicId }: { publicId: string }) {
+function PublicJobDetail({ publicId, jobParam }: { publicId: string; jobParam: string }) {
   const job = useQuery({
     queryKey: queryKeys.publicJobs.detail(publicId),
     queryFn: () => getPublicJob(publicId),
@@ -52,18 +41,26 @@ function PublicJobDetail({ publicId }: { publicId: string }) {
     return <NotFound />;
   }
 
-  return <PublicJobArticle article={toPublicJobArticleModel(job.data)} />;
+  return (
+    <>
+      <PublicJobArticle article={toPublicJobArticleModel(job.data)} />
+      <div className="mx-auto w-full max-w-3xl px-6 pb-12 lg:pb-16 -mt-4">
+        <NavPill href={`/jobs/${jobParam}/apply`} icon="send" label="Apply for this job" />
+      </div>
+    </>
+  );
 }
 
 /**
  * Fiche publique d'une offre publiée (V15) : rendue sans authentification.
  * La description est le HTML déjà sanitisé stocké en base (D19) — styles
- * scopés `.job-offer-description`.
+ * scopés `.job-offer-description`. Le CTA « Apply » mène au formulaire de
+ * candidature (AuthGate → login avec retour si nécessaire).
  */
 export function PublicJobView({ jobParam }: { jobParam: string }) {
   const publicId = parsePublicId(jobParam);
   if (publicId == null) {
     return <NotFound />;
   }
-  return <PublicJobDetail publicId={publicId} />;
+  return <PublicJobDetail publicId={publicId} jobParam={jobParam} />;
 }

@@ -164,6 +164,32 @@ class OpenApiDocsTest {
     }
 
     @Test
+    void exposeLeDocumentOpenApiAvecLesEndpointsDesPiecesJointes() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/attachments'].post.summary")
+                        .value("Téléverser un CV"))
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/attachments'].get.summary")
+                        .value("Lister mes CV"))
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/attachments/{attachmentId}/content'].get.summary")
+                        .value("Télécharger un CV"))
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/attachments/{attachmentId}/current'].put.summary")
+                        .value("Définir le CV courant"))
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/attachments/{attachmentId}'].delete.summary")
+                        .value("Supprimer un CV"));
+    }
+
+    @Test
+    void exposeLeDocumentOpenApiAvecLesEndpointsDesOffresPubliques() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/jobs'].get.summary")
+                        .value("Lister les offres publiées (paginé)"))
+                .andExpect(jsonPath("$.paths['/api/v1/jobs/{publicId}'].get.summary")
+                        .value("Lire une offre publiée"));
+    }
+
+    @Test
     void exposeSwaggerUi() throws Exception {
         MvcResult result = mockMvc.perform(get("/swagger-ui.html")).andReturn();
         assertThat(result.getResponse().getStatus()).isBetween(200, 399);

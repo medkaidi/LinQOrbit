@@ -60,6 +60,10 @@ describe("PublicJobView", () => {
     expect(screen.getByText(/Java/)).toBeInTheDocument();
     expect(screen.getByText(/French · B2/)).toBeInTheDocument();
     expect(screen.getByText("Bachelor's degree")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Apply for this job" })).toHaveAttribute(
+      "href",
+      "/jobs/abcdefghijkl-backend-engineer/apply",
+    );
     expect(getPublicJobMock).toHaveBeenCalledWith("abcdefghijkl");
   });
 

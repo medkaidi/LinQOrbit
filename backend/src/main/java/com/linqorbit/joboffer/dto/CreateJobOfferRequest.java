@@ -40,12 +40,14 @@ public record CreateJobOfferRequest(
         @Size(min = 1, message = "must contain at least one skill") @Valid List<JobOfferSkillRequest> skills,
         @Valid List<JobOfferLanguageRequest> languages,
         List<UUID> degreeIds,
-        List<UUID> studyFieldIds) {
+        List<UUID> studyFieldIds,
+        @Valid List<JobOfferQuestionRequest> questions) {
 
     public CreateJobOfferRequest {
         skills = skills == null ? List.of() : skills;
         languages = languages == null ? List.of() : languages;
         degreeIds = degreeIds == null ? List.of() : degreeIds;
         studyFieldIds = studyFieldIds == null ? List.of() : studyFieldIds;
+        questions = questions == null ? List.of() : questions;
     }
 }

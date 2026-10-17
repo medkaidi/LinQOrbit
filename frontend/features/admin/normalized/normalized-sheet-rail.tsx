@@ -9,8 +9,9 @@ const WIDGET_TITLE =
   "font-headline-sm text-headline-sm text-text-primary tracking-tight";
 
 /**
- * Rail latéral de la fiche (colonne droite) : uniquement des données réelles
- * du contenu — provenance declared/inferred et couverture des sections. Les
+ * Rangée basse de la fiche (sous les sections, pleine largeur) : uniquement
+ * des données réelles du contenu — provenance declared/inferred et couverture
+ * des sections, en deux colonnes égales dès `md` (empilées en dessous). Les
  * widgets fiction de la maquette (confiance, entropie, affinité matching,
  * passerelle offre) n'existent pas ici : aucune donnée inventée.
  */
@@ -21,7 +22,7 @@ export function NormalizedSheetRail({ stats }: { stats: SheetStats }) {
     provenance.total > 0 ? Math.round((provenance.declared / provenance.total) * 100) : 0;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
       <section className={WIDGET} aria-label="Provenance">
         <header className={WIDGET_HEADER}>
           <Icon name="troubleshoot" className="text-[18px] text-orange-deep" />

@@ -392,7 +392,7 @@ export function DashboardOverview() {
               Pipeline health and velocity across your priority jobs.
             </p>
           </div>
-          <span className="px-3 py-1 rounded-full bg-orange-subtle text-orange-deep font-label-caps text-label-caps uppercase tracking-wider">
+          <span className="px-3 py-1 rounded-full bg-orange-subtle text-orange-deep font-label-caps text-label-caps normal-case tracking-normal">
             4 active
           </span>
         </div>

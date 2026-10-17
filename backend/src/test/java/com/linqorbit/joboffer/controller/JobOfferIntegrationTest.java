@@ -86,6 +86,8 @@ class JobOfferIntegrationTest {
             jdbcTemplate.update("DELETE FROM job_offer_language WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("DELETE FROM job_offer_degree WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("DELETE FROM job_offer_study_field WHERE job_offer_id = ?", offerId);
+            // Les options suivent la cascade SQL (fk_joqo_question).
+            jdbcTemplate.update("DELETE FROM job_offer_question WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("DELETE FROM job_offer WHERE id = ?", offerId);
         }
         for (UUID userId : createdUserIds) {
@@ -434,7 +436,10 @@ class JobOfferIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.size").value(20))
-                .andExpect(jsonPath("$.total").value(2));
+                .andExpect(jsonPath("$.total").value(2))
+                // Champs du contrat de carte : employmentTypeId et updatedAt sortent en liste.
+                .andExpect(jsonPath("$.items[0].employmentTypeId").value(EMPLOYMENT_TYPE_ID))
+                .andExpect(jsonPath("$.items[0].updatedAt").isNotEmpty());
 
         mockMvc.perform(get("/api/v1/job-offers").param("page", "").param("size", "")
                         .header("Authorization", "Bearer " + token))
@@ -477,6 +482,233 @@ class JobOfferIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Bad Request"))
                 .andExpect(jsonPath("$.detail").value("The request could not be processed."));
+    }
+
+    /**
+     * Questions de présélection (D47) sur PostgreSQL réel : création avec
+     * options, ordre et preferred conservés ; remplacement intégral à
+     * l'édition (les anciennes lignes — options comprises — disparaissent) ;
+     * type stocké en SMALLINT ; les listes servies sont triées par ordre.
+     */
+    @Test
+    void creationEtRemplacementDeQuestionsSurPostgresReel() throws Exception {
+        String ownerToken = signup("owner");
+        becomeRecruiter(ownerToken);
+        UUID companyId = createCompany(ownerToken, "Acme");
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/job-offers")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(offerBodyWithQuestions(companyId, "Backend Engineer", """
+                                [
+                                  {"label": "Where do you want to work?", "type": "single_choice",
+                                   "isRequired": true, "sortOrder": 0,
+                                   "options": [
+                                     {"label": "On-site", "sortOrder": 0, "preferred": false},
+                                     {"label": "Remote", "sortOrder": 1, "preferred": true}
+                                   ]},
+                                  {"label": "How many years with Java?", "type": "number", "sortOrder": 1}
+                                ]
+                                """)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.questions.length()").value(2))
+                .andExpect(jsonPath("$.questions[0].label").value("Where do you want to work?"))
+                .andExpect(jsonPath("$.questions[0].type").value("single_choice"))
+                .andExpect(jsonPath("$.questions[0].isRequired").value(true))
+                .andExpect(jsonPath("$.questions[0].sortOrder").value(0))
+                .andExpect(jsonPath("$.questions[0].options.length()").value(2))
+                .andExpect(jsonPath("$.questions[0].options[1].label").value("Remote"))
+                .andExpect(jsonPath("$.questions[0].options[1].preferred").value(true))
+                .andExpect(jsonPath("$.questions[1].type").value("number"))
+                .andExpect(jsonPath("$.questions[1].isRequired").value(false))
+                .andExpect(jsonPath("$.questions[1].options.length()").value(0))
+                .andReturn();
+        JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString());
+        UUID offerId = UUID.fromString(created.get("id").asText());
+        createdOfferIds.add(offerId);
+
+        UUID questionId = UUID.fromString(created.get("questions").get(0).get("id").asText());
+        UUID optionId = UUID.fromString(created.get("questions").get(0).get("options").get(1).get("id").asText());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT question_type FROM job_offer_question WHERE id = ?", Integer.class, questionId))
+                .isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT preferred FROM job_offer_question_option WHERE id = ?", Boolean.class, optionId))
+                .isTrue();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM job_offer_question WHERE job_offer_id = ?", Integer.class, offerId))
+                .isEqualTo(2);
+
+        // Édition : remplacement intégral — la question d'origine et son
+        // option disparaissent (cascade), la nouvelle liste s'installe.
+        mockMvc.perform(put("/api/v1/job-offers/" + offerId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(offerBodyWithQuestions(companyId, "Backend Engineer", """
+                                [
+                                  {"label": "Do you have a work permit?", "type": "yes_no",
+                                   "isRequired": true, "sortOrder": 0}
+                                ]
+                                """)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/job-offers/" + offerId).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.questions.length()").value(1))
+                .andExpect(jsonPath("$.questions[0].label").value("Do you have a work permit?"))
+                .andExpect(jsonPath("$.questions[0].type").value("yes_no"));
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM job_offer_question WHERE id = ?", Integer.class, questionId))
+                .isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM job_offer_question_option WHERE id = ?", Integer.class, optionId))
+                .isZero();
+    }
+
+    /**
+     * D47 : les questions sont figées dès PUBLISHED (mêmes garde et 409 que
+     * le contenu — le PUT ne touche à rien), la duplication les copie avec
+     * de nouveaux ids, et la suppression du brouillon copié les emporte par
+     * cascade.
+     */
+    @Test
+    void questionsFigeesEnPublishedEtCopieesALaDuplication() throws Exception {
+        String ownerToken = signup("owner");
+        becomeRecruiter(ownerToken);
+        UUID companyId = createCompany(ownerToken, "Acme");
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/job-offers")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(offerBodyWithQuestions(companyId, "Backend Engineer", """
+                                [
+                                  {"label": "Where do you want to work?", "type": "single_choice",
+                                   "isRequired": true, "sortOrder": 0,
+                                   "options": [{"label": "Remote", "sortOrder": 0, "preferred": true}]}
+                                ]
+                                """)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID offerId = UUID.fromString(objectMapper.readTree(
+                createResult.getResponse().getContentAsString()).get("id").asText());
+        createdOfferIds.add(offerId);
+
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/validate")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/publish")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(put("/api/v1/job-offers/" + offerId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(offerBodyWithQuestions(companyId, "Hijacked", "[]")))
+                .andExpect(status().isConflict());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM job_offer_question WHERE job_offer_id = ?", Integer.class, offerId))
+                .isEqualTo(1);
+
+        MvcResult duplicateResult = mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/duplicate")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.questions.length()").value(1))
+                .andExpect(jsonPath("$.questions[0].label").value("Where do you want to work?"))
+                .andExpect(jsonPath("$.questions[0].options[0].preferred").value(true))
+                .andReturn();
+        JsonNode copy = objectMapper.readTree(duplicateResult.getResponse().getContentAsString());
+        UUID copyId = UUID.fromString(copy.get("id").asText());
+        createdOfferIds.add(copyId);
+        UUID copyQuestionId = UUID.fromString(copy.get("questions").get(0).get("id").asText());
+        assertThat(copyQuestionId).isNotEqualTo(
+                UUID.fromString(objectMapper.readTree(createResult.getResponse().getContentAsString())
+                        .get("questions").get(0).get("id").asText()));
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM job_offer_question_option o JOIN job_offer_question q ON q.id = o.question_id "
+                        + "WHERE q.job_offer_id = ?",
+                Integer.class, copyId))
+                .isEqualTo(1);
+
+        mockMvc.perform(delete("/api/v1/job-offers/" + copyId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNoContent());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM job_offer_question WHERE id = ?", Integer.class, copyQuestionId))
+                .isZero();
+    }
+
+    /**
+     * Matrice d'invalidation des questions au niveau HTTP : type hors des 5
+     * valeurs (400 référence), question à choix sans option et options sur
+     * une question hors choix (400 métier, détail affiché tel quel), ordre
+     * négatif et label vide (400 Bean Validation).
+     */
+    @Test
+    void questionsInvalidesRenvoient400() throws Exception {
+        String ownerToken = signup("owner");
+        becomeRecruiter(ownerToken);
+        UUID companyId = createCompany(ownerToken, "Acme");
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(offerBodyWithQuestions(companyId, "Backend Engineer", """
+                                [{"label": "Rate your level", "type": "scale", "sortOrder": 0}]
+                                """)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Unknown question type: scale"));
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(offerBodyWithQuestions(companyId, "Backend Engineer", """
+                                [{"label": "Where?", "type": "single_choice", "sortOrder": 0}]
+                                """)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Choice questions must have at least one option."));
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(offerBodyWithQuestions(companyId, "Backend Engineer", """
+                                [{"label": "Tell us more", "type": "text", "sortOrder": 0,
+                                  "options": [{"label": "Option", "sortOrder": 0}]}]
+                                """)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Options are only allowed on choice questions."));
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(offerBodyWithQuestions(companyId, "Backend Engineer", """
+                                [{"label": "Q?", "type": "text", "sortOrder": -1}]
+                                """)))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/job-offers")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(offerBodyWithQuestions(companyId, "Backend Engineer", """
+                                [{"label": "", "type": "text", "sortOrder": 0}]
+                                """)))
+                .andExpect(status().isBadRequest());
+    }
+
+    private String offerBodyWithQuestions(UUID companyId, String title, String questionsJson) {
+        return """
+                {
+                  "companyId": "%s",
+                  "title": "%s",
+                  "description": "Build and own our platform APIs.",
+                  "city": "Paris",
+                  "country": "FR",
+                  "employmentTypeId": "%s",
+                  "skills": [
+                    {"skillId": "%s", "requirementType": "mandatory", "weight": 3}
+                  ],
+                  "questions": %s
+                }
+                """.formatted(companyId, title, EMPLOYMENT_TYPE_ID, SKILL_ID, questionsJson);
     }
 
     private UUID createOffer(String token, UUID companyId, String title) throws Exception {

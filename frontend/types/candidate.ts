@@ -82,6 +82,18 @@ export type CandidateProfile = {
   normalizationInProgress: boolean;
 };
 
+/** Pièce jointe du candidat (CV) renvoyée par /api/v1/candidates/me/attachments. */
+export type CvAttachment = {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  createdAt: string;
+  /** True sur le CV désigné comme courant (un seul à la fois). */
+  current: boolean;
+};
+
 /** Listes de référence (skills, languages, degrees, study-fields). */
 export type SkillReference = {
   id: string;

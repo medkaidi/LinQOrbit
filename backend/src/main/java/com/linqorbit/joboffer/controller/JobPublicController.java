@@ -6,11 +6,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import lombok.RequiredArgsConstructor;
 
+import com.linqorbit.joboffer.dto.PublicJobPageResponse;
 import com.linqorbit.joboffer.dto.PublicJobResponse;
 import com.linqorbit.joboffer.service.JobOfferService;
 
 /**
- * Lecture publique d'une offre publiée (V15) — chemin distinct du management
+ * Lecture publique (V15/T-72) — chemin distinct du management
  * {@code /job-offers/**} (authentifié) : {@code permitAll} côté sécurité.
  */
 @RestController
@@ -19,6 +20,11 @@ import com.linqorbit.joboffer.service.JobOfferService;
 public class JobPublicController implements JobPublicApi {
 
     private final JobOfferService jobOfferService;
+
+    @Override
+    public ResponseEntity<PublicJobPageResponse> listJobs(Integer page) {
+        return ResponseEntity.ok(jobOfferService.listPublic(page));
+    }
 
     @Override
     public ResponseEntity<PublicJobResponse> getJob(String publicId) {

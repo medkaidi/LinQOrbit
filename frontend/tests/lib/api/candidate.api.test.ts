@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  deleteCv,
+  downloadCv,
   getProfile,
   getReferenceDegrees,
   getReferenceLanguages,
   getReferenceSkills,
   getReferenceStudyFields,
+  listCvs,
   parseCv,
+  setCurrentCv,
   updateAbout,
   updateDiplomas,
   updateExperiences,
@@ -14,11 +18,12 @@ import {
   updateLinks,
   updateProjects,
   updateSkills,
+  uploadCv,
   validateProfile,
 } from "@/lib/api/candidate.api";
 
 vi.mock("@/lib/api/axios", () => ({
-  api: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
+  api: { get: vi.fn(), put: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }));
 
 import { api } from "@/lib/api/axios";
@@ -26,12 +31,14 @@ import { api } from "@/lib/api/axios";
 const mockedGet = vi.mocked(api.get);
 const mockedPut = vi.mocked(api.put);
 const mockedPost = vi.mocked(api.post);
+const mockedDelete = vi.mocked(api.delete);
 
 describe("candidate.api", () => {
   beforeEach(() => {
     mockedGet.mockReset();
     mockedPut.mockReset();
     mockedPost.mockReset();
+    mockedDelete.mockReset();
   });
 
   it("reads the profile once, without ever creating it", async () => {
@@ -309,5 +316,91 @@ describe("candidate.api", () => {
     expect(body).toBeInstanceOf(FormData);
     expect((body as FormData).get("file")).toBe(file);
     expect(result).toEqual(parsed);
+  });
+
+  it("lists the CV files from the attachments endpoint", async () => {
+    const cvs = [
+      {
+        id: "c1",
+        originalName: "cv.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 1234,
+        sha256: "a".repeat(64),
+        createdAt: "2026-10-16T10:00:00",
+        current: true,
+      },
+    ];
+    mockedGet.mockResolvedValue({ data: cvs });
+
+    const result = await listCvs();
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/candidates/me/attachments");
+    expect(result).toEqual(cvs);
+  });
+
+  it("uploads a CV as multipart form data and returns the stored attachment", async () => {
+    const uploaded = {
+      id: "c1",
+      originalName: "cv.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 1234,
+      sha256: "a".repeat(64),
+      createdAt: "2026-10-16T10:00:00",
+      current: true,
+    };
+    mockedPost.mockResolvedValue({ data: uploaded });
+    const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
+
+    const result = await uploadCv(file);
+
+    expect(mockedPost).toHaveBeenCalledTimes(1);
+    const [url, body] = mockedPost.mock.calls[0];
+    expect(url).toBe("/api/v1/candidates/me/attachments");
+    expect(body).toBeInstanceOf(FormData);
+    expect((body as FormData).get("file")).toBe(file);
+    expect(result).toEqual(uploaded);
+  });
+
+  it("switches the current CV and deletes one by id", async () => {
+    mockedPut.mockResolvedValue({ data: undefined });
+    mockedDelete.mockResolvedValue({ data: undefined });
+
+    await setCurrentCv("c2");
+    await deleteCv("c2");
+
+    expect(mockedPut).toHaveBeenCalledWith("/api/v1/candidates/me/attachments/c2/current");
+    expect(mockedDelete).toHaveBeenCalledWith("/api/v1/candidates/me/attachments/c2");
+  });
+
+  it("downloads a CV as a blob and saves it through a temporary link", async () => {
+    const blob = new Blob(["%PDF-1.4"], { type: "application/pdf" });
+    mockedGet.mockResolvedValue({ data: blob });
+    const createObjectURL = vi.fn(() => "blob:mock");
+    const revokeObjectURL = vi.fn();
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
+    let clickedDownload: string | null = null;
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        clickedDownload = this.download;
+      });
+
+    try {
+      await downloadCv("c1", "cv.pdf");
+    } finally {
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+      clickSpy.mockRestore();
+    }
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/candidates/me/attachments/c1/content", {
+      responseType: "blob",
+    });
+    expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(clickedDownload).toBe("cv.pdf");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock");
   });
 });

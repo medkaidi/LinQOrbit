@@ -76,7 +76,7 @@ function Header() {
 function StatusPill({ active }: { active: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-caps text-label-caps uppercase tracking-wider font-bold shrink-0 ${
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-caps text-label-caps normal-case tracking-normal font-bold shrink-0 ${
         active ? "bg-success-surface text-success-text" : "bg-slate-surface text-text-secondary"
       }`}
     >

@@ -3,7 +3,14 @@ import { Icon } from "@/components/ui/icon";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils/cn";
 
-export type ButtonVariant = "primary" | "outline" | "outline-sm" | "ghost" | "soft" | "cta";
+export type ButtonVariant =
+  | "primary"
+  | "outline"
+  | "outline-sm"
+  | "icon-sm"
+  | "ghost"
+  | "soft"
+  | "cta";
 
 export type ButtonProps = ComponentPropsWithRef<"button"> & {
   variant?: ButtonVariant;
@@ -22,6 +29,9 @@ const variantClasses: Record<ButtonVariant, string> = {
     "group flex items-center justify-center gap-2 h-11 px-3 rounded-full bg-surface-container-lowest shadow-sm hover:bg-canvas-subtle transition-[background-color,box-shadow,scale] duration-150 ease-out active:scale-[0.97] cursor-pointer",
   "outline-sm":
     "group inline-flex items-center justify-center gap-2 h-8 px-4 rounded-full bg-surface-container-lowest shadow-sm hover:bg-canvas-subtle text-text-primary font-bold text-xs transition-[background-color] duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep disabled:opacity-60 disabled:cursor-not-allowed",
+  // Icône seule compacte (kebab des lignes de liste) : même surface que `outline-sm`, carré h-8.
+  "icon-sm":
+    "group inline-flex items-center justify-center h-8 w-8 rounded-full bg-surface-container-lowest shadow-sm hover:bg-canvas-subtle text-text-secondary transition-[background-color] duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep disabled:opacity-60 disabled:cursor-not-allowed",
   ghost:
     "group flex items-center justify-center gap-2 h-12 px-3 rounded-full text-body-md font-body-md text-text-secondary hover:text-text-primary hover:bg-canvas-subtle transition-[background-color,box-shadow,scale] duration-150 ease-out active:scale-[0.97] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none",
   // Pilule orange « secondaire » des en-têtes : fond orange pâle, libellé gras,

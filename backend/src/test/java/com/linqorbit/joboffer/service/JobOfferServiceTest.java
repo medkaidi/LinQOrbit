@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -21,29 +22,42 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import com.linqorbit.candidate.repository.DegreeRepository;
 import com.linqorbit.candidate.repository.LanguageRepository;
 import com.linqorbit.candidate.repository.SkillRepository;
 import com.linqorbit.candidate.repository.StudyFieldRepository;
+import com.linqorbit.company.entity.Company;
 import com.linqorbit.company.entity.CompanyMember;
 import com.linqorbit.company.repository.CompanyMemberRepository;
 import com.linqorbit.company.repository.CompanyRepository;
 import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
 import com.linqorbit.joboffer.dto.JobOfferListItem;
 import com.linqorbit.joboffer.dto.JobOfferPageResponse;
+import com.linqorbit.joboffer.dto.JobOfferQuestionOptionRequest;
+import com.linqorbit.joboffer.dto.JobOfferQuestionRequest;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
+import com.linqorbit.joboffer.dto.PublicJobListItem;
+import com.linqorbit.joboffer.dto.PublicJobPageResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
+import com.linqorbit.joboffer.entity.ContractType;
 import com.linqorbit.joboffer.entity.JobOffer;
 import com.linqorbit.joboffer.entity.JobOfferDegree;
 import com.linqorbit.joboffer.entity.JobOfferLanguage;
+import com.linqorbit.joboffer.entity.JobOfferQuestion;
+import com.linqorbit.joboffer.entity.JobOfferQuestionOption;
 import com.linqorbit.joboffer.entity.JobOfferSkill;
 import com.linqorbit.joboffer.entity.JobOfferStatus;
 import com.linqorbit.joboffer.entity.JobOfferStudyField;
+import com.linqorbit.joboffer.entity.QuestionType;
 import com.linqorbit.joboffer.entity.RequirementType;
+import com.linqorbit.joboffer.entity.WorkMode;
 import com.linqorbit.joboffer.exception.InvalidJobOfferException;
 import com.linqorbit.joboffer.exception.InvalidJobOfferStatusException;
 import com.linqorbit.joboffer.exception.JobOfferAccessDeniedException;
@@ -53,6 +67,8 @@ import com.linqorbit.joboffer.repository.ContractTypeRepository;
 import com.linqorbit.joboffer.repository.EmploymentTypeRepository;
 import com.linqorbit.joboffer.repository.JobOfferDegreeRepository;
 import com.linqorbit.joboffer.repository.JobOfferLanguageRepository;
+import com.linqorbit.joboffer.repository.JobOfferQuestionOptionRepository;
+import com.linqorbit.joboffer.repository.JobOfferQuestionRepository;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.joboffer.repository.JobOfferSkillRepository;
 import com.linqorbit.joboffer.repository.JobOfferStudyFieldRepository;
@@ -78,12 +94,17 @@ class JobOfferServiceTest {
     private static final UUID DEGREE_ID = UUID.fromString("c0000000-0000-4000-8000-000000000003");
     private static final UUID STUDY_FIELD_ID = UUID.fromString("d0000000-0000-4000-8000-000000000001");
     private static final UUID CONTRACT_TYPE_ID = UUID.fromString("b0000000-0000-4000-8000-000000000001");
+    private static final UUID WORK_MODE_ID = UUID.fromString("b2000000-0000-4000-8000-000000000001");
+    private static final UUID QUESTION_ID = UUID.fromString("e0000000-0000-4000-8000-000000000001");
+    private static final UUID OPTION_ID = UUID.fromString("e1000000-0000-4000-8000-000000000001");
 
     private JobOfferRepository jobOfferRepository;
     private JobOfferSkillRepository jobOfferSkillRepository;
     private JobOfferLanguageRepository jobOfferLanguageRepository;
     private JobOfferDegreeRepository jobOfferDegreeRepository;
     private JobOfferStudyFieldRepository jobOfferStudyFieldRepository;
+    private JobOfferQuestionRepository jobOfferQuestionRepository;
+    private JobOfferQuestionOptionRepository jobOfferQuestionOptionRepository;
     private CompanyMemberRepository companyMemberRepository;
     private CompanyRepository companyRepository;
     private RecruiterRepository recruiterRepository;
@@ -103,6 +124,8 @@ class JobOfferServiceTest {
         jobOfferLanguageRepository = mock(JobOfferLanguageRepository.class);
         jobOfferDegreeRepository = mock(JobOfferDegreeRepository.class);
         jobOfferStudyFieldRepository = mock(JobOfferStudyFieldRepository.class);
+        jobOfferQuestionRepository = mock(JobOfferQuestionRepository.class);
+        jobOfferQuestionOptionRepository = mock(JobOfferQuestionOptionRepository.class);
         companyMemberRepository = mock(CompanyMemberRepository.class);
         companyRepository = mock(CompanyRepository.class);
         recruiterRepository = mock(RecruiterRepository.class);
@@ -115,7 +138,9 @@ class JobOfferServiceTest {
         workModeRepository = mock(WorkModeRepository.class);
         jobOfferService = new JobOfferService(
                 jobOfferRepository, jobOfferSkillRepository, jobOfferLanguageRepository,
-                jobOfferDegreeRepository, jobOfferStudyFieldRepository, companyMemberRepository,
+                jobOfferDegreeRepository, jobOfferStudyFieldRepository,
+                jobOfferQuestionRepository, jobOfferQuestionOptionRepository,
+                companyMemberRepository,
                 companyRepository, recruiterRepository, skillRepository, languageRepository, degreeRepository,
                 studyFieldRepository, contractTypeRepository, employmentTypeRepository, workModeRepository,
                 mock(NormalizedProfileJobOfferRepository.class),
@@ -125,6 +150,8 @@ class JobOfferServiceTest {
         lenient().when(jobOfferLanguageRepository.findByJobOfferIdIn(any())).thenReturn(List.of());
         lenient().when(jobOfferDegreeRepository.findByJobOfferIdIn(any())).thenReturn(List.of());
         lenient().when(jobOfferStudyFieldRepository.findByJobOfferIdIn(any())).thenReturn(List.of());
+        lenient().when(jobOfferQuestionRepository.findByJobOfferIdInOrderBySortOrderAscIdAsc(any()))
+                .thenReturn(List.of());
     }
 
     @Test
@@ -178,7 +205,7 @@ class JobOfferServiceTest {
                 COMPANY_ID, "Backend Engineer", null, null, null, null, null,
                 null, null, null, null,
                 new BigDecimal("90000"), new BigDecimal("70000"), "EUR", "year",
-                List.of(), List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of(), List.of());
 
         assertThatThrownBy(() -> jobOfferService.create(RECRUITER_ID, request))
                 .isInstanceOf(InvalidJobOfferException.class);
@@ -409,6 +436,8 @@ class JobOfferServiceTest {
         assertThat(first.title()).isEqualTo("Backend Engineer");
         assertThat(first.readyToPublish()).isTrue();
         assertThat(first.hasUnvalidatedChanges()).isFalse();
+        assertThat(first.employmentTypeId()).isNotNull();
+        assertThat(first.updatedAt()).isNull();
         assertThat(response.items().get(1).readyToPublish()).isFalse();
         assertThat(response.page()).isZero();
         assertThat(response.size()).isEqualTo(20);
@@ -444,6 +473,205 @@ class JobOfferServiceTest {
         assertThat(response.size()).isEqualTo(10);
         assertThat(response.total()).isZero();
         verify(jobOfferRepository, never()).findByCompanyIdIn(any(), any());
+    }
+
+    @Test
+    void listPublicNeChargePasLesEnfantsEtResoutLesLabelsEnBatch() {
+        JobOffer published = JobOffer.builder()
+                .id(OFFER_ID).companyId(COMPANY_ID).recruiterId(RECRUITER_ID)
+                .status(JobOfferStatus.PUBLISHED).title("Backend Engineer")
+                .publicId("abcdefghijkl").slug("backend-engineer")
+                .contractTypeId(CONTRACT_TYPE_ID).workModeId(WORK_MODE_ID)
+                .city("Paris").country("FR")
+                .publishedAt(LocalDateTime.now())
+                .build();
+        when(jobOfferRepository.findPublic(eq(JobOfferStatus.PUBLISHED), any(LocalDate.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(published), PageRequest.of(0, 20), 1));
+        when(companyRepository.findAllById(List.of(COMPANY_ID)))
+                .thenReturn(List.of(Company.builder().id(COMPANY_ID).name("Acme").build()));
+        when(contractTypeRepository.findAllById(List.of(CONTRACT_TYPE_ID)))
+                .thenReturn(List.of(ContractType.builder().id(CONTRACT_TYPE_ID).label("Full-time").build()));
+        when(workModeRepository.findAllById(List.of(WORK_MODE_ID)))
+                .thenReturn(List.of(WorkMode.builder().id(WORK_MODE_ID).label("Remote").build()));
+
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        PublicJobPageResponse response = jobOfferService.listPublic(1);
+
+        verify(jobOfferRepository).findPublic(eq(JobOfferStatus.PUBLISHED), any(LocalDate.class),
+                pageable.capture());
+        assertThat(pageable.getValue().getPageNumber()).isEqualTo(1);
+        assertThat(pageable.getValue().getPageSize()).isEqualTo(20);
+        assertThat(pageable.getValue().getSort())
+                .isEqualTo(Sort.by(Sort.Direction.DESC, "publishedAt"));
+        assertThat(response.items()).hasSize(1);
+        PublicJobListItem item = response.items().get(0);
+        assertThat(item.title()).isEqualTo("Backend Engineer");
+        assertThat(item.companyName()).isEqualTo("Acme");
+        assertThat(item.contractType()).isEqualTo("Full-time");
+        assertThat(item.workMode()).isEqualTo("Remote");
+        assertThat(item.employmentType()).isNull();
+        assertThat(response.total()).isEqualTo(1);
+        // Ligne légère : jamais de requête par entité ni de chargement des enfants.
+        verify(companyRepository, never()).findById(any());
+        verify(contractTypeRepository, never()).findById(any());
+        verify(jobOfferSkillRepository, never()).findByJobOfferIdIn(any());
+    }
+
+    @Test
+    void listPublicBorneLaPageNegative() {
+        when(jobOfferRepository.findPublic(eq(JobOfferStatus.PUBLISHED), any(LocalDate.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        PublicJobPageResponse response = jobOfferService.listPublic(-3);
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.total()).isZero();
+        verify(jobOfferRepository).findPublic(eq(JobOfferStatus.PUBLISHED), any(LocalDate.class),
+                argThat(pageable -> pageable.getPageNumber() == 0 && pageable.getPageSize() == 20));
+    }
+
+    @Test
+    void createAvecQuestionsSupprimePuisInsereParEtages() {
+        stubRecruiter(true);
+        stubMembership(RECRUITER_ID, true);
+        when(skillRepository.countByIdIn(any())).thenReturn(1L);
+        when(contractTypeRepository.existsById(CONTRACT_TYPE_ID)).thenReturn(true);
+        when(jobOfferRepository.save(any(JobOffer.class))).thenAnswer(invocation -> {
+            JobOffer offer = invocation.getArgument(0);
+            offer.setId(OFFER_ID);
+            return offer;
+        });
+
+        jobOfferService.create(RECRUITER_ID, createRequestWithQuestions());
+
+        // Remplacement intégral : suppression bulk avant insertion (jamais l'inverse).
+        InOrder questionOrder = inOrder(jobOfferQuestionRepository);
+        questionOrder.verify(jobOfferQuestionRepository).deleteAllByJobOfferId(OFFER_ID);
+        questionOrder.verify(jobOfferQuestionRepository).saveAllAndFlush(any());
+
+        ArgumentCaptor<List<JobOfferQuestion>> questionsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(jobOfferQuestionRepository).saveAllAndFlush(questionsCaptor.capture());
+        List<JobOfferQuestion> questions = questionsCaptor.getValue();
+        assertThat(questions).hasSize(2);
+        assertThat(questions.get(0).getId()).isNotNull();
+        assertThat(questions.get(0).getLabel()).isEqualTo("How many years with Java?");
+        assertThat(questions.get(0).getQuestionType()).isEqualTo(QuestionType.NUMBER);
+        assertThat(questions.get(0).getIsRequired()).isFalse();
+        assertThat(questions.get(0).getSortOrder()).isZero();
+
+        ArgumentCaptor<List<JobOfferQuestionOption>> optionsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(jobOfferQuestionOptionRepository).saveAll(optionsCaptor.capture());
+        List<JobOfferQuestionOption> options = optionsCaptor.getValue();
+        assertThat(options).hasSize(2);
+        assertThat(options).allSatisfy(option -> {
+            assertThat(option.getId()).isNotNull();
+            assertThat(option.getQuestionId()).isEqualTo(questions.get(1).getId());
+        });
+        assertThat(options.get(0).getLabel()).isEqualTo("On-site");
+        assertThat(options.get(0).getSortOrder()).isZero();
+        assertThat(options.get(0).getPreferred()).isFalse();
+        assertThat(options.get(1).getPreferred()).isTrue();
+    }
+
+    @Test
+    void createRejetteUnTypeDeQuestionInconnu() {
+        stubRecruiter(true);
+        stubMembership(RECRUITER_ID, true);
+        when(skillRepository.countByIdIn(any())).thenReturn(1L);
+
+        CreateJobOfferRequest request = requestWithQuestions(List.of(
+                new JobOfferQuestionRequest("Rate your level", "scale", false, 0, List.of())));
+
+        assertThatThrownBy(() -> jobOfferService.create(RECRUITER_ID, request))
+                .isInstanceOf(JobOfferReferenceNotFoundException.class);
+        verify(jobOfferQuestionRepository, never()).saveAllAndFlush(any());
+    }
+
+    @Test
+    void createRejetteUneQuestionChoixSansOption() {
+        stubRecruiter(true);
+        stubMembership(RECRUITER_ID, true);
+        when(skillRepository.countByIdIn(any())).thenReturn(1L);
+
+        CreateJobOfferRequest request = requestWithQuestions(List.of(
+                new JobOfferQuestionRequest("Where?", "single_choice", false, 0, List.of())));
+
+        assertThatThrownBy(() -> jobOfferService.create(RECRUITER_ID, request))
+                .isInstanceOf(InvalidJobOfferException.class)
+                .hasMessage("Choice questions must have at least one option.");
+    }
+
+    @Test
+    void createRejetteDesOptionsSurUneQuestionHorsChoix() {
+        stubRecruiter(true);
+        stubMembership(RECRUITER_ID, true);
+        when(skillRepository.countByIdIn(any())).thenReturn(1L);
+
+        CreateJobOfferRequest request = requestWithQuestions(List.of(
+                new JobOfferQuestionRequest("Tell us more", "text", false, 0,
+                        List.of(new JobOfferQuestionOptionRequest("Option", 0, false)))));
+
+        assertThatThrownBy(() -> jobOfferService.create(RECRUITER_ID, request))
+                .isInstanceOf(InvalidJobOfferException.class)
+                .hasMessage("Options are only allowed on choice questions.");
+    }
+
+    @Test
+    void updatePublieeNeTouchePasAuxQuestions() {
+        JobOffer offer = publishedOffer();
+        stubManagement(offer, RECRUITER_ID, false);
+
+        UpdateJobOfferRequest request = new UpdateJobOfferRequest(
+                "Hijacked", null, null, null, null, null,
+                null, null, null, null,
+                null, null, null, null,
+                List.of(), List.of(), List.of(), List.of(),
+                List.of(new JobOfferQuestionRequest("Q?", "text", false, 0, List.of())));
+
+        assertThatThrownBy(() -> jobOfferService.update(RECRUITER_ID, OFFER_ID, request))
+                .isInstanceOf(InvalidJobOfferStatusException.class);
+        verify(jobOfferQuestionRepository, never()).deleteAllByJobOfferId(any());
+        verify(jobOfferQuestionRepository, never()).saveAllAndFlush(any());
+    }
+
+    @Test
+    void duplicateCopieQuestionsEtOptionsAvecDeNouveauxIds() {
+        JobOffer source = publishedOffer();
+        stubRecruiter(true);
+        stubDuplicateSource(source, OTHER_RECRUITER_ID);
+        when(jobOfferRepository.save(any(JobOffer.class))).thenAnswer(invocation -> {
+            JobOffer copy = invocation.getArgument(0);
+            copy.setId(COPY_ID);
+            return copy;
+        });
+        when(jobOfferQuestionRepository.findByJobOfferIdInOrderBySortOrderAscIdAsc(List.of(OFFER_ID)))
+                .thenReturn(List.of(JobOfferQuestion.builder()
+                        .id(QUESTION_ID).jobOfferId(OFFER_ID).label("Availability?")
+                        .questionType(QuestionType.SINGLE_CHOICE).isRequired(true).sortOrder(0)
+                        .build()));
+        when(jobOfferQuestionOptionRepository.findByQuestionIdInOrderBySortOrderAscIdAsc(List.of(QUESTION_ID)))
+                .thenReturn(List.of(JobOfferQuestionOption.builder()
+                        .id(OPTION_ID).questionId(QUESTION_ID).label("ASAP").sortOrder(0).preferred(true)
+                        .build()));
+
+        jobOfferService.duplicate(OTHER_RECRUITER_ID, OFFER_ID);
+
+        ArgumentCaptor<List<JobOfferQuestion>> questionsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(jobOfferQuestionRepository).saveAllAndFlush(questionsCaptor.capture());
+        JobOfferQuestion copiedQuestion = questionsCaptor.getValue().get(0);
+        assertThat(copiedQuestion.getId()).isNotNull().isNotEqualTo(QUESTION_ID);
+        assertThat(copiedQuestion.getJobOfferId()).isEqualTo(COPY_ID);
+        assertThat(copiedQuestion.getLabel()).isEqualTo("Availability?");
+        assertThat(copiedQuestion.getQuestionType()).isEqualTo(QuestionType.SINGLE_CHOICE);
+        assertThat(copiedQuestion.getIsRequired()).isTrue();
+
+        ArgumentCaptor<List<JobOfferQuestionOption>> optionsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(jobOfferQuestionOptionRepository).saveAll(optionsCaptor.capture());
+        JobOfferQuestionOption copiedOption = optionsCaptor.getValue().get(0);
+        assertThat(copiedOption.getId()).isNotNull().isNotEqualTo(OPTION_ID);
+        assertThat(copiedOption.getQuestionId()).isEqualTo(copiedQuestion.getId());
+        assertThat(copiedOption.getLabel()).isEqualTo("ASAP");
+        assertThat(copiedOption.getPreferred()).isTrue();
     }
 
     private JobOffer draftOffer() {
@@ -535,7 +763,7 @@ class JobOfferServiceTest {
                 CONTRACT_TYPE_ID, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
                 List.of(new com.linqorbit.joboffer.dto.JobOfferSkillRequest(SKILL_ID, "mandatory", 3, 2)),
-                List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of());
     }
 
     private UpdateJobOfferRequest updateRequest(String title) {
@@ -543,6 +771,23 @@ class JobOfferServiceTest {
                 title, null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null,
-                List.of(), List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of(), List.of());
+    }
+
+    private CreateJobOfferRequest createRequestWithQuestions() {
+        return requestWithQuestions(List.of(
+                new JobOfferQuestionRequest("How many years with Java?", "number", false, 0, List.of()),
+                new JobOfferQuestionRequest("Where do you want to work?", "single_choice", true, 1, List.of(
+                        new JobOfferQuestionOptionRequest("On-site", 0, false),
+                        new JobOfferQuestionOptionRequest("Remote", 1, true)))));
+    }
+
+    private CreateJobOfferRequest requestWithQuestions(List<JobOfferQuestionRequest> questions) {
+        return new CreateJobOfferRequest(
+                COMPANY_ID, "Backend Engineer", "Build APIs", "mid", 3, "Paris", "FR",
+                CONTRACT_TYPE_ID, null, null, null,
+                new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
+                List.of(new com.linqorbit.joboffer.dto.JobOfferSkillRequest(SKILL_ID, "mandatory", 3, 2)),
+                List.of(), List.of(), List.of(), questions);
     }
 }

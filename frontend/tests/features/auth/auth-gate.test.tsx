@@ -8,6 +8,7 @@ const replaceMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: replaceMock }),
+  usePathname: () => "/dashboard",
 }));
 
 const user: AuthUser = {
@@ -36,7 +37,7 @@ describe("AuthGate", () => {
       </AuthGate>,
     );
 
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/login"));
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/login?next=%2Fdashboard"));
     expect(screen.queryByText("Secret area")).not.toBeInTheDocument();
   });
 

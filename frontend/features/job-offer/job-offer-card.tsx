@@ -5,7 +5,15 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
-import { locationLabel, salaryLabel, SENIORITY_LABELS, STATUS_LABELS } from "@/features/job-offer/job-offer-shared";
+import {
+  companyInitials,
+  locationLabel,
+  relativeTimeLabel,
+  salaryLabel,
+  SENIORITY_LABELS,
+  STATUS_LABELS,
+  workModeIcon,
+} from "@/features/job-offer/job-offer-shared";
 import type {
   JobOfferStatusValue,
   SalaryPeriodValue,
@@ -18,6 +26,12 @@ export const OFFER_LINK_PILL_CLASS =
 
 const OFFER_ROW_CARD = "bg-canvas-white rounded-2xl border border-slate-border p-4 shadow-sm";
 
+const META_CHIP =
+  "inline-flex items-center gap-1 rounded-full border border-slate-border bg-item-surface/50 px-2.5 py-1 font-body-sm text-body-sm text-text-secondary";
+const META_CHIP_ICON = "text-[14px] text-text-tertiary";
+export const OFFER_SALARY_CHIP =
+  "inline-flex items-center gap-1 rounded-full bg-orange-subtle px-2.5 py-1 font-body-sm text-body-sm font-semibold text-orange-deep";
+
 const STATUS_PILL_TONES: Record<JobOfferStatusValue, { pill: string; dot: string }> = {
   draft: { pill: "bg-canvas-subtle text-text-secondary", dot: "bg-text-tertiary" },
   validated: { pill: "bg-orange-subtle text-orange-deep", dot: "bg-orange-vibrant" },
@@ -25,12 +39,21 @@ const STATUS_PILL_TONES: Record<JobOfferStatusValue, { pill: string; dot: string
   closed: { pill: "bg-slate-surface text-text-secondary", dot: "bg-slate-border" },
 };
 
+/** Tuile à initiales : tons miroirs de la pilule de statut (surfaces douces). */
+const TILE_TONE_MUTED = "bg-canvas-subtle text-text-secondary";
+const TILE_TONES: Record<JobOfferStatusValue, string> = {
+  draft: TILE_TONE_MUTED,
+  validated: "bg-orange-subtle text-orange-deep",
+  published: "bg-success-surface text-success-text",
+  closed: "bg-slate-surface text-text-secondary",
+};
+
 /** Pastille de statut à point coloré — partagée carte / détail admin (source unique). */
 export function OfferStatusPill({ status }: { status: JobOfferStatusValue }) {
   const tone = STATUS_PILL_TONES[status];
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-caps text-label-caps uppercase tracking-wider font-bold shrink-0 ${tone.pill}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-caps text-label-caps normal-case tracking-normal font-bold shrink-0 ${tone.pill}`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${tone.dot}`} />
       {STATUS_LABELS[status]}
@@ -38,30 +61,40 @@ export function OfferStatusPill({ status }: { status: JobOfferStatusValue }) {
   );
 }
 
-/** Date relative courte (« 3 days ago ») — rendu client uniquement (pas d'hydratation à craindre). */
-function createdAgo(iso: string): string | null {
-  const created = new Date(iso).getTime();
-  if (Number.isNaN(created)) {
+/** « Expires in N days » (≤ 30 jours) — la pastille « Expired » couvre le passé. */
+function expiryCountdown(
+  expiresAt: string,
+): { label: string; urgent: boolean } | null {
+  const date = new Date(`${expiresAt.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
     return null;
   }
-  const elapsedMinutes = Math.round((created - Date.now()) / 60_000);
-  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-  if (Math.abs(elapsedMinutes) < 60) {
-    return rtf.format(elapsedMinutes, "minute");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((date.getTime() - today.getTime()) / 86_400_000);
+  if (days < 0) {
+    return null;
   }
-  const hours = Math.round(elapsedMinutes / 60);
-  if (Math.abs(hours) < 24) {
-    return rtf.format(hours, "hour");
+  if (days === 0) {
+    return { label: "Expires today", urgent: true };
   }
-  const days = Math.round(hours / 24);
-  if (Math.abs(days) < 30) {
-    return rtf.format(days, "day");
+  if (days === 1) {
+    return { label: "Expires tomorrow", urgent: true };
   }
-  const months = Math.round(days / 30);
-  if (Math.abs(months) < 12) {
-    return rtf.format(months, "month");
+  if (days <= 30) {
+    return { label: `Expires in ${days} days`, urgent: days <= 7 };
   }
-  return rtf.format(Math.round(months / 12), "year");
+  return null;
+}
+
+/** Chip méta d'une carte d'offre (icône + libellé) — langage visuel partagé carte recruteur / job board. */
+export function MetaChip({ icon, children }: { icon: string; children: ReactNode }) {
+  return (
+    <span className={META_CHIP}>
+      <Icon name={icon} className={META_CHIP_ICON} />
+      {children}
+    </span>
+  );
 }
 
 export type JobOfferCardProps = {
@@ -75,6 +108,7 @@ export type JobOfferCardProps = {
   country?: string | null;
   workModeLabel?: string | null;
   contractTypeLabel?: string | null;
+  employmentTypeLabel?: string | null;
   salaryMin?: number | null;
   salaryMax?: number | null;
   salaryCurrency?: string | null;
@@ -83,16 +117,21 @@ export type JobOfferCardProps = {
   /** Signal du job de normalisation de l'offre (badge « Analyzing… » / « Analysis failed »). */
   normalization?: "progress" | "failed" | null;
   unvalidatedChanges?: boolean;
+  /** Draft incomplet (gate de complétude serveur) : chip « Not ready to publish ». */
+  readyToPublish?: boolean;
   createdAt?: string | null;
+  updatedAt?: string | null;
+  expiresAt?: string | null;
   /** Actions alignées à droite (CTA recruteur ou lien « View » admin). */
   actions?: ReactNode;
 };
 
 /**
- * Carte d'une offre — présentation partagée vue recruteur / console admin
- * (tuile, pill company, statut, badges, titre, ligne de méta, actions) :
- * les deux payloads (JobOfferListItem, AdminJobOfferListItem) portent les
- * mêmes signaux d'affichage.
+ * Carte d'une offre — présentation partagée vue recruteur / console admin :
+ * tuile à initiales, en-tête de vie (company, statut, badges), titre, méta en
+ * chips (lieu, mode, contrat, type d'emploi, salaire) puis ligne de dates
+ * (Created / Updated / échéance proche). Les deux payloads (JobOfferListItem,
+ * AdminJobOfferListItem) portent les mêmes signaux d'affichage.
  */
 export function JobOfferCard({
   status,
@@ -104,6 +143,7 @@ export function JobOfferCard({
   country,
   workModeLabel,
   contractTypeLabel,
+  employmentTypeLabel,
   salaryMin,
   salaryMax,
   salaryCurrency,
@@ -111,73 +151,84 @@ export function JobOfferCard({
   expired = false,
   normalization = null,
   unvalidatedChanges = false,
+  readyToPublish = true,
   createdAt,
+  updatedAt,
+  expiresAt,
   actions,
 }: JobOfferCardProps) {
   const location = locationLabel(city ?? null, country ?? null);
-  const place = workModeLabel ? [workModeLabel, location].filter(Boolean).join(" · ") : location;
   const seniorityLabel = seniority ? SENIORITY_LABELS[seniority] : null;
   const salary = salaryLabel(salaryMin ?? null, salaryMax ?? null, salaryCurrency ?? null, salaryPeriod ?? null);
-  const created = createdAt ? createdAgo(createdAt) : null;
+  const created = createdAt ? relativeTimeLabel(createdAt) : null;
+  const updated =
+    updatedAt && updatedAt !== createdAt ? relativeTimeLabel(updatedAt) : null;
+  const expiry =
+    status === "published" && expiresAt && !expired ? expiryCountdown(expiresAt) : null;
 
-  const meta: ReactNode[] = [];
+  const metaChips: ReactNode[] = [];
   if (seniorityLabel) {
-    meta.push(<span key="seniority">{seniorityLabel}</span>);
+    metaChips.push(
+      <MetaChip key="seniority" icon="signal_cellular_alt">
+        {seniorityLabel}
+      </MetaChip>,
+    );
   }
-  if (place) {
-    meta.push(
-      <span key="location" className="flex items-center gap-1">
-        <Icon
-          name={workModeLabel?.toLowerCase() === "remote" ? "public" : "location_on"}
-          className="text-[16px] text-text-tertiary"
-        />
-        {place}
-      </span>,
+  if (location) {
+    metaChips.push(
+      <MetaChip key="location" icon="location_on">
+        {location}
+      </MetaChip>,
+    );
+  }
+  if (workModeLabel) {
+    metaChips.push(
+      <MetaChip key="work-mode" icon={workModeIcon(workModeLabel)}>
+        {workModeLabel}
+      </MetaChip>,
     );
   }
   if (contractTypeLabel) {
-    meta.push(
-      <span key="contract" className="flex items-center gap-1">
-        <Icon name="badge" className="text-[16px] text-text-tertiary" />
+    metaChips.push(
+      <MetaChip key="contract" icon="badge">
         {contractTypeLabel}
-      </span>,
+      </MetaChip>,
+    );
+  }
+  if (employmentTypeLabel) {
+    metaChips.push(
+      <MetaChip key="employment-type" icon="schedule">
+        {employmentTypeLabel}
+      </MetaChip>,
     );
   }
   if (salary) {
-    meta.push(
-      <span key="salary" className="font-semibold text-text-primary">
+    metaChips.push(
+      <span key="salary" className={OFFER_SALARY_CHIP}>
+        <Icon name="payments" className="text-[14px]" />
         {salary}
       </span>,
     );
   }
 
   return (
-    <li
-      className={`${OFFER_ROW_CARD} group/offer flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
-        status === "draft" ? "opacity-80 hover:opacity-100" : ""
-      }`}
-    >
+    <li className={`${OFFER_ROW_CARD} group/offer flex flex-col lg:flex-row lg:items-center justify-between gap-4`}>
       <div className="flex items-start gap-4 min-w-0 flex-1">
         <div
-          className={`w-12 h-12 mt-0.5 rounded-xl flex items-center justify-center shrink-0 ${
-            status === "draft" || status === "closed"
-              ? "bg-canvas-subtle text-text-secondary"
-              : "bg-orange-subtle text-orange-deep"
-          }`}
+          className={`w-12 h-12 mt-0.5 rounded-xl flex items-center justify-center shrink-0 font-label-lg text-label-lg font-bold ${expired ? TILE_TONE_MUTED : TILE_TONES[status]}`}
+          aria-hidden="true"
         >
-          <Icon name="work" className="text-[24px]" />
+          {companyName ? companyInitials(companyName) : <Icon name="work" className="text-[24px]" />}
         </div>
-        <div className="flex flex-col gap-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            {companyName ? (
-              <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-text-primary font-label-caps text-label-caps uppercase shrink-0">
-                {companyName}
-              </span>
-            ) : (
-              <span className="font-label-caps text-label-caps uppercase text-text-tertiary shrink-0">
-                No company
-              </span>
-            )}
+        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            {/* Société : plaque d'identité en tête de rangée — seul bloc en capitales (avec tracking),
+                text-primary ; les pastilles de statut sont en casse de phrase ; jamais une capsule. */}
+            <span
+              className={`font-label-md text-label-md uppercase tracking-wider shrink-0 ${companyName ? "text-text-primary" : "text-text-tertiary"}`}
+            >
+              {companyName ?? "No company"}
+            </span>
             <OfferStatusPill status={status} />
             {expired ? <Badge tone="neutral">Expired</Badge> : null}
             {normalization === "progress" ? (
@@ -187,10 +238,20 @@ export function JobOfferCard({
             ) : unvalidatedChanges && status === "validated" ? (
               <Badge>Unvalidated changes</Badge>
             ) : null}
-            {created ? (
-              <span className="font-body-sm text-body-sm text-text-tertiary">
-                Created {created}
-              </span>
+            {status === "draft" && !readyToPublish ? (
+              <Badge tone="neutral">Not ready to publish</Badge>
+            ) : null}
+            {/* Dates de vie fusionnées à la rangée des badges (une ligne à elles seules n'est pas justifiée). */}
+            {created || updated || expiry ? (
+              <div className="flex flex-wrap items-center gap-x-2 font-body-sm text-body-sm text-text-tertiary">
+                {created ? <span>Created {created}</span> : null}
+                {updated ? <span>Updated {updated}</span> : null}
+                {expiry ? (
+                  <span className={expiry.urgent ? "text-orange-deep font-semibold" : undefined}>
+                    {expiry.label}
+                  </span>
+                ) : null}
+              </div>
             ) : null}
           </div>
           <h3 className="font-headline-sm text-headline-sm text-text-primary group-hover/offer:text-orange-deep transition-colors truncate">
@@ -205,18 +266,9 @@ export function JobOfferCard({
               title
             )}
           </h3>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-body-sm text-body-sm text-text-secondary">
-            {meta.flatMap((part, index) =>
-              index === 0
-                ? [part]
-                : [
-                    <span key={`sep-${index}`} className="text-text-tertiary">
-                      •
-                    </span>,
-                    part,
-                  ],
-            )}
-          </div>
+          {metaChips.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">{metaChips}</div>
+          ) : null}
         </div>
       </div>
       {actions}

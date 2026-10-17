@@ -44,6 +44,7 @@ public record JobOfferResponse(
         List<JobOfferLanguageOption> languages,
         List<UUID> degreeIds,
         List<UUID> studyFieldIds,
+        List<JobOfferQuestionView> questions,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 }

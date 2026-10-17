@@ -1,5 +1,6 @@
 package com.linqorbit.joboffer.repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +31,17 @@ public interface JobOfferRepository extends JpaRepository<JobOffer, UUID> {
 
     /** Console admin : toutes les offres d'un statut, paginées (D33). */
     Page<JobOffer> findByStatus(JobOfferStatus status, Pageable pageable);
+
+    /**
+     * Job board public (T-72) : seules les offres du statut donné non
+     * expirées — {@code expiresAt} null = sans échéance, et à la date
+     * d'expiry l'offre reste visible (miroir exact de {@code getPublic}).
+     */
+    @Query("""
+            select o from JobOffer o
+            where o.status = :status
+              and (o.expiresAt is null or o.expiresAt >= :today)""")
+    Page<JobOffer> findPublic(JobOfferStatus status, LocalDate today, Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from JobOffer o where o.id = :id")

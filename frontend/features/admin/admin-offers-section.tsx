@@ -61,6 +61,8 @@ function OfferRow({
       }
       unvalidatedChanges={offer.hasUnvalidatedChanges}
       createdAt={offer.createdAt}
+      updatedAt={offer.updatedAt}
+      expiresAt={offer.expiresAt}
       actions={
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           <Link href={`/admin/offers/${offer.id}`} className={OFFER_LINK_PILL_CLASS}>

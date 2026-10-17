@@ -29,3 +29,35 @@ export type PublicJob = {
   studyFieldLabels: string[];
   publishedAt: string | null;
 };
+
+/**
+ * Ligne du job board public (T-72) — `GET /api/v1/jobs`. Vue légère : ni
+ * description ni listes enfants (réservées à la fiche), vocabulaires déjà
+ * résolus en labels.
+ */
+export type PublicJobListItem = {
+  publicId: string;
+  slug: string;
+  title: string;
+  companyName: string | null;
+  seniority: string | null;
+  city: string | null;
+  country: string | null;
+  contractType: string | null;
+  employmentType: string | null;
+  workMode: string | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string | null;
+  salaryPeriod: string | null;
+  publishedAt: string | null;
+  expiresAt: string | null;
+};
+
+/** Enveloppe D34 du job board : `size` est la valeur effective appliquée par le backend. */
+export type PublicJobPage = {
+  items: PublicJobListItem[];
+  page: number;
+  size: number;
+  total: number;
+};

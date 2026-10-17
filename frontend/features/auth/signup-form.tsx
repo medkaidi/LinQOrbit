@@ -23,8 +23,13 @@ const sexOptions = [
   { value: "other", label: "Other" },
 ];
 
-export function SignUpForm() {
-  const { signup, isPending, errorMessage } = useAuth();
+/**
+ * Formulaire d'inscription — `returnTo` (chemin interne déjà validé par
+ * `safeReturnTo`) ramène l'utilisateur à la route demandée et se propage au
+ * lien « Sign in ».
+ */
+export function SignUpForm({ returnTo }: { returnTo?: string | null }) {
+  const { signup, isPending, errorMessage } = useAuth(returnTo);
   const {
     register,
     handleSubmit,
@@ -179,7 +184,7 @@ export function SignUpForm() {
       <p className="mt-6 text-center font-body-md text-body-md text-text-secondary">
         Already have an account?{" "}
         <Link
-          href="/login"
+          href={returnTo ? `/login?next=${encodeURIComponent(returnTo)}` : "/login"}
           className="font-label-md text-label-md text-primary-container hover:text-orange-deep transition-colors"
         >
           Sign in

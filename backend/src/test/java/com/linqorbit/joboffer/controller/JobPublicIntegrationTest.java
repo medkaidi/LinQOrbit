@@ -155,6 +155,96 @@ class JobPublicIntegrationTest {
     }
 
     @Test
+    void jobBoardNeListeQueLesOffresPublieesNonExpireesDansLOrdreDePublication() throws Exception {
+        String token = ownerWithCompany("Acme");
+        UUID newerId = createOffer(token, "Newer Offer");
+        publish(token, newerId);
+        UUID olderId = createOffer(token, "Older Offer");
+        publish(token, olderId);
+        UUID expiredId = createOffer(token, "Expired Offer");
+        publish(token, expiredId);
+        jdbcTemplate.update("UPDATE job_offer SET expires_at = CURRENT_DATE - 1 WHERE id = ?", expiredId);
+        createOffer(token, "Draft Offer");
+        // Ordre déterministe : une seconde d'écart entre les deux publications
+        // (le reste de la base a des dates bien antérieures).
+        jdbcTemplate.update("UPDATE job_offer SET published_at = now() - interval '1 second' WHERE id = ?",
+                olderId);
+
+        long expectedTotal = jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM job_offer
+                WHERE status = 3 AND (expires_at IS NULL OR expires_at >= CURRENT_DATE)""", Long.class);
+
+        MvcResult result = mockMvc.perform(get("/api/v1/jobs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.total").value(expectedTotal))
+                .andExpect(jsonPath("$.items[0].title").value("Newer Offer"))
+                .andExpect(jsonPath("$.items[0].companyName").value("Acme"))
+                .andExpect(jsonPath("$.items[0].publicId").isNotEmpty())
+                .andExpect(jsonPath("$.items[0].contractType").value("Permanent"))
+                .andExpect(jsonPath("$.items[1].title").value("Older Offer"))
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(itemTitles(body))
+                .doesNotContain("Expired Offer", "Draft Offer");
+        // Ligne légère : ni description, ni statut, ni signal de gestion.
+        assertThat(body.get("items").get(0).has("description")).isFalse();
+        assertThat(body.get("items").get(0).has("status")).isFalse();
+        assertThat(body.get("items").get(0).has("recruiterId")).isFalse();
+    }
+
+    @Test
+    void jobBoardBorneLaPageEtTraiteLesEntreesFacultatives() throws Exception {
+        String token = ownerWithCompany("Acme");
+        UUID offerId = createOffer(token, "Paged Offer");
+        publish(token, offerId);
+        String title = "Paged Offer";
+
+        long total = jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM job_offer
+                WHERE status = 3 AND (expires_at IS NULL OR expires_at >= CURRENT_DATE)""", Long.class);
+
+        // Absent ≡ vide ≡ négatif : page 0, première page servie.
+        mockMvc.perform(get("/api/v1/jobs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0));
+        mockMvc.perform(get("/api/v1/jobs").param("page", ""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0));
+        mockMvc.perform(get("/api/v1/jobs").param("page", "-3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0));
+
+        // Page hors plage : items vides, total inchangé.
+        mockMvc.perform(get("/api/v1/jobs").param("page", "9999"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(9999))
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.total").value(total));
+
+        // Invalide : 400 générique (jamais un message brut de framework).
+        mockMvc.perform(get("/api/v1/jobs").param("page", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("The request could not be processed."));
+
+        // Contrôle de sanité : l'offre du test est bien dans la première page.
+        MvcResult result = mockMvc.perform(get("/api/v1/jobs")).andReturn();
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(itemTitles(body)).contains(title);
+    }
+
+    private static List<String> itemTitles(JsonNode body) {
+        List<String> titles = new ArrayList<>();
+        JsonNode items = body.get("items");
+        for (int i = 0; i < items.size(); i++) {
+            titles.add(items.get(i).get("title").asText());
+        }
+        return titles;
+    }
+
+    @Test
     void slugSuitLeTitreEtPublicIdResteImmodifiable() throws Exception {
         String token = ownerWithCompany("Acme");
         UUID offerId = createOffer(token, "Backend Engineer");

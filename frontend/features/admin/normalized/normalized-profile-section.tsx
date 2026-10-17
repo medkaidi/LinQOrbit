@@ -14,6 +14,7 @@ import {
   formatDateTime,
 } from "@/features/admin/normalized/normalized-shared";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
+import { saveBlob } from "@/lib/utils/download";
 import type { AdminNormalizedProfile } from "@/types/admin";
 
 /** 404 = jamais validé (état explicite) — partagé avec la carte CTA. */
@@ -55,12 +56,7 @@ function JsonActions<T>({ content, version }: { content: T; version: number }) {
     const blob = new Blob([JSON.stringify(content, null, 2)], {
       type: "application/json",
     });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `normalized-profile-v${version}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    saveBlob(blob, `normalized-profile-v${version}.json`);
   };
 
   return (

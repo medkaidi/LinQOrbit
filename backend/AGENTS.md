@@ -52,13 +52,33 @@ com.linqorbit/
 │   ├── mapper/        CandidateMapper (MapStruct)
 │   └── exception/     InvalidProfileSectionException, ReferenceNotFoundException,
 │                      EmptyProfileException, AiServiceException
-├── application/ attachment/ company/ joboffer/ matching/ recruiter/
-│                      domaines roadmap — pré-créés (exception), vides jusqu'à leur 1re classe
+├── attachment/        CV candidat (implémenté) : Attachment, AttachmentRepository,
+│                      AttachmentService + AttachmentStorage (stockage disque local, sha256) —
+│                      upload PDF, liste, téléchargement streamé propriétaire, bascule du
+│                      courant (UPDATE bulk JPQL : `updated_at` intact), suppression refusée
+│                      si épinglé par une candidature (FK composite V20)
+├── joboffer/          offres (implémenté) : JobOfferApi/Controller/Service — CRUD + cycle de
+│   ├── client/        vie, questions de présélection figées en PUBLISHED (409) ;
+│   ├── entity/        JobOfferNormalizeClient (IA) ; JobOffer + enfants (Skill/Language/
+│   │                  Degree/StudyField/Question/QuestionOption), vocabulaires d'offre,
+│   │                  enums + converters ; mapper MapStruct ; exceptions métier
+│   └── service/       (JobOfferService, JobOfferReferenceService, JobOfferNormalizationService,
+│                      JobOfferNormalizeSnapshotBuilder)
+├── application/       candidatures (implémenté, T-60) : ApplicationApi/Controller/Service —
+│   ├── dto/           soumission atomique par étages (application → réponses → sélections),
+│   │                  contexte candidat, liste « mine », retrait terminal ; DTOs Request/
+│   │                  Response reconstruits `[{questionId, label, type, value}]`
+│   ├── entity/        Application, ApplicationAnswer, ApplicationAnswerOption (+IdClass),
+│   │                  ApplicationStatus (+converter) — ids pré-assignés sans générateur
+│   └── exception/     InvalidApplicationException (400/409), ApplicationNotFoundException (404)
+├── company/ recruiter/ matching/
+│                      company/recruiter implémentés (Phase 1) ; matching/ roadmap — vide
+│                      jusqu'à sa 1re classe (T-61)
 ```
 
 - Chaque domaine est **autonome** : interdits les packages globaux `controllers/`, `services/`, `repositories/`, `entities/`, `dtos/` partagés entre domaines — les sous-packages sont **internes à leur domaine**.
 - **Regroupement par nature dans le domaine** (décision d'équipe, appliquée à `candidate/`) : chaque classe va dans le sous-package de sa nature — `controller/` (Api + contrôleur), `service/`, `client/` (appels HTTP du service IA), `entity/` (+ enums et converters), `repository/`, `dto/`, `mapper/`, `exception/` — et **les tests suivent le même miroir** (`src/test/…/candidate/{controller,service,client}/`). `user/` et `admin/` (déjà en place) restent en l'état. Ne **jamais** créer un sous-package par anticipation : il naît avec son premier fichier ; un seul fichier de cette nature n'empêche pas le sous-package dès qu'il appartient à un domaine structuré ainsi.
-- **Exception roadmap (décision explicite de l'équipe)** : les 7 domaines à venir — `application/`, `attachment/`, `candidate/`, `company/`, `joboffer/`, `matching/`, `recruiter/` — sont **pré-créés volontairement** avec leur `.gitkeep` pour matérialiser le périmètre du projet. Seule exception : **toute autre** naît avec sa première classe, jamais en avance (pas de nouveaux dossiers vides ni de `.gitkeep`).
+- **Exception roadmap (décision explicite de l'équipe)** : les domaines pré-créés volontairement pour matérialiser le périmètre du projet (`application/`, `attachment/`, `company/`, `joboffer/`, `matching/`, `recruiter/`) naissent avec leur première classe — seul `matching/` attend encore la sienne (T-61). **Toute autre** exception : un dossier naît avec sa première classe, jamais en avance (pas de nouveaux dossiers vides ni de `.gitkeep`).
 - `common/` : uniquement ce qui est **réellement partagé** (traitement d'erreurs HTTP, pagination, utilitaires transverses). Une classe utilisée par plusieurs domaines mais appartenant à l'un d'eux reste dans son domaine.
 - Ne **jamais** créer de classes vides ou de packages pour respecter une architecture théorique.
 - Ne jamais utiliser le default package.
@@ -73,6 +93,13 @@ HTTP → Controller (validation entrée, appelle le service, DTO de sortie)
 ```
 
 Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Request DTO → Controller → Service → Entity → Repository` et inversement `Entity → Service → Response DTO → Controller → JSON`. MapStruct pour les mappings dès qu'il y a plusieurs champs.
+
+## Entités JPA — mapping « table-mapper » (décision d'équipe)
+
+- Les entités des domaines récents (`joboffer/`, `attachment/`, `application/`, …) mappent les colonnes **telles quelles** : une relation inter-tables est un simple champ d'id FK (`@Column(name = "job_offer_id", nullable = false) private UUID jobOfferId;`) — **jamais** d'`@ManyToOne` / `@OneToMany` / `@ManyToMany` / `@ElementCollection`, ni de cascade, ni de fetch implicite.
+- Raisons actées : (1) Flyway porte le schéma — les chaînes de FK composites vers des clés uniques **non-PK** (V19/V20) ne s'expriment pas proprement en associations JPA ; (2) insertion par étages — ids pré-assignés par le service (jamais `@GeneratedValue`, piège T-58) et ordre d'INSERT contrôlé (`saveAndFlush` étage par étage, contraintes IMMEDIATE) ; (3) opérations bulk (`@Modifying`, `deleteBy…`, UPDATE de bascule) qui ne resynchronisent pas le contexte de persistance — des graphes en mémoire se désynchroniseraient ; (4) aucun parcours de graphe en mémoire n'est nécessaire : les services chargent en batch par id (`findAllById`) et composent des DTOs — le N+1 est impossible par construction (`open-in-view: false`).
+- **Exception historique** : `candidate/` utilise `@ManyToOne` (profil → candidat / référentiels) — aucune réécriture prévue (hors périmètre, zéro bénéfice produit), et aucune nouvelle association ailleurs.
+- Si un besoin réel de navigation d'objet apparaît un jour : le traiter par requête explicite (JPQL / fetch join) dans le repository concerné, et reposer la question à ce moment-là — jamais d'association posée « au cas où ».
 
 ## Contrat d'API (springdoc / Swagger)
 
@@ -91,7 +118,7 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 
 ## Sécurité
 
-- `config/SecurityConfig` : stateless, CSRF off, `permitAll` (infrastructure seule), `/api/v1/admin/**` = `hasRole("ADMIN")`.
+- `config/SecurityConfig` : stateless, CSRF off, `/api/v1/admin/**` = `hasRole("ADMIN")`. **Matchers explicites obligatoires** : le catch-all `.anyRequest().permitAll()` est un filet pour l'infrastructure seule — il rend toute racine non listée **publique par défaut** ; chaque nouvelle racine authentifiée doit y être ajoutée explicitement (`candidates`, `recruiters`, `companies`, `job-offers`, `applications` ; à venir `matchings`), avec un test `jwt()` (TD-037). `/api/v1/jobs/**` reste **volontairement public** (fiche V15 + job board T-72).
 - **Modèle en deux couches (décision d'équipe)** : les rôles (`user_roles`, colonne `role` SMALLINT = capacité : `ADMIN(1)` via enum `Role`) disent ce qu'un compte **peut faire** ; l'identité reste dans `candidates`/`recruiters` (cumul natif, un utilisateur peut être les deux). **Jamais** dupliquer un membership en rôle, jamais de `USER.type`, pas de PERMISSIONS.
 - JWT : claim **`roles`** = codes SMALLINT (`AuthService.roleCodes`) ; `config/JwtRoleAuthoritiesConverter` les transforme en autorités `ROLE_*` (code inconnu ignoré).
 - `admin/AdminBootstrap` (`CommandLineRunner`) garantit au moins un compte ADMIN à chaque démarrage (idempotent, `app.admin.*` / env `ADMIN_EMAIL`, `ADMIN_PASSWORD`).
@@ -99,7 +126,7 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 
 ## Communication
 
-- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,admin,recruiters,companies,job-offers,applications,matchings}` — `auth`, `candidates` et `admin` existent (`/api/v1/candidates/me/profile` + `/{about,about/target-position,experiences,projects,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}` ; `POST /api/v1/candidates/me/profile/validate` déclenche la normalisation — voir « Normalisation du profil » ; `/api/v1/admin/{users,users/{userId}/status,skill-suggestions,skill-suggestions/{id}/{approve,link,reject}}` sous rôle ADMIN), les autres sont à venir. `PUT …/about` n'écrit jamais `targetPosition` (poste recherché isolé sur `PUT …/about/target-position`, conservé mais non consommé par l'UI actuelle) ; `GET …/profile` renvoie bien `about.targetPosition` et le signal `hasUnvalidatedChanges`.
+- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,admin,recruiters,companies,job-offers,applications,matchings}` — `auth`, `candidates` et `admin` existent (`/api/v1/candidates/me/profile` + `/{about,about/target-position,experiences,projects,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}` ; `POST /api/v1/candidates/me/profile/validate` déclenche la normalisation — voir « Normalisation du profil » ; `/api/v1/admin/{users,users/{userId}/status,skill-suggestions,skill-suggestions/{id}/{approve,link,reject}}` sous rôle ADMIN), ainsi que `recruiters`, `companies`, `job-offers` (Phase 1 — dont la **surface publique** `GET /api/v1/jobs`, job board paginé T-72 : PUBLISHED non expirées, tri `published_at desc`, DTO léger labels résolus en batch, enveloppe D34 `page` seule exposée ; `GET /api/v1/jobs/{publicId}` sert la fiche depuis V15) et **`applications` (T-60)** : `POST /api/v1/applications` (soumission 201), `GET /applications/context/{publicId}`, `GET /applications/mine`, `POST /applications/{applicationId}/withdraw` (204) — soumission atomique par étages, messages 400/404/409 sûrs affichés tels quels par le FE ; seul `matchings` reste à venir (T-61). `PUT …/about` n'écrit jamais `targetPosition` (poste recherché isolé sur `PUT …/about/target-position`, conservé mais non consommé par l'UI actuelle) ; `GET …/profile` renvoie bien `about.targetPosition` et le signal `hasUnvalidatedChanges`.
 - **Service IA Python (FastAPI)** : appelé par ce backend en HTTP, jamais par le frontend. Deux clients dans `candidate/client/` : `CvParseClient` (`POST /cv/parse`, import de CV) et `ProfileNormalizeClient` (`POST /profile/normalize`, normalisation de profil — appelé par le worker) — pas de fake AI.
 
 ## Normalisation du profil

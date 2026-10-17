@@ -88,6 +88,17 @@ describe("useAuth", () => {
     expect(pushMock).toHaveBeenCalledWith("/dashboard");
   });
 
+  it("redirects to the requested page when a returnTo is provided", async () => {
+    mockedLogin.mockResolvedValue(authResponse);
+    const { result } = renderHook(() => useAuth("/applications"), {
+      wrapper: queryClientWrapper,
+    });
+
+    act(() => result.current.login(loginValues));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/applications"));
+  });
+
   it("restores the view-mode preference of the account on login", async () => {
     useViewModeStore.setState({ byUser: { "3f0a…": "recruiter" } });
     mockedLogin.mockResolvedValue(authResponse);

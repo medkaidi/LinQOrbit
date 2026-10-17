@@ -53,6 +53,15 @@ public class Candidate {
     @Column(name = "search_status")
     private SearchStatus searchStatus;
 
+    /**
+     * CV courant (pointeur vers attachment) : écrit uniquement par UPDATE bulk
+     * ({@code CandidateRepository#updateCurrentCvAttachmentId}) — passer par un
+     * save d'entité bumperait updated_at et ferait croire à une modification du
+     * profil (dirty-flag). Peut être vide même avec des CV déposés.
+     */
+    @Column(name = "current_cv_attachment_id")
+    private UUID currentCvAttachmentId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

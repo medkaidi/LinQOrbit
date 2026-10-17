@@ -30,6 +30,7 @@ vi.mock("@/hooks/use-job-offers", () => ({
   useDeleteJobOffer: useDeleteJobOfferMock,
   useDuplicateJobOffer: useDuplicateJobOfferMock,
   useContractTypes: () => ({ data: undefined, isLoading: false, isError: false }),
+  useEmploymentTypes: () => ({ data: undefined, isLoading: false, isError: false }),
   useWorkModes: () => ({ data: undefined, isLoading: false, isError: false }),
 }));
 

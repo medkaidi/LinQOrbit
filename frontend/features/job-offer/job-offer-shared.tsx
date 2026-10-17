@@ -1,5 +1,10 @@
 import type { PublicJob } from "@/types/public-job";
-import type { JobOffer, JobOfferStatusValue, SeniorityValue } from "@/types/recruiter";
+import type {
+  JobOffer,
+  JobOfferStatusValue,
+  QuestionTypeValue,
+  SeniorityValue,
+} from "@/types/recruiter";
 import type { PublicJobArticleModel } from "@/features/job-offer/public-job-article";
 
 export const OFFER_SECTION_HEADER =
@@ -23,6 +28,77 @@ export const SENIORITY_LABELS: Record<SeniorityValue, string> = {
   lead: "Lead",
   principal: "Principal",
 };
+
+/** Libellés des 5 types de question de présélection (D47). */
+export const QUESTION_TYPE_LABELS: Record<QuestionTypeValue, string> = {
+  text: "Text answer",
+  single_choice: "Single choice",
+  multiple_choice: "Multiple choice",
+  yes_no: "Yes / No",
+  number: "Number",
+};
+
+/** publicId = 12 caractères base36 sans tiret ; le reste de l'URL est le slug cosmétique. */
+export const PUBLIC_ID_PATTERN = /^[0-9a-z]{12}$/;
+
+/** Lit le publicId de `[publicId]-[slug]` (pages `/jobs/[job]…`) — null si malformé. */
+export function parsePublicId(param: string): string | null {
+  const separator = param.indexOf("-");
+  if (separator !== 12) {
+    return null;
+  }
+  const publicId = param.slice(0, separator);
+  return PUBLIC_ID_PATTERN.test(publicId) ? publicId : null;
+}
+
+/** URL publique (V15) : segment unique `{publicId}-{slug}` — fiche, copie de lien, job board. */
+export function publicJobPath(publicId: string, slug: string): string {
+  return `/jobs/${publicId}-${slug}`;
+}
+
+/** Initiales société (1-2 mots) pour la tuile — repli sur l'icône quand absent. */
+export function companyInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
+  return words.map((word) => word.charAt(0).toUpperCase()).join("");
+}
+
+/** Icône du chip de modalité de travail, dérivée du label (vocabulaire libre côté seed). */
+export function workModeIcon(label: string): string {
+  const lower = label.toLowerCase();
+  if (lower.includes("remote")) {
+    return "public";
+  }
+  if (lower.includes("hybrid")) {
+    return "home_work";
+  }
+  return "corporate_fare";
+}
+
+/** Date relative courte (« 3 days ago ») — rendu client uniquement (pas d'hydratation à craindre). */
+export function relativeTimeLabel(iso: string): string | null {
+  const value = new Date(iso).getTime();
+  if (Number.isNaN(value)) {
+    return null;
+  }
+  const elapsedMinutes = Math.round((value - Date.now()) / 60_000);
+  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+  if (Math.abs(elapsedMinutes) < 60) {
+    return rtf.format(elapsedMinutes, "minute");
+  }
+  const hours = Math.round(elapsedMinutes / 60);
+  if (Math.abs(hours) < 24) {
+    return rtf.format(hours, "hour");
+  }
+  const days = Math.round(hours / 24);
+  if (Math.abs(days) < 30) {
+    return rtf.format(days, "day");
+  }
+  const months = Math.round(days / 30);
+  if (Math.abs(months) < 12) {
+    return rtf.format(months, "month");
+  }
+  return rtf.format(Math.round(months / 12), "year");
+}
 
 export function salaryLabel(
   salaryMin: number | null,

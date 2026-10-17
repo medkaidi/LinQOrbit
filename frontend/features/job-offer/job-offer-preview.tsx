@@ -10,6 +10,11 @@ import {
   type PublicJobArticleModel,
 } from "@/features/job-offer/public-job-article";
 import {
+  OFFER_ITEM_CARD,
+  OFFER_MUTED,
+  OFFER_SECTION_HEADER,
+  OFFER_SECTION_TITLE,
+  QUESTION_TYPE_LABELS,
   locationLabel,
   salaryLabel,
   SENIORITY_LABELS,
@@ -153,6 +158,39 @@ export function JobOfferPreview({ offerId }: { offerId: string }) {
       <section className="bg-canvas-white rounded-2xl shadow-sm">
         <PublicJobArticle article={article} />
       </section>
+      {data.questions.length > 0 ? (
+        <section className="bg-canvas-white rounded-2xl shadow-sm">
+          <header className={OFFER_SECTION_HEADER}>
+            <h2 className={OFFER_SECTION_TITLE}>Screening questions</h2>
+          </header>
+          <div className="px-6 pt-5 pb-6 flex flex-col gap-4">
+            <p className={OFFER_MUTED}>
+              Only your team sees these questions — candidates answer them when
+              they apply.
+            </p>
+            <ol className="flex flex-col gap-3">
+              {data.questions.map((question) => (
+                <li key={question.id} className={OFFER_ITEM_CARD}>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="font-body-md text-body-md text-text-primary font-semibold">
+                      {question.label}
+                    </span>
+                    <span className={OFFER_MUTED}>{QUESTION_TYPE_LABELS[question.type]}</span>
+                    {question.isRequired ? <span className={OFFER_MUTED}>Required</span> : null}
+                  </div>
+                  {question.options.length > 0 ? (
+                    <p className={`${OFFER_MUTED} mt-1`}>
+                      {question.options
+                        .map((option) => (option.preferred ? `${option.label} (preferred)` : option.label))
+                        .join(" · ")}
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

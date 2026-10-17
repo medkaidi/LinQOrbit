@@ -118,7 +118,8 @@ describe("AdminOffersSection", () => {
     expect(screen.getByText("No company")).toBeInTheDocument();
     // Méta recruteur : séniorité, lieu+mode, contrat, salaire.
     expect(screen.getByText("Senior")).toBeInTheDocument();
-    expect(screen.getByText("Hybrid · Paris, FR")).toBeInTheDocument();
+    expect(screen.getByText("Paris, FR")).toBeInTheDocument();
+    expect(screen.getByText("Hybrid")).toBeInTheDocument();
     expect(screen.getByText("Permanent")).toBeInTheDocument();
     expect(screen.getByText("60,000 – 75,000 EUR per year")).toBeInTheDocument();
     // Deux pastilles de statut (hors boutons de filtre « Published »/« Draft »).

@@ -10,6 +10,7 @@ import type { CandidateProfile } from "@/types/candidate";
 /** Glyphe Material Symbols de chaque section, d'après la maquette pro_profile.html. */
 export const SECTION_ICONS = {
   about: "person",
+  cv: "description",
   experiences: "work",
   projects: "layers",
   education: "school",

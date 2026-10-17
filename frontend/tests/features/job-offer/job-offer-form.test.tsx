@@ -149,6 +149,51 @@ describe("JobOfferForm", () => {
     expect(screen.getByRole("textbox", { name: "Description" })).toBeInTheDocument();
   });
 
+  it("adds a screening question and clears its options when the type stops being a choice", () => {
+    renderForm();
+
+    expect(screen.getByText(/No screening questions yet/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add question" }));
+
+    expect(screen.getByRole("textbox", { name: "Question 1" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Required" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add option" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Type" }));
+    fireEvent.click(screen.getByRole("option", { name: "Single choice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add option" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Option 1" }), {
+      target: { value: "Remote" },
+    });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Type" }));
+    fireEvent.click(screen.getByRole("option", { name: "Text answer" }));
+    expect(screen.queryByRole("textbox", { name: "Option 1" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Type" }));
+    fireEvent.click(screen.getByRole("option", { name: "Single choice" }));
+    expect(screen.queryByRole("textbox", { name: "Option 1" })).not.toBeInTheDocument();
+  });
+
+  it("moves a screening question down with the reorder buttons", () => {
+    renderForm();
+
+    const addQuestion = screen.getByRole("button", { name: "Add question" });
+    fireEvent.click(addQuestion);
+    fireEvent.click(addQuestion);
+    fireEvent.change(screen.getByRole("textbox", { name: "Question 1" }), {
+      target: { value: "First?" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Question 2" }), {
+      target: { value: "Second?" },
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Move question down" })[0]);
+
+    expect(screen.getByRole("textbox", { name: "Question 1" })).toHaveValue("Second?");
+    expect(screen.getByRole("textbox", { name: "Question 2" })).toHaveValue("First?");
+  });
+
   it("renders the submit CTA", () => {
     renderForm();
 

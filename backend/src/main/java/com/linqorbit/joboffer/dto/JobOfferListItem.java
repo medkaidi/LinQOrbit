@@ -23,6 +23,7 @@ public record JobOfferListItem(
         String city,
         String country,
         UUID contractTypeId,
+        UUID employmentTypeId,
         UUID workModeId,
         LocalDate expiresAt,
         BigDecimal salaryMin,
@@ -33,5 +34,6 @@ public record JobOfferListItem(
         boolean normalizationInProgress,
         boolean normalizationFailed,
         boolean readyToPublish,
-        LocalDateTime createdAt) {
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt) {
 }

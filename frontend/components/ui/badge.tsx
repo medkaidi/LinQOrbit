@@ -18,7 +18,7 @@ export function Badge({ children, tone = "neutral", className }: BadgeProps) {
   return (
     <span
       className={cn(
-        "font-label-caps text-label-caps uppercase tracking-wider px-2.5 py-1 rounded-full font-bold shrink-0",
+        "font-label-caps text-label-caps normal-case tracking-normal px-2.5 py-1 rounded-full font-bold shrink-0",
         toneClasses[tone],
         className,
       )}

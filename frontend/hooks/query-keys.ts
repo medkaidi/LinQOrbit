@@ -17,6 +17,7 @@ export const queryKeys = {
   },
   candidate: {
     profile: ["candidate", "profile"] as const,
+    cvs: ["candidate", "cvs"] as const,
     reference: ["candidate", "reference"] as const,
     referenceSkills: ["candidate", "reference", "skills"] as const,
     referenceLanguages: ["candidate", "reference", "languages"] as const,
@@ -57,6 +58,11 @@ export const queryKeys = {
     skillSuggestions: ["admin", "skill-suggestions"] as const,
   },
   publicJobs: {
+    list: ["public-jobs", "list"] as const,
     detail: (publicId: string) => ["public-jobs", publicId] as const,
+  },
+  applications: {
+    mine: ["applications", "mine"] as const,
+    context: (publicId: string) => ["applications", "context", publicId] as const,
   },
 } as const;

@@ -75,6 +75,7 @@ function validatedOffer(): JobOffer {
     languages: [],
     degreeIds: ["d1"],
     studyFieldIds: [],
+    questions: [],
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
   };
@@ -131,6 +132,49 @@ describe("JobOfferPreview", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Build APIs.")).toBeInTheDocument();
     expect(screen.getByText("Bachelor's degree")).toBeInTheDocument();
+    expect(screen.queryByText("Screening questions")).not.toBeInTheDocument();
+  });
+
+  it("renders the recruiter-only screening questions with type labels and preferred options", () => {
+    useJobOfferMock.mockReturnValue({
+      data: {
+        ...validatedOffer(),
+        questions: [
+          {
+            id: "q1",
+            label: "Where do you want to work?",
+            type: "single_choice",
+            isRequired: true,
+            sortOrder: 0,
+            options: [
+              { id: "op1", label: "Remote", sortOrder: 0, preferred: true },
+              { id: "op2", label: "On-site", sortOrder: 1, preferred: false },
+            ],
+          },
+          {
+            id: "q2",
+            label: "Years with Java?",
+            type: "number",
+            isRequired: false,
+            sortOrder: 1,
+            options: [],
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    });
+    mockReferences();
+
+    render(<JobOfferPreview offerId="o1" />);
+
+    expect(screen.getByRole("heading", { name: "Screening questions" })).toBeInTheDocument();
+    expect(screen.getByText("Where do you want to work?")).toBeInTheDocument();
+    expect(screen.getByText("Single choice")).toBeInTheDocument();
+    expect(screen.getAllByText("Required")).toHaveLength(1);
+    expect(screen.getByText("Remote (preferred) · On-site")).toBeInTheDocument();
+    expect(screen.getByText("Years with Java?")).toBeInTheDocument();
+    expect(screen.getByText("Number")).toBeInTheDocument();
   });
 
   it("shows the loading state", () => {

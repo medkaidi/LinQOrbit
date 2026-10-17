@@ -16,7 +16,6 @@ import { useDashboardSidebarStore } from "@/stores/dashboard-sidebar-store";
 import { cn } from "@/lib/utils/cn";
 
 const NAV_ITEMS = [
-  { icon: "view_kanban", label: "Offers & Pipelines" },
   { icon: "group", label: "Candidate Pool" },
   { icon: "smart_toy", label: "AI Agents Studio", badge: "3 AI" },
   { icon: "assignment_turned_in", label: "Interviews & Evaluations" },
@@ -67,6 +66,51 @@ function SidebarLink({ href, icon, label, active, collapsed }: SidebarLinkProps)
         )}
       </span>
     </Link>
+  );
+}
+
+function SidebarPlaceholderButton({
+  item,
+  collapsed,
+}: {
+  item: (typeof NAV_ITEMS)[number];
+  collapsed: boolean;
+}) {
+  const hasBadge = "badge" in item && Boolean(item.badge);
+  return (
+    <button
+      type="button"
+      aria-label={collapsed ? item.label : undefined}
+      title={collapsed ? item.label : undefined}
+      className={cn(
+        SIDEBAR_ITEM_BUTTON_CLASS,
+        hasBadge && !collapsed && "justify-between",
+        collapsed ? "justify-center px-0" : "px-3",
+      )}
+    >
+      {hasBadge ? (
+        <>
+          <span className="flex items-center gap-2.5">
+            <span className={SIDEBAR_ICON_IDLE_CLASS}>
+              <Icon name={item.icon} className="text-[16px]!" />
+            </span>
+            {!collapsed && <span className={SIDEBAR_LABEL_CLASS}>{item.label}</span>}
+          </span>
+          {!collapsed && (
+            <span className="px-2 py-0.5 text-[9px] font-bold font-mono rounded-full bg-orange-subtle text-orange-deep border border-orange-border">
+              {item.badge}
+            </span>
+          )}
+        </>
+      ) : (
+        <>
+          <span className={SIDEBAR_ICON_IDLE_CLASS}>
+            <Icon name={item.icon} className="text-[16px]!" />
+          </span>
+          {!collapsed && <span className={SIDEBAR_LABEL_CLASS}>{item.label}</span>}
+        </>
+      )}
+    </button>
   );
 }
 
@@ -163,47 +207,24 @@ export function DashboardSidebar() {
                 active={pathname.startsWith("/profile")}
                 collapsed={collapsed}
               />
-              {NAV_ITEMS.map((item) => {
-                const hasBadge = "badge" in item && Boolean(item.badge);
-                return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    aria-label={collapsed ? item.label : undefined}
-                    title={collapsed ? item.label : undefined}
-                    className={cn(
-                      SIDEBAR_ITEM_BUTTON_CLASS,
-                      hasBadge && !collapsed && "justify-between",
-                      collapsed ? "justify-center px-0" : "px-3",
-                    )}
-                  >
-                    {hasBadge ? (
-                      <>
-                        <span className="flex items-center gap-2.5">
-                          <span className={SIDEBAR_ICON_IDLE_CLASS}>
-                            <Icon name={item.icon} className="text-[16px]!" />
-                          </span>
-                          {!collapsed && (
-                            <span className={SIDEBAR_LABEL_CLASS}>{item.label}</span>
-                          )}
-                        </span>
-                        {!collapsed && (
-                          <span className="px-2 py-0.5 text-[9px] font-bold font-mono rounded-full bg-orange-subtle text-orange-deep border border-orange-border">
-                            {item.badge}
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <span className={SIDEBAR_ICON_IDLE_CLASS}>
-                          <Icon name={item.icon} className="text-[16px]!" />
-                        </span>
-                        {!collapsed && <span className={SIDEBAR_LABEL_CLASS}>{item.label}</span>}
-                      </>
-                    )}
-                  </button>
-                );
-              })}
+              {/* Job board public (T-72) : remplace l'ancien placeholder « Offers & Pipelines ». */}
+              <SidebarLink
+                href="/jobs"
+                icon="work"
+                label="Browse offers"
+                active={pathname.startsWith("/jobs")}
+                collapsed={collapsed}
+              />
+              <SidebarLink
+                href="/applications"
+                icon="work_history"
+                label="My applications"
+                active={pathname.startsWith("/applications")}
+                collapsed={collapsed}
+              />
+              {NAV_ITEMS.map((item) => (
+                <SidebarPlaceholderButton key={item.label} item={item} collapsed={collapsed} />
+              ))}
             </>
           )}
         </nav>

@@ -196,11 +196,12 @@ function SkillsTable({
 
 /**
  * Fiche normalisée offre schema v2 (D35) : rendu friendly du contenu
- * canonique — jamais de JSON brut. Grille 8/4 : sections lettrées A-G à
- * gauche (spec-grid identité + récit, tableau skills required/preferred,
- * responsabilités, exigences, langues, certifications, bénéfices), rail de
- * provenance/couverture à droite. Tolère tout champ absent — les fiches v1
- * n'ont ni weight ni origin (cellules « — », badges absents).
+ * canonique — jamais de JSON brut. Sections numérotées pleine largeur
+ * (spec-grid identité + récit, tableau skills required/preferred,
+ * responsabilités, exigences, langues, certifications, bénéfices), widgets
+ * provenance/couverture en rangée basse deux colonnes (empilés sous `md`).
+ * Tolère tout champ absent — les fiches v1 n'ont ni weight ni origin
+ * (cellules « — », badges absents).
  */
 export function NormalizedOfferView({ offer }: { offer: NormalizedJobOffer }) {
   const responsibilities = offer.responsibilities ?? [];
@@ -263,8 +264,8 @@ export function NormalizedOfferView({ offer }: { offer: NormalizedJobOffer }) {
     !offer.description;
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-      <div className="xl:col-span-8 flex flex-col gap-6 min-w-0">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6 min-w-0">
         {hasOverview && (
           <SectionBlock index={1} title={offer.title ?? "Offer overview"}>
             <div className="flex flex-col gap-4">
@@ -435,9 +436,7 @@ export function NormalizedOfferView({ offer }: { offer: NormalizedJobOffer }) {
         )}
       </div>
 
-      <div className="xl:col-span-4 min-w-0">
-        <NormalizedSheetRail stats={offerSheetStats(offer)} />
-      </div>
+      <NormalizedSheetRail stats={offerSheetStats(offer)} />
     </div>
   );
 }

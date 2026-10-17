@@ -6,6 +6,7 @@ import type {
   JobOfferValues,
   UpdateJobOfferValues,
 } from "@/lib/validations/job-offer.schemas";
+import { isChoiceQuestionType } from "@/lib/validations/job-offer.schemas";
 import type {
   JobOffer,
   JobOfferLabelOption,
@@ -38,6 +39,13 @@ export type JobOfferPayload = {
   languages: { languageId: string; level: string; isRequired: boolean }[];
   degreeIds: string[];
   studyFieldIds: string[];
+  questions: {
+    label: string;
+    type: string;
+    isRequired: boolean;
+    sortOrder: number;
+    options: { label: string; preferred: boolean; sortOrder: number }[];
+  }[];
 };
 
 export type UpdateJobOfferPayload = Omit<JobOfferPayload, "companyId">;
@@ -95,6 +103,21 @@ export function toJobOfferPayload(
       })),
     degreeIds: values.degreeIds.filter((id) => id !== ""),
     studyFieldIds: values.studyFieldIds.filter((id) => id !== ""),
+    // L'ordre du formulaire EST l'ordre métier ; les options n'existent que
+    // sur les types à choix (règle de masquage — jamais envoyées sinon).
+    questions: values.questions.map((question, index) => ({
+      label: question.label,
+      type: question.type,
+      isRequired: question.isRequired,
+      sortOrder: index,
+      options: isChoiceQuestionType(question.type)
+        ? question.options.map((option, optionIndex) => ({
+            label: option.label,
+            preferred: option.preferred,
+            sortOrder: optionIndex,
+          }))
+        : [],
+    })),
   };
 }
 

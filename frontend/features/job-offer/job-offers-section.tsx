@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { Alert } from "@/components/ui/alert";
@@ -14,6 +15,7 @@ import {
   useContractTypes,
   useDeleteJobOffer,
   useDuplicateJobOffer,
+  useEmploymentTypes,
   useInfiniteJobOffers,
   useJobOfferTransition,
   useWorkModes,
@@ -26,12 +28,8 @@ import {
   OFFER_INCOMPLETE_TOOLTIP,
   OFFER_SECTION_HEADER,
   OFFER_SECTION_TITLE,
+  publicJobPath,
 } from "@/features/job-offer/job-offer-shared";
-
-/** URL publique (V15) : segment unique `{publicId}-{slug}`. */
-function publicJobPath(publicId: string, slug: string): string {
-  return `/jobs/${publicId}-${slug}`;
-}
 
 /** Copie l'URL publique absolue dans le presse-papiers, avec retour visuel « Copied » (2 s). */
 function CopyPublicLinkButton({ publicId, slug }: { publicId: string; slug: string }) {
@@ -89,15 +87,31 @@ function validateConfirmMessage(offer: JobOfferListItem): string {
   return TRANSITION_CONFIRM.validate.message;
 }
 
+/** Mutation en cours sur une ligne (busy ciblé : primaire = transition, kebab = tout le reste). */
+type OfferAction = "transition" | "duplicate" | "delete";
+
+const MENU_CLASS =
+  "absolute right-0 top-full mt-2 w-48 rounded-2xl bg-canvas-white border border-slate-border shadow-md p-2 z-50 origin-top-right transition-[opacity,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] starting:opacity-0 starting:scale-95 motion-reduce:transition-none";
+const MENU_ITEM_CLASS =
+  "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-body-md font-body-md text-text-primary hover:bg-canvas-subtle transition-colors cursor-pointer";
+const MENU_ITEM_DANGER_CLASS =
+  "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-body-md font-body-md text-danger hover:bg-canvas-subtle transition-colors cursor-pointer";
+const MENU_ITEM_ICON = "text-[18px] text-text-secondary";
+
+/**
+ * Actions d'une offre : une action primaire contextuelle (prochain pas du
+ * cycle de vie) + Edit visibles, le reste dans un menu overflow (⋯) —
+ * destructif en fin de menu après séparateur. Pattern du `UserMenu`.
+ */
 function OfferActions({
   offer,
-  busy,
+  busyAction,
   onTransition,
   onDuplicate,
   onDelete,
 }: {
   offer: JobOfferListItem;
-  busy: boolean;
+  busyAction: OfferAction | null;
   onTransition: (action: "validate" | "publish" | "close") => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -106,58 +120,150 @@ function OfferActions({
   const blocked = ready ? undefined : OFFER_INCOMPLETE_TOOLTIP;
   const canRevalidate =
     !offer.normalizationInProgress && (offer.normalizationFailed || offer.hasUnvalidatedChanges);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [menuOpen]);
+
+  const runMenuItem = (action: () => void) => {
+    setMenuOpen(false);
+    action();
+  };
+
+  const duplicateItem = (
+    <button
+      key="duplicate"
+      type="button"
+      role="menuitem"
+      className={MENU_ITEM_CLASS}
+      onClick={() => runMenuItem(onDuplicate)}
+    >
+      <Icon name="content_copy" className={MENU_ITEM_ICON} />
+      Duplicate
+    </button>
+  );
+  const separatorItem = (
+    <div key="separator" className="my-1 h-px bg-slate-border" role="separator" />
+  );
+  const closeItem = (
+    <button
+      key="close"
+      type="button"
+      role="menuitem"
+      className={MENU_ITEM_CLASS}
+      onClick={() => runMenuItem(() => onTransition("close"))}
+    >
+      <Icon name="close" className={MENU_ITEM_ICON} />
+      Close
+    </button>
+  );
+
+  const menuItems: ReactNode[] = [];
+  if (offer.status === "draft") {
+    menuItems.push(
+      duplicateItem,
+      separatorItem,
+      <button
+        key="delete"
+        type="button"
+        role="menuitem"
+        className={MENU_ITEM_DANGER_CLASS}
+        onClick={() => runMenuItem(onDelete)}
+      >
+        <Icon name="delete" className="text-[18px]" />
+        Delete
+      </button>,
+    );
+  } else if (offer.status === "validated") {
+    menuItems.push(
+      <Link
+        key="preview"
+        href={`/recruiter/offers/${offer.id}/preview`}
+        role="menuitem"
+        className={MENU_ITEM_CLASS}
+        onClick={() => setMenuOpen(false)}
+      >
+        <Icon name="visibility" className={MENU_ITEM_ICON} />
+        Preview
+      </Link>,
+      ...(canRevalidate
+        ? [
+            <button
+              key="revalidate"
+              type="button"
+              role="menuitem"
+              className={MENU_ITEM_CLASS}
+              onClick={() => runMenuItem(() => onTransition("validate"))}
+            >
+              <Icon name="check_circle" className={MENU_ITEM_ICON} />
+              Validate again
+            </button>,
+          ]
+        : []),
+      duplicateItem,
+      separatorItem,
+      closeItem,
+    );
+  } else if (offer.status === "published") {
+    menuItems.push(duplicateItem, separatorItem, closeItem);
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-2 shrink-0">
+    <div ref={containerRef} className="relative flex flex-wrap items-center gap-2 shrink-0">
       {offer.status === "draft" && (
         <>
-          <Link href={`/recruiter/offers/${offer.id}/edit`} className={OFFER_LINK_PILL_CLASS}>
-            Edit
-          </Link>
           <CtaButton
             icon="check_circle"
-            busy={busy}
+            busy={busyAction === "transition"}
             disabled={!ready}
             title={blocked}
             onClick={() => onTransition("validate")}
           >
             Validate
           </CtaButton>
-          <CtaButton tone="secondary" icon="content_copy" busy={busy} onClick={onDuplicate}>
-            Duplicate
-          </CtaButton>
-          <CtaButton tone="danger" icon="delete" busy={busy} onClick={() => onDelete()}>
-            Delete
-          </CtaButton>
+          <Link href={`/recruiter/offers/${offer.id}/edit`} className={OFFER_LINK_PILL_CLASS}>
+            Edit
+          </Link>
         </>
       )}
       {offer.status === "validated" && (
         <>
-          {canRevalidate && (
-            <Button variant="outline-sm" busy={busy} onClick={() => onTransition("validate")}>
-              Validate again
-            </Button>
-          )}
-          <Link href={`/recruiter/offers/${offer.id}/edit`} className={OFFER_LINK_PILL_CLASS}>
-            Edit
-          </Link>
-          <Link href={`/recruiter/offers/${offer.id}/preview`} className={OFFER_LINK_PILL_CLASS}>
-            Preview
-          </Link>
           <CtaButton
             icon="publish"
-            busy={busy}
+            busy={busyAction === "transition"}
             disabled={!ready}
             title={blocked}
             onClick={() => onTransition("publish")}
           >
             Publish
           </CtaButton>
-          <CtaButton tone="secondary" icon="content_copy" busy={busy} onClick={onDuplicate}>
-            Duplicate
-          </CtaButton>
-          <CtaButton tone="neutral" icon="close" busy={busy} onClick={() => onTransition("close")}>
-            Close
-          </CtaButton>
+          <Link href={`/recruiter/offers/${offer.id}/edit`} className={OFFER_LINK_PILL_CLASS}>
+            Edit
+          </Link>
         </>
       )}
       {offer.status === "published" && (
@@ -172,14 +278,28 @@ function OfferActions({
             <Icon name="open_in_new" className="text-[14px]" />
             View public page
           </Link>
-          <CtaButton tone="secondary" icon="content_copy" busy={busy} onClick={onDuplicate}>
-            Duplicate
-          </CtaButton>
-          <CtaButton tone="neutral" icon="close" busy={busy} onClick={() => onTransition("close")}>
-            Close
-          </CtaButton>
         </>
       )}
+      {menuItems.length > 0 ? (
+        <>
+          <Button
+            ref={triggerRef}
+            variant="icon-sm"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label="More actions"
+            busy={busyAction !== null}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {busyAction === null ? <Icon name="more_vert" className="text-[20px]" /> : null}
+          </Button>
+          {menuOpen ? (
+            <div role="menu" aria-label="More actions" className={MENU_CLASS}>
+              {menuItems}
+            </div>
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }
@@ -188,8 +308,9 @@ function OfferRow({
   offer,
   companyName,
   contractTypeLabel,
+  employmentTypeLabel,
   workModeLabel,
-  busy,
+  busyAction,
   onTransition,
   onDuplicate,
   onDelete,
@@ -197,8 +318,9 @@ function OfferRow({
   offer: JobOfferListItem;
   companyName: string | null;
   contractTypeLabel: string | null;
+  employmentTypeLabel: string | null;
   workModeLabel: string | null;
-  busy: boolean;
+  busyAction: OfferAction | null;
   onTransition: (action: "validate" | "publish" | "close") => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -213,6 +335,7 @@ function OfferRow({
       country={offer.country}
       workModeLabel={workModeLabel}
       contractTypeLabel={contractTypeLabel}
+      employmentTypeLabel={employmentTypeLabel}
       salaryMin={offer.salaryMin}
       salaryMax={offer.salaryMax}
       salaryCurrency={offer.salaryCurrency}
@@ -222,11 +345,14 @@ function OfferRow({
         offer.normalizationInProgress ? "progress" : offer.normalizationFailed ? "failed" : null
       }
       unvalidatedChanges={offer.hasUnvalidatedChanges}
+      readyToPublish={offer.readyToPublish}
       createdAt={offer.createdAt}
+      updatedAt={offer.updatedAt}
+      expiresAt={offer.expiresAt}
       actions={
         <OfferActions
           offer={offer}
-          busy={busy}
+          busyAction={busyAction}
           onTransition={onTransition}
           onDuplicate={onDuplicate}
           onDelete={onDelete}
@@ -246,6 +372,7 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
   const remove = useDeleteJobOffer();
   const duplicate = useDuplicateJobOffer();
   const contractTypes = useContractTypes();
+  const employmentTypes = useEmploymentTypes();
   const workModes = useWorkModes();
   const [deleteTarget, setDeleteTarget] = useState<JobOfferListItem | null>(null);
   const [confirmTransition, setConfirmTransition] = useState<{
@@ -257,6 +384,9 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
   const contractLabels = new Map(
     (contractTypes.data ?? []).map((option) => [option.id, option.label] as const),
   );
+  const employmentLabels = new Map(
+    (employmentTypes.data ?? []).map((option) => [option.id, option.label] as const),
+  );
   const workModeLabels = new Map(
     (workModes.data ?? []).map((option) => [option.id, option.label] as const),
   );
@@ -264,7 +394,6 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
   const pendingTransitionId = transition.isPending ? transition.variables?.offerId ?? null : null;
   const pendingRemoveId = remove.isPending ? remove.variables ?? null : null;
   const pendingDuplicateId = duplicate.isPending ? duplicate.variables ?? null : null;
-  const pendingId = pendingTransitionId ?? pendingRemoveId ?? pendingDuplicateId;
   const error = transition.error ?? remove.error ?? duplicate.error;
 
   if (offers.isLoading) {
@@ -325,10 +454,23 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
               contractTypeLabel={
                 offer.contractTypeId ? contractLabels.get(offer.contractTypeId) ?? null : null
               }
+              employmentTypeLabel={
+                offer.employmentTypeId
+                  ? employmentLabels.get(offer.employmentTypeId) ?? null
+                  : null
+              }
               workModeLabel={
                 offer.workModeId ? workModeLabels.get(offer.workModeId) ?? null : null
               }
-              busy={pendingId === offer.id}
+              busyAction={
+                pendingTransitionId === offer.id
+                  ? "transition"
+                  : pendingRemoveId === offer.id
+                    ? "delete"
+                    : pendingDuplicateId === offer.id
+                      ? "duplicate"
+                      : null
+              }
               onTransition={(action) =>
                 action === "close"
                   ? transition.mutate({ offerId: offer.id, action })

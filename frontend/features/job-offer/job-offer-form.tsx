@@ -14,6 +14,7 @@ import type { SelectOption } from "@/components/ui/select";
 import { countryOptions } from "@/config/countries";
 import { SelectField } from "@/features/candidate/select-field";
 import { RemoveButton } from "@/features/candidate/profile-shared";
+import { OfferQuestionsSection } from "@/features/job-offer/offer-questions-section";
 import {
   useReferenceDegrees,
   useReferenceLanguages,
@@ -113,6 +114,15 @@ function toFormValues(offer: JobOffer, companyId: string): CreateJobOfferValues 
     })),
     degreeIds: offer.degreeIds,
     studyFieldIds: offer.studyFieldIds,
+    questions: offer.questions.map((question) => ({
+      label: question.label,
+      type: question.type,
+      isRequired: question.isRequired,
+      options: question.options.map((option) => ({
+        label: option.label,
+        preferred: option.preferred,
+      })),
+    })),
   };
 }
 
@@ -137,6 +147,7 @@ function emptyValues(companyId: string): CreateJobOfferValues {
     languages: [],
     degreeIds: [],
     studyFieldIds: [],
+    questions: [],
   };
 }
 
@@ -546,6 +557,8 @@ export function JobOfferForm({
           />
         </div>
       </section>
+
+      <OfferQuestionsSection control={control} errors={errors} />
 
       <div className="bg-canvas-white rounded-2xl shadow-sm px-6 py-4 flex items-center justify-end gap-3">
         <Button type="button" variant="outline-sm" onClick={() => router.push("/recruiter")}>

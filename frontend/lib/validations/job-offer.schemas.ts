@@ -12,6 +12,19 @@ export const JOB_OFFER_SENIORITIES = [
 export const JOB_OFFER_SALARY_PERIODS = ["year", "month", "day", "hour"] as const;
 export const REQUIREMENT_TYPES = ["mandatory", "preferred"] as const;
 
+/** Types de question de présélection (D47) — miroir de l'enum backend. */
+export const QUESTION_TYPES = [
+  "text",
+  "single_choice",
+  "multiple_choice",
+  "yes_no",
+  "number",
+] as const;
+
+/** Seuls les types à choix portent des options (règle de masquage : couche API). */
+export const isChoiceQuestionType = (type: string): boolean =>
+  type === "single_choice" || type === "multiple_choice";
+
 /**
  * Formulaire d'offre : tous les champs facultatifs restent des `string`
  * ("" = vide, conversion en null/nombre dans la couche API — règle
@@ -66,6 +79,26 @@ export const jobOfferLanguageRowSchema = z.object({
   isRequired: z.boolean(),
 });
 
+export const jobOfferQuestionOptionRowSchema = z.object({
+  label: z
+    .string()
+    .trim()
+    .min(1, "Option label is required")
+    .max(500, "Option label must be 500 characters or fewer"),
+  preferred: z.boolean(),
+});
+
+export const jobOfferQuestionRowSchema = z.object({
+  label: z
+    .string()
+    .trim()
+    .min(1, "Question is required")
+    .max(500, "Question must be 500 characters or fewer"),
+  type: z.enum(QUESTION_TYPES, "Pick a question type"),
+  isRequired: z.boolean(),
+  options: z.array(jobOfferQuestionOptionRowSchema),
+});
+
 const jobOfferBaseSchema = z.object({
   title: z
     .string()
@@ -93,6 +126,7 @@ const jobOfferBaseSchema = z.object({
   // Chips (TagInput) : jamais de "" en entrée — uuid strict.
   degreeIds: z.array(z.uuid("Pick a degree")),
   studyFieldIds: z.array(z.uuid("Pick a field of study")),
+  questions: z.array(jobOfferQuestionRowSchema),
 });
 
 type JobOfferBaseValues = z.infer<typeof jobOfferBaseSchema>;
@@ -155,6 +189,16 @@ function refineJobOffer(values: JobOfferBaseValues, ctx: z.RefinementCtx) {
       });
     }
     seenLanguages.add(row.languageId);
+  });
+  // Miroir de la règle serveur : une question à choix sans option est rejetée.
+  values.questions.forEach((question, index) => {
+    if (isChoiceQuestionType(question.type) && question.options.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["questions", index, "options"],
+        message: "Add at least one option",
+      });
+    }
   });
 }
 

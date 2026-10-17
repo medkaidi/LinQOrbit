@@ -34,3 +34,6 @@ build/
 
 # env
 .env
+
+# pièces jointes locales (APP_ATTACHMENTS_ROOT)
+data/

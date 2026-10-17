@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/axios";
+import { saveBlob } from "@/lib/utils/download";
 import type {
   AboutValues,
   DiplomasValues,
@@ -10,6 +11,7 @@ import type {
 } from "@/lib/validations/candidate.schemas";
 import type {
   CandidateProfile,
+  CvAttachment,
   LanguageReference,
   LabelReference,
   ParsedCv,
@@ -152,4 +154,37 @@ export async function getReferenceStudyFields(): Promise<LabelReference[]> {
 /** Compétences absentes du catalogue, envoyées en revue manuelle. */
 export async function suggestSkills(names: string[]): Promise<void> {
   await api.post(`${BASE}/me/profile/skill-suggestions`, { names });
+}
+
+const ATTACHMENTS_BASE = `${BASE}/me/attachments`;
+
+/** CV déposés du candidat, du plus récent au plus ancien (backend). */
+export async function listCvs(): Promise<CvAttachment[]> {
+  const response = await api.get<CvAttachment[]>(ATTACHMENTS_BASE);
+  return response.data;
+}
+
+/** Dépose un CV (PDF) : le nouveau dépôt devient le CV courant. */
+export async function uploadCv(file: File): Promise<CvAttachment> {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await api.post<CvAttachment>(ATTACHMENTS_BASE, body);
+  return response.data;
+}
+
+/** Désigne le CV courant (celui que les candidatures joindront). */
+export async function setCurrentCv(attachmentId: string): Promise<void> {
+  await api.put(`${ATTACHMENTS_BASE}/${attachmentId}/current`);
+}
+
+export async function deleteCv(attachmentId: string): Promise<void> {
+  await api.delete(`${ATTACHMENTS_BASE}/${attachmentId}`);
+}
+
+/** Télécharge le contenu (blob) et déclenche l'enregistrement navigateur. */
+export async function downloadCv(attachmentId: string, fileName: string): Promise<void> {
+  const response = await api.get<Blob>(`${ATTACHMENTS_BASE}/${attachmentId}/content`, {
+    responseType: "blob",
+  });
+  saveBlob(response.data, fileName);
 }

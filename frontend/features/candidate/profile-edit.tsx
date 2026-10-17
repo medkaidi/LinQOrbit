@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AboutSection } from "@/features/candidate/about-section";
-import { CvUploadButton } from "@/features/candidate/cv-import";
 import { CvImportDialog, type CvImportDialogStatus } from "@/features/candidate/cv-import-dialog";
 import { planCvImport } from "@/features/candidate/cv-parsing";
 import { DiplomasSection } from "@/features/candidate/diplomas-section";
@@ -31,6 +30,7 @@ import type { ParsedCv } from "@/types/candidate";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { UploadButton } from "@/components/ui/upload-button";
 
 function Header({ uploadAction }: { uploadAction: React.ReactNode }) {
   return (
@@ -118,7 +118,15 @@ export function ProfileEdit() {
           : "parsing"
         : null;
 
-  const uploadAction = <CvUploadButton isParsing={parseCv.isPending} onSelect={onSelectFile} />;
+  const uploadAction = (
+    <UploadButton
+      label="Upload CV"
+      busyLabel="Analyzing…"
+      accept=".pdf,application/pdf"
+      busy={parseCv.isPending}
+      onSelect={onSelectFile}
+    />
+  );
 
   const importDialog = dialogStatus ? (
     <CvImportDialog

@@ -92,7 +92,6 @@ describe("DashboardSidebar", () => {
     render(<DashboardSidebar />);
 
     const futureSections = [
-      "Offers & Pipelines",
       "Candidate Pool",
       "AI Agents Studio",
       "Interviews & Evaluations",
@@ -106,6 +105,40 @@ describe("DashboardSidebar", () => {
       expect(control).not.toBeNull();
       expect(control).not.toBeDisabled();
     }
+  });
+
+  it("links My applications as a real candidate destination", () => {
+    render(<DashboardSidebar />);
+
+    const link = screen.getByRole("link", { name: /my applications/i });
+    expect(link).toHaveAttribute("href", "/applications");
+    expect(link).not.toHaveAttribute("aria-current", "page");
+  });
+
+  it("links the job board as Browse offers (T-72), active on its route", () => {
+    pathnameMock.mockReturnValue("/jobs");
+    render(<DashboardSidebar />);
+
+    const link = screen.getByRole("link", { name: /browse offers/i });
+    expect(link).toHaveAttribute("href", "/jobs");
+    expect(link).toHaveAttribute("aria-current", "page");
+    // L'ancien placeholder « Offers & Pipelines » n'existe plus.
+    expect(screen.queryByText("Offers & Pipelines")).not.toBeInTheDocument();
+  });
+
+  it("marks My applications active on its route", () => {
+    pathnameMock.mockReturnValue("/applications");
+
+    render(<DashboardSidebar />);
+
+    expect(screen.getByRole("link", { name: /my applications/i })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: /overview/i })).not.toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   it("shows the demo AI telemetry card", () => {
@@ -169,6 +202,8 @@ describe("DashboardSidebar", () => {
       render(<DashboardSidebar />);
 
       expect(screen.queryByRole("link", { name: /^profile$/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /my applications/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /browse offers/i })).not.toBeInTheDocument();
       expect(screen.queryByText("Candidate Pool")).not.toBeInTheDocument();
       expect(screen.queryByText("AI Agents Studio")).not.toBeInTheDocument();
     });

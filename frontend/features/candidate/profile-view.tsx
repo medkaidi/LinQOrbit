@@ -20,9 +20,11 @@ import {
 import { useAccount } from "@/hooks/use-account";
 import { useCandidateProfile } from "@/hooks/use-candidate-profile";
 import { ValidateProfileBanner } from "@/features/candidate/validate-profile-banner";
+import { CvSection } from "@/features/candidate/cv-section";
 import { Icon } from "@/components/ui/icon";
 import { NavPill } from "@/components/ui/nav-pill";
 import { cn } from "@/lib/utils/cn";
+import { plural } from "@/lib/utils/format";
 import type {
   CandidateProfile,
   DiplomaItem,
@@ -86,11 +88,6 @@ function durationLabel(startDate: string, endDate: string | null): string {
   const monthsLabel = `${rest} mo${rest === 1 ? "" : "s"}`;
   if (years === 0) return monthsLabel;
   return rest === 0 ? yearsLabel : `${yearsLabel} ${monthsLabel}`;
-}
-
-function plural(count: number, noun: string): string {
-  const pluralForm = noun.endsWith("y") ? `${noun.slice(0, -1)}ies` : `${noun}s`;
-  return `${count} ${count > 1 ? pluralForm : noun}`;
 }
 
 function linkIcon(linkType: string): string {
@@ -703,6 +700,8 @@ export function ProfileView() {
         profile={data}
         action={<NavPill icon="edit" label="Edit profile" href="/profile/edit" />}
       />
+
+      <CvSection />
 
       <ProfileSections profile={data} account={account} />
     </div>

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { CvImportError, CvImportPreview, CvUploadButton } from "@/features/candidate/cv-import";
+import { CvImportError, CvImportPreview } from "@/features/candidate/cv-import";
 import { planCvImport, type CvImportRefs } from "@/features/candidate/cv-parsing";
 import type { ParsedCv } from "@/types/candidate";
 
@@ -33,28 +33,6 @@ const refs: CvImportRefs = {
   degrees: [],
   studyFields: [],
 };
-
-describe("CvUploadButton", () => {
-  it("reports the selected PDF file", () => {
-    const onSelect = vi.fn();
-    const { container } = render(<CvUploadButton isParsing={false} onSelect={onSelect} />);
-
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" });
-    fireEvent.change(input, { target: { files: [file] } });
-
-    expect(onSelect).toHaveBeenCalledWith(file);
-  });
-
-  it("disables itself while the CV is being analyzed", () => {
-    const onSelect = vi.fn();
-    render(<CvUploadButton isParsing={true} onSelect={onSelect} />);
-
-    const button = screen.getByRole("button", { name: "Analyzing…" });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute("aria-busy", "true");
-  });
-});
 
 describe("CvImportError", () => {
   it("announces the backend message as an alert", () => {

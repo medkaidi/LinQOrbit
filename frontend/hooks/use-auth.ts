@@ -12,7 +12,7 @@ import { useViewModeStore } from "@/stores/view-mode-store";
 import type { LoginValues, SignupValues } from "@/lib/validations/auth.schemas";
 import type { AuthResponse } from "@/types/auth";
 
-export function useAuth() {
+export function useAuth(returnTo?: string | null) {
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
   const clearAuth = useAuthStore((state) => state.clearAuth);
@@ -22,7 +22,7 @@ export function useAuth() {
     // Raccorde le mode de vue à la préférence de ce compte (D18) : un login
     // après logout retrouve le mode choisi, un autre compte démarre en candidat.
     useViewModeStore.getState().restoreForUser(data.user.id);
-    router.push("/dashboard");
+    router.push(returnTo ?? "/dashboard");
   };
 
   const signup = useMutation({

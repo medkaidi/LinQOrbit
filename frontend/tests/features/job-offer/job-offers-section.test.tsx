@@ -9,6 +9,7 @@ const useJobOfferTransitionMock = vi.hoisted(() => vi.fn());
 const useDeleteJobOfferMock = vi.hoisted(() => vi.fn());
 const useDuplicateJobOfferMock = vi.hoisted(() => vi.fn());
 const useContractTypesMock = vi.hoisted(() => vi.fn());
+const useEmploymentTypesMock = vi.hoisted(() => vi.fn());
 const useWorkModesMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/use-job-offers", () => ({
@@ -17,6 +18,7 @@ vi.mock("@/hooks/use-job-offers", () => ({
   useDeleteJobOffer: useDeleteJobOfferMock,
   useDuplicateJobOffer: useDuplicateJobOfferMock,
   useContractTypes: useContractTypesMock,
+  useEmploymentTypes: useEmploymentTypesMock,
   useWorkModes: useWorkModesMock,
 }));
 
@@ -36,6 +38,7 @@ function draftOffer(overrides: Partial<JobOfferListItem> = {}): JobOfferListItem
     city: null,
     country: "FR",
     contractTypeId: "ct1",
+    employmentTypeId: "et1",
     workModeId: "wm1",
     expiresAt: null,
     salaryMin: null,
@@ -47,6 +50,7 @@ function draftOffer(overrides: Partial<JobOfferListItem> = {}): JobOfferListItem
     normalizationFailed: false,
     readyToPublish: true,
     createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
   };
 }
@@ -95,6 +99,12 @@ function mutation(data: Partial<ReturnType<typeof useJobOfferTransitionMock>> = 
   };
 }
 
+/** Ouvre le menu overflow ⋯ de la ligne et retourne le menu. */
+function openActionsMenu() {
+  fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+  return screen.getByRole("menu", { name: "More actions" });
+}
+
 describe("JobOffersSection", () => {
   beforeEach(() => {
     useInfiniteJobOffersMock.mockReturnValue(infiniteResult([], { unloaded: true, isLoading: true }));
@@ -103,6 +113,12 @@ describe("JobOffersSection", () => {
     useDuplicateJobOfferMock.mockReturnValue(mutation());
     useContractTypesMock.mockReturnValue({
       data: [{ id: "ct1", label: "Permanent" }],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    useEmploymentTypesMock.mockReturnValue({
+      data: [{ id: "et1", label: "Full-time" }],
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
@@ -160,7 +176,10 @@ describe("JobOffersSection", () => {
     expect(screen.getByText("Draft")).toBeInTheDocument();
     expect(screen.getByText("Published")).toBeInTheDocument();
     expect(screen.getAllByText("Permanent")).toHaveLength(2);
-    expect(screen.getAllByText("Hybrid · FR")).toHaveLength(2);
+    expect(screen.getAllByText("Full-time")).toHaveLength(2);
+    // Lieu et mode de travail sont des chips distinctes (fin du « Hybrid · FR »).
+    expect(screen.getAllByText("FR")).toHaveLength(2);
+    expect(screen.getAllByText("Hybrid")).toHaveLength(2);
     expect(screen.getAllByText(/^Created /)).toHaveLength(2);
   });
 
@@ -177,7 +196,7 @@ describe("JobOffersSection", () => {
     expect(fetchNextPage).toHaveBeenCalledOnce();
   });
 
-  it("merges the work mode with the location", () => {
+  it("renders the work mode and the location as separate chips", () => {
     useInfiniteJobOffersMock.mockReturnValue(
       infiniteResult([
         draftOffer({ city: "Paris", country: "FR" }),
@@ -193,8 +212,57 @@ describe("JobOffersSection", () => {
 
     render(<JobOffersSection companies={companies} />);
 
-    expect(screen.getByText("Hybrid · Paris, FR")).toBeInTheDocument();
-    expect(screen.getByText("Remote · Lyon, FR")).toBeInTheDocument();
+    expect(screen.getByText("Paris, FR")).toBeInTheDocument();
+    expect(screen.getByText("Lyon, FR")).toBeInTheDocument();
+    expect(screen.getByText("Hybrid")).toBeInTheDocument();
+    expect(screen.getByText("Remote")).toBeInTheDocument();
+  });
+
+  it("flags a draft that cannot be published yet", () => {
+    renderOffers([draftOffer({ readyToPublish: false })]);
+
+    expect(screen.getByText("Not ready to publish")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Validate" })).toBeDisabled();
+  });
+
+  it("shows no readiness chip once the draft is complete", () => {
+    renderOffers([draftOffer({ readyToPublish: true })]);
+
+    expect(screen.queryByText("Not ready to publish")).not.toBeInTheDocument();
+  });
+
+  it("shows Updated only when the offer changed after creation", () => {
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([
+        draftOffer({ updatedAt: "2026-02-01T00:00:00Z" }),
+        draftOffer({ id: "o2", title: "Data Engineer" }),
+      ]),
+    );
+
+    render(<JobOffersSection companies={companies} />);
+
+    expect(screen.getAllByText(/^Updated /)).toHaveLength(1);
+  });
+
+  it("counts down the expiry of a published offer", () => {
+    const today = new Date();
+    const inTenDays = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 10);
+    const iso = `${inTenDays.getFullYear()}-${String(inTenDays.getMonth() + 1).padStart(2, "0")}-${String(inTenDays.getDate()).padStart(2, "0")}`;
+    renderOffers([draftOffer({ status: "published", expiresAt: iso })]);
+
+    expect(screen.getByText("Expires in 10 days")).toBeInTheDocument();
+  });
+
+  it("does not count down on a draft or an expired offer", () => {
+    const today = new Date();
+    const inTenDays = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 10);
+    const iso = `${inTenDays.getFullYear()}-${String(inTenDays.getMonth() + 1).padStart(2, "0")}-${String(inTenDays.getDate()).padStart(2, "0")}`;
+    renderOffers([
+      draftOffer({ expiresAt: iso }),
+      draftOffer({ id: "o2", title: "Data Engineer", status: "published", expiresAt: "2020-01-01" }),
+    ]);
+
+    expect(screen.queryByText(/^Expires /)).not.toBeInTheDocument();
   });
 
   it("validates a draft offer only after confirmation", () => {
@@ -279,7 +347,7 @@ describe("JobOffersSection", () => {
 
   it("does not keep the row busy after a transition has settled", () => {
     // Régression : variables persiste après succès en TanStack Query v5 —
-    // busy doit suivre isPending, sinon Publish/Close tournent à l'infini.
+    // busy doit suivre isPending, sinon Publish et le kebab tournent à l'infini.
     useJobOfferTransitionMock.mockReturnValue(
       mutation({
         variables: { offerId: "o1", action: "validate" },
@@ -293,7 +361,7 @@ describe("JobOffersSection", () => {
     render(<JobOffersSection companies={companies} />);
 
     expect(screen.getByRole("button", { name: "Publish" })).not.toHaveAttribute("aria-busy");
-    expect(screen.getByRole("button", { name: "Close" })).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: "More actions" })).not.toHaveAttribute("aria-busy");
     expect(screen.getByRole("button", { name: "Publish" })).not.toBeDisabled();
   });
 
@@ -309,6 +377,22 @@ describe("JobOffersSection", () => {
     render(<JobOffersSection companies={companies} />);
 
     expect(screen.getByRole("button", { name: "Validate" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("button", { name: "More actions" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+  });
+
+  it("shows the kebab spinner while a menu action is pending", () => {
+    // Busy ciblé : une duplication en cours ne fait pas tourner l'action primaire.
+    useDuplicateJobOfferMock.mockReturnValue(mutation({ variables: "o1", isPending: true }));
+    renderOffers([draftOffer()]);
+
+    expect(screen.getByRole("button", { name: "More actions" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Validate" })).not.toHaveAttribute("aria-busy");
   });
 
   it("only offers Close on a published offer", () => {
@@ -318,9 +402,47 @@ describe("JobOffersSection", () => {
 
     render(<JobOffersSection companies={companies} />);
 
-    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+    const menu = openActionsMenu();
+    expect(within(menu).getByRole("menuitem", { name: "Close" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Validate" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("groups the draft secondary actions behind the overflow menu", () => {
+    renderOffers([draftOffer()]);
+
+    const menu = openActionsMenu();
+
+    expect(within(menu).getByRole("menuitem", { name: "Duplicate" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+    expect(within(menu).queryByRole("menuitem", { name: "Close" })).not.toBeInTheDocument();
+    expect(within(menu).queryByRole("menuitem", { name: "Preview" })).not.toBeInTheDocument();
+  });
+
+  it("groups the validated secondary actions behind the overflow menu", () => {
+    renderOffers([draftOffer({ status: "validated" })]);
+
+    const menu = openActionsMenu();
+
+    expect(within(menu).getByRole("menuitem", { name: "Preview" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "Duplicate" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "Close" })).toBeInTheDocument();
+    // Visibles : la primaire (Publish) et Edit — le reste est derrière le ⋯.
+    expect(screen.getByRole("button", { name: "Publish" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit" })).toBeInTheDocument();
+  });
+
+  it("closes the overflow menu on Escape and returns focus to its trigger", () => {
+    renderOffers([draftOffer()]);
+    const trigger = screen.getByRole("button", { name: "More actions" });
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole("menu", { name: "More actions" })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it("copies the absolute public URL of a published offer", async () => {
@@ -366,14 +488,14 @@ describe("JobOffersSection", () => {
     useInfiniteJobOffersMock.mockReturnValue(infiniteResult([draftOffer()]));
 
     render(<JobOffersSection companies={companies} />);
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(within(openActionsMenu()).getByRole("menuitem", { name: "Delete" }));
 
     const dialog = screen.getByRole("dialog", { name: "Delete this draft offer?" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(remove.mutate).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(within(openActionsMenu()).getByRole("menuitem", { name: "Delete" }));
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
     expect(remove.mutate).toHaveBeenCalledWith("o1", expect.anything());
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -401,7 +523,7 @@ describe("JobOffersSection", () => {
 
     render(<JobOffersSection companies={companies} />);
 
-    expect(screen.getByRole("link", { name: "Preview" })).toHaveAttribute(
+    expect(within(openActionsMenu()).getByRole("menuitem", { name: "Preview" })).toHaveAttribute(
       "href",
       "/recruiter/offers/o1/preview",
     );
@@ -415,7 +537,7 @@ describe("JobOffersSection", () => {
     );
 
     render(<JobOffersSection companies={companies} />);
-    fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
+    fireEvent.click(within(openActionsMenu()).getByRole("menuitem", { name: "Duplicate" }));
 
     expect(duplicate.mutate).toHaveBeenCalledWith("o1");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -481,7 +603,7 @@ describe("JobOffersSection", () => {
     useJobOfferTransitionMock.mockReturnValue(transition);
     renderOffers([draftOffer({ status: "validated", normalizationFailed: true })]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Validate again" }));
+    fireEvent.click(within(openActionsMenu()).getByRole("menuitem", { name: "Validate again" }));
 
     expect(
       screen.getByText("We could not finish analyzing this offer. You can try again."),
@@ -503,7 +625,7 @@ describe("JobOffersSection", () => {
     useJobOfferTransitionMock.mockReturnValue(transition);
     renderOffers([draftOffer({ status: "validated", hasUnvalidatedChanges: true })]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Validate again" }));
+    fireEvent.click(within(openActionsMenu()).getByRole("menuitem", { name: "Validate again" }));
 
     expect(
       screen.getByText("You've made changes to this offer. Validate again to refresh its analysis."),
@@ -529,12 +651,16 @@ describe("JobOffersSection", () => {
     ]);
 
     expect(screen.getByText("Analyzing…")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Validate again" })).not.toBeInTheDocument();
+    expect(
+      within(openActionsMenu()).queryByRole("menuitem", { name: "Validate again" }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not offer Validate again when the analysis is healthy", () => {
     renderOffers([draftOffer({ status: "validated" })]);
 
-    expect(screen.queryByRole("button", { name: "Validate again" })).not.toBeInTheDocument();
+    expect(
+      within(openActionsMenu()).queryByRole("menuitem", { name: "Validate again" }),
+    ).not.toBeInTheDocument();
   });
 });

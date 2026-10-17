@@ -112,6 +112,20 @@ describe("LoginForm", () => {
     expect(useAuthStore.getState().token).toBe("jwt-token");
   });
 
+  it("returns to the requested page after a successful login", async () => {
+    mockedLogin.mockResolvedValue(authResponse);
+    renderWithQueryClient(<LoginForm returnTo="/applications" />);
+    fillValidForm();
+    submitForm();
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/applications"));
+    expect(useAuthStore.getState().token).toBe("jwt-token");
+    expect(screen.getByRole("link", { name: "Sign up" })).toHaveAttribute(
+      "href",
+      "/signup?next=%2Fapplications",
+    );
+  });
+
   it("shows the server error when the credentials are rejected", async () => {
     mockedLogin.mockRejectedValue(
       Object.assign(new Error("unauthorized"), {

@@ -24,6 +24,10 @@ import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
 import com.linqorbit.admin.exception.SuggestionNotFoundException;
 import com.linqorbit.admin.exception.UserNotFoundException;
+import com.linqorbit.application.exception.ApplicationNotFoundException;
+import com.linqorbit.application.exception.InvalidApplicationException;
+import com.linqorbit.attachment.exception.AttachmentNotFoundException;
+import com.linqorbit.attachment.exception.InvalidAttachmentException;
 import com.linqorbit.auth.exception.AccountNotActiveException;
 import com.linqorbit.auth.exception.EmailAlreadyExistsException;
 import com.linqorbit.auth.exception.InvalidCredentialsException;
@@ -122,6 +126,50 @@ public class GlobalExceptionHandler {
         problem.setTitle("Unknown reference");
         problem.setDetail(ex.getMessage());
         log.warn("Candidate profile update rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(AttachmentNotFoundException.class)
+    public ProblemDetail handleAttachmentNotFound(AttachmentNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Attachment not found");
+        problem.setDetail("No attachment matches this identifier for your account.");
+        log.warn("Attachment operation rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    /**
+     * Dépôt de pièce jointe rejeté : le statut (400, 415) est porté par
+     * l'exception elle-même, miroir du handler du service IA.
+     */
+    @ExceptionHandler(InvalidAttachmentException.class)
+    public ProblemDetail handleInvalidAttachment(InvalidAttachmentException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(ex.getStatus());
+        problem.setTitle("Attachment operation failed");
+        problem.setDetail(ex.getMessage());
+        log.warn("Attachment operation rejected : {} {}", ex.getStatus().value(), ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(ApplicationNotFoundException.class)
+    public ProblemDetail handleApplicationNotFound(ApplicationNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Application not found");
+        problem.setDetail("No application matches this identifier for your account.");
+        log.warn("Application operation rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    /**
+     * Candidature rejetée : le statut (400, 404, 409) est porté par
+     * l'exception elle-même, miroir des pièces jointes.
+     */
+    @ExceptionHandler(InvalidApplicationException.class)
+    public ProblemDetail handleInvalidApplication(InvalidApplicationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(ex.getStatus());
+        problem.setTitle("Application operation failed");
+        problem.setDetail(ex.getMessage());
+        log.warn("Application operation rejected : {} {}", ex.getStatus().value(), ex.getMessage());
         return problem;
     }
 

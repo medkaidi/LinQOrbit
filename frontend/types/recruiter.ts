@@ -17,6 +17,12 @@ export type JobOfferStatusValue = "draft" | "validated" | "published" | "closed"
 export type SeniorityValue = "junior" | "mid" | "senior" | "lead" | "principal";
 export type RequirementTypeValue = "mandatory" | "preferred";
 export type SalaryPeriodValue = "year" | "month" | "day" | "hour";
+export type QuestionTypeValue =
+  | "text"
+  | "single_choice"
+  | "multiple_choice"
+  | "yes_no"
+  | "number";
 
 export type JobOfferSkillOption = {
   skillId: string;
@@ -32,6 +38,28 @@ export type JobOfferLanguageOption = {
   name: string | null;
   level: string;
   isRequired: boolean;
+};
+
+/** Option de question de présélection (D47) — `preferred` reste côté recruteur. */
+export type JobOfferQuestionOption = {
+  id: string;
+  label: string;
+  sortOrder: number;
+  preferred: boolean;
+};
+
+/**
+ * Question de présélection rattachée à l'offre (D47) — comme les skills et
+ * langues, elle ne vit pas dans le snapshot normalisé ni dans les réponses
+ * publiques : seules les vues recruteur la portent.
+ */
+export type JobOfferQuestion = {
+  id: string;
+  label: string;
+  type: QuestionTypeValue;
+  isRequired: boolean;
+  sortOrder: number;
+  options: JobOfferQuestionOption[];
 };
 
 /** Offre vue par un membre de la company (D12–D13). */
@@ -65,6 +93,7 @@ export type JobOffer = {
   languages: JobOfferLanguageOption[];
   degreeIds: string[];
   studyFieldIds: string[];
+  questions: JobOfferQuestion[];
   createdAt: string;
   updatedAt: string;
 };
@@ -91,6 +120,7 @@ export type JobOfferListItem = {
   city: string | null;
   country: string | null;
   contractTypeId: string | null;
+  employmentTypeId: string | null;
   workModeId: string | null;
   expiresAt: string | null;
   salaryMin: number | null;
@@ -103,6 +133,7 @@ export type JobOfferListItem = {
   /** Gate de complétude calculé serveur (description, pays, type d'emploi, ≥ 1 skill). */
   readyToPublish: boolean;
   createdAt: string;
+  updatedAt: string;
 };
 
 /** Page d'offres du recruteur (enveloppe backend, page 0-based — D34). */

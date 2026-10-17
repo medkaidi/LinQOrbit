@@ -12,6 +12,7 @@ vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
     getReferenceDegrees: vi.fn(),
     getReferenceStudyFields: vi.fn(),
     validateProfile: vi.fn(),
+    listCvs: vi.fn(),
   };
 });
 
@@ -26,6 +27,7 @@ import {
   getReferenceLanguages,
   getReferenceSkills,
   getReferenceStudyFields,
+  listCvs,
   validateProfile,
 } from "@/lib/api/candidate.api";
 import { me } from "@/lib/api/auth.api";
@@ -35,6 +37,7 @@ import { ProfileSections, ProfileView } from "@/features/candidate/profile-view"
 
 const mockedGetProfile = vi.mocked(getProfile);
 const mockedValidateProfile = vi.mocked(validateProfile);
+const mockedListCvs = vi.mocked(listCvs);
 const mockedMe = vi.mocked(me);
 const mockedReferenceQueries = [
   vi.mocked(getReferenceSkills),
@@ -143,6 +146,8 @@ describe("ProfileView", () => {
     mockedGetProfile.mockResolvedValue(filledProfile);
     mockedValidateProfile.mockReset();
     mockedValidateProfile.mockResolvedValue(undefined);
+    mockedListCvs.mockReset();
+    mockedListCvs.mockResolvedValue([]);
     mockedMe.mockReset();
     mockedMe.mockRejectedValue(new Error("no account in this test"));
     mockedReferenceQueries.forEach((query) => {

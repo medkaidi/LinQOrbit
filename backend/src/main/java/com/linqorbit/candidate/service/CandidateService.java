@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -370,6 +371,37 @@ public class CandidateService {
         return studyFieldRepository.findAllByOrderByLabelAsc().stream()
                 .map(candidateMapper::toStudyFieldOption)
                 .toList();
+    }
+
+    /**
+     * Garantit la ligne candidates du compte (créée à la première écriture) et
+     * rend son identifiant. Le flush explicite assure l'INSERT avant tout
+     * enfant référencé par FK dans la même transaction (pièces jointes).
+     */
+    @Transactional
+    public UUID ensureCandidate(UUID userId) {
+        Candidate candidate = findOrCreate(userId);
+        candidateRepository.flush();
+        return candidate.getId();
+    }
+
+    /**
+     * Pointeur de CV courant : UPDATE bulk volontaire — un save d'entité
+     * bumperait updated_at (@UpdateTimestamp) et ferait croire à une
+     * modification du profil (dirty-flag du profil normalisé).
+     */
+    @Transactional
+    public void setCurrentCvAttachment(UUID userId, UUID attachmentId) {
+        int updated = candidateRepository.updateCurrentCvAttachmentId(userId, attachmentId);
+        if (updated == 0) {
+            throw new IllegalStateException("Candidate row missing for current CV pointer : " + userId);
+        }
+        log.info("Candidate current CV switched : userId={}, attachmentId={}", userId, attachmentId);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<UUID> getCurrentCvAttachmentId(UUID userId) {
+        return candidateRepository.findById(userId).map(Candidate::getCurrentCvAttachmentId);
     }
 
     private Candidate findOrCreate(UUID userId) {

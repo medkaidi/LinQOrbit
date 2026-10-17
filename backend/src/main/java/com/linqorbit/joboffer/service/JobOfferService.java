@@ -51,9 +51,15 @@ import com.linqorbit.joboffer.dto.JobOfferLanguageOption;
 import com.linqorbit.joboffer.dto.JobOfferLanguageRequest;
 import com.linqorbit.joboffer.dto.JobOfferListItem;
 import com.linqorbit.joboffer.dto.JobOfferPageResponse;
+import com.linqorbit.joboffer.dto.JobOfferQuestionOptionRequest;
+import com.linqorbit.joboffer.dto.JobOfferQuestionOptionView;
+import com.linqorbit.joboffer.dto.JobOfferQuestionRequest;
+import com.linqorbit.joboffer.dto.JobOfferQuestionView;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.JobOfferSkillOption;
 import com.linqorbit.joboffer.dto.JobOfferSkillRequest;
+import com.linqorbit.joboffer.dto.PublicJobListItem;
+import com.linqorbit.joboffer.dto.PublicJobPageResponse;
 import com.linqorbit.joboffer.dto.PublicJobResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
 import com.linqorbit.joboffer.entity.ContractType;
@@ -61,9 +67,12 @@ import com.linqorbit.joboffer.entity.EmploymentType;
 import com.linqorbit.joboffer.entity.JobOffer;
 import com.linqorbit.joboffer.entity.JobOfferDegree;
 import com.linqorbit.joboffer.entity.JobOfferLanguage;
+import com.linqorbit.joboffer.entity.JobOfferQuestion;
+import com.linqorbit.joboffer.entity.JobOfferQuestionOption;
 import com.linqorbit.joboffer.entity.JobOfferSkill;
 import com.linqorbit.joboffer.entity.JobOfferStatus;
 import com.linqorbit.joboffer.entity.JobOfferStudyField;
+import com.linqorbit.joboffer.entity.QuestionType;
 import com.linqorbit.joboffer.entity.RequirementType;
 import com.linqorbit.joboffer.entity.SalaryPeriod;
 import com.linqorbit.joboffer.entity.Seniority;
@@ -77,6 +86,8 @@ import com.linqorbit.joboffer.repository.ContractTypeRepository;
 import com.linqorbit.joboffer.repository.EmploymentTypeRepository;
 import com.linqorbit.joboffer.repository.JobOfferDegreeRepository;
 import com.linqorbit.joboffer.repository.JobOfferLanguageRepository;
+import com.linqorbit.joboffer.repository.JobOfferQuestionOptionRepository;
+import com.linqorbit.joboffer.repository.JobOfferQuestionRepository;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.joboffer.repository.JobOfferSkillRepository;
 import com.linqorbit.joboffer.repository.JobOfferStudyFieldRepository;
@@ -103,6 +114,8 @@ public class JobOfferService {
     private final JobOfferLanguageRepository jobOfferLanguageRepository;
     private final JobOfferDegreeRepository jobOfferDegreeRepository;
     private final JobOfferStudyFieldRepository jobOfferStudyFieldRepository;
+    private final JobOfferQuestionRepository jobOfferQuestionRepository;
+    private final JobOfferQuestionOptionRepository jobOfferQuestionOptionRepository;
     private final CompanyMemberRepository companyMemberRepository;
     private final CompanyRepository companyRepository;
     private final RecruiterRepository recruiterRepository;
@@ -121,6 +134,8 @@ public class JobOfferService {
         requireRecruiter(userId);
         requireMembership(request.companyId(), userId);
         validateSalaryRange(request.salaryMin(), request.salaryMax());
+        // Cohérence intrinsèque d'abord — pas de résolution de références pour un corps incohérent
+        validateQuestions(request.questions());
         validateVocabularies(request.skills(), request.languages(), request.degreeIds(), request.studyFieldIds(),
                 request.contractTypeId(), request.employmentTypeId(), request.workModeId());
 
@@ -149,7 +164,8 @@ public class JobOfferService {
                 .build();
         jobOfferRepository.save(offer);
 
-        replaceChildren(offer.getId(), request.skills(), request.languages(), request.degreeIds(), request.studyFieldIds());
+        replaceChildren(offer.getId(), request.skills(), request.languages(), request.degreeIds(),
+                request.studyFieldIds(), request.questions());
         log.info("Job offer created : offerId={}, companyId={}, recruiterId={}",
                 offer.getId(), offer.getCompanyId(), userId);
         return buildResponse(offer);
@@ -207,6 +223,81 @@ public class JobOfferService {
     }
 
     /**
+     * Job board public (T-72) : offres PUBLISHED non expirées, triées de la
+     * plus récemment publiée à la plus ancienne. Même enveloppe D34 que les
+     * autres listes — seule {@code page} est exposée, la taille reste
+     * décidée par le backend. Labels résolus en batch (companies + 3
+     * vocabulaires) : le visiteur n'a pas les référentiels, jamais de N+1.
+     */
+    @Transactional(readOnly = true)
+    public PublicJobPageResponse listPublic(Integer page) {
+        int safePage = PageSizes.page(page);
+        int safeSize = PageSizes.clamp(null);
+        Page<JobOffer> result = jobOfferRepository.findPublic(JobOfferStatus.PUBLISHED, LocalDate.now(),
+                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "publishedAt")));
+        List<PublicJobListItem> items = buildPublicListItems(result.getContent());
+        log.info("Public jobs listed : page={}, size={}, count={}, total={}",
+                safePage, safeSize, items.size(), result.getTotalElements());
+        return new PublicJobPageResponse(items, result.getNumber(), result.getSize(),
+                result.getTotalElements());
+    }
+
+    /**
+     * Lignes du job board : ni description ni listes enfants — company et
+     * vocabulaires résolus en labels par requêtes batch (pas de requête par
+     * ligne).
+     */
+    private List<PublicJobListItem> buildPublicListItems(List<JobOffer> offers) {
+        if (offers.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, String> companyNames = companyRepository.findAllById(
+                        offers.stream().map(JobOffer::getCompanyId).toList()).stream()
+                .collect(Collectors.toMap(Company::getId, Company::getName));
+        Map<UUID, String> contractTypes = batchLabels(
+                contractTypeRepository.findAllById(nonNullIds(offers.stream()
+                        .map(JobOffer::getContractTypeId).toList())),
+                ContractType::getId, ContractType::getLabel);
+        Map<UUID, String> employmentTypes = batchLabels(
+                employmentTypeRepository.findAllById(nonNullIds(offers.stream()
+                        .map(JobOffer::getEmploymentTypeId).toList())),
+                EmploymentType::getId, EmploymentType::getLabel);
+        Map<UUID, String> workModes = batchLabels(
+                workModeRepository.findAllById(nonNullIds(offers.stream()
+                        .map(JobOffer::getWorkModeId).toList())),
+                WorkMode::getId, WorkMode::getLabel);
+
+        return offers.stream()
+                .map(offer -> new PublicJobListItem(
+                        offer.getPublicId(),
+                        offer.getSlug(),
+                        offer.getTitle(),
+                        companyNames.get(offer.getCompanyId()),
+                        offer.getSeniority() == null ? null : offer.getSeniority().getApiValue(),
+                        offer.getCity(),
+                        offer.getCountry(),
+                        contractTypes.get(offer.getContractTypeId()),
+                        employmentTypes.get(offer.getEmploymentTypeId()),
+                        workModes.get(offer.getWorkModeId()),
+                        offer.getSalaryMin(),
+                        offer.getSalaryMax(),
+                        offer.getSalaryCurrency(),
+                        offer.getSalaryPeriod() == null ? null : offer.getSalaryPeriod().getApiValue(),
+                        offer.getPublishedAt(),
+                        offer.getExpiresAt()))
+                .toList();
+    }
+
+    private static List<UUID> nonNullIds(Collection<UUID> ids) {
+        return ids.stream().filter(Objects::nonNull).distinct().toList();
+    }
+
+    private static <T> Map<UUID, String> batchLabels(Collection<T> rows,
+            Function<T, UUID> idOf, Function<T, String> labelOf) {
+        return rows.stream().collect(Collectors.toMap(idOf, labelOf));
+    }
+
+    /**
      * Vue admin (D33) : la fiche publique sans gate published / non expirée,
      * augmentée de l'identifiant, du statut de vie et des horodatages —
      * consultation seule depuis la console d'administration.
@@ -228,9 +319,11 @@ public class JobOfferService {
 
     @Transactional
     public void update(UUID userId, UUID offerId, UpdateJobOfferRequest request) {
-        JobOffer offer = loadForManagement(offerId, userId);
+        JobOffer offer =         loadForManagement(offerId, userId);
         requireEditable(offer);
         validateSalaryRange(request.salaryMin(), request.salaryMax());
+        // Cohérence intrinsèque d'abord — pas de résolution de références pour un corps incohérent
+        validateQuestions(request.questions());
         validateVocabularies(request.skills(), request.languages(), request.degreeIds(), request.studyFieldIds(),
                 request.contractTypeId(), request.employmentTypeId(), request.workModeId());
 
@@ -253,7 +346,8 @@ public class JobOfferService {
         offer.setSalaryPeriod(parseSalaryPeriod(request.salaryPeriod()));
         offer.setUpdatedAt(LocalDateTime.now());
 
-        replaceChildren(offerId, request.skills(), request.languages(), request.degreeIds(), request.studyFieldIds());
+        replaceChildren(offerId, request.skills(), request.languages(), request.degreeIds(),
+                request.studyFieldIds(), request.questions());
         jobOfferRepository.save(offer);
         log.info("Job offer updated : offerId={}, status={}", offerId, offer.getStatus().getApiValue());
     }
@@ -269,6 +363,8 @@ public class JobOfferService {
         jobOfferLanguageRepository.deleteAllByJobOfferId(offerId);
         jobOfferDegreeRepository.deleteAllByJobOfferId(offerId);
         jobOfferStudyFieldRepository.deleteAllByJobOfferId(offerId);
+        // Les options suivent par cascade SQL (fk_joqo_question).
+        jobOfferQuestionRepository.deleteAllByJobOfferId(offerId);
         jobOfferRepository.delete(offer);
         log.info("Job offer deleted : offerId={}", offerId);
     }
@@ -276,9 +372,11 @@ public class JobOfferService {
     /**
      * Duplication (D20) : membre de la company (comme create — la copie est
      * un brouillon neuf attribué au duplicateur), tous statuts. Le contenu
-     * est copié à l'identique sauf : titre suffixé « (copy) », statut DRAFT,
-     * nouvel identifiant public, expiry réinitialisée, validatedAt/publishedAt
-     * à null. Aucune revalidation des vocabulaires (les FK viennent de la base).
+     * est copié à l'identique (questions et options incluses — nouvelles
+     * lignes, nouveaux ids, miroir D47) sauf : titre suffixé « (copy) »,
+     * statut DRAFT, nouvel identifiant public, expiry réinitialisée,
+     * validatedAt/publishedAt à null. Aucune revalidation des vocabulaires
+     * (les FK viennent de la base).
      */
     @Transactional
     public JobOfferResponse duplicate(UUID userId, UUID offerId) {
@@ -441,12 +539,24 @@ public class JobOfferService {
                 .toList();
     }
 
+    /**
+     * Remplacement intégral des listes enfants (miroir des sections
+     * candidat) : suppression bulk puis insertion. Les questions sont
+     * insérées par étages — les options référencent leur question, le flush
+     * des questions précède donc l'insertion des options (contraintes
+     * IMMEDIATE, l'ordre Hibernate n'est pas garanti entre types d'entités —
+     * D56). Les ids sont assignés ici (UUID aléatoires) : les options les
+     * portent en FK sans attendre un retour de la base.
+     */
     private void replaceChildren(UUID offerId, List<JobOfferSkillRequest> skills,
-            List<JobOfferLanguageRequest> languages, List<UUID> degreeIds, List<UUID> studyFieldIds) {
+            List<JobOfferLanguageRequest> languages, List<UUID> degreeIds, List<UUID> studyFieldIds,
+            List<JobOfferQuestionRequest> questions) {
         jobOfferSkillRepository.deleteAllByJobOfferId(offerId);
         jobOfferLanguageRepository.deleteAllByJobOfferId(offerId);
         jobOfferDegreeRepository.deleteAllByJobOfferId(offerId);
         jobOfferStudyFieldRepository.deleteAllByJobOfferId(offerId);
+        // Les options suivent par cascade SQL (fk_joqo_question).
+        jobOfferQuestionRepository.deleteAllByJobOfferId(offerId);
 
         // Dédup par id (première occurrence gagne), miroir de unique() : la PK
         // composite rejeterait un doublon en 500 au lieu d'un 400 de validation.
@@ -490,6 +600,36 @@ public class JobOfferService {
                             .studyFieldId(studyFieldId)
                             .build())
                     .toList());
+        }
+        if (!questions.isEmpty()) {
+            List<JobOfferQuestion> questionRows = questions.stream()
+                    .map(question -> JobOfferQuestion.builder()
+                            .id(UUID.randomUUID())
+                            .jobOfferId(offerId)
+                            .label(question.label().trim())
+                            .questionType(QuestionType.fromApiValue(question.type()))
+                            .isRequired(Boolean.TRUE.equals(question.isRequired()))
+                            .sortOrder(question.sortOrder())
+                            .build())
+                    .toList();
+            jobOfferQuestionRepository.saveAllAndFlush(questionRows);
+
+            List<JobOfferQuestionOption> optionRows = new ArrayList<>();
+            for (int i = 0; i < questionRows.size(); i++) {
+                UUID questionId = questionRows.get(i).getId();
+                for (JobOfferQuestionOptionRequest option : questions.get(i).options()) {
+                    optionRows.add(JobOfferQuestionOption.builder()
+                            .id(UUID.randomUUID())
+                            .questionId(questionId)
+                            .label(option.label().trim())
+                            .sortOrder(option.sortOrder())
+                            .preferred(Boolean.TRUE.equals(option.preferred()))
+                            .build());
+                }
+            }
+            if (!optionRows.isEmpty()) {
+                jobOfferQuestionOptionRepository.saveAll(optionRows);
+            }
         }
     }
 
@@ -548,6 +688,41 @@ public class JobOfferService {
                             .build())
                     .toList());
         }
+        List<JobOfferQuestion> questions = jobOfferQuestionRepository
+                .findByJobOfferIdInOrderBySortOrderAscIdAsc(List.of(sourceId));
+        if (!questions.isEmpty()) {
+            List<JobOfferQuestion> copies = questions.stream()
+                    .map(question -> JobOfferQuestion.builder()
+                            .id(UUID.randomUUID())
+                            .jobOfferId(targetId)
+                            .label(question.getLabel())
+                            .questionType(question.getQuestionType())
+                            .isRequired(question.getIsRequired())
+                            .sortOrder(question.getSortOrder())
+                            .build())
+                    .toList();
+            jobOfferQuestionRepository.saveAllAndFlush(copies);
+
+            Map<UUID, UUID> questionCopyIds = new HashMap<>();
+            for (int i = 0; i < questions.size(); i++) {
+                questionCopyIds.put(questions.get(i).getId(), copies.get(i).getId());
+            }
+            List<JobOfferQuestionOption> options = jobOfferQuestionOptionRepository
+                    .findByQuestionIdInOrderBySortOrderAscIdAsc(questions.stream()
+                            .map(JobOfferQuestion::getId)
+                            .toList());
+            if (!options.isEmpty()) {
+                jobOfferQuestionOptionRepository.saveAll(options.stream()
+                        .map(option -> JobOfferQuestionOption.builder()
+                                .id(UUID.randomUUID())
+                                .questionId(questionCopyIds.get(option.getQuestionId()))
+                                .label(option.getLabel())
+                                .sortOrder(option.getSortOrder())
+                                .preferred(option.getPreferred())
+                                .build())
+                        .toList());
+            }
+        }
     }
 
     /**
@@ -574,8 +749,31 @@ public class JobOfferService {
         requireExists(workModeId, workModeRepository::existsById, "work mode");
     }
 
-    private void requireAllSkillsExist(List<JobOfferSkillRequest> skills) {
-        Set<UUID> requested = skills.stream()
+    /**
+     * Questions de présélection (D47) : le type est parsé (5 valeurs API —
+     * inconnu → 400 référence), et la cohérence type/options est vérifiée
+     * (la base ne lit pas question_type) : une question à choix exige au
+     * moins une option, les autres types n'en admettent aucune.
+     */
+    private void validateQuestions(List<JobOfferQuestionRequest> questions) {
+        for (JobOfferQuestionRequest question : questions) {
+            QuestionType type;
+            try {
+                type = QuestionType.fromApiValue(question.type());
+            } catch (IllegalArgumentException ex) {
+                throw new JobOfferReferenceNotFoundException("question type", question.type());
+            }
+            boolean hasOptions = !question.options().isEmpty();
+            if (type.isChoice() && !hasOptions) {
+                throw new InvalidJobOfferException("Choice questions must have at least one option.");
+            }
+            if (!type.isChoice() && hasOptions) {
+                throw new InvalidJobOfferException("Options are only allowed on choice questions.");
+            }
+        }
+    }
+
+    private void requireAllSkillsExist(List<JobOfferSkillRequest> skills) {        Set<UUID> requested = skills.stream()
                 .map(JobOfferSkillRequest::skillId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         requireAllExist(requested, skillRepository::countByIdIn, skillRepository::existsById, "skill");
@@ -644,6 +842,7 @@ public class JobOfferService {
                         offer.getCity(),
                         offer.getCountry(),
                         offer.getContractTypeId(),
+                        offer.getEmploymentTypeId(),
                         offer.getWorkModeId(),
                         offer.getExpiresAt(),
                         offer.getSalaryMin(),
@@ -661,7 +860,8 @@ public class JobOfferService {
                                 && offer.getCountry() != null
                                 && offer.getEmploymentTypeId() != null
                                 && withSkills.contains(offer.getId()),
-                        offer.getCreatedAt()))
+                        offer.getCreatedAt(),
+                        offer.getUpdatedAt()))
                 .toList();
     }
 
@@ -678,6 +878,11 @@ public class JobOfferService {
         List<JobOfferLanguage> languages = jobOfferLanguageRepository.findByJobOfferIdIn(offerIds);
         List<JobOfferDegree> degrees = jobOfferDegreeRepository.findByJobOfferIdIn(offerIds);
         List<JobOfferStudyField> studyFields = jobOfferStudyFieldRepository.findByJobOfferIdIn(offerIds);
+        List<JobOfferQuestion> questions = jobOfferQuestionRepository
+                .findByJobOfferIdInOrderBySortOrderAscIdAsc(offerIds);
+        List<JobOfferQuestionOption> questionOptions = questions.isEmpty() ? List.of()
+                : jobOfferQuestionOptionRepository.findByQuestionIdInOrderBySortOrderAscIdAsc(
+                        questions.stream().map(JobOfferQuestion::getId).toList());
 
         Map<UUID, Skill> skillMap = loadSkills(skills);
         Map<UUID, Language> languageMap = loadLanguages(languages);
@@ -686,6 +891,9 @@ public class JobOfferService {
         Map<UUID, List<JobOfferLanguage>> languagesByOffer = groupBy(languages, JobOfferLanguage::getJobOfferId);
         Map<UUID, List<JobOfferDegree>> degreesByOffer = groupBy(degrees, JobOfferDegree::getJobOfferId);
         Map<UUID, List<JobOfferStudyField>> studyFieldsByOffer = groupBy(studyFields, JobOfferStudyField::getJobOfferId);
+        Map<UUID, List<JobOfferQuestion>> questionsByOffer = groupBy(questions, JobOfferQuestion::getJobOfferId);
+        Map<UUID, List<JobOfferQuestionOption>> optionsByQuestion = groupBy(questionOptions,
+                JobOfferQuestionOption::getQuestionId);
         Map<UUID, NormalizationJobStatus> latestStatuses = latestJobStatuses(offerIds);
 
         return offers.stream()
@@ -743,6 +951,21 @@ public class JobOfferService {
                                 .toList(),
                         studyFieldsByOffer.getOrDefault(offer.getId(), List.of()).stream()
                                 .map(JobOfferStudyField::getStudyFieldId)
+                                .toList(),
+                        questionsByOffer.getOrDefault(offer.getId(), List.of()).stream()
+                                .map(question -> new JobOfferQuestionView(
+                                        question.getId(),
+                                        question.getLabel(),
+                                        question.getQuestionType().getApiValue(),
+                                        Boolean.TRUE.equals(question.getIsRequired()),
+                                        question.getSortOrder(),
+                                        optionsByQuestion.getOrDefault(question.getId(), List.of()).stream()
+                                                .map(option -> new JobOfferQuestionOptionView(
+                                                        option.getId(),
+                                                        option.getLabel(),
+                                                        option.getSortOrder(),
+                                                        Boolean.TRUE.equals(option.getPreferred())))
+                                                .toList()))
                                 .toList(),
                         offer.getCreatedAt(),
                         offer.getUpdatedAt()))
