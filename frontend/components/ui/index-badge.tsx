@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
-export type IndexBadgeTone = "primary" | "secondary";
+type IndexBadgeTone = "primary" | "secondary";
 
 /** Le tone ne colorie que le chiffre — le gabarit (fond blanc, bordure) est commun. */
 const toneClasses: Record<IndexBadgeTone, string> = {

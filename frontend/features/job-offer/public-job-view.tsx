@@ -1,51 +1,25 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-
 import { NavPill } from "@/components/ui/nav-pill";
-import { Spinner } from "@/components/ui/spinner";
 import { CopyPublicLinkButton } from "@/features/job-offer/copy-public-link-button";
 import { PublicJobArticle } from "@/features/job-offer/public-job-article";
+import { PublicJobLoading, PublicJobNotFound } from "@/features/job-offer/public-job-states";
 import {
   parsePublicId,
   salaryLabel,
   toPublicJobArticleModel,
 } from "@/features/job-offer/job-offer-shared";
-import { getPublicJob } from "@/lib/api/public-jobs.api";
-import { queryKeys } from "@/hooks/query-keys";
-import { useRelatedPublicJobs } from "@/hooks/use-public-jobs";
-
-function NotFound() {
-  return (
-    <div className="mx-auto w-full max-w-3xl py-16 text-center">
-      <h1 className="font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
-        Job not found
-      </h1>
-      <p className="mt-3 text-body-md font-body-md text-text-secondary">
-        This job offer does not exist, is no longer published, or has expired.
-      </p>
-    </div>
-  );
-}
+import { usePublicJob, useRelatedPublicJobs } from "@/hooks/use-public-jobs";
 
 function PublicJobDetail({ publicId, jobParam }: { publicId: string; jobParam: string }) {
-  const job = useQuery({
-    queryKey: queryKeys.publicJobs.detail(publicId),
-    queryFn: () => getPublicJob(publicId),
-    retry: false,
-  });
+  const job = usePublicJob(publicId);
   const related = useRelatedPublicJobs(publicId, { enabled: job.data != null });
 
   if (job.isLoading) {
-    return (
-      <div className="mx-auto flex w-full max-w-3xl items-center gap-2 py-16 text-body-sm font-body-sm text-text-secondary">
-        <Spinner />
-        Loading…
-      </div>
-    );
+    return <PublicJobLoading />;
   }
   if (job.isError || !job.data) {
-    return <NotFound />;
+    return <PublicJobNotFound />;
   }
 
   const relatedJobs = (related.data ?? []).map((item) => ({
@@ -84,7 +58,7 @@ function PublicJobDetail({ publicId, jobParam }: { publicId: string; jobParam: s
 export function PublicJobView({ jobParam }: { jobParam: string }) {
   const publicId = parsePublicId(jobParam);
   if (publicId == null) {
-    return <NotFound />;
+    return <PublicJobNotFound />;
   }
   return <PublicJobDetail publicId={publicId} jobParam={jobParam} />;
 }

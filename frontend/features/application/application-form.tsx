@@ -12,18 +12,18 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { TextField } from "@/components/ui/text-field";
 import {
-  APPLICATION_MUTED,
-  APPLICATION_SECTION,
-  APPLICATION_SECTION_HEADER,
-  APPLICATION_SECTION_TITLE,
-} from "@/features/application/application-shared";
-import {
   buildAnswerRequests,
   emptyAnswerDrafts,
   invalidAnswerNumbers,
   unansweredRequired,
   type AnswerDraft,
 } from "@/features/application/answer-drafts";
+import {
+  MUTED_TEXT_CLASS,
+  SECTION_CARD_CLASS,
+  SECTION_HEADER_CLASS,
+  SECTION_TITLE_CLASS,
+} from "@/components/ui/section";
 import { useCandidateCvs } from "@/hooks/use-candidate-cvs";
 import { useSubmitApplication } from "@/hooks/use-applications";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
@@ -179,12 +179,12 @@ export function ApplicationForm({ context }: { context: ApplicationContext }) {
   return (
     <form className="flex flex-col gap-6" noValidate onSubmit={handleSubmit}>
       {context.questions.length > 0 ? (
-        <section className={APPLICATION_SECTION}>
-          <header className={APPLICATION_SECTION_HEADER}>
-            <h2 className={APPLICATION_SECTION_TITLE}>Screening questions</h2>
+        <section className={SECTION_CARD_CLASS}>
+          <header className={SECTION_HEADER_CLASS}>
+            <h2 className={SECTION_TITLE_CLASS}>Screening questions</h2>
           </header>
           <div className="px-6 pt-5 pb-6 flex flex-col gap-5">
-            <p className={APPLICATION_MUTED}>Questions marked with * are required.</p>
+            <p className={MUTED_TEXT_CLASS}>Questions marked with * are required.</p>
             {context.questions.map((question) => (
               <QuestionField
                 key={question.id}
@@ -199,9 +199,9 @@ export function ApplicationForm({ context }: { context: ApplicationContext }) {
         </section>
       ) : null}
 
-      <section className={APPLICATION_SECTION}>
-        <header className={APPLICATION_SECTION_HEADER}>
-          <h2 className={APPLICATION_SECTION_TITLE}>Application</h2>
+      <section className={SECTION_CARD_CLASS}>
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Application</h2>
         </header>
         <div className="px-6 pt-5 pb-6 flex flex-col items-start gap-4">
           {cvsLoading ? (

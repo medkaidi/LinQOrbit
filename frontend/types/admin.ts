@@ -1,5 +1,9 @@
 import type { PublicJob } from "@/types/public-job";
-import type { SalaryPeriodValue, SeniorityValue } from "@/types/recruiter";
+import type {
+  JobOfferStatusValue,
+  SalaryPeriodValue,
+  SeniorityValue,
+} from "@/types/recruiter";
 import type { NormalizedCandidateProfile, NormalizedJobOffer } from "@/types/normalized";
 
 /** Compte tel qu'exposé par l'administration (GET /api/v1/admin/users). */
@@ -45,7 +49,7 @@ export type AdminUserDetail = AdminUser & {
 };
 
 /** Statut du job de normalisation (minuscules, miroir backend). */
-export type NormalizationJobStatus = "pending" | "running" | "done" | "failed" | "superseded";
+type NormalizationJobStatus = "pending" | "running" | "done" | "failed" | "superseded";
 
 /** Enveloppe d'une fiche normalisée (candidat v2 ou offre v1). */
 export type AdminNormalizedProfile<T> = {
@@ -62,8 +66,8 @@ export type AdminCandidateNormalizedProfile = AdminNormalizedProfile<NormalizedC
 
 export type AdminOfferNormalizedProfile = AdminNormalizedProfile<NormalizedJobOffer>;
 
-/** Statut de vie d'une offre (valeurs API backend). */
-export type AdminJobOfferStatus = "draft" | "validated" | "published" | "closed";
+/** Statut de vie d'une offre (valeurs API backend) — même union que la carte recruteur (TD-042). */
+export type AdminJobOfferStatus = JobOfferStatusValue;
 
 /** Ligne de la liste globale des offres (GET /api/v1/admin/job-offers) — mêmes signaux que la carte recruteur. */
 export type AdminJobOfferListItem = {

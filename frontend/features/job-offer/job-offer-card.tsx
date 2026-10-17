@@ -3,8 +3,11 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
+import { LINK_ACCENT_CLASS } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
+import { StatusPill, type StatusPillTone } from "@/components/ui/status-pill";
+import { META_CHIP_CLASS, META_CHIP_URGENT_CLASS } from "@/components/ui/pill";
 import {
   companyInitials,
   expiryCountdown,
@@ -23,13 +26,11 @@ import type {
 
 const OFFER_ROW_CARD = "bg-canvas-white rounded-2xl border border-slate-border p-4 shadow-sm";
 
-const META_CHIP =
-  "inline-flex items-center gap-1 rounded-full border border-slate-border bg-item-surface/50 px-2.5 py-1 font-body-sm text-body-sm text-text-secondary";
 const META_CHIP_ICON = "text-[14px] text-text-tertiary";
 export const OFFER_SALARY_CHIP =
   "inline-flex items-center gap-1 rounded-full bg-orange-subtle px-2.5 py-1 font-body-sm text-body-sm font-semibold text-orange-deep";
 
-const STATUS_PILL_TONES: Record<JobOfferStatusValue, { pill: string; dot: string }> = {
+const STATUS_PILL_TONES: Record<JobOfferStatusValue, StatusPillTone> = {
   draft: { pill: "bg-canvas-subtle text-text-secondary", dot: "bg-text-tertiary" },
   validated: { pill: "bg-orange-subtle text-orange-deep", dot: "bg-orange-vibrant" },
   published: { pill: "bg-success-surface text-success-text", dot: "bg-tertiary" },
@@ -47,28 +48,32 @@ const TILE_TONES: Record<JobOfferStatusValue, string> = {
 
 /** Pastille de statut à point coloré — partagée carte / détail admin (source unique). */
 export function OfferStatusPill({ status }: { status: JobOfferStatusValue }) {
-  const tone = STATUS_PILL_TONES[status];
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-caps text-label-caps normal-case tracking-normal font-bold shrink-0 ${tone.pill}`}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${tone.dot}`} />
-      {STATUS_LABELS[status]}
-    </span>
-  );
+  return <StatusPill tone={STATUS_PILL_TONES[status]}>{STATUS_LABELS[status]}</StatusPill>;
 }
 
-/** Chip méta d'une carte d'offre (icône + libellé) — langage visuel partagé carte recruteur / job board. */
-export function MetaChip({ icon, children }: { icon: string; children: ReactNode }) {
+/**
+ * Chip méta d'une carte d'offre (icône + libellé) — langage visuel partagé
+ * carte recruteur / fiche publique. `urgent` = échéance proche : surface
+ * orange, l'icône hérite de la couleur du texte.
+ */
+export function MetaChip({
+  icon,
+  urgent = false,
+  children,
+}: {
+  icon: string;
+  urgent?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <span className={META_CHIP}>
-      <Icon name={icon} className={META_CHIP_ICON} />
+    <span className={urgent ? META_CHIP_URGENT_CLASS : META_CHIP_CLASS}>
+      <Icon name={icon} className={urgent ? "text-[14px]" : META_CHIP_ICON} />
       {children}
     </span>
   );
 }
 
-export type JobOfferCardProps = {
+type JobOfferCardProps = {
   status: JobOfferStatusValue;
   title: string;
   /** Titre-lien vers le détail (console admin) — sans href, titre nu (vue recruteur). */
@@ -227,10 +232,7 @@ export function JobOfferCard({
           </div>
           <h3 className="font-headline-sm text-headline-sm text-text-primary group-hover/offer:text-orange-deep transition-colors truncate">
             {titleHref ? (
-              <Link
-                href={titleHref}
-                className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-              >
+              <Link href={titleHref} className={LINK_ACCENT_CLASS}>
                 {title}
               </Link>
             ) : (

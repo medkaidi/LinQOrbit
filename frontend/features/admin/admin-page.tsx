@@ -3,14 +3,29 @@
 import { useState } from "react";
 import Link from "next/link";
 
+import {
+  Breadcrumb,
+  BreadcrumbCurrent,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  LINK_ACCENT_CLASS,
+  PageHeader,
+} from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { InfiniteList } from "@/components/ui/infinite-list";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
 import { Spinner } from "@/components/ui/spinner";
+import { StatusPill, type StatusPillTone } from "@/components/ui/status-pill";
 import { TextField } from "@/components/ui/text-field";
+import {
+  ITEM_CARD_CLASS,
+  MUTED_TEXT_CLASS,
+  SECTION_HEADER_CLASS,
+  SECTION_TITLE_CLASS,
+} from "@/components/ui/section";
+import { AccountBadges } from "@/features/admin/account-badges";
 import { RetryButton } from "@/features/admin/retry-button";
 import { SuggestionReviewDialog } from "@/features/admin/suggestion-review-dialog";
 import {
@@ -21,16 +36,8 @@ import {
 } from "@/hooks/use-admin";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useAuthStore } from "@/stores/auth-store";
-import { ROLE } from "@/lib/utils/roles";
 import type { AdminSkillSuggestion, AdminUser } from "@/types/admin";
 
-const SECTION_HEADER =
-  "mx-6 pt-4 pb-4 flex items-start justify-between gap-4 border-b border-slate-border";
-const SECTION_TITLE =
-  "font-headline-md text-headline-md text-text-primary font-bold tracking-tight min-w-0";
-const ITEM_CARD =
-  "rounded-2xl border border-slate-border bg-item-surface/50 p-4";
-const MUTED = "text-body-sm font-body-sm text-text-secondary";
 
 type StatusFilter = "all" | "active" | "inactive";
 type CapabilityFilter = "all" | "candidate" | "recruiter";
@@ -49,44 +56,24 @@ const CAPABILITY_FILTER_OPTIONS: SegmentedOption<CapabilityFilter>[] = [
 
 function Header() {
   return (
-    <div className="pb-6 border-b border-slate-border">
-      <nav
-        aria-label="Breadcrumb"
-        className="flex flex-wrap items-center gap-2 text-body-sm font-body-sm text-text-secondary"
-      >
-        <Link
-          href="/dashboard"
-          className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-        >
-          Dashboard
-        </Link>
-        <span aria-hidden="true" className="text-text-tertiary">
-          /
-        </span>
-        <span className="text-text-primary font-semibold">Administration</span>
-      </nav>
-      <h1 className="mt-1 font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
-        Administration
-      </h1>
-    </div>
+    <PageHeader
+      breadcrumb={
+        <Breadcrumb>
+          <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+          <BreadcrumbSeparator />
+          <BreadcrumbCurrent>Administration</BreadcrumbCurrent>
+        </Breadcrumb>
+      }
+      title="Administration"
+    />
   );
 }
 
-/** Pastille de statut à point coloré (même motif que les cartes offre). */
-function StatusPill({ active }: { active: boolean }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-caps text-label-caps normal-case tracking-normal font-bold shrink-0 ${
-        active ? "bg-success-surface text-success-text" : "bg-slate-surface text-text-secondary"
-      }`}
-    >
-      <span
-        className={`w-1.5 h-1.5 rounded-full ${active ? "bg-tertiary" : "bg-slate-border"}`}
-      />
-      {active ? "Active" : "Inactive"}
-    </span>
-  );
-}
+/** Tons de la pastille de statut de compte (actif/inactif) — gabarit `StatusPill` partagé. */
+const ACCOUNT_STATUS_TONES: Record<"active" | "inactive", StatusPillTone> = {
+  active: { pill: "bg-success-surface text-success-text", dot: "bg-tertiary" },
+  inactive: { pill: "bg-slate-surface text-text-secondary", dot: "bg-slate-border" },
+};
 
 function AccountRow({
   account,
@@ -108,7 +95,7 @@ function AccountRow({
       .join("") || "?";
   return (
     <li
-      className={`${ITEM_CARD} flex flex-wrap items-center justify-between gap-4`}
+      className={`${ITEM_CARD_CLASS} flex flex-wrap items-center justify-between gap-4`}
     >
       <div className="flex items-center gap-4 min-w-0">
         <div
@@ -122,28 +109,22 @@ function AccountRow({
             <h3 className="font-headline-sm text-headline-sm text-text-primary truncate">
               <Link
                 href={`/admin/users/${account.id}`}
-                className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+                className={LINK_ACCENT_CLASS}
               >
                 {fullName}
               </Link>
             </h3>
-            <StatusPill active={active} />
-            {account.roles.includes(ROLE.ADMIN) && (
-              <Badge tone="neutral">Admin</Badge>
-            )}
-            {account.hasCandidateProfile && (
-              <Badge tone="neutral">Candidate</Badge>
-            )}
-            {account.hasRecruiterProfile && (
-              <Badge tone="neutral">Recruiter</Badge>
-            )}
+            <StatusPill tone={ACCOUNT_STATUS_TONES[active ? "active" : "inactive"]}>
+              {active ? "Active" : "Inactive"}
+            </StatusPill>
+            <AccountBadges account={account} />
           </div>
-          <p className={`${MUTED} truncate`}>{account.email}</p>
+          <p className={`${MUTED_TEXT_CLASS} truncate`}>{account.email}</p>
         </div>
       </div>
       <div className="flex items-center gap-3 shrink-0">
         {isCurrentUser ? (
-          <span className={MUTED}>Your account</span>
+          <span className={MUTED_TEXT_CLASS}>Your account</span>
         ) : (
           <Button
             variant="outline-sm"
@@ -184,10 +165,10 @@ function AccountsSection() {
 
   return (
     <section className="bg-canvas-white rounded-2xl shadow-sm">
-      <header className={SECTION_HEADER}>
-        <h2 className={SECTION_TITLE}>Accounts</h2>
+      <header className={SECTION_HEADER_CLASS}>
+        <h2 className={SECTION_TITLE_CLASS}>Accounts</h2>
         {users.data && (
-          <span className={`${MUTED} shrink-0`}>{total} accounts</span>
+          <span className={`${MUTED_TEXT_CLASS} shrink-0`}>{total} accounts</span>
         )}
       </header>
       <div className="px-6 pt-5 pb-6 flex flex-col gap-3">
@@ -251,7 +232,7 @@ function AccountsSection() {
           fetchNextPage={() => void users.fetchNextPage()}
           loading={users.isLoading}
           empty={
-            <p className={MUTED}>
+            <p className={MUTED_TEXT_CLASS}>
               {filtered ? "No accounts match these filters." : "No accounts."}
             </p>
           }
@@ -269,10 +250,10 @@ function SuggestionsSection() {
 
   return (
     <section className="bg-canvas-white rounded-2xl shadow-sm">
-      <header className={SECTION_HEADER}>
-        <h2 className={SECTION_TITLE}>Skill suggestions</h2>
+      <header className={SECTION_HEADER_CLASS}>
+        <h2 className={SECTION_TITLE_CLASS}>Skill suggestions</h2>
         {data && (
-          <span className={`${MUTED} shrink-0`}>{data.length} pending</span>
+          <span className={`${MUTED_TEXT_CLASS} shrink-0`}>{data.length} pending</span>
         )}
       </header>
       <div className="px-6 pt-5 pb-6 flex flex-col gap-3">
@@ -285,14 +266,14 @@ function SuggestionsSection() {
             />
           </Alert>
         )}
-        {isLoading && <p className={MUTED}>Loading suggestions…</p>}
+        {isLoading && <p className={MUTED_TEXT_CLASS}>Loading suggestions…</p>}
         {isError && (
           <Alert variant="error" title="Unable to load suggestions">
             <RetryButton onRetry={() => void refetch()} label="Try again" />
           </Alert>
         )}
         {data && data.length === 0 && (
-          <p className={MUTED}>
+          <p className={MUTED_TEXT_CLASS}>
             No suggestions yet — proposed skills appear here for review.
           </p>
         )}
@@ -306,13 +287,13 @@ function SuggestionsSection() {
           return (
             <li
               key={suggestion.id}
-              className={`${ITEM_CARD} flex flex-wrap items-center justify-between gap-4`}
+              className={`${ITEM_CARD_CLASS} flex flex-wrap items-center justify-between gap-4`}
             >
               <div className="min-w-0">
                 <p className="text-body-md font-body-md text-text-primary font-semibold truncate">
                   {suggestion.name}
                 </p>
-                <p className={`${MUTED} truncate`}>
+                <p className={`${MUTED_TEXT_CLASS} truncate`}>
                   by {author || "Unknown candidate"}
                   {suggestion.candidateEmail
                     ? ` · ${suggestion.candidateEmail}`
@@ -320,7 +301,7 @@ function SuggestionsSection() {
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <span className={`${MUTED}`}>
+                <span className={`${MUTED_TEXT_CLASS}`}>
                   {suggestion.createdAt.slice(0, 10)}
                 </span>
                 <Button

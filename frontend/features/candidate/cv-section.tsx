@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Icon } from "@/components/ui/icon";
 import { UploadButton } from "@/components/ui/upload-button";
+import { ITEM_CARD_CLASS } from "@/components/ui/section";
 import {
-  ITEM_CLASSES,
   RemoveButton,
   SECTION_ICONS,
   ViewSection,
@@ -80,7 +80,7 @@ export function CvSection() {
             {attachments.map((attachment) => (
               <li
                 key={attachment.id}
-                className={cn(ITEM_CLASSES, "flex flex-wrap items-center gap-x-4 gap-y-3")}
+                className={cn(ITEM_CARD_CLASS, "flex flex-wrap items-center gap-x-4 gap-y-3")}
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <Icon

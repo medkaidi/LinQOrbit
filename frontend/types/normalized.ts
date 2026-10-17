@@ -23,7 +23,7 @@ export type SkillCategory =
   | "regulatory_knowledge"
   | "other";
 
-export type ProjectContext =
+type ProjectContext =
   | "personal"
   | "academic"
   | "open_source"
@@ -31,13 +31,13 @@ export type ProjectContext =
   | "volunteer"
   | "other";
 
-export type SkillOrigin = "declared" | "inferred";
+type SkillOrigin = "declared" | "inferred";
 
-export type LevelSource = "declared" | "inferred";
+type LevelSource = "declared" | "inferred";
 
-export type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
+type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
-export type OfferContractType =
+type OfferContractType =
   | "permanent"
   | "fixed_term"
   | "freelance"
@@ -45,26 +45,26 @@ export type OfferContractType =
   | "apprenticeship"
   | "volunteer";
 
-export type WorkTime = "full_time" | "part_time";
+type WorkTime = "full_time" | "part_time";
 
-export type WorkMode = "remote" | "hybrid" | "on_site";
+type WorkMode = "remote" | "hybrid" | "on_site";
 
-export type ResponsibilityImportance = "mandatory" | "optional";
+type ResponsibilityImportance = "mandatory" | "optional";
 
 /** Localisation pass-through (compte ou offre), jamais inventée. */
-export type NormalizedLocation = {
+type NormalizedLocation = {
   city?: string | null;
   country?: string | null;
 };
 
 /** Index capacités (candidat v3) : preuve pointer sur une section de la même fiche. */
-export type SkillEvidence = {
+type SkillEvidence = {
   source?: "bio" | "experience" | "project" | "diploma" | "certification";
   /** Index 0-based dans le tableau de sortie de cette section — jamais un id ; null pour bio. */
   index?: number | null;
 };
 
-export type NormalizedSkill = {
+type NormalizedSkill = {
   name?: string;
   category?: SkillCategory;
   /** Niveau 1–5, null quand non déclaré ni fortement inféré. */
@@ -115,14 +115,14 @@ export type NormalizedDiploma = {
   evidence?: SkillEvidence[];
 };
 
-export type NormalizedLanguage = {
+type NormalizedLanguage = {
   name?: string;
   level?: CefrLevel | null;
   origin?: SkillOrigin;
   evidence?: SkillEvidence[];
 };
 
-export type NormalizedCertification = {
+type NormalizedCertification = {
   name?: string;
   issuer?: string | null;
   issuedAt?: string | null;
@@ -131,7 +131,7 @@ export type NormalizedCertification = {
   evidence?: SkillEvidence[];
 };
 
-export type NormalizedLink = {
+type NormalizedLink = {
   label?: string;
   url?: string;
 };
@@ -156,7 +156,7 @@ export type NormalizedCandidateProfile = {
 };
 
 /** Offre v2 : preuve pointer sur les responsibilities de la même fiche. */
-export type OfferSkillEvidence = {
+type OfferSkillEvidence = {
   source?: "responsibility";
   index?: number;
 };
@@ -174,7 +174,7 @@ export type OfferSkillRequirement = {
   evidence?: OfferSkillEvidence[];
 };
 
-export type OfferLanguageRequirement = {
+type OfferLanguageRequirement = {
   name?: string;
   level?: CefrLevel | null;
   required?: boolean;
@@ -197,7 +197,7 @@ export type OfferRequirementEntry = {
 };
 
 /** Certification nommée explicitement par l'offre (jamais inventée). */
-export type OfferCertification = {
+type OfferCertification = {
   name?: string;
   issuer?: string | null;
   issuedAt?: string | null;

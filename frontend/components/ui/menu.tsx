@@ -4,7 +4,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils/cn";
 
-export type MenuItemTone = "default" | "danger";
+type MenuItemTone = "default" | "danger";
 
 const itemToneClasses: Record<MenuItemTone, string> = {
   default: "text-text-primary",

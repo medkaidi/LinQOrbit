@@ -114,7 +114,7 @@ export type LabelReference = {
 };
 
 /** Résultat de l'analyse d'un CV (POST …/me/profile/cv) : aperçu, rien d'enregistré. */
-export type ParsedCvExperience = {
+type ParsedCvExperience = {
   positionTitle: string;
   companyName: string;
   companyCountry: string | null;
@@ -123,7 +123,7 @@ export type ParsedCvExperience = {
   description: string | null;
 };
 
-export type ParsedCvDiploma = {
+type ParsedCvDiploma = {
   title: string;
   institution: string;
   institutionCountry: string | null;
@@ -133,18 +133,18 @@ export type ParsedCvDiploma = {
   endDate: string | null;
 };
 
-export type ParsedCvSkill = {
+type ParsedCvSkill = {
   name: string;
   level: number | null;
   yearsExperience: number | null;
 };
 
-export type ParsedCvLanguage = {
+type ParsedCvLanguage = {
   name: string;
   level: string | null;
 };
 
-export type ParsedCvLink = {
+type ParsedCvLink = {
   label: string;
   url: string;
 };

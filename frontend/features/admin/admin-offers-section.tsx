@@ -1,8 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 
+import {
+  Breadcrumb,
+  BreadcrumbCurrent,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  PageHeader,
+} from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
 import { ButtonLink } from "@/components/ui/button";
 import { InfiniteList } from "@/components/ui/infinite-list";
@@ -93,26 +99,16 @@ export function AdminOffersSection() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="pb-6 border-b border-slate-border">
-        <nav
-          aria-label="Breadcrumb"
-          className="flex flex-wrap items-center gap-2 text-body-sm font-body-sm text-text-secondary"
-        >
-          <Link
-            href="/admin"
-            className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-          >
-            Administration
-          </Link>
-          <span aria-hidden="true" className="text-text-tertiary">
-            /
-          </span>
-          <span className="text-text-primary font-semibold">Job offers</span>
-        </nav>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight min-w-0">
-            Job offers
-          </h1>
+      <PageHeader
+        breadcrumb={
+          <Breadcrumb>
+            <BreadcrumbLink href="/admin">Administration</BreadcrumbLink>
+            <BreadcrumbSeparator />
+            <BreadcrumbCurrent>Job offers</BreadcrumbCurrent>
+          </Breadcrumb>
+        }
+        title="Job offers"
+        action={
           <div className="flex flex-wrap items-center gap-3">
             {offers.data && (
               <span className={`${MUTED} shrink-0`}>
@@ -126,8 +122,8 @@ export function AdminOffersSection() {
               onChange={setFilter}
             />
           </div>
-        </div>
-      </div>
+        }
+      />
       <section className="bg-canvas-white rounded-2xl shadow-sm">
         <div className="px-6 pt-5 pb-6 flex flex-col gap-3">
           {offers.isError && (

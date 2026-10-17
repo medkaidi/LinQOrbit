@@ -4,7 +4,7 @@ import { useRef } from "react";
 
 import { CtaButton, type CtaTone } from "@/components/ui/button";
 
-export type UploadButtonProps = {
+type UploadButtonProps = {
   /** Libellé au repos (« Upload CV »). */
   label: string;
   /** Libellé pendant l'opération (« Analyzing… ») — sans lui le libellé reste affiché sous le spinner. */

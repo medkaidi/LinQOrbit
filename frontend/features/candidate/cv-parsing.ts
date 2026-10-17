@@ -23,7 +23,7 @@ export type CvImportRefs = {
 };
 
 /** Une ligne du CV qui ne peut pas être importée, avec le motif affiché. */
-export type CvImportSkip = {
+type CvImportSkip = {
   label: string;
   reason: string;
 };

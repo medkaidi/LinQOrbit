@@ -7,56 +7,11 @@ import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/brand/logo";
 import { Wordmark } from "@/components/brand/wordmark";
+import { SidebarLink } from "@/components/layout/sidebar-link";
 import { UserMenu } from "@/components/navigation/user-menu";
 import { Icon } from "@/components/ui/icon";
 import { useAdminSidebarStore } from "@/stores/admin-sidebar-store";
 import { cn } from "@/lib/utils/cn";
-
-type SidebarLinkProps = {
-  href: string;
-  icon: string;
-  label: string;
-  active: boolean;
-  collapsed: boolean;
-};
-
-const SIDEBAR_ITEM_CLASS =
-  "flex items-center gap-2.5 py-2 rounded-full border group transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep";
-const SIDEBAR_ITEM_ACTIVE_CLASS = `${SIDEBAR_ITEM_CLASS} bg-orange-subtle border-orange-border text-orange-deep`;
-const SIDEBAR_ITEM_IDLE_CLASS = `${SIDEBAR_ITEM_CLASS} border-transparent text-text-secondary hover:text-text-primary hover:bg-slate-surface`;
-const SIDEBAR_ICON_ACTIVE_CLASS =
-  "w-7 h-7 rounded-full bg-primary-container text-canvas-white flex items-center justify-center shrink-0";
-const SIDEBAR_ICON_IDLE_CLASS =
-  "w-7 h-7 rounded-full bg-slate-surface text-slate-muted flex items-center justify-center group-hover:bg-canvas-white group-hover:text-text-primary transition-colors shrink-0";
-const SIDEBAR_LABEL_CLASS = "text-xs font-semibold tracking-tight";
-
-function SidebarLink({ href, icon, label, active, collapsed }: SidebarLinkProps) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      aria-label={collapsed ? label : undefined}
-      title={collapsed ? label : undefined}
-      className={cn(
-        active ? SIDEBAR_ITEM_ACTIVE_CLASS : SIDEBAR_ITEM_IDLE_CLASS,
-        collapsed ? "justify-center px-0" : "px-3",
-      )}
-    >
-      <span className="flex items-center gap-2.5">
-        <span className={active ? SIDEBAR_ICON_ACTIVE_CLASS : SIDEBAR_ICON_IDLE_CLASS}>
-          <Icon name={icon} className="text-[16px]!" />
-        </span>
-        {!collapsed && (
-          <span
-            className={active ? `${SIDEBAR_LABEL_CLASS} text-orange-deep` : SIDEBAR_LABEL_CLASS}
-          >
-            {label}
-          </span>
-        )}
-      </span>
-    </Link>
-  );
-}
 
 /**
  * Chrome admin (D33) : rubriques Accounts & suggestions + Offers, retour au
@@ -108,7 +63,7 @@ export function AdminSidebar() {
               collapsed ? "absolute -right-1.5 top-1/2 -translate-y-1/2 w-6 h-6" : "ml-auto w-7 h-7",
             )}
           >
-            <Icon name={collapsed ? "chevron_right" : "chevron_left"} className="text-[16px]!" />
+            <Icon name={collapsed ? "chevron_right" : "chevron_left"} className="text-[16px]" />
           </button>
         </div>
 

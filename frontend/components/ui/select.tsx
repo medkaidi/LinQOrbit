@@ -24,7 +24,7 @@ export function filterOptions(options: SelectOption[], query: string): SelectOpt
   return options.filter((option) => option.label.toLowerCase().includes(needle));
 }
 
-export type SelectProps = {
+type SelectProps = {
   label: string;
   options: SelectOption[];
   placeholder?: string;

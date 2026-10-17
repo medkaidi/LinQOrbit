@@ -2,7 +2,7 @@ import { useState } from "react";
 import { TextField, type TextFieldProps } from "@/components/ui/text-field";
 import { Icon } from "@/components/ui/icon";
 
-export type PasswordFieldProps = Omit<TextFieldProps, "type" | "trailing">;
+type PasswordFieldProps = Omit<TextFieldProps, "type" | "trailing">;
 
 export function PasswordField({
   label,

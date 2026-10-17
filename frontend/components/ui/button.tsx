@@ -5,7 +5,7 @@ import { Icon } from "@/components/ui/icon";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils/cn";
 
-export type ButtonVariant =
+type ButtonVariant =
   | "primary"
   | "outline"
   | "outline-sm"
@@ -15,7 +15,7 @@ export type ButtonVariant =
   | "cta"
   | "menu";
 
-export type ButtonProps = ComponentPropsWithRef<"button"> & {
+type ButtonProps = ComponentPropsWithRef<"button"> & {
   variant?: ButtonVariant;
   /**
    * Opération en cours (mutation, envoi…) : le bouton affiche le Spinner
@@ -94,7 +94,7 @@ export function Button({
   );
 }
 
-export type ButtonLinkProps = ComponentPropsWithRef<typeof Link> & {
+type ButtonLinkProps = ComponentPropsWithRef<typeof Link> & {
   /** Variante visuelle — mêmes classes que `Button` (défaut `primary`). */
   variant?: ButtonVariant;
 };
@@ -117,7 +117,7 @@ export function ButtonLink({
   );
 }
 
-export type CtaButtonProps = ButtonProps & {
+type CtaButtonProps = ButtonProps & {
   /** Glyphe Material Symbols du badge circulaire. */
   icon: string;
   /** Classes d'effet sur l'icône du badge (taille, teinte — jamais `animate-spin`, voir `busy`). */
@@ -169,7 +169,7 @@ export function CtaButton({
   );
 }
 
-export type CtaLinkProps = ComponentPropsWithRef<typeof Link> & {
+type CtaLinkProps = ComponentPropsWithRef<typeof Link> & {
   /** Glyphe Material Symbols du badge circulaire. */
   icon: string;
   /** Couleur de la pilule et du badge (défaut `primary` = orange). */

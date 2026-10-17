@@ -1,7 +1,7 @@
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils/cn";
 
-export type SpinnerProps = {
+type SpinnerProps = {
   /** Taille/couleur héritées du contexte (les utilitaires `text-*` priment). */
   className?: string;
 };

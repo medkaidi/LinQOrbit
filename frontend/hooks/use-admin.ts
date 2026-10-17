@@ -27,6 +27,7 @@ import {
 } from "@/lib/api/admin.api";
 import type { AdminJobOfferStatus, AdminUser, AdminUserFilters } from "@/types/admin";
 import { queryKeys } from "@/hooks/query-keys";
+import { nextPageParam } from "@/lib/utils/pagination";
 
 /**
  * Liste des comptes (D34) en infinite scroll, filtrable (T-48) : recherche
@@ -38,8 +39,7 @@ export function useInfiniteAdminUsers(filters: AdminUserFilters = {}) {
     queryKey: queryKeys.admin.usersPage(filters),
     queryFn: ({ pageParam, signal }) => listUsers({ ...filters, page: pageParam }, { signal }),
     initialPageParam: 0,
-    getNextPageParam: (lastPage) =>
-      lastPage.page * lastPage.size < lastPage.total ? lastPage.page + 1 : undefined,
+    getNextPageParam: nextPageParam,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
   });
@@ -98,8 +98,7 @@ export function useInfiniteAdminJobOffers(status: AdminJobOfferStatus | undefine
     queryFn: ({ pageParam, signal }) =>
       listAllJobOffers({ status, page: pageParam }, { signal }),
     initialPageParam: 0,
-    getNextPageParam: (lastPage) =>
-      lastPage.page * lastPage.size < lastPage.total ? lastPage.page + 1 : undefined,
+    getNextPageParam: nextPageParam,
     staleTime: 30_000,
   });
 }

@@ -1,3 +1,4 @@
+import { NEUTRAL_PILL_CLASS } from "@/components/ui/pill";
 import { publicJobMetaLine } from "@/features/job-offer/job-offer-shared";
 import { ViewSection } from "@/features/candidate/profile-shared";
 import type { PublicJob } from "@/types/public-job";
@@ -105,7 +106,7 @@ export function AdminOfferSourceView({ job }: { job: PublicJob }) {
               return (
                 <li
                   key={`${language.languageId}-${index}`}
-                  className="rounded-full border border-slate-border bg-item-surface/50 px-3 py-1 text-body-sm font-body-sm text-text-primary"
+                  className={NEUTRAL_PILL_CLASS}
                 >
                   {language.isRequired ? base : `${base} (nice-to-have)`}
                 </li>
@@ -126,7 +127,7 @@ export function AdminOfferSourceView({ job }: { job: PublicJob }) {
             {educationEntries.map(({ kind, label }) => (
               <li
                 key={`${kind}:${label}`}
-                className="rounded-full border border-slate-border bg-item-surface/50 px-3 py-1 text-body-sm font-body-sm text-text-primary"
+                className={NEUTRAL_PILL_CLASS}
               >
                 {`${kind}: ${label}`}
               </li>

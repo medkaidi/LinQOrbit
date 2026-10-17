@@ -1,7 +1,9 @@
 import { Badge } from "@/components/ui/badge";
+import { INLINE_PILL_CLASS, NEUTRAL_PILL_CLASS } from "@/components/ui/pill";
 import { OriginBadge } from "@/features/admin/normalized/normalized-origin-badge";
 import { SectionBlock } from "@/features/admin/normalized/normalized-section-block";
 import { NormalizedSheetRail } from "@/features/admin/normalized/normalized-sheet-rail";
+import { SkillsTable } from "@/features/admin/normalized/normalized-skills-table";
 import {
   SpecGrid,
   type SpecCell,
@@ -10,11 +12,9 @@ import {
   NORMALIZED_BLOCK_TITLE,
   NORMALIZED_ITEM_CARD,
   NORMALIZED_MUTED,
-  SENIORITY_LABELS,
-  categoryLabel,
-  evidenceLabel,
   offerSheetStats,
 } from "@/features/admin/normalized/normalized-shared";
+import { seniorityLabel } from "@/features/job-offer/job-offer-shared";
 import type {
   NormalizedJobOffer,
   NormalizedResponsibility,
@@ -107,7 +107,7 @@ function RequirementEntryItem({
 }) {
   return (
     <li className="flex flex-wrap items-center gap-2">
-      <span className="rounded-full border border-slate-border bg-item-surface/50 px-3 py-1 text-body-sm font-body-sm text-text-primary">
+      <span className={NEUTRAL_PILL_CLASS}>
         {kind}: {entry.label ?? "—"}
       </span>
       <OriginBadge origin={entry.source} />
@@ -115,7 +115,7 @@ function RequirementEntryItem({
   );
 }
 
-function SkillsTable({
+function SkillsRows({
   requiredSkills,
   preferredSkills,
 }: {
@@ -126,72 +126,35 @@ function SkillsTable({
     ...requiredSkills.map((skill) => ({ skill, requirement: "Required" as const })),
     ...preferredSkills.map((skill) => ({ skill, requirement: "Preferred" as const })),
   ];
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[680px] text-left border-collapse">
-        <thead>
-          <tr className="border-b border-slate-border">
-            {["Skill", "Requirement", "Weight", "Level", "Min years", "Evidence", "Origin"].map(
-              (column) => (
-                <th
-                  key={column}
-                  className="py-2.5 pr-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary"
-                >
-                  {column}
-                </th>
-              ),
-            )}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-border text-body-sm font-body-sm">
-          {rows.map(({ skill, requirement }, index) => {
-            const evidence = evidenceLabel(skill.evidence);
-            const category = categoryLabel(skill.category);
-            return (
-              <tr key={index} className="hover:bg-item-surface/50 transition-colors">
-                <td className="py-3 pr-3 min-w-36">
-                  <span className="block font-semibold text-text-primary">
-                    {skill.name ?? "Unnamed skill"}
-                  </span>
-                  {category && <span className="block text-text-secondary">{category}</span>}
-                </td>
-                <td className="py-3 pr-3">
-                  <span
-                    className={
-                      requirement === "Required"
-                        ? "font-label-caps text-label-caps uppercase tracking-wider text-orange-deep"
-                        : "font-label-caps text-label-caps uppercase tracking-wider text-text-secondary"
-                    }
-                  >
-                    {requirement}
-                  </span>
-                </td>
-                <td className="py-3 pr-3 font-mono text-text-primary">
-                  {skill.weight != null ? `${skill.weight}/5` : "—"}
-                </td>
-                <td className="py-3 pr-3 font-mono text-text-primary">
-                  {skill.level != null ? `${skill.level}/5` : "—"}
-                </td>
-                <td className="py-3 pr-3 font-mono text-text-primary">
-                  {skill.minYears != null
-                    ? `${skill.minYears}+ yrs${skill.minYearsSource === "inferred" ? " (inferred)" : ""}`
-                    : "—"}
-                </td>
-                <td className="py-3 pr-3 text-text-secondary">{evidence ?? "—"}</td>
-                <td className="py-3 pr-3">
-                  {skill.origin ? (
-                    <OriginBadge origin={skill.origin} />
-                  ) : (
-                    <span className="text-text-tertiary">—</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+  return rows.map(({ skill, requirement }) => ({
+    skill,
+    cells: (
+      <>
+        <td className="py-3 pr-3">
+          <span
+            className={
+              requirement === "Required"
+                ? "font-label-caps text-label-caps uppercase tracking-wider text-orange-deep"
+                : "font-label-caps text-label-caps uppercase tracking-wider text-text-secondary"
+            }
+          >
+            {requirement}
+          </span>
+        </td>
+        <td className="py-3 pr-3 font-mono text-text-primary">
+          {skill.weight != null ? `${skill.weight}/5` : "—"}
+        </td>
+        <td className="py-3 pr-3 font-mono text-text-primary">
+          {skill.level != null ? `${skill.level}/5` : "—"}
+        </td>
+        <td className="py-3 pr-3 font-mono text-text-primary">
+          {skill.minYears != null
+            ? `${skill.minYears}+ yrs${skill.minYearsSource === "inferred" ? " (inferred)" : ""}`
+            : "—"}
+        </td>
+      </>
+    ),
+  }));
 }
 
 /**
@@ -228,7 +191,7 @@ export function NormalizedOfferView({ offer }: { offer: NormalizedJobOffer }) {
     },
     {
       label: "Seniority",
-      value: offer.seniority ? SENIORITY_LABELS[offer.seniority] ?? offer.seniority : null,
+      value: offer.seniority ? seniorityLabel(offer.seniority) ?? offer.seniority : null,
     },
     {
       label: "Work mode",
@@ -307,8 +270,17 @@ export function NormalizedOfferView({ offer }: { offer: NormalizedJobOffer }) {
             meta={`${requiredSkills.length} required · ${preferredSkills.length} preferred`}
           >
             <SkillsTable
-              requiredSkills={requiredSkills}
-              preferredSkills={preferredSkills}
+              columns={[
+                "Skill",
+                "Requirement",
+                "Weight",
+                "Level",
+                "Min years",
+                "Evidence",
+                "Origin",
+              ]}
+              minWidthClass="min-w-[680px]"
+              rows={SkillsRows({ requiredSkills, preferredSkills })}
             />
           </SectionBlock>
         ) : null}
@@ -347,7 +319,7 @@ export function NormalizedOfferView({ offer }: { offer: NormalizedJobOffer }) {
                 <div>
                   <h4 className={NORMALIZED_BLOCK_TITLE}>Required experience</h4>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-slate-border bg-item-surface/50 px-3 py-1 text-body-sm font-body-sm text-text-primary">
+                    <span className={NEUTRAL_PILL_CLASS}>
                       {offer.requiredYears}+ yrs total
                     </span>
                     <OriginBadge origin={offer.requiredYearsSource} />
@@ -380,7 +352,7 @@ export function NormalizedOfferView({ offer }: { offer: NormalizedJobOffer }) {
               {languages.map((language, index) => (
                 <li
                   key={index}
-                  className="flex items-center gap-2 rounded-full border border-slate-border bg-item-surface/50 px-3 py-1 text-body-sm font-body-sm text-text-primary"
+                  className={INLINE_PILL_CLASS}
                 >
                   <span>
                     {language.name ?? "Language"}

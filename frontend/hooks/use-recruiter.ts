@@ -12,7 +12,7 @@ import type { UpdateRecruiterValues } from "@/lib/validations/recruiter.schemas"
 import type { RecruiterProfile } from "@/types/recruiter";
 import { queryKeys } from "@/hooks/query-keys";
 
-export type RecruiterProfileState = {
+type RecruiterProfileState = {
   /** `null` = aucun profil recruteur (404) — déclenche l'onboarding D16. */
   profile: RecruiterProfile | null;
   isLoading: boolean;

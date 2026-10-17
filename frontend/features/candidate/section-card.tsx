@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, CtaButton } from "@/components/ui/button";
 import { IconBadge } from "@/components/ui/icon-badge";
 
-export type SectionCardProps = {
+type SectionCardProps = {
   id: string;
   title: string;
   icon?: string;

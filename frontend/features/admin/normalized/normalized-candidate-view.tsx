@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 
+import { INLINE_PILL_CLASS } from "@/components/ui/pill";
 import { OriginBadge } from "@/features/admin/normalized/normalized-origin-badge";
 import { SectionBlock } from "@/features/admin/normalized/normalized-section-block";
 import { NormalizedSheetRail } from "@/features/admin/normalized/normalized-sheet-rail";
+import { SkillsTable } from "@/features/admin/normalized/normalized-skills-table";
 import {
   SpecGrid,
   type SpecCell,
@@ -11,13 +13,11 @@ import {
   NORMALIZED_ITEM_CARD,
   NORMALIZED_MUTED,
   PROJECT_CONTEXT_LABELS,
-  SENIORITY_LABELS,
   candidateSheetStats,
-  categoryLabel,
-  evidenceLabel,
   formatMonth,
   formatPeriod,
 } from "@/features/admin/normalized/normalized-shared";
+import { seniorityLabel } from "@/features/job-offer/job-offer-shared";
 import type {
   NormalizedCandidateProfile,
   NormalizedDiploma,
@@ -174,7 +174,7 @@ export function NormalizedCandidateView({ profile }: { profile: NormalizedCandid
     {
       label: "Seniority",
       value: profile.seniority
-        ? SENIORITY_LABELS[profile.seniority] ?? profile.seniority
+        ? seniorityLabel(profile.seniority) ?? profile.seniority
         : null,
     },
     {
@@ -220,61 +220,23 @@ export function NormalizedCandidateView({ profile }: { profile: NormalizedCandid
 
         {skills.length > 0 && (
           <SectionBlock index={2} title="Skills" meta={`${skills.length} entries`}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[540px] text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-border">
-                    <th className="py-2.5 pr-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
-                      Skill
-                    </th>
-                    <th className="py-2.5 pr-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
-                      Level
-                    </th>
-                    <th className="py-2.5 pr-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
-                      Years
-                    </th>
-                    <th className="py-2.5 pr-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
-                      Evidence
-                    </th>
-                    <th className="py-2.5 pr-3 font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
-                      Origin
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-border text-body-sm font-body-sm">
-                  {skills.map((skill, index) => {
-                    const evidence = evidenceLabel(skill.evidence);
-                    const category = categoryLabel(skill.category);
-                    return (
-                      <tr key={index} className="hover:bg-item-surface/50 transition-colors">
-                        <td className="py-3 pr-3 min-w-40">
-                          <span className="block font-semibold text-text-primary">
-                            {skill.name ?? "Unnamed skill"}
-                          </span>
-                          {category && (
-                            <span className="block text-text-secondary">{category}</span>
-                          )}
-                        </td>
-                        <td className="py-3 pr-3 font-mono text-text-primary">
-                          {skill.level != null ? `${skill.level}/5` : "—"}
-                        </td>
-                        <td className="py-3 pr-3 font-mono text-text-primary">
-                          {skill.yearsExperience != null ? `${skill.yearsExperience} yrs` : "—"}
-                        </td>
-                        <td className="py-3 pr-3 text-text-secondary">{evidence ?? "—"}</td>
-                        <td className="py-3 pr-3">
-                          {skill.origin ? (
-                            <OriginBadge origin={skill.origin} />
-                          ) : (
-                            <span className="text-text-tertiary">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <SkillsTable
+              columns={["Skill", "Level", "Years", "Evidence", "Origin"]}
+              minWidthClass="min-w-[540px]"
+              rows={skills.map((skill) => ({
+                skill,
+                cells: (
+                  <>
+                    <td className="py-3 pr-3 font-mono text-text-primary">
+                      {skill.level != null ? `${skill.level}/5` : "—"}
+                    </td>
+                    <td className="py-3 pr-3 font-mono text-text-primary">
+                      {skill.yearsExperience != null ? `${skill.yearsExperience} yrs` : "—"}
+                    </td>
+                  </>
+                ),
+              }))}
+            />
           </SectionBlock>
         )}
 
@@ -337,7 +299,7 @@ export function NormalizedCandidateView({ profile }: { profile: NormalizedCandid
               {languages.map((language, index) => (
                 <li
                   key={index}
-                  className="flex items-center gap-2 rounded-full border border-slate-border bg-item-surface/50 px-3 py-1 text-body-sm font-body-sm text-text-primary"
+                  className={INLINE_PILL_CLASS}
                 >
                   <span>
                     {language.name ?? "Language"}

@@ -1,4 +1,4 @@
-export type WordmarkProps = {
+type WordmarkProps = {
   className?: string;
   title?: string;
 };

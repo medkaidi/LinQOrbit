@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { Icon } from "@/components/ui/icon";
 
-export type FaqItem = {
+type FaqItem = {
   icon: string;
   question: string;
   answer: string;
 };
 
-export type FaqExplorerProps = {
+type FaqExplorerProps = {
   faqs: readonly FaqItem[];
 };
 

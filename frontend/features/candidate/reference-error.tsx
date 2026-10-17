@@ -1,7 +1,7 @@
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
-export type ReferenceErrorProps = {
+type ReferenceErrorProps = {
   what: string;
   onRetry: () => void;
 };

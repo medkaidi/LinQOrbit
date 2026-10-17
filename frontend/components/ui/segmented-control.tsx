@@ -8,7 +8,7 @@ export type SegmentedOption<T extends string> = {
   disabled?: boolean;
 };
 
-export type SegmentedControlProps<T extends string> = {
+type SegmentedControlProps<T extends string> = {
   label: string;
   value: T;
   options: SegmentedOption<T>[];

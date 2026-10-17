@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { CEFR_LEVELS } from "@/lib/validations/candidate.schemas";
 
-export const JOB_OFFER_SENIORITIES = [
+const JOB_OFFER_SENIORITIES = [
   "junior",
   "mid",
   "senior",
@@ -66,20 +66,20 @@ const cefrOrEmpty = z.union(
   "Pick a CEFR level",
 );
 
-export const jobOfferSkillRowSchema = z.object({
+const jobOfferSkillRowSchema = z.object({
   skillId: uuidOrEmpty("Pick a skill"),
   requirementType: z.enum(REQUIREMENT_TYPES),
   weight: weightString,
   yearsExperience: yearsOrEmpty,
 });
 
-export const jobOfferLanguageRowSchema = z.object({
+const jobOfferLanguageRowSchema = z.object({
   languageId: uuidOrEmpty("Pick a language"),
   level: cefrOrEmpty,
   isRequired: z.boolean(),
 });
 
-export const jobOfferQuestionOptionRowSchema = z.object({
+const jobOfferQuestionOptionRowSchema = z.object({
   label: z
     .string()
     .trim()
@@ -88,7 +88,7 @@ export const jobOfferQuestionOptionRowSchema = z.object({
   preferred: z.boolean(),
 });
 
-export const jobOfferQuestionRowSchema = z.object({
+const jobOfferQuestionRowSchema = z.object({
   label: z
     .string()
     .trim()

@@ -4,6 +4,11 @@ import { Alert } from "@/components/ui/alert";
 import { CtaButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { IconBadge } from "@/components/ui/icon-badge";
+import {
+  SECTION_CARD_CLASS,
+  SECTION_HEADER_CLASS,
+  SECTION_TITLE_CLASS,
+} from "@/components/ui/section";
 import { countryOptions } from "@/config/countries";
 import type { AuthUser } from "@/types/auth";
 import type { CandidateProfile } from "@/types/candidate";
@@ -20,9 +25,6 @@ export const SECTION_ICONS = {
   links: "link",
   goals: "tune",
 } as const;
-
-/** Un élément de liste = un conteneur : la séparation se lit d'un coup d'œil. */
-export const ITEM_CLASSES = "rounded-2xl border border-slate-border bg-item-surface/50 p-4";
 
 /**
  * Suppression d'une ligne de formulaire (Expérience, Éducation, Skill,
@@ -121,13 +123,11 @@ export function ViewSection({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="bg-canvas-white rounded-2xl shadow-sm scroll-mt-24">
-      <header className="mx-6 pt-4 pb-4 flex items-start justify-between gap-4 border-b border-slate-border">
+    <section id={id} className={`${SECTION_CARD_CLASS} scroll-mt-24`}>
+      <header className={SECTION_HEADER_CLASS}>
         <div className="flex items-center gap-2.5 min-w-0">
           <IconBadge icon={icon} />
-          <h2 className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight min-w-0">
-            {title}
-          </h2>
+          <h2 className={SECTION_TITLE_CLASS}>{title}</h2>
         </div>
         {count ? (
           <span className="text-body-sm font-body-sm text-text-tertiary shrink-0">{count}</span>

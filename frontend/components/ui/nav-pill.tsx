@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils/cn";
 
-export type NavPillProps = {
+type NavPillProps = {
   /** Icône Material Symbols du badge circulaire. */
   icon: string;
   label: string;
@@ -14,7 +14,7 @@ export type NavPillProps = {
   className?: string;
 };
 
-export type NavPillTone = "primary" | "secondary" | "danger" | "neutral";
+type NavPillTone = "primary" | "secondary" | "danger" | "neutral";
 
 /** Accents de survol : bordure de la pilule, badge et libellé/icône colorés ensemble. */
 const pillToneClasses: Record<NavPillTone, { pill: string; badge: string; accent: string }> = {

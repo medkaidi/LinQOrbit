@@ -3,11 +3,20 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import {
+  Breadcrumb,
+  BreadcrumbCurrent,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  LINK_ACCENT_CLASS,
+  PageHeader,
+} from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink, CtaLink } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { InfiniteList } from "@/components/ui/infinite-list";
 import { Spinner } from "@/components/ui/spinner";
+import { MUTED_PILL_CLASS } from "@/components/ui/pill";
 import {
   companyInitials,
   expiryCountdown,
@@ -15,13 +24,12 @@ import {
   publicJobPath,
   relativeTimeLabel,
   salaryLabel,
-  SENIORITY_LABELS,
+  seniorityLabel,
   workModeIcon,
 } from "@/features/job-offer/job-offer-shared";
 import { useInfinitePublicJobs } from "@/hooks/use-public-jobs";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import type { PublicJobListItem } from "@/types/public-job";
-import type { SeniorityValue } from "@/types/recruiter";
 
 /** Tuile bleue (accent secondaire) : sur un board tout est publié, la couleur porte l'identité, pas un statut. */
 const TILE_CLASS = "bg-blue-surface text-blue-deep";
@@ -30,17 +38,12 @@ const TILE_CLASS = "bg-blue-surface text-blue-deep";
  * Pill de compétence uniforme (neutre) : le board n'hiérarchise pas les
  * compétences — la carte les expose toutes (T-76, transparence candidat).
  */
-const SKILL_PILL =
-  "rounded-full border border-slate-border bg-item-surface/50 px-3 py-1 font-body-sm text-body-sm text-text-secondary";
-
 const META_LINE_ITEM = "inline-flex items-center gap-1.5";
 const META_LINE_ICON = "text-[16px] text-text-tertiary";
 
 function PublicJobCard({ job }: { job: PublicJobListItem }) {
   const location = locationLabel(job.city, job.country);
-  const seniorityLabel = job.seniority
-    ? (SENIORITY_LABELS[job.seniority as SeniorityValue] ?? null)
-    : null;
+  const seniority = seniorityLabel(job.seniority);
   const salary = salaryLabel(
     job.salaryMin,
     job.salaryMax,
@@ -52,11 +55,11 @@ function PublicJobCard({ job }: { job: PublicJobListItem }) {
   const jobPath = publicJobPath(job.publicId, job.slug);
 
   const meta: ReactNode[] = [];
-  if (seniorityLabel) {
+  if (seniority) {
     meta.push(
       <span key="seniority" className={META_LINE_ITEM}>
         <Icon name="signal_cellular_alt" className={META_LINE_ICON} />
-        {seniorityLabel}
+        {seniority}
       </span>,
     );
   }
@@ -127,10 +130,7 @@ function PublicJobCard({ job }: { job: PublicJobListItem }) {
       </div>
 
       <h2 className="font-headline-sm text-headline-sm text-text-primary group-hover/job-board-card:text-orange-deep transition-colors">
-        <Link
-          href={jobPath}
-          className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-        >
+        <Link href={jobPath} className={LINK_ACCENT_CLASS}>
           {job.title}
         </Link>
       </h2>
@@ -144,7 +144,7 @@ function PublicJobCard({ job }: { job: PublicJobListItem }) {
       {job.skills.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
           {job.skills.map((skill) => (
-            <span key={skill} className={SKILL_PILL}>
+            <span key={skill} className={MUTED_PILL_CLASS}>
               {skill}
             </span>
           ))}
@@ -188,28 +188,17 @@ export function PublicJobsView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="pb-6 border-b border-slate-border">
-        <div className="min-w-0">
-          <nav
-            aria-label="Breadcrumb"
-            className="flex flex-wrap items-center gap-2 text-body-sm font-body-sm text-text-secondary"
-          >
-            <Link
-              href="/dashboard"
-              className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-            >
-              Candidate space
-            </Link>
-            <span aria-hidden="true" className="text-text-tertiary">
-              /
-            </span>
-            <span className="text-text-primary font-semibold">Browse offers</span>
-          </nav>
-          <h1 className="mt-1 font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
-            Open positions
-          </h1>
-        </div>
-      </header>
+      <PageHeader
+        as="header"
+        breadcrumb={
+          <Breadcrumb>
+            <BreadcrumbLink href="/dashboard">Candidate space</BreadcrumbLink>
+            <BreadcrumbSeparator />
+            <BreadcrumbCurrent>Browse offers</BreadcrumbCurrent>
+          </Breadcrumb>
+        }
+        title="Open positions"
+      />
 
       <div className="w-full">
         {query.isLoading ? (

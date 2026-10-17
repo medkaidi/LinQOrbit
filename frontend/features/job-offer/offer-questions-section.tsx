@@ -13,14 +13,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Icon } from "@/components/ui/icon";
 import { Select, type SelectOption } from "@/components/ui/select";
 import { TextField } from "@/components/ui/text-field";
-import { RemoveButton } from "@/features/candidate/profile-shared";
 import {
-  OFFER_ITEM_CARD,
-  OFFER_MUTED,
-  OFFER_SECTION_HEADER,
-  OFFER_SECTION_TITLE,
-  QUESTION_TYPE_LABELS,
-} from "@/features/job-offer/job-offer-shared";
+  ITEM_CARD_CLASS,
+  MUTED_TEXT_CLASS,
+  SECTION_HEADER_CLASS,
+  SECTION_TITLE_CLASS,
+} from "@/components/ui/section";
+import { RemoveButton } from "@/features/candidate/profile-shared";
+import { QUESTION_TYPE_LABELS } from "@/features/job-offer/job-offer-shared";
 import {
   isChoiceQuestionType,
   QUESTION_TYPES,
@@ -34,7 +34,7 @@ const QUESTION_TYPE_OPTIONS: SelectOption[] = QUESTION_TYPES.map((value) => ({
 
 const emptyOption = () => ({ label: "", preferred: false });
 
-export const emptyQuestion = (): CreateJobOfferValues["questions"][number] => ({
+const emptyQuestion = (): CreateJobOfferValues["questions"][number] => ({
   label: "",
   type: "text",
   isRequired: false,
@@ -70,7 +70,7 @@ function QuestionCard({
   const optionsError = questionError?.options;
 
   return (
-    <li className={OFFER_ITEM_CARD}>
+    <li className={ITEM_CARD_CLASS}>
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-52 flex-1">
           <Controller
@@ -119,7 +119,7 @@ function QuestionCard({
             disabled={isFirst}
             onClick={onMoveUp}
           >
-            <Icon name="arrow_upward" className="text-[16px]!" />
+            <Icon name="arrow_upward" className="text-[16px]" />
           </Button>
           <Button
             variant="outline-sm"
@@ -129,7 +129,7 @@ function QuestionCard({
             disabled={isLast}
             onClick={onMoveDown}
           >
-            <Icon name="arrow_downward" className="text-[16px]!" />
+            <Icon name="arrow_downward" className="text-[16px]" />
           </Button>
           <RemoveButton onClick={onRemove} />
         </div>
@@ -227,12 +227,12 @@ export function OfferQuestionsSection({
 
   return (
     <section className="bg-canvas-white rounded-2xl shadow-sm">
-      <header className={OFFER_SECTION_HEADER}>
-        <h2 className={OFFER_SECTION_TITLE}>Screening questions</h2>
+      <header className={SECTION_HEADER_CLASS}>
+        <h2 className={SECTION_TITLE_CLASS}>Screening questions</h2>
       </header>
       <div className="px-6 pt-5 pb-6 flex flex-col items-start gap-4">
         {questionRows.fields.length === 0 ? (
-          <p className={OFFER_MUTED}>
+          <p className={MUTED_TEXT_CLASS}>
             No screening questions yet. Add the questions candidates answer when
             they apply.
           </p>

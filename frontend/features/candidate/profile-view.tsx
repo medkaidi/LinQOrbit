@@ -1,7 +1,14 @@
 "use client";
 
-import Link from "next/link";
-
+import {
+  Breadcrumb,
+  BreadcrumbCurrent,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  LINK_ACCENT_CLASS,
+  PageHeader,
+} from "@/components/layout/page-header";
+import { ITEM_CARD_CLASS } from "@/components/ui/section";
 import { SEARCH_STATUS_LABELS } from "@/features/candidate/about-section";
 import { LINK_TYPE_LABELS } from "@/features/candidate/links-section";
 import { CEFR_LABELS } from "@/features/candidate/languages-section";
@@ -11,7 +18,6 @@ import {
   fullName,
   IdentityAvatar,
   InfoBox,
-  ITEM_CLASSES,
   ProfileError,
   ProfileSkeleton,
   SECTION_ICONS,
@@ -175,7 +181,10 @@ function LinkInfoBox({ linkType, links }: { linkType: string; links: LinkItem[] 
               href={link.url}
               target="_blank"
               rel="noreferrer noopener"
-              className="truncate text-body-md font-body-md text-text-primary hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+              className={cn(
+                LINK_ACCENT_CLASS,
+                "truncate text-body-md font-body-md text-text-primary",
+              )}
             >
               {displayUrl(link.url)}
             </a>
@@ -316,7 +325,7 @@ function ExperienceSection({
           {experiences.map((item, index) => {
             const country = countryLabel(item.companyCountry);
             return (
-              <li key={item.id} className={ITEM_CLASSES}>
+              <li key={item.id} className={ITEM_CARD_CLASS}>
                 <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
                   <div className="flex items-center gap-3 min-w-0">
                     <IndexBadge>{index + 1}</IndexBadge>
@@ -368,7 +377,7 @@ function ProjectsSection({
       ) : (
         <ol className="flex flex-col gap-3">
           {projects.map((item, index) => (
-            <li key={item.id} className={ITEM_CLASSES}>
+            <li key={item.id} className={ITEM_CARD_CLASS}>
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
                 <div className="flex items-center gap-3 min-w-0">
                   <IndexBadge>{index + 1}</IndexBadge>
@@ -423,7 +432,7 @@ function EducationSection({
             const country = countryLabel(item.institutionCountry);
             const detail = [item.degreeLabel, item.studyFieldLabel].filter(Boolean).join(" · ");
             return (
-              <article key={item.id} className={ITEM_CLASSES}>
+              <article key={item.id} className={ITEM_CARD_CLASS}>
                 <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
                   <div className="flex items-center gap-3 min-w-0">
                     <IndexBadge>{index + 1}</IndexBadge>
@@ -505,7 +514,7 @@ function LanguagesSection({
           {languages.map((language) => (
             <li
               key={language.languageId}
-              className={cn(ITEM_CLASSES, "flex items-center justify-between gap-3")}
+              className={cn(ITEM_CARD_CLASS, "flex items-center justify-between gap-3")}
             >
               <span className="font-label-md text-label-md text-text-primary">
                 {language.name}
@@ -537,7 +546,7 @@ function LinksSection({ links, editable }: { links: LinkItem[]; editable: boolea
       ) : (
         <ul className="flex flex-col gap-3">
           {links.map((link) => (
-            <li key={link.id} className={ITEM_CLASSES}>
+            <li key={link.id} className={ITEM_CARD_CLASS}>
               <div className="flex items-center gap-2 min-w-0">
                 <Icon
                   name={linkIcon(link.linkType)}
@@ -590,28 +599,16 @@ function GoalsSection() {
 
 function Header() {
   return (
-    <div className="pb-6 border-b border-slate-border">
-      <div className="min-w-0">
-        <nav
-          aria-label="Breadcrumb"
-          className="flex flex-wrap items-center gap-2 text-body-sm font-body-sm text-text-secondary"
-        >
-          <Link
-            href="/dashboard"
-            className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-          >
-            Candidate space
-          </Link>
-          <span aria-hidden="true" className="text-text-tertiary">
-            /
-          </span>
-          <span className="text-text-primary font-semibold">My professional profile</span>
-        </nav>
-        <h1 className="mt-1 font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
-          My professional profile
-        </h1>
-      </div>
-    </div>
+    <PageHeader
+      breadcrumb={
+        <Breadcrumb>
+          <BreadcrumbLink href="/dashboard">Candidate space</BreadcrumbLink>
+          <BreadcrumbSeparator />
+          <BreadcrumbCurrent>My professional profile</BreadcrumbCurrent>
+        </Breadcrumb>
+      }
+      title="My professional profile"
+    />
   );
 }
 

@@ -5,7 +5,7 @@ import type {
 } from "@/types/normalized";
 
 /** Labels lisibles de la taxonomie de compétences (miroir des schémas IA). */
-export const CATEGORY_LABELS: Record<SkillCategory, string> = {
+const CATEGORY_LABELS: Record<SkillCategory, string> = {
   programming_language: "Programming language",
   framework: "Framework",
   library: "Library",
@@ -16,14 +16,6 @@ export const CATEGORY_LABELS: Record<SkillCategory, string> = {
   technical_skill: "Technical skill",
   regulatory_knowledge: "Regulatory knowledge",
   other: "Other",
-};
-
-export const SENIORITY_LABELS: Record<string, string> = {
-  junior: "Junior",
-  mid: "Mid",
-  senior: "Senior",
-  lead: "Lead",
-  principal: "Principal",
 };
 
 export const PROJECT_CONTEXT_LABELS: Record<string, string> = {

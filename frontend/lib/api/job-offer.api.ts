@@ -1,5 +1,4 @@
 import { api } from "@/lib/api/axios";
-import { getApiErrorMessage } from "@/lib/utils/api-error";
 import { sanitizeHtml } from "@/lib/utils/sanitize-html";
 import type {
   CreateJobOfferValues,
@@ -14,7 +13,7 @@ import type {
 } from "@/types/recruiter";
 
 /** Corps envoyé au backend : "" → null, nombres en string → number (miroir profil candidat). */
-export type JobOfferPayload = {
+type JobOfferPayload = {
   companyId: string;
   title: string;
   description: string | null;
@@ -47,8 +46,6 @@ export type JobOfferPayload = {
     options: { label: string; preferred: boolean; sortOrder: number }[];
   }[];
 };
-
-export type UpdateJobOfferPayload = Omit<JobOfferPayload, "companyId">;
 
 const numberOrNull = (value: string): number | null =>
   value === "" ? null : Number(value);
@@ -197,8 +194,4 @@ export async function listWorkModes(): Promise<JobOfferLabelOption[]> {
     "/api/v1/job-offers/reference/work-modes",
   );
   return response.data;
-}
-
-export function getJobOfferErrorMessage(error: unknown): string {
-  return getApiErrorMessage(error);
 }

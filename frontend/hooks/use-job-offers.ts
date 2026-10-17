@@ -27,6 +27,7 @@ import type {
   UpdateJobOfferValues,
 } from "@/lib/validations/job-offer.schemas";
 import { queryKeys } from "@/hooks/query-keys";
+import { nextPageParam } from "@/lib/utils/pagination";
 
 const OFFER_REFERENCES_STALE_TIME = 5 * 60_000;
 
@@ -39,8 +40,7 @@ export function useInfiniteJobOffers() {
     queryKey: queryKeys.jobOffers.list,
     queryFn: ({ pageParam, signal }) => listJobOffers({ page: pageParam }, { signal }),
     initialPageParam: 0,
-    getNextPageParam: (lastPage) =>
-      lastPage.page * lastPage.size < lastPage.total ? lastPage.page + 1 : undefined,
+    getNextPageParam: nextPageParam,
     staleTime: 30_000,
   });
 }

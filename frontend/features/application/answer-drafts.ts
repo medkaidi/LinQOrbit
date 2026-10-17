@@ -8,7 +8,7 @@ export type AnswerDraft = {
   optionIds: string[];
 };
 
-export function emptyAnswerDraft(): AnswerDraft {
+function emptyAnswerDraft(): AnswerDraft {
   return { text: "", number: "", yesNo: "", optionIds: [] };
 }
 

@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 import { Icon } from "@/components/ui/icon";
 
-export type AlertVariant = "info" | "success" | "error";
+type AlertVariant = "info" | "success" | "error";
 
-export type AlertProps = {
+type AlertProps = {
   variant?: AlertVariant;
   title: string;
   children: ReactNode;

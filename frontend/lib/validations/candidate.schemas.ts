@@ -95,7 +95,7 @@ export const projectSchema = z
   })
   .superRefine(dateOrderCheck);
 
-export const diplomaSchema = z
+const diplomaSchema = z
   .object({
     title: text(255, "Degree title"),
     institution: text(255, "Institution"),

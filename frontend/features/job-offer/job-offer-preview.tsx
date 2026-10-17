@@ -6,19 +6,16 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  PublicJobArticle,
-  type PublicJobArticleModel,
-} from "@/features/job-offer/public-job-article";
+  ITEM_CARD_CLASS,
+  MUTED_TEXT_CLASS,
+  SECTION_HEADER_CLASS,
+  SECTION_TITLE_CLASS,
+} from "@/components/ui/section";
+import { PublicJobArticle } from "@/features/job-offer/public-job-article";
 import {
-  OFFER_ITEM_CARD,
-  OFFER_MUTED,
-  OFFER_SECTION_HEADER,
-  OFFER_SECTION_TITLE,
   QUESTION_TYPE_LABELS,
-  locationLabel,
-  salaryLabel,
-  SENIORITY_LABELS,
   STATUS_LABELS,
+  toArticleModel,
 } from "@/features/job-offer/job-offer-shared";
 import { useReferenceDegrees, useReferenceStudyFields } from "@/hooks/use-candidate-profile";
 import { useCompanies } from "@/hooks/use-companies";
@@ -28,8 +25,7 @@ import {
   useJobOffer,
   useWorkModes,
 } from "@/hooks/use-job-offers";
-import { getJobOfferErrorMessage } from "@/lib/api/job-offer.api";
-import type { JobOffer } from "@/types/recruiter";
+import { getApiErrorMessage } from "@/lib/utils/api-error";
 
 function labelOf(options: { id: string; label: string }[] | undefined, id: string | null) {
   if (id === null) {
@@ -38,47 +34,12 @@ function labelOf(options: { id: string; label: string }[] | undefined, id: strin
   return options?.find((option) => option.id === id)?.label ?? null;
 }
 
-/** Même rendu que la fiche publique, labels résolus côté membre (sans actions : l'offre n'est pas publique). */
-function toArticle(
-  offer: JobOffer,
-  companyName: string | null,
-  contractType: string | null,
-  employmentType: string | null,
-  workMode: string | null,
-  degreeLabels: Map<string, string>,
-  studyFieldLabels: Map<string, string>,
-): PublicJobArticleModel {
-  const seniority = offer.seniority ? SENIORITY_LABELS[offer.seniority] : null;
-  return {
-    companyName,
-    title: offer.title,
-    seniority,
-    location: locationLabel(offer.city, offer.country),
-    contractType,
-    employmentType,
-    workMode,
-    salary: salaryLabel(offer.salaryMin, offer.salaryMax, offer.salaryCurrency, offer.salaryPeriod),
-    requiredExpYear: offer.requiredExpYear,
-    publishedAt: offer.publishedAt,
-    expiresAt: offer.expiresAt,
-    description: offer.description,
-    skills: offer.skills.map((skill) => ({
-      id: skill.skillId,
-      name: skill.name,
-      requirementType: skill.requirementType,
-    })),
-    languages: offer.languages.map((language) => ({
-      id: language.languageId,
-      name: language.name,
-      level: language.level,
-    })),
-    degreeLabels: offer.degreeIds
-      .map((id) => degreeLabels.get(id))
-      .filter((label): label is string => label != null),
-    studyFieldLabels: offer.studyFieldIds
-      .map((id) => studyFieldLabels.get(id))
-      .filter((label): label is string => label != null),
-  };
+/** Libellés des identifiants de référence connus, dans l'ordre de l'offre (inconnus omis). */
+function labelsOf(options: { id: string; label: string }[] | undefined, ids: string[]) {
+  const byId = new Map((options ?? []).map((option) => [option.id, option.label] as const));
+  return ids
+    .map((id) => byId.get(id))
+    .filter((label): label is string => label != null);
 }
 
 /**
@@ -122,7 +83,7 @@ export function JobOfferPreview({ offerId }: { offerId: string }) {
         </div>
         <Alert variant="error" title="Could not load the offer">
           <div className="flex items-center justify-between gap-3">
-            <span>{offer.isError ? getJobOfferErrorMessage(offer.error) : ""}</span>
+            <span>{offer.isError ? getApiErrorMessage(offer.error) : ""}</span>
             <Button variant="outline-sm" onClick={() => router.push("/recruiter")}>
               Back to offers
             </Button>
@@ -133,15 +94,15 @@ export function JobOfferPreview({ offerId }: { offerId: string }) {
   }
 
   const data = offer.data;
-  const article = toArticle(
-    data,
-    companies.data?.find((company) => company.id === data.companyId)?.name ?? null,
-    labelOf(contractTypes.data, data.contractTypeId),
-    labelOf(employmentTypes.data, data.employmentTypeId),
-    labelOf(workModes.data, data.workModeId),
-    new Map((degrees.data ?? []).map((degree) => [degree.id, degree.label] as const)),
-    new Map((studyFields.data ?? []).map((field) => [field.id, field.label] as const)),
-  );
+  // Même rendu que la fiche publique, libellés résolus côté membre (sans actions : l'offre n'est pas publique).
+  const article = toArticleModel(data, {
+    companyName: companies.data?.find((company) => company.id === data.companyId)?.name ?? null,
+    contractType: labelOf(contractTypes.data, data.contractTypeId),
+    employmentType: labelOf(employmentTypes.data, data.employmentTypeId),
+    workMode: labelOf(workModes.data, data.workModeId),
+    degreeLabels: labelsOf(degrees.data, data.degreeIds),
+    studyFieldLabels: labelsOf(studyFields.data, data.studyFieldIds),
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -160,26 +121,26 @@ export function JobOfferPreview({ offerId }: { offerId: string }) {
       <PublicJobArticle article={article} />
       {data.questions.length > 0 ? (
         <section className="bg-canvas-white rounded-2xl shadow-sm">
-          <header className={OFFER_SECTION_HEADER}>
-            <h2 className={OFFER_SECTION_TITLE}>Screening questions</h2>
+          <header className={SECTION_HEADER_CLASS}>
+            <h2 className={SECTION_TITLE_CLASS}>Screening questions</h2>
           </header>
           <div className="px-6 pt-5 pb-6 flex flex-col gap-4">
-            <p className={OFFER_MUTED}>
+            <p className={MUTED_TEXT_CLASS}>
               Only your team sees these questions — candidates answer them when
               they apply.
             </p>
             <ol className="flex flex-col gap-3">
               {data.questions.map((question) => (
-                <li key={question.id} className={OFFER_ITEM_CARD}>
+                <li key={question.id} className={ITEM_CARD_CLASS}>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="font-body-md text-body-md text-text-primary font-semibold">
                       {question.label}
                     </span>
-                    <span className={OFFER_MUTED}>{QUESTION_TYPE_LABELS[question.type]}</span>
-                    {question.isRequired ? <span className={OFFER_MUTED}>Required</span> : null}
+                    <span className={MUTED_TEXT_CLASS}>{QUESTION_TYPE_LABELS[question.type]}</span>
+                    {question.isRequired ? <span className={MUTED_TEXT_CLASS}>Required</span> : null}
                   </div>
                   {question.options.length > 0 ? (
-                    <p className={`${OFFER_MUTED} mt-1`}>
+                    <p className={`${MUTED_TEXT_CLASS} mt-1`}>
                       {question.options
                         .map((option) => (option.preferred ? `${option.label} (preferred)` : option.label))
                         .join(" · ")}

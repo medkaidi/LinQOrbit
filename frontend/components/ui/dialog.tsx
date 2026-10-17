@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils/cn";
 
-export type DialogProps = {
+type DialogProps = {
   /** Titre de l'en-tête ; sert d'accessible name si `ariaLabel` est absent. */
   title: ReactNode;
   /** Sous-titre de l'en-tête. */

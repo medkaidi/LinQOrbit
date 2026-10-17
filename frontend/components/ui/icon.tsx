@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils/cn";
 
-export type IconProps = {
+type IconProps = {
   name: string;
   className?: string;
 };

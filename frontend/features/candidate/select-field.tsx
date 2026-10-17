@@ -2,7 +2,7 @@ import { Controller, type Control, type FieldPath, type FieldValues } from "reac
 
 import { Select, type SelectOption } from "@/components/ui/select";
 
-export type SelectFieldProps<T extends FieldValues> = {
+type SelectFieldProps<T extends FieldValues> = {
   control: Control<T>;
   name: FieldPath<T>;
   label: string;

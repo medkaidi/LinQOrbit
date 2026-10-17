@@ -20,15 +20,14 @@ import {
   useJobOfferTransition,
   useWorkModes,
 } from "@/hooks/use-job-offers";
-import { getJobOfferErrorMessage } from "@/lib/api/job-offer.api";
+import { SECTION_HEADER_CLASS, SECTION_TITLE_CLASS } from "@/components/ui/section";
+import { getApiErrorMessage } from "@/lib/utils/api-error";
 import type { Company, JobOfferListItem } from "@/types/recruiter";
 import { CopyPublicLinkButton } from "@/features/job-offer/copy-public-link-button";
 import { JobOfferCard } from "@/features/job-offer/job-offer-card";
 import {
   isOfferExpired,
   OFFER_INCOMPLETE_TOOLTIP,
-  OFFER_SECTION_HEADER,
-  OFFER_SECTION_TITLE,
   publicJobPath,
 } from "@/features/job-offer/job-offer-shared";
 
@@ -343,8 +342,8 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
   if (offers.isLoading) {
     return (
       <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <header className={OFFER_SECTION_HEADER}>
-          <h2 className={OFFER_SECTION_TITLE}>Job offers</h2>
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Job offers</h2>
         </header>
         <div className="px-6 pt-5 pb-6 flex items-center gap-2 text-body-sm text-text-secondary">
           <Spinner />
@@ -357,13 +356,13 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
   if (offers.isError) {
     return (
       <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <header className={OFFER_SECTION_HEADER}>
-          <h2 className={OFFER_SECTION_TITLE}>Job offers</h2>
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Job offers</h2>
         </header>
         <div className="px-6 pt-5 pb-6">
           <Alert variant="error" title="Could not load offers">
             <div className="flex items-center justify-between gap-3">
-              <span>{getJobOfferErrorMessage(offers.error)}</span>
+              <span>{getApiErrorMessage(offers.error)}</span>
               <Button variant="outline-sm" onClick={() => void offers.refetch()}>
                 Retry
               </Button>
@@ -378,14 +377,14 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
 
   return (
     <section className="bg-canvas-white rounded-2xl shadow-sm">
-      <header className={OFFER_SECTION_HEADER}>
-        <h2 className={OFFER_SECTION_TITLE}>Job offers</h2>
+      <header className={SECTION_HEADER_CLASS}>
+        <h2 className={SECTION_TITLE_CLASS}>Job offers</h2>
         <NavPill icon="add" label="New offer" href="/recruiter/offers/new" />
       </header>
       <div className="px-6 pt-5 pb-6 flex flex-col gap-4">
         {error ? (
           <Alert variant="error" title="Action failed">
-            {getJobOfferErrorMessage(error)}
+            {getApiErrorMessage(error)}
           </Alert>
         ) : null}
         <InfiniteList

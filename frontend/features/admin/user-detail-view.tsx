@@ -1,10 +1,16 @@
 "use client";
 
-import Link from "next/link";
-
+import {
+  Breadcrumb,
+  BreadcrumbCurrent,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  PageHeader,
+} from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AccountBadges } from "@/features/admin/account-badges";
 import { NORMALIZED_MUTED, SHEET_HALF_PAD } from "@/features/admin/normalized/normalized-shared";
 import { NormalizedSheetCta } from "@/features/admin/normalized/normalized-sheet-cta";
 import { NormalizedSheetDrawer } from "@/features/admin/normalized/normalized-sheet-drawer";
@@ -21,7 +27,6 @@ import { useSheetQueryParam } from "@/hooks/use-sheet-query-param";
 import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/utils/cn";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
-import { ROLE } from "@/lib/utils/roles";
 
 const MUTED = "text-body-sm font-body-sm text-text-secondary";
 
@@ -71,6 +76,8 @@ export function UserDetailView({ userId }: { userId: string }) {
   const account = detail.data;
   const active = account.status === "ACTIVE";
   const isCurrentUser = account.id === currentUser?.id;
+  const displayName =
+    [account.firstName, account.lastName].filter(Boolean).join(" ") || account.email;
 
   const toggle = () => {
     statusMutation.mutate({
@@ -88,42 +95,21 @@ export function UserDetailView({ userId }: { userId: string }) {
         sheetOpen && SHEET_HALF_PAD,
       )}
     >
-      <div className="pb-6 border-b border-slate-border">
-        <nav
-          aria-label="Breadcrumb"
-          className="flex flex-wrap items-center gap-2 text-body-sm font-body-sm text-text-secondary"
-        >
-          <Link
-            href="/admin"
-            className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-          >
-            Administration
-          </Link>
-          <span aria-hidden="true" className="text-text-tertiary">
-            /
-          </span>
-          <Link
-            href="/admin"
-            className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-          >
-            Accounts
-          </Link>
-          <span aria-hidden="true" className="text-text-tertiary">
-            /
-          </span>
-          <span className="text-text-primary font-semibold">
-            {[account.firstName, account.lastName].filter(Boolean).join(" ") || account.email}
-          </span>
-        </nav>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight min-w-0">
-            {[account.firstName, account.lastName].filter(Boolean).join(" ") || account.email}
-          </h1>
+      <PageHeader
+        breadcrumb={
+          <Breadcrumb>
+            <BreadcrumbLink href="/admin">Administration</BreadcrumbLink>
+            <BreadcrumbSeparator />
+            <BreadcrumbLink href="/admin">Accounts</BreadcrumbLink>
+            <BreadcrumbSeparator />
+            <BreadcrumbCurrent>{displayName}</BreadcrumbCurrent>
+          </Breadcrumb>
+        }
+        title={displayName}
+        action={
           <div className="flex flex-wrap items-center gap-3 shrink-0">
             <Badge tone={active ? "success" : "neutral"}>{active ? "Active" : "Inactive"}</Badge>
-            {account.roles.includes(ROLE.ADMIN) && <Badge tone="neutral">Admin</Badge>}
-            {account.hasCandidateProfile && <Badge tone="neutral">Candidate</Badge>}
-            {account.hasRecruiterProfile && <Badge tone="neutral">Recruiter</Badge>}
+            <AccountBadges account={account} />
             {isCurrentUser ? (
               <span className={MUTED}>Your account</span>
             ) : (
@@ -132,9 +118,10 @@ export function UserDetailView({ userId }: { userId: string }) {
               </Button>
             )}
           </div>
-        </div>
+        }
+      >
         <p className={`${MUTED} mt-1`}>{account.email}</p>
-      </div>
+      </PageHeader>
 
       {statusMutation.isError && (
         <Alert variant="error" title="Unable to update the status">

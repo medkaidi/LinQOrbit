@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type PageHeroProps = {
+type PageHeroProps = {
   eyebrow: string;
   title: ReactNode;
   lede: ReactNode;

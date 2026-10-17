@@ -7,13 +7,6 @@ import type {
 } from "@/types/recruiter";
 import type { PublicJobArticleModel } from "@/features/job-offer/public-job-article";
 
-export const OFFER_SECTION_HEADER =
-  "mx-6 pt-4 pb-4 flex items-start justify-between gap-4 border-b border-slate-border";
-export const OFFER_SECTION_TITLE =
-  "font-headline-md text-headline-md text-text-primary font-bold tracking-tight min-w-0";
-export const OFFER_ITEM_CARD = "rounded-2xl border border-slate-border bg-item-surface/50 p-4";
-export const OFFER_MUTED = "text-body-sm font-body-sm text-text-secondary";
-
 export const STATUS_LABELS: Record<JobOfferStatusValue, string> = {
   draft: "Draft",
   validated: "Validated",
@@ -39,7 +32,7 @@ export const QUESTION_TYPE_LABELS: Record<QuestionTypeValue, string> = {
 };
 
 /** publicId = 12 caractères base36 sans tiret ; le reste de l'URL est le slug cosmétique. */
-export const PUBLIC_ID_PATTERN = /^[0-9a-z]{12}$/;
+const PUBLIC_ID_PATTERN = /^[0-9a-z]{12}$/;
 
 /** Lit le publicId de `[publicId]-[slug]` (pages `/jobs/[job]…`) — null si malformé. */
 export function parsePublicId(param: string): string | null {
@@ -154,15 +147,17 @@ export function expiryCountdown(expiresAt: string): { label: string; urgent: boo
   return null;
 }
 
+/** Libellé de séniorité (valeur inconnue ou absente → `null`). */
+export function seniorityLabel(seniority: string | null): string | null {
+  return seniority ? SENIORITY_LABELS[seniority as SeniorityValue] ?? null : null;
+}
+
 /** Ligne de méta-données d'une fiche publique (company · lieu · séniorité · …). */
 export function publicJobMetaLine(job: PublicJob): string[] {
-  const seniority = job.seniority
-    ? SENIORITY_LABELS[job.seniority as SeniorityValue] ?? null
-    : null;
   return [
     job.companyName,
     locationLabel(job.city, job.country),
-    seniority,
+    seniorityLabel(job.seniority),
     job.contractType,
     job.employmentType,
     job.workMode,
@@ -170,36 +165,87 @@ export function publicJobMetaLine(job: PublicJob): string[] {
   ].filter((part): part is string => Boolean(part));
 }
 
-/** Mapping PublicJob → modèle de l'article partagé (fiche publique + prévisualisation). */
-export function toPublicJobArticleModel(job: PublicJob): PublicJobArticleModel {
+/** Champs bruts communs aux deux sources de l'article (`PublicJob` publique, `JobOffer` membre). */
+type ArticleSource = Pick<
+  PublicJob,
+  | "title"
+  | "seniority"
+  | "city"
+  | "country"
+  | "salaryMin"
+  | "salaryMax"
+  | "salaryCurrency"
+  | "salaryPeriod"
+  | "requiredExpYear"
+  | "publishedAt"
+  | "expiresAt"
+  | "description"
+  | "skills"
+  | "languages"
+>;
+
+/** Libellés déjà résolus par l'appelant (servis par le backend ou résolus côté membre). */
+type ArticleLabels = Pick<
+  PublicJobArticleModel,
+  | "companyName"
+  | "contractType"
+  | "employmentType"
+  | "workMode"
+  | "degreeLabels"
+  | "studyFieldLabels"
+>;
+
+/**
+ * Modèle de l'article partagé (fiche publique + prévisualisation recruteur) :
+ * un seul mapping des champs bruts, seuls les libellés varient par appelant (TD-030).
+ */
+export function toArticleModel(
+  source: ArticleSource,
+  labels: ArticleLabels,
+): PublicJobArticleModel {
   return {
-    companyName: job.companyName,
-    title: job.title,
-    seniority: job.seniority
-      ? SENIORITY_LABELS[job.seniority as SeniorityValue] ?? null
-      : null,
-    location: locationLabel(job.city, job.country),
-    contractType: job.contractType,
-    employmentType: job.employmentType,
-    workMode: job.workMode,
-    salary: salaryLabel(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod),
-    requiredExpYear: job.requiredExpYear,
-    publishedAt: job.publishedAt,
-    expiresAt: job.expiresAt,
-    description: job.description,
-    skills: job.skills.map((skill) => ({
+    companyName: labels.companyName,
+    title: source.title,
+    seniority: seniorityLabel(source.seniority),
+    location: locationLabel(source.city, source.country),
+    contractType: labels.contractType,
+    employmentType: labels.employmentType,
+    workMode: labels.workMode,
+    salary: salaryLabel(
+      source.salaryMin,
+      source.salaryMax,
+      source.salaryCurrency,
+      source.salaryPeriod,
+    ),
+    requiredExpYear: source.requiredExpYear,
+    publishedAt: source.publishedAt,
+    expiresAt: source.expiresAt,
+    description: source.description,
+    skills: source.skills.map((skill) => ({
       id: skill.skillId,
       name: skill.name,
       requirementType: skill.requirementType,
     })),
-    languages: job.languages.map((language) => ({
+    languages: source.languages.map((language) => ({
       id: language.languageId,
       name: language.name,
       level: language.level,
     })),
+    degreeLabels: labels.degreeLabels,
+    studyFieldLabels: labels.studyFieldLabels,
+  };
+}
+
+/** Mapping PublicJob → modèle de l'article (libellés déjà résolus par le backend). */
+export function toPublicJobArticleModel(job: PublicJob): PublicJobArticleModel {
+  return toArticleModel(job, {
+    companyName: job.companyName,
+    contractType: job.contractType,
+    employmentType: job.employmentType,
+    workMode: job.workMode,
     degreeLabels: job.degreeLabels,
     studyFieldLabels: job.studyFieldLabels,
-  };
+  });
 }
 
 /** Message d'infobulle quand l'offre est trop incomplète pour sortir du brouillon. */

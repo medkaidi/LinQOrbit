@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
 
+import {
+  Breadcrumb,
+  BreadcrumbCurrent,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  PageHeader,
+} from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -16,26 +22,16 @@ import { getRecruiterErrorMessage } from "@/lib/api/recruiter.api";
 
 function WorkspaceHeader({ title }: { title: string }) {
   return (
-    <div className="pb-6 border-b border-slate-border">
-      <nav
-        aria-label="Breadcrumb"
-        className="flex flex-wrap items-center gap-2 text-body-sm font-body-sm text-text-secondary"
-      >
-        <Link
-          href="/dashboard"
-          className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-        >
-          Dashboard
-        </Link>
-        <span aria-hidden="true" className="text-text-tertiary">
-          /
-        </span>
-        <span className="text-text-primary font-semibold">{title}</span>
-      </nav>
-      <h1 className="mt-1 font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
-        {title}
-      </h1>
-    </div>
+    <PageHeader
+      breadcrumb={
+        <Breadcrumb>
+          <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+          <BreadcrumbSeparator />
+          <BreadcrumbCurrent>{title}</BreadcrumbCurrent>
+        </Breadcrumb>
+      }
+      title={title}
+    />
   );
 }
 

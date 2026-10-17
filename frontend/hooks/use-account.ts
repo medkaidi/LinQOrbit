@@ -9,7 +9,7 @@ import { queryKeys } from "@/hooks/query-keys";
 import { useAuthStore } from "@/stores/auth-store";
 import type { AuthUser } from "@/types/auth";
 
-export type AccountState = {
+type AccountState = {
   account: AuthUser | null;
   isLoading: boolean;
   isError: boolean;

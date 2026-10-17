@@ -58,5 +58,3 @@ export const useViewModeStore = create<ViewModeState>()(
     },
   ),
 );
-
-export const VIEW_MODE_STORAGE_KEY = "linqorbit.viewMode";

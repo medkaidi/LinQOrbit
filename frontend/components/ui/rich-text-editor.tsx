@@ -8,7 +8,7 @@ import { Placeholder } from "@tiptap/extensions";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils/cn";
 
-export type RichTextEditorProps = {
+type RichTextEditorProps = {
   label: string;
   /** HTML sanitisé ("" = vide). */
   value: string;

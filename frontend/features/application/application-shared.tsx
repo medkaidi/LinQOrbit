@@ -1,14 +1,7 @@
+import { StatusPill, type StatusPillTone } from "@/components/ui/status-pill";
 import type { ApplicationAnswerView, ApplicationStatusValue } from "@/types/application";
 
-export const APPLICATION_SECTION = "bg-canvas-white rounded-2xl shadow-sm";
-export const APPLICATION_SECTION_HEADER =
-  "mx-6 pt-4 pb-4 flex items-start justify-between gap-4 border-b border-slate-border";
-export const APPLICATION_SECTION_TITLE =
-  "font-headline-md text-headline-md text-text-primary font-bold tracking-tight min-w-0";
-export const APPLICATION_ITEM = "rounded-2xl border border-slate-border bg-item-surface/50 p-4";
-export const APPLICATION_MUTED = "text-body-sm font-body-sm text-text-secondary";
-
-export const APPLICATION_STATUS_LABELS: Record<ApplicationStatusValue, string> = {
+const APPLICATION_STATUS_LABELS: Record<ApplicationStatusValue, string> = {
   submitted: "Submitted",
   withdrawn: "Withdrawn",
   accepted: "Accepted",
@@ -16,7 +9,7 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatusValue, string> =
 };
 
 /** Tons miroirs du motif `OfferStatusPill` (fond doux + point coloré). */
-const STATUS_PILL_TONES: Record<ApplicationStatusValue, { pill: string; dot: string }> = {
+const STATUS_PILL_TONES: Record<ApplicationStatusValue, StatusPillTone> = {
   submitted: { pill: "bg-blue-surface text-blue-deep", dot: "bg-blue-deep" },
   withdrawn: { pill: "bg-slate-surface text-text-secondary", dot: "bg-slate-border" },
   accepted: { pill: "bg-success-surface text-success-text", dot: "bg-tertiary" },
@@ -25,15 +18,7 @@ const STATUS_PILL_TONES: Record<ApplicationStatusValue, { pill: string; dot: str
 
 /** Pastille de statut d'une candidature — source unique liste / formulaire. */
 export function ApplicationStatusPill({ status }: { status: ApplicationStatusValue }) {
-  const tone = STATUS_PILL_TONES[status];
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-label-caps text-label-caps normal-case tracking-normal font-bold shrink-0 ${tone.pill}`}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${tone.dot}`} />
-      {APPLICATION_STATUS_LABELS[status]}
-    </span>
-  );
+  return <StatusPill tone={STATUS_PILL_TONES[status]}>{APPLICATION_STATUS_LABELS[status]}</StatusPill>;
 }
 
 /** Date de candidature (« Oct 17, 2026 »), null si l'ISO est illisible. */

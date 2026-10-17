@@ -1,7 +1,7 @@
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils/cn";
 
-export type IconBadgeTone = "primary" | "secondary";
+type IconBadgeTone = "primary" | "secondary";
 
 /** Surfaces douces miroirs de `IndexBadge` : orange (primaire) ou bleu (secondaire). */
 const toneClasses: Record<IconBadgeTone, string> = {

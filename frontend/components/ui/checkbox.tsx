@@ -2,7 +2,7 @@ import type { ComponentPropsWithRef, ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 import { Icon } from "@/components/ui/icon";
 
-export type CheckboxProps = Omit<ComponentPropsWithRef<"input">, "className" | "type"> & {
+type CheckboxProps = Omit<ComponentPropsWithRef<"input">, "className" | "type"> & {
   label: ReactNode;
   checked: boolean;
 };

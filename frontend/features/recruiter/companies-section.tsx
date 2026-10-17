@@ -9,6 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button, CtaButton } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  ITEM_CARD_CLASS,
+  MUTED_TEXT_CLASS,
+  SECTION_HEADER_CLASS,
+  SECTION_TITLE_CLASS,
+} from "@/components/ui/section";
 import { useCompanies, useCreateCompany, useUpdateCompany } from "@/hooks/use-companies";
 import { getCompanyErrorMessage } from "@/lib/api/company.api";
 import {
@@ -16,12 +22,6 @@ import {
   type CompanyValues,
 } from "@/lib/validations/recruiter.schemas";
 import type { Company } from "@/types/recruiter";
-import {
-  OFFER_ITEM_CARD,
-  OFFER_MUTED,
-  OFFER_SECTION_HEADER,
-  OFFER_SECTION_TITLE,
-} from "@/features/job-offer/job-offer-shared";
 
 function CompanyForm({
   company,
@@ -97,14 +97,14 @@ function CompanyRow({ company }: { company: Company }) {
 
   if (editing) {
     return (
-      <li className={OFFER_ITEM_CARD}>
+      <li className={ITEM_CARD_CLASS}>
         <CompanyForm company={company} onDone={() => setEditing(false)} />
       </li>
     );
   }
 
   return (
-    <li className={`${OFFER_ITEM_CARD} flex flex-wrap items-start justify-between gap-4`}>
+    <li className={`${ITEM_CARD_CLASS} flex flex-wrap items-start justify-between gap-4`}>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-body-md font-body-md text-text-primary font-semibold truncate">
@@ -115,7 +115,7 @@ function CompanyRow({ company }: { company: Company }) {
           </Badge>
         </div>
         {company.description ? (
-          <p className={OFFER_MUTED}>{company.description}</p>
+          <p className={MUTED_TEXT_CLASS}>{company.description}</p>
         ) : null}
       </div>
       {company.isOwner ? (
@@ -135,8 +135,8 @@ export function CompaniesSection() {
   if (companies.isError) {
     return (
       <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <header className={OFFER_SECTION_HEADER}>
-          <h2 className={OFFER_SECTION_TITLE}>Companies</h2>
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Companies</h2>
         </header>
         <div className="px-6 pt-5 pb-6">
           <Alert variant="error" title="Could not load companies">
@@ -156,8 +156,8 @@ export function CompaniesSection() {
 
   return (
     <section className="bg-canvas-white rounded-2xl shadow-sm">
-      <header className={OFFER_SECTION_HEADER}>
-        <h2 className={OFFER_SECTION_TITLE}>Companies</h2>
+      <header className={SECTION_HEADER_CLASS}>
+        <h2 className={SECTION_TITLE_CLASS}>Companies</h2>
         <Button variant="outline-sm" onClick={() => setCreating((value) => !value)}>
           {creating ? "Close" : "Add company"}
         </Button>

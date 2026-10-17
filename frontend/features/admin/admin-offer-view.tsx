@@ -1,7 +1,12 @@
 "use client";
 
-import Link from "next/link";
-
+import {
+  Breadcrumb,
+  BreadcrumbCurrent,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  PageHeader,
+} from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
 import { OfferStatusPill } from "@/features/job-offer/job-offer-card";
 import { AdminOfferSourceView } from "@/features/admin/admin-offer-source-view";
@@ -50,43 +55,26 @@ export function AdminOfferDetailView({ offerId }: { offerId: string }) {
         sheetOpen && SHEET_HALF_PAD,
       )}
     >
-      <div className="pb-6 border-b border-slate-border">
-        <nav
-          aria-label="Breadcrumb"
-          className="flex flex-wrap items-center gap-2 text-body-sm font-body-sm text-text-secondary"
-        >
-          <Link
-            href="/admin"
-            className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-          >
-            Administration
-          </Link>
-          <span aria-hidden="true" className="text-text-tertiary">
-            /
-          </span>
-          <Link
-            href="/admin/offers"
-            className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-          >
-            Job offers
-          </Link>
-          <span aria-hidden="true" className="text-text-tertiary">
-            /
-          </span>
-          <span className="text-text-primary font-semibold">{data.detail.title}</span>
-        </nav>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight min-w-0">
-            {data.detail.title}
-          </h1>
+      <PageHeader
+        breadcrumb={
+          <Breadcrumb>
+            <BreadcrumbLink href="/admin">Administration</BreadcrumbLink>
+            <BreadcrumbSeparator />
+            <BreadcrumbLink href="/admin/offers">Job offers</BreadcrumbLink>
+            <BreadcrumbSeparator />
+            <BreadcrumbCurrent>{data.detail.title}</BreadcrumbCurrent>
+          </Breadcrumb>
+        }
+        title={data.detail.title}
+        action={
           <div className="flex items-center gap-3 shrink-0">
             <OfferStatusPill status={data.status} />
             {data.detail.expiresAt && (
               <span className={MUTED}>expires {data.detail.expiresAt.slice(0, 10)}</span>
             )}
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* CTA remonté juste sous le h1, avant la ligne company (retour UI). */}
       <NormalizedSheetCta

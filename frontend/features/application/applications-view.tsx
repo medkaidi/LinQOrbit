@@ -3,48 +3,47 @@
 import { useState } from "react";
 import Link from "next/link";
 
+import {
+  Breadcrumb,
+  BreadcrumbCurrent,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  LINK_ACCENT_CLASS,
+  PageHeader,
+} from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
 import { CtaButton } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  APPLICATION_ITEM,
-  APPLICATION_MUTED,
-  APPLICATION_SECTION,
-  APPLICATION_SECTION_HEADER,
-  APPLICATION_SECTION_TITLE,
   ApplicationStatusPill,
   answerValueLabel,
   appliedOnLabel,
 } from "@/features/application/application-shared";
+import {
+  ITEM_CARD_CLASS,
+  MUTED_TEXT_CLASS,
+  SECTION_CARD_CLASS,
+  SECTION_HEADER_CLASS,
+  SECTION_TITLE_CLASS,
+} from "@/components/ui/section";
 import { useMyApplications, useWithdrawApplication } from "@/hooks/use-applications";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
+import { cn } from "@/lib/utils/cn";
 import type { ApplicationResponse } from "@/types/application";
 
 function Header() {
   return (
-    <div className="pb-6 border-b border-slate-border">
-      <div className="min-w-0">
-        <nav
-          aria-label="Breadcrumb"
-          className="flex flex-wrap items-center gap-2 text-body-sm font-body-sm text-text-secondary"
-        >
-          <Link
-            href="/dashboard"
-            className="hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-          >
-            Candidate space
-          </Link>
-          <span aria-hidden="true" className="text-text-tertiary">
-            /
-          </span>
-          <span className="text-text-primary font-semibold">My applications</span>
-        </nav>
-        <h1 className="mt-1 font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
-          My applications
-        </h1>
-      </div>
-    </div>
+    <PageHeader
+      breadcrumb={
+        <Breadcrumb>
+          <BreadcrumbLink href="/dashboard">Candidate space</BreadcrumbLink>
+          <BreadcrumbSeparator />
+          <BreadcrumbCurrent>My applications</BreadcrumbCurrent>
+        </Breadcrumb>
+      }
+      title="My applications"
+    />
   );
 }
 
@@ -57,12 +56,15 @@ function ApplicationCard({
 }) {
   const appliedOn = appliedOnLabel(application.createdAt);
   return (
-    <li className={APPLICATION_ITEM}>
+    <li className={ITEM_CARD_CLASS}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <Link
             href={`/jobs/${application.job.publicId}-${application.job.slug}`}
-            className="font-headline-md text-headline-md text-text-primary font-bold tracking-tight hover:text-orange-deep transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+            className={cn(
+              LINK_ACCENT_CLASS,
+              "font-headline-md text-headline-md text-text-primary font-bold tracking-tight",
+            )}
           >
             {application.job.title}
           </Link>
@@ -122,11 +124,11 @@ export function ApplicationsView() {
     <div className="flex flex-col gap-6">
       <Header />
 
-      <section className={APPLICATION_SECTION}>
-        <header className={APPLICATION_SECTION_HEADER}>
-          <h2 className={APPLICATION_SECTION_TITLE}>Your applications</h2>
+      <section className={SECTION_CARD_CLASS}>
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Your applications</h2>
           {applications.data ? (
-            <span className={APPLICATION_MUTED}>
+            <span className={MUTED_TEXT_CLASS}>
               {items.length === 1 ? "1 application" : `${items.length} applications`}
             </span>
           ) : null}
@@ -152,7 +154,7 @@ export function ApplicationsView() {
           ) : null}
 
           {applications.data && items.length === 0 ? (
-            <p className={APPLICATION_MUTED}>
+            <p className={MUTED_TEXT_CLASS}>
               You have not applied to any job offer yet.
             </p>
           ) : null}

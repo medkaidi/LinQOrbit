@@ -8,6 +8,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button, CtaButton } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
+import { SECTION_HEADER_CLASS, SECTION_TITLE_CLASS } from "@/components/ui/section";
 import { useUpdateRecruiter } from "@/hooks/use-recruiter";
 import { getRecruiterErrorMessage } from "@/lib/api/recruiter.api";
 import {
@@ -15,10 +16,6 @@ import {
   type UpdateRecruiterValues,
 } from "@/lib/validations/recruiter.schemas";
 import type { RecruiterProfile } from "@/types/recruiter";
-import {
-  OFFER_SECTION_HEADER,
-  OFFER_SECTION_TITLE,
-} from "@/features/job-offer/job-offer-shared";
 
 function ReadValue({ label, value }: { label: string; value: string | null }) {
   return (
@@ -65,8 +62,8 @@ export function RecruiterProfileSection({ profile }: { profile: RecruiterProfile
   if (!editing) {
     return (
       <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <header className={OFFER_SECTION_HEADER}>
-          <h2 className={OFFER_SECTION_TITLE}>Recruiter profile</h2>
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Recruiter profile</h2>
           <Button variant="outline-sm" onClick={() => setEditing(true)}>
             Edit
           </Button>
@@ -81,8 +78,8 @@ export function RecruiterProfileSection({ profile }: { profile: RecruiterProfile
 
   return (
     <section className="bg-canvas-white rounded-2xl shadow-sm">
-      <header className={OFFER_SECTION_HEADER}>
-        <h2 className={OFFER_SECTION_TITLE}>Recruiter profile</h2>
+      <header className={SECTION_HEADER_CLASS}>
+        <h2 className={SECTION_TITLE_CLASS}>Recruiter profile</h2>
       </header>
       <form
         onSubmit={handleSubmit((values) => update.mutate(values, { onSuccess: closeEditor }))}

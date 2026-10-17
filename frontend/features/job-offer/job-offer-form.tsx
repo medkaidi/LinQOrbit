@@ -12,6 +12,11 @@ import { TagInput } from "@/components/ui/tag-input";
 import { TextField } from "@/components/ui/text-field";
 import type { SelectOption } from "@/components/ui/select";
 import { countryOptions } from "@/config/countries";
+import {
+  ITEM_CARD_CLASS,
+  SECTION_HEADER_CLASS,
+  SECTION_TITLE_CLASS,
+} from "@/components/ui/section";
 import { SelectField } from "@/features/candidate/select-field";
 import { RemoveButton } from "@/features/candidate/profile-shared";
 import { OfferQuestionsSection } from "@/features/job-offer/offer-questions-section";
@@ -28,7 +33,7 @@ import {
   useUpdateJobOffer,
   useWorkModes,
 } from "@/hooks/use-job-offers";
-import { getJobOfferErrorMessage } from "@/lib/api/job-offer.api";
+import { getApiErrorMessage } from "@/lib/utils/api-error";
 import {
   createJobOfferSchema,
   JOB_OFFER_SALARY_PERIODS,
@@ -36,11 +41,6 @@ import {
   type CreateJobOfferValues,
 } from "@/lib/validations/job-offer.schemas";
 import type { Company, JobOffer } from "@/types/recruiter";
-import {
-  OFFER_ITEM_CARD,
-  OFFER_SECTION_HEADER,
-  OFFER_SECTION_TITLE,
-} from "@/features/job-offer/job-offer-shared";
 
 const SENIORITY_OPTIONS: SelectOption[] = [
   { value: "junior", label: "Junior" },
@@ -152,7 +152,7 @@ function emptyValues(companyId: string): CreateJobOfferValues {
 }
 
 function RowCard({ children }: { children: React.ReactNode }) {
-  return <li className={`${OFFER_ITEM_CARD} flex flex-wrap items-end gap-3`}>{children}</li>;
+  return <li className={`${ITEM_CARD_CLASS} flex flex-wrap items-end gap-3`}>{children}</li>;
 }
 
 /**
@@ -245,13 +245,13 @@ export function JobOfferForm({
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6" noValidate>
       {error ? (
         <Alert variant="error" title="Could not save the offer">
-          {getJobOfferErrorMessage(error)}
+          {getApiErrorMessage(error)}
         </Alert>
       ) : null}
 
       <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <header className={OFFER_SECTION_HEADER}>
-          <h2 className={OFFER_SECTION_TITLE}>Basics</h2>
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Basics</h2>
         </header>
         <div className="px-6 pt-5 pb-6 flex flex-col gap-4">
           {mode === "create" && companies.length > 1 ? (
@@ -290,8 +290,8 @@ export function JobOfferForm({
       </section>
 
       <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <header className={OFFER_SECTION_HEADER}>
-          <h2 className={OFFER_SECTION_TITLE}>Role &amp; location</h2>
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Role &amp; location</h2>
         </header>
         <div className="px-6 pt-5 pb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <SelectField
@@ -326,8 +326,8 @@ export function JobOfferForm({
       </section>
 
       <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <header className={OFFER_SECTION_HEADER}>
-          <h2 className={OFFER_SECTION_TITLE}>Contract &amp; salary</h2>
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Contract &amp; salary</h2>
         </header>
         <div className="px-6 pt-5 pb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <SelectField
@@ -388,8 +388,8 @@ export function JobOfferForm({
       </section>
 
       <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <header className={OFFER_SECTION_HEADER}>
-          <h2 className={OFFER_SECTION_TITLE}>Skills</h2>
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Skills</h2>
         </header>
         <div className="px-6 pt-5 pb-6 flex flex-col items-start gap-4">
           {skillRows.fields.length === 0 ? (
@@ -457,8 +457,8 @@ export function JobOfferForm({
       </section>
 
       <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <header className={OFFER_SECTION_HEADER}>
-          <h2 className={OFFER_SECTION_TITLE}>Languages</h2>
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Languages</h2>
         </header>
         <div className="px-6 pt-5 pb-6 flex flex-col items-start gap-4">
           {languageRows.fields.length === 0 ? (
@@ -521,8 +521,8 @@ export function JobOfferForm({
       </section>
 
       <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <header className={OFFER_SECTION_HEADER}>
-          <h2 className={OFFER_SECTION_TITLE}>Education</h2>
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>Education</h2>
         </header>
         <div className="px-6 pt-5 pb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Controller

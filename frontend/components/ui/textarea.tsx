@@ -1,7 +1,7 @@
 import { useId, type ComponentPropsWithRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 
-export type TextareaProps = Omit<ComponentPropsWithRef<"textarea">, "className"> & {
+type TextareaProps = Omit<ComponentPropsWithRef<"textarea">, "className"> & {
   label: string;
   /** Contenu aligné à droite sur la ligne de label (compteur de caractères…). */
   labelAction?: ReactNode;

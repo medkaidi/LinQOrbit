@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 
-export type BadgeTone = "neutral" | "success";
+type BadgeTone = "neutral" | "success";
 
-export type BadgeProps = {
+type BadgeProps = {
   children: ReactNode;
   tone?: BadgeTone;
   className?: string;

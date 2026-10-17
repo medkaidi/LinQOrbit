@@ -40,7 +40,7 @@ export type PublicJobArticleModel = {
 };
 
 /** Autre offre publiée de la colonne latérale — lien via `publicJobPath`. */
-export type RelatedPublicJob = {
+type RelatedPublicJob = {
   publicId: string;
   slug: string;
   title: string;
@@ -175,17 +175,9 @@ export function PublicJobArticle({
   }
   if (expiry) {
     heroChips.push(
-      <span
-        key="expiry"
-        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-body-sm text-body-sm ${
-          expiry.urgent
-            ? "border-orange-border bg-orange-subtle font-semibold text-orange-deep"
-            : "border-slate-border bg-item-surface/50 text-text-secondary"
-        }`}
-      >
-        <Icon name="event" className="text-[14px]" />
+      <MetaChip key="expiry" icon="event" urgent={expiry.urgent}>
         {expiry.label}
-      </span>,
+      </MetaChip>,
     );
   }
 

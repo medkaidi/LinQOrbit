@@ -8,11 +8,6 @@ export async function listCompanies(): Promise<Company[]> {
   return response.data;
 }
 
-export async function getCompany(companyId: string): Promise<Company> {
-  const response = await api.get<Company>(`/api/v1/companies/${companyId}`);
-  return response.data;
-}
-
 export async function createCompany(values: CompanyValues): Promise<Company> {
   const response = await api.post<Company>("/api/v1/companies", {
     name: values.name,

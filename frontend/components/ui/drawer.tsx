@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils/cn";
 
-export type DrawerProps = {
+type DrawerProps = {
   /** Titre visible + accessible name si `ariaLabel` est absent. */
   title: ReactNode;
   /** Sous-titre de l'en-tête (nom de l'entité, tronqué). */

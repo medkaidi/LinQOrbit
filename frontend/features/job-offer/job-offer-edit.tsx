@@ -9,7 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { JobOfferForm } from "@/features/job-offer/job-offer-form";
 import { STATUS_LABELS } from "@/features/job-offer/job-offer-shared";
 import { useJobOffer } from "@/hooks/use-job-offers";
-import { getJobOfferErrorMessage } from "@/lib/api/job-offer.api";
+import { getApiErrorMessage } from "@/lib/utils/api-error";
 
 /**
  * Édition d'offre : uniquement en DRAFT ou VALIDATED (D13) — un statut
@@ -56,7 +56,7 @@ export function JobOfferEdit({ offerId }: { offerId: string }) {
         </div>
         <Alert variant="error" title="Could not load the offer">
           <div className="flex items-center justify-between gap-3">
-            <span>{getJobOfferErrorMessage(offer.error)}</span>
+            <span>{getApiErrorMessage(offer.error)}</span>
             <Button variant="outline-sm" onClick={() => router.push("/recruiter")}>
               Back to offers
             </Button>

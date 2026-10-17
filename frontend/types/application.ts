@@ -12,13 +12,13 @@ export type ApplicationJobSummary = {
 };
 
 /** CV épinglé par la candidature (`originalName` null si le fichier a disparu). */
-export type ApplicationCvSummary = {
+type ApplicationCvSummary = {
   attachmentId: string;
   originalName: string | null;
 };
 
 /** Option cochée dans une réponse (jamais `preferred` — information recruteur seule). */
-export type ApplicationAnswerOptionView = {
+type ApplicationAnswerOptionView = {
   optionId: string;
   label: string;
 };
@@ -45,7 +45,7 @@ export type ApplicationResponse = {
   answers: ApplicationAnswerView[];
 };
 
-export type ApplicationQuestionOptionView = {
+type ApplicationQuestionOptionView = {
   id: string;
   label: string;
   sortOrder: number;

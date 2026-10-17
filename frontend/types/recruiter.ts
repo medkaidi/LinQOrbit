@@ -15,7 +15,7 @@ export type Company = {
 
 export type JobOfferStatusValue = "draft" | "validated" | "published" | "closed";
 export type SeniorityValue = "junior" | "mid" | "senior" | "lead" | "principal";
-export type RequirementTypeValue = "mandatory" | "preferred";
+type RequirementTypeValue = "mandatory" | "preferred";
 export type SalaryPeriodValue = "year" | "month" | "day" | "hour";
 export type QuestionTypeValue =
   | "text"
@@ -41,7 +41,7 @@ export type JobOfferLanguageOption = {
 };
 
 /** Option de question de présélection (D47) — `preferred` reste côté recruteur. */
-export type JobOfferQuestionOption = {
+type JobOfferQuestionOption = {
   id: string;
   label: string;
   sortOrder: number;
@@ -53,7 +53,7 @@ export type JobOfferQuestionOption = {
  * langues, elle ne vit pas dans le snapshot normalisé ni dans les réponses
  * publiques : seules les vues recruteur la portent.
  */
-export type JobOfferQuestion = {
+type JobOfferQuestion = {
   id: string;
   label: string;
   type: QuestionTypeValue;

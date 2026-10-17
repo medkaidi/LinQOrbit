@@ -7,16 +7,13 @@ import { Alert } from "@/components/ui/alert";
 import { CtaButton } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
+import { SECTION_HEADER_CLASS, SECTION_TITLE_CLASS } from "@/components/ui/section";
 import { useCreateCompany } from "@/hooks/use-companies";
 import { getCompanyErrorMessage } from "@/lib/api/company.api";
 import {
   companySchema,
   type CompanyValues,
 } from "@/lib/validations/recruiter.schemas";
-import {
-  OFFER_SECTION_HEADER,
-  OFFER_SECTION_TITLE,
-} from "@/features/job-offer/job-offer-shared";
 
 /**
  * Création de la première company (D11) : le recruteur créateur en devient
@@ -35,8 +32,8 @@ export function CompanySetup() {
 
   return (
     <section className="bg-canvas-white rounded-2xl shadow-sm">
-      <header className={OFFER_SECTION_HEADER}>
-        <h2 className={OFFER_SECTION_TITLE}>Set up your company</h2>
+      <header className={SECTION_HEADER_CLASS}>
+        <h2 className={SECTION_TITLE_CLASS}>Set up your company</h2>
       </header>
       <form
         onSubmit={handleSubmit((values) => create.mutate(values))}

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { Button, CtaButton, type CtaTone } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 
-export type ConfirmDialogProps = {
+type ConfirmDialogProps = {
   title: ReactNode;
   /** Message de corps (conséquence, irréversibilité…). */
   message?: ReactNode;
