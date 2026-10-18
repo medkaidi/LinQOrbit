@@ -2,6 +2,7 @@ import { StatusPill, type StatusPillTone } from "@/components/ui/status-pill";
 import type { ApplicationAnswerView, ApplicationStatusValue } from "@/types/application";
 
 const APPLICATION_STATUS_LABELS: Record<ApplicationStatusValue, string> = {
+  draft: "Draft",
   submitted: "Submitted",
   withdrawn: "Withdrawn",
   accepted: "Accepted",
@@ -10,6 +11,7 @@ const APPLICATION_STATUS_LABELS: Record<ApplicationStatusValue, string> = {
 
 /** Tons miroirs du motif `OfferStatusPill` (fond doux + point coloré). */
 const STATUS_PILL_TONES: Record<ApplicationStatusValue, StatusPillTone> = {
+  draft: { pill: "bg-orange-subtle text-orange-deep", dot: "bg-orange-deep" },
   submitted: { pill: "bg-blue-surface text-blue-deep", dot: "bg-blue-deep" },
   withdrawn: { pill: "bg-slate-surface text-text-secondary", dot: "bg-slate-border" },
   accepted: { pill: "bg-success-surface text-success-text", dot: "bg-tertiary" },

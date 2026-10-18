@@ -2,9 +2,11 @@ package com.linqorbit.application.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,6 +33,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -40,11 +44,13 @@ import com.linqorbit.candidate.service.NormalizationWorker;
 /**
  * Parcours HTTP réels des candidatures (PostgreSQL réel) — règle racine :
  * l'ordre d'insertion par étages et la chaîne de FK composites ne se valident
- * que sur la base réelle. Couvre : soumission nominale (5 types de questions),
- * reconstruction « mes candidatures », contexte sans {@code preferred},
- * retrait terminal, doublons de couple, CV d'autrui, option d'une autre offre,
- * obligatoires manquantes, invariants de base (UNIQUE, CHECK, FK composites,
- * réponses immuables — pas d'updated_at), offres indisponibles et 401.
+ * que sur la base réelle. Couvre le parcours en brouillon (D59) : brouillon
+ * nominal (5 types de questions), remplacement des réponses et brouillon
+ * partiel, étape calculée du contexte, transmission (CV renseigné puis
+ * épinglé), abandon, retrait terminal, doublons de couple, CV d'autrui, option
+ * d'une autre offre, obligatoires manquantes, invariants de base (UNIQUE,
+ * CHECK, FK composites, contraintes V21 — statuts 1–5, CV obligatoire hors
+ * brouillon, FK matching_id), offres indisponibles et 401.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -146,13 +152,13 @@ class ApplicationIntegrationTest {
     }
 
     @Test
-    void soumissionPuisListePuisContextePuisRetraitTerminal() throws Exception {
+    void brouillonPuisTransmissionPuisListeContexteEtRetraitTerminal() throws Exception {
         Owner owner = ownerWithCompany("Acme");
         UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", QUESTIONS_ALL_TYPES);
         publish(owner.token(), offerId);
         String candidateJwt = signup();
-        UUID candidateId = lastUserId();
         UUID cvId = uploadCv(candidateJwt);
+        String publicId = publicIdOf(offerId);
 
         UUID textQuestion = questionIdOf(offerId, "Why this role?");
         UUID singleQuestion = questionIdOf(offerId, "Preferred setup?");
@@ -163,100 +169,155 @@ class ApplicationIntegrationTest {
         UUID java = optionIdOf(offerId, "Java");
         UUID python = optionIdOf(offerId, "Python");
 
-        MvcResult submitted = mockMvc.perform(post(APPLICATIONS_PATH)
-                        .header("Authorization", "Bearer " + candidateJwt)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "jobPublicId": "%s",
-                                  "answers": [
-                                    {"questionId": "%s", "text": "I love the product"},
-                                    {"questionId": "%s", "optionIds": ["%s"]},
-                                    {"questionId": "%s", "optionIds": ["%s", "%s"]},
-                                    {"questionId": "%s", "booleanValue": true},
-                                    {"questionId": "%s", "number": 7.5}
-                                  ]
-                                }
-                                """.formatted(publicIdOf(offerId), textQuestion, singleQuestion, remote,
-                                multipleQuestion, python, java, yesNoQuestion, numberQuestion)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("submitted"))
+        // Contexte avant tout brouillon : étape « questions du recruteur ».
+        mockMvc.perform(get(APPLICATIONS_PATH + "/context/" + publicId).header("Authorization", "Bearer " + candidateJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.step").value("recruiter_questions"))
+                .andExpect(jsonPath("$.canSubmit").value(false))
+                .andExpect(jsonPath("$.answers.length()").value(0));
+
+        MvcResult drafted = saveDraft(candidateJwt, publicId, """
+                [
+                  {"questionId": "%s", "text": "I love the product"},
+                  {"questionId": "%s", "optionIds": ["%s"]},
+                  {"questionId": "%s", "optionIds": ["%s", "%s"]},
+                  {"questionId": "%s", "booleanValue": true},
+                  {"questionId": "%s", "number": 7.5}
+                ]""".formatted(textQuestion, singleQuestion, remote, multipleQuestion, python, java, yesNoQuestion,
+                numberQuestion))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("draft"))
                 .andExpect(jsonPath("$.cv.attachmentId").value(cvId.toString()))
-                .andExpect(jsonPath("$.cv.originalName").value("candidate-cv.pdf"))
-                .andExpect(jsonPath("$.job.publicId").value(publicIdOf(offerId)))
                 .andExpect(jsonPath("$.job.companyName").value("Acme"))
                 .andExpect(jsonPath("$.answers.length()").value(5))
-                .andExpect(jsonPath("$.answers[0].type").value("text"))
-                .andExpect(jsonPath("$.answers[0].value").value("I love the product"))
                 .andExpect(jsonPath("$.answers[1].value.label").value("Remote"))
                 .andExpect(jsonPath("$.answers[2].value.length()").value(2))
-                .andExpect(jsonPath("$.answers[3].value").value(true))
                 .andExpect(jsonPath("$.answers[4].value").value(7.5))
                 .andReturn();
-        String applicationId = objectMapper.readTree(submitted.getResponse().getContentAsString())
-                .get("id").asText();
+        UUID applicationId = idOf(drafted);
 
-        // Base réelle : application (matching NULL), 5 réponses, 3 sélections.
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT status FROM application WHERE id = ?", Integer.class, UUID.fromString(applicationId)))
-                .isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT matching_id::text FROM application WHERE id = ?", String.class, UUID.fromString(applicationId)))
-                .isNull();
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT cv_attachment_id::text FROM application WHERE id = ?", String.class,
-                UUID.fromString(applicationId))).isEqualTo(cvId.toString());
-        assertThat(count("SELECT count(*) FROM application_answer WHERE application_id = ?",
-                UUID.fromString(applicationId))).isEqualTo(5);
+        // Base réelle : brouillon (code 1), CV courant renseigné, 5 réponses, 3 sélections.
+        assertThat(statusOf(applicationId)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT cv_attachment_id::text FROM application WHERE id = ?",
+                String.class, applicationId)).isEqualTo(cvId.toString());
+        assertThat(count("SELECT count(*) FROM application_answer WHERE application_id = ?", applicationId))
+                .isEqualTo(5);
         assertThat(count("""
                 SELECT count(*) FROM application_answer_option o
                 JOIN application_answer a ON a.id = o.application_answer_id
-                WHERE a.application_id = ?""", UUID.fromString(applicationId))).isEqualTo(3);
+                WHERE a.application_id = ?""", applicationId)).isEqualTo(3);
 
-        // « Mes candidatures » : ordre des questions, et `preferred` jamais exposé.
-        MvcResult mine = mockMvc.perform(get(APPLICATIONS_PATH + "/mine")
+        // Contexte : brouillon complet → matching ouvert, transmission possible, réponses rendues sans preferred.
+        MvcResult context = mockMvc.perform(get(APPLICATIONS_PATH + "/context/" + publicId)
                         .header("Authorization", "Bearer " + candidateJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.existingApplication.id").value(applicationId.toString()))
+                .andExpect(jsonPath("$.existingApplication.status").value("draft"))
+                .andExpect(jsonPath("$.existingApplication.cvAttachmentId").value(cvId.toString()))
+                .andExpect(jsonPath("$.answers.length()").value(5))
+                .andExpect(jsonPath("$.step").value("matching"))
+                .andExpect(jsonPath("$.canSubmit").value(true))
+                .andReturn();
+        assertThat(context.getResponse().getContentAsString()).doesNotContain("preferred");
+
+        submit(candidateJwt, applicationId, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("submitted"))
+                .andExpect(jsonPath("$.cv.originalName").value("candidate-cv.pdf"))
+                .andExpect(jsonPath("$.answers.length()").value(5));
+        assertThat(statusOf(applicationId)).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject("SELECT matching_id::text FROM application WHERE id = ?",
+                String.class, applicationId)).isNull();
+
+        MvcResult mine = mockMvc.perform(get(APPLICATIONS_PATH + "/mine").header("Authorization", "Bearer " + candidateJwt))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].status").value("submitted"))
                 .andExpect(jsonPath("$[0].answers[0].questionId").value(textQuestion.toString()))
-                .andExpect(jsonPath("$[0].answers[1].questionId").value(singleQuestion.toString()))
                 .andExpect(jsonPath("$[0].answers[4].questionId").value(numberQuestion.toString()))
                 .andReturn();
         assertThat(mine.getResponse().getContentAsString()).doesNotContain("preferred");
+        mockMvc.perform(get(APPLICATIONS_PATH + "/context/" + publicId).header("Authorization", "Bearer " + candidateJwt))
+                .andExpect(jsonPath("$.step").value("submitted"))
+                .andExpect(jsonPath("$.canSubmit").value(false));
 
-        // Contexte : questions sans preferred, candidature existante signalée.
-        MvcResult context = mockMvc.perform(get(APPLICATIONS_PATH + "/context/" + publicIdOf(offerId))
-                        .header("Authorization", "Bearer " + candidateJwt))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.questions.length()").value(5))
-                .andExpect(jsonPath("$.currentCvAttachmentId").value(cvId.toString()))
-                .andExpect(jsonPath("$.existingApplication.id").value(applicationId))
-                .andExpect(jsonPath("$.existingApplication.status").value("submitted"))
-                .andReturn();
-        assertThat(context.getResponse().getContentAsString()).doesNotContain("preferred");
+        // Transmise : plus de brouillon, plus de seconde transmission, plus d'abandon.
+        assertAlreadyApplied(candidateJwt, publicId);
+        submit(candidateJwt, applicationId, null).andExpect(status().isConflict());
+        mockMvc.perform(delete(APPLICATIONS_PATH + "/" + applicationId).header("Authorization", "Bearer " + candidateJwt))
+                .andExpect(status().isConflict());
 
-        // Doublon de couple, y compris après retrait (terminal au MVP).
-        assertAlreadyApplied(candidateJwt, publicIdOf(offerId));
-
+        // Retrait terminal (code 3), le couple reste occupé.
         mockMvc.perform(post(APPLICATIONS_PATH + "/" + applicationId + "/withdraw")
                         .header("Authorization", "Bearer " + candidateJwt))
                 .andExpect(status().isNoContent());
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT status FROM application WHERE id = ?", Integer.class, UUID.fromString(applicationId)))
-                .isEqualTo(2);
+        assertThat(statusOf(applicationId)).isEqualTo(3);
         mockMvc.perform(post(APPLICATIONS_PATH + "/" + applicationId + "/withdraw")
                         .header("Authorization", "Bearer " + candidateJwt))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("This application can no longer be withdrawn."));
-        assertAlreadyApplied(candidateJwt, publicIdOf(offerId));
-
+        assertAlreadyApplied(candidateJwt, publicId);
         mockMvc.perform(get(APPLICATIONS_PATH + "/mine").header("Authorization", "Bearer " + candidateJwt))
                 .andExpect(jsonPath("$[0].status").value("withdrawn"));
     }
 
     @Test
-    void laChaineFnCompositeEstInviolableEnBase() throws Exception {
+    void leBrouillonRemplaceSesReponsesEtPeutEtrePartiel() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", QUESTIONS_ALL_TYPES);
+        publish(owner.token(), offerId);
+        String candidateJwt = signup();
+        uploadCv(candidateJwt);
+        String publicId = publicIdOf(offerId);
+        UUID textQuestion = questionIdOf(offerId, "Why this role?");
+        UUID singleQuestion = questionIdOf(offerId, "Preferred setup?");
+        UUID multipleQuestion = questionIdOf(offerId, "Your stacks?");
+
+        // Brouillon partiel (l'obligatoire « Preferred setup? » manque) : accepté.
+        UUID applicationId = idOf(saveDraft(candidateJwt, publicId, """
+                [
+                  {"questionId": "%s", "text": "First version"},
+                  {"questionId": "%s", "optionIds": ["%s", "%s"]}
+                ]""".formatted(textQuestion, multipleQuestion, optionIdOf(offerId, "Java"),
+                optionIdOf(offerId, "Python")))
+                .andExpect(status().isOk())
+                .andReturn());
+        mockMvc.perform(get(APPLICATIONS_PATH + "/context/" + publicId).header("Authorization", "Bearer " + candidateJwt))
+                .andExpect(jsonPath("$.step").value("recruiter_questions"))
+                .andExpect(jsonPath("$.canSubmit").value(false));
+        submit(candidateJwt, applicationId, null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("All required questions must be answered."));
+
+        // Ré-enregistrement : même candidature, réponses remplacées (sélections du QCM purgées en cascade).
+        UUID sameId = idOf(saveDraft(candidateJwt, publicId, """
+                [
+                  {"questionId": "%s", "text": "Second version"},
+                  {"questionId": "%s", "optionIds": ["%s"]}
+                ]""".formatted(textQuestion, singleQuestion, optionIdOf(offerId, "Remote")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answers.length()").value(2))
+                .andExpect(jsonPath("$.answers[0].value").value("Second version"))
+                .andReturn());
+        assertThat(sameId).isEqualTo(applicationId);
+        assertThat(count("SELECT count(*) FROM application WHERE candidate_id = ?", lastUserId())).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM application_answer WHERE application_id = ?", applicationId))
+                .isEqualTo(2);
+        assertThat(count("""
+                SELECT count(*) FROM application_answer_option o
+                JOIN application_answer a ON a.id = o.application_answer_id
+                WHERE a.application_id = ?""", applicationId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM application_answer WHERE question_id = ?", multipleQuestion)).isZero();
+
+        // Obligatoires désormais répondues : étape matching, transmission acceptée.
+        mockMvc.perform(get(APPLICATIONS_PATH + "/context/" + publicId).header("Authorization", "Bearer " + candidateJwt))
+                .andExpect(jsonPath("$.step").value("matching"))
+                .andExpect(jsonPath("$.canSubmit").value(true));
+        submit(candidateJwt, applicationId, null).andExpect(status().isOk());
+    }
+
+    @Test
+    void laChaineFkCompositeEtLesContraintesV21SontInviolablesEnBase() throws Exception {
         Owner owner = ownerWithCompany("Acme");
         UUID offerA = createOffer(owner.token(), owner.companyId(), "Offer A", """
                 [
@@ -277,83 +338,64 @@ class ApplicationIntegrationTest {
         UUID questionB = questionIdOf(offerB, "Setup B?");
         UUID optionB = optionIdOf(offerB, "Option B");
 
-        // Refus service : option d'une autre offre (la base ne lit pas question_type,
-        // la vérification d'appartenance est en service ; la FK reverrouille ensuite).
-        mockMvc.perform(post(APPLICATIONS_PATH)
-                        .header("Authorization", "Bearer " + candidateJwt)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "jobPublicId": "%s",
-                                  "answers": [{"questionId": "%s", "optionIds": ["%s"]}]
-                                }
-                                """.formatted(publicIdOf(offerA), questionA, optionB)))
+        // Refus service : option d'une autre offre, puis forme contraire au type de la question.
+        saveDraft(candidateJwt, publicIdOf(offerA),
+                "[{\"questionId\": \"%s\", \"optionIds\": [\"%s\"]}]".formatted(questionA, optionB))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Answer for question 'Setup A?' is invalid."));
-
-        // Refus service : le type de la question prime sur la forme envoyée.
-        mockMvc.perform(post(APPLICATIONS_PATH)
-                        .header("Authorization", "Bearer " + candidateJwt)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "jobPublicId": "%s",
-                                  "answers": [{"questionId": "%s", "text": "A"}]
-                                }
-                                """.formatted(publicIdOf(offerA), questionA)))
+        saveDraft(candidateJwt, publicIdOf(offerA), "[{\"questionId\": \"%s\", \"text\": \"A\"}]".formatted(questionA))
                 .andExpect(status().isBadRequest());
 
-        MvcResult submitted = mockMvc.perform(post(APPLICATIONS_PATH)
-                        .header("Authorization", "Bearer " + candidateJwt)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "jobPublicId": "%s",
-                                  "answers": [{"questionId": "%s", "optionIds": ["%s"]}]
-                                }
-                                """.formatted(publicIdOf(offerA), questionA, optionA)))
-                .andExpect(status().isCreated())
-                .andReturn();
-        UUID applicationId = UUID.fromString(objectMapper.readTree(submitted.getResponse().getContentAsString())
-                .get("id").asText());
+        UUID applicationId = idOf(saveDraft(candidateJwt, publicIdOf(offerA),
+                "[{\"questionId\": \"%s\", \"optionIds\": [\"%s\"]}]".formatted(questionA, optionA))
+                .andExpect(status().isOk())
+                .andReturn());
         UUID answerAId = jdbcTemplate.queryForObject(
                 "SELECT id FROM application_answer WHERE application_id = ?", UUID.class, applicationId);
-
         UUID candidateId = lastUserId();
-        UUID offerAId = offerIdOf(publicIdOf(offerA));
+        UUID offerAId = offerA;
+        UUID cvId = jdbcTemplate.queryForObject("SELECT cv_attachment_id FROM application WHERE id = ?", UUID.class,
+                applicationId);
 
-        // FK fk_aa_question : (offre A, question de l'offre B) — la réponse
-        // prétend appartenir à A mais cite une question de B → rejetée en base.
+        // FK fk_aa_question : (offre A, question de l'offre B) → rejetée en base.
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO application_answer (id, application_id, job_offer_id, question_id, created_at)
                 VALUES (?, ?, ?, ?, now())""", UUID.randomUUID(), applicationId, offerAId, questionB))
                 .isInstanceOf(DataIntegrityViolationException.class);
-
         // FK fk_aa_application : (offre B, candidature de l'offre A) → rejetée.
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO application_answer (id, application_id, job_offer_id, question_id, created_at)
-                VALUES (?, ?, ?, ?, now())""", UUID.randomUUID(), applicationId, offerIdOf(publicIdOf(offerB)),
-                questionB))
+                VALUES (?, ?, ?, ?, now())""", UUID.randomUUID(), applicationId, offerB, questionB))
                 .isInstanceOf(DataIntegrityViolationException.class);
-
         // FK fk_aao_option : option de B sur une réponse de la question A → rejetée.
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO application_answer_option (application_answer_id, question_id, option_id)
                 VALUES (?, ?, ?)""", answerAId, questionA, optionB))
                 .isInstanceOf(DataIntegrityViolationException.class);
-
-        // UNIQUE du couple (candidat, offre) : doublon rejeté en base.
+        // UNIQUE du couple (candidat, offre), brouillon compris.
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO application (id, candidate_id, job_offer_id, cv_attachment_id, status, created_at,
                                          updated_at)
-                VALUES (?, ?, ?, ?, 1, now(), now())""", UUID.randomUUID(), candidateId, offerAId,
-                jdbcTemplate.queryForObject("SELECT cv_attachment_id FROM application WHERE id = ?", UUID.class,
-                        applicationId)))
+                VALUES (?, ?, ?, ?, 1, now(), now())""", UUID.randomUUID(), candidateId, offerAId, cvId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        // V21 — CHECK statut 1–5.
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE application SET status = 6 WHERE id = ?", applicationId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE application SET status = 0 WHERE id = ?", applicationId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        // V21 — seul un brouillon peut être sans CV.
+        jdbcTemplate.update("UPDATE application SET cv_attachment_id = NULL WHERE id = ?", applicationId);
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE application SET status = 2 WHERE id = ?", applicationId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        // V21 — FK composite matching_id : un matching inexistant (ou d'un autre couple) est impossible.
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE application SET matching_id = ? WHERE id = ?",
+                UUID.randomUUID(), applicationId))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
-    void reponsesImmuablesEtContraintesDeBase() throws Exception {
+    void reponsesFigeesALaTransmissionEtContraintesDeBase() throws Exception {
         Owner owner = ownerWithCompany("Acme");
         UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", """
                 [
@@ -366,56 +408,46 @@ class ApplicationIntegrationTest {
         UUID first = questionIdOf(offerId, "First?");
         UUID second = questionIdOf(offerId, "Second?");
 
-        MvcResult submitted = mockMvc.perform(post(APPLICATIONS_PATH)
-                        .header("Authorization", "Bearer " + candidateJwt)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "jobPublicId": "%s",
-                                  "answers": [{"questionId": "%s", "text": "Answer"}]
-                                }
-                                """.formatted(publicIdOf(offerId), first)))
-                .andExpect(status().isCreated())
-                .andReturn();
-        UUID applicationId = UUID.fromString(objectMapper.readTree(submitted.getResponse().getContentAsString())
-                .get("id").asText());
-        UUID offerIdReal = offerIdOf(publicIdOf(offerId));
+        UUID applicationId = apply(candidateJwt, publicIdOf(offerId),
+                "[{\"questionId\": \"%s\", \"text\": \"Answer\"}]".formatted(first));
 
-        // Réponses immuables : la table n'a pas d'updated_at (snapshot de soumission).
+        // Réponses immuables après transmission : la table n'a pas d'updated_at.
         assertThat(count("""
                 SELECT count(*) FROM information_schema.columns
                 WHERE table_name = 'application_answer' AND column_name = 'updated_at'""")).isZero();
-
         // UNIQUE (application_id, question_id) : une réponse par question.
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO application_answer (id, application_id, job_offer_id, question_id, answer_text,
                                                 created_at)
-                VALUES (?, ?, ?, ?, 'Duplicated', now())""", UUID.randomUUID(), applicationId, offerIdReal, first))
+                VALUES (?, ?, ?, ?, 'Duplicated', now())""", UUID.randomUUID(), applicationId, offerId, first))
                 .isInstanceOf(DataIntegrityViolationException.class);
-
         // CHECK num_nonnulls ≤ 1 : deux porteurs pour une même réponse.
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO application_answer (id, application_id, job_offer_id, question_id, answer_text,
                                                 answer_boolean, created_at)
-                VALUES (?, ?, ?, ?, 'Text', true, now())""", UUID.randomUUID(), applicationId, offerIdReal, second))
+                VALUES (?, ?, ?, ?, 'Text', true, now())""", UUID.randomUUID(), applicationId, offerId, second))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
-    void soumissionSansQuestionsNiCvChoisiEpingleLeCvCourant() throws Exception {
+    void sansQuestionsLeCvCourantEstRenseigneEtEpingle() throws Exception {
         Owner owner = ownerWithCompany("Acme");
         UUID offerId = createOffer(owner.token(), owner.companyId(), "No Questions", null);
         publish(owner.token(), offerId);
         String candidateJwt = signup();
         UUID cvId = uploadCv(candidateJwt);
 
-        // `answers` absentes ≡ vides ; `cvAttachmentId` absent → CV courant.
-        mockMvc.perform(post(APPLICATIONS_PATH)
+        // `answers` absentes ≡ vides ; le CV courant est renseigné dès le brouillon puis épinglé.
+        MvcResult drafted = mockMvc.perform(put(APPLICATIONS_PATH + "/draft")
                         .header("Authorization", "Bearer " + candidateJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"jobPublicId\": \"" + publicIdOf(offerId) + "\", \"answers\": null}"))
-                .andExpect(status().isCreated())
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.answers.length()").value(0))
+                .andExpect(jsonPath("$.cv.attachmentId").value(cvId.toString()))
+                .andReturn();
+        submit(candidateJwt, idOf(drafted), null)
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.cv.attachmentId").value(cvId.toString()));
 
         // Contexte d'un compte sans ligne candidates : CV courant null, 200.
@@ -424,95 +456,100 @@ class ApplicationIntegrationTest {
                         .header("Authorization", "Bearer " + otherJwt))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentCvAttachmentId").doesNotExist())
-                .andExpect(jsonPath("$.existingApplication").doesNotExist());
+                .andExpect(jsonPath("$.existingApplication").doesNotExist())
+                .andExpect(jsonPath("$.step").value("recruiter_questions"));
     }
 
     @Test
-    void obligationsEtValidationsDeSoumission() throws Exception {
+    void validationsDuBrouillonEtDeLaTransmission() throws Exception {
         Owner owner = ownerWithCompany("Acme");
         UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", QUESTIONS_ALL_TYPES);
         publish(owner.token(), offerId);
+        String publicId = publicIdOf(offerId);
         String candidateJwt = signup();
         UUID candidateId = lastUserId();
         uploadCv(candidateJwt);
         UUID textQuestion = questionIdOf(offerId, "Why this role?");
+        String complete = """
+                [
+                  {"questionId": "%s", "text": "Why not"},
+                  {"questionId": "%s", "optionIds": ["%s"]}
+                ]""".formatted(textQuestion, questionIdOf(offerId, "Preferred setup?"), optionIdOf(offerId, "Remote"));
 
-        // Sans CV du tout : 409 même avec des réponses valides.
+        // Sans CV du tout : 409 même avec des réponses valides. Le compte est déjà
+        // candidat (profil écrit) — postuler suppose un compte candidat existant.
         String noCvJwt = signup();
-        mockMvc.perform(post(APPLICATIONS_PATH)
+        mockMvc.perform(put("/api/v1/candidates/me/profile/about")
                         .header("Authorization", "Bearer " + noCvJwt)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"jobPublicId\": \"" + publicIdOf(offerId) + "\"}"))
+                        .content("{\"title\": \"Backend Engineer\", \"yearsOfExperience\": 3,"
+                                + " \"searchStatus\": \"open_to_work\"}"))
+                .andExpect(status().isNoContent());
+        UUID noCvDraft = idOf(saveDraft(noCvJwt, publicId, complete).andExpect(status().isOk()).andReturn());
+        submit(noCvJwt, noCvDraft, null)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("A CV is required to apply. Add one to your profile first."));
 
-        // Question obligatoire non répondue : la seule réponse est valide, la
-        // question texte obligatoire manque → refus « obligatoires ».
-        mockMvc.perform(post(APPLICATIONS_PATH)
-                        .header("Authorization", "Bearer " + candidateJwt)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "jobPublicId": "%s",
-                                  "answers": [{"questionId": "%s", "optionIds": ["%s"]}]
-                                }
-                                """.formatted(publicIdOf(offerId), questionIdOf(offerId, "Preferred setup?"),
-                                optionIdOf(offerId, "Remote"))))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value("All required questions must be answered."));
-
         // Question inconnue de l'offre.
-        mockMvc.perform(post(APPLICATIONS_PATH)
-                        .header("Authorization", "Bearer " + candidateJwt)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "jobPublicId": "%s",
-                                  "answers": [{"questionId": "%s", "text": "x"}]
-                                }
-                                """.formatted(publicIdOf(offerId), UUID.randomUUID())))
+        saveDraft(candidateJwt, publicId, "[{\"questionId\": \"%s\", \"text\": \"x\"}]".formatted(UUID.randomUUID()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Unknown question in your submission."));
-
         // Nombre à plus de 2 décimales refusé (NUMERIC(12,2) altérerait la réponse).
-        mockMvc.perform(post(APPLICATIONS_PATH)
-                        .header("Authorization", "Bearer " + candidateJwt)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "jobPublicId": "%s",
-                                  "answers": [
-                                    {"questionId": "%s", "text": "Why not"},
-                                    {"questionId": "%s", "optionIds": ["%s"]},
-                                    {"questionId": "%s", "number": 1.999}
-                                  ]
-                                }
-                                """.formatted(publicIdOf(offerId), textQuestion,
-                                questionIdOf(offerId, "Preferred setup?"), optionIdOf(offerId, "Remote"),
-                                questionIdOf(offerId, "Years of experience?"))))
+        saveDraft(candidateJwt, publicId, "[{\"questionId\": \"%s\", \"number\": 1.999}]"
+                .formatted(questionIdOf(offerId, "Years of experience?")))
                 .andExpect(status().isBadRequest());
+        // Aucun brouillon n'a été écrit par ces refus.
+        assertThat(count("SELECT count(*) FROM application WHERE candidate_id = ?", candidateId)).isZero();
 
-        // CV d'un autre candidat refusé (400, le CV doit appartenir au candidat).
+        // CV d'un autre candidat refusé à la transmission (400).
+        UUID draftId = idOf(saveDraft(candidateJwt, publicId, complete).andExpect(status().isOk()).andReturn());
         String otherJwt = signup();
         UUID otherCvId = uploadCv(otherJwt);
-        mockMvc.perform(post(APPLICATIONS_PATH)
-                        .header("Authorization", "Bearer " + candidateJwt)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "jobPublicId": "%s",
-                                  "cvAttachmentId": "%s"
-                                }
-                                """.formatted(publicIdOf(offerId), otherCvId)))
+        submit(candidateJwt, draftId, "{\"cvAttachmentId\": \"" + otherCvId + "\"}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("The selected CV is not available."));
-
-        // Aucune candidature n'a été écrite par ces refus.
-        assertThat(count("SELECT count(*) FROM application WHERE candidate_id = ?", candidateId)).isZero();
+        assertThat(statusOf(draftId)).isEqualTo(1);
     }
 
     @Test
-    void offresIndisponiblesEtCandidatureDAutrui() throws Exception {
+    void abandonDuBrouillonEtCandidatureDAutrui() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", """
+                [{"label": "Why?", "type": "text", "isRequired": true, "sortOrder": 0}]""");
+        publish(owner.token(), offerId);
+        String candidateJwt = signup();
+        uploadCv(candidateJwt);
+        UUID question = questionIdOf(offerId, "Why?");
+
+        UUID draftId = idOf(saveDraft(candidateJwt, publicIdOf(offerId),
+                "[{\"questionId\": \"%s\", \"text\": \"Because\"}]".formatted(question))
+                .andExpect(status().isOk()).andReturn());
+
+        // La candidature d'un autre candidat est introuvable (404, zéro fuite).
+        String otherJwt = signup();
+        mockMvc.perform(delete(APPLICATIONS_PATH + "/" + draftId).header("Authorization", "Bearer " + otherJwt))
+                .andExpect(status().isNotFound());
+        submit(otherJwt, draftId, null).andExpect(status().isNotFound());
+        mockMvc.perform(post(APPLICATIONS_PATH + "/" + draftId + "/withdraw").header("Authorization", "Bearer " + otherJwt))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get(APPLICATIONS_PATH + "/mine").header("Authorization", "Bearer " + otherJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        // Un brouillon se retire pas : il s'abandonne.
+        mockMvc.perform(post(APPLICATIONS_PATH + "/" + draftId + "/withdraw").header("Authorization", "Bearer " + candidateJwt))
+                .andExpect(status().isConflict());
+        mockMvc.perform(delete(APPLICATIONS_PATH + "/" + draftId).header("Authorization", "Bearer " + candidateJwt))
+                .andExpect(status().isNoContent());
+        assertThat(count("SELECT count(*) FROM application WHERE id = ?", draftId)).isZero();
+        assertThat(count("SELECT count(*) FROM application_answer WHERE application_id = ?", draftId)).isZero();
+
+        // Le couple est libre à nouveau : un nouveau brouillon peut naître.
+        saveDraft(candidateJwt, publicIdOf(offerId), "[]").andExpect(status().isOk());
+    }
+
+    @Test
+    void offresIndisponibles() throws Exception {
         Owner owner = ownerWithCompany("Acme");
         UUID draftId = createOffer(owner.token(), owner.companyId(), "Draft Offer", null);
         UUID expiredId = createOffer(owner.token(), owner.companyId(), "Expired Offer", null);
@@ -520,56 +557,39 @@ class ApplicationIntegrationTest {
         jdbcTemplate.update("UPDATE job_offer SET expires_at = CURRENT_DATE - 1 WHERE id = ?", expiredId);
         UUID closedId = createOffer(owner.token(), owner.companyId(), "Closed Offer", null);
         publish(owner.token(), closedId);
-        mockMvc.perform(post("/api/v1/job-offers/" + closedId + "/close")
-                        .header("Authorization", "Bearer " + owner.token()))
-                .andExpect(status().isNoContent());
 
         String candidateJwt = signup();
         uploadCv(candidateJwt);
+        // Brouillon pris tant que l'offre est ouverte, puis l'offre ferme : transmission en 404.
+        UUID pendingDraft = idOf(saveDraft(candidateJwt, publicIdOf(closedId), "[]")
+                .andExpect(status().isOk()).andReturn());
+        mockMvc.perform(post("/api/v1/job-offers/" + closedId + "/close")
+                        .header("Authorization", "Bearer " + owner.token()))
+                .andExpect(status().isNoContent());
+        submit(candidateJwt, pendingDraft, null)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("This job offer is no longer available."));
+
         for (UUID offerId : List.of(draftId, expiredId, closedId)) {
-            mockMvc.perform(post(APPLICATIONS_PATH)
-                            .header("Authorization", "Bearer " + candidateJwt)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"jobPublicId\": \"" + publicIdOf(offerId) + "\"}"))
+            saveDraft(candidateJwt, publicIdOf(offerId), "[]")
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.detail").value("This job offer is no longer available."));
             mockMvc.perform(get(APPLICATIONS_PATH + "/context/" + publicIdOf(offerId))
                             .header("Authorization", "Bearer " + candidateJwt))
                     .andExpect(status().isNotFound());
         }
-        mockMvc.perform(post(APPLICATIONS_PATH)
-                        .header("Authorization", "Bearer " + candidateJwt)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"jobPublicId\": \"zzzzzzzzzzzz\"}"))
-                .andExpect(status().isNotFound());
-
-        // La candidature d'un autre candidat est introuvable (404, zéro fuite).
-        UUID openOffer = createOffer(owner.token(), owner.companyId(), "Open Offer", null);
-        publish(owner.token(), openOffer);
-        MvcResult submitted = mockMvc.perform(post(APPLICATIONS_PATH)
-                        .header("Authorization", "Bearer " + candidateJwt)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"jobPublicId\": \"" + publicIdOf(openOffer) + "\"}"))
-                .andExpect(status().isCreated())
-                .andReturn();
-        String applicationId = objectMapper.readTree(submitted.getResponse().getContentAsString())
-                .get("id").asText();
-
-        String otherJwt = signup();
-        mockMvc.perform(post(APPLICATIONS_PATH + "/" + applicationId + "/withdraw")
-                        .header("Authorization", "Bearer " + otherJwt))
-                .andExpect(status().isNotFound());
-        mockMvc.perform(get(APPLICATIONS_PATH + "/mine").header("Authorization", "Bearer " + otherJwt))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+        saveDraft(candidateJwt, "zzzzzzzzzzzz", "[]").andExpect(status().isNotFound());
     }
 
     @Test
     void sansJetonToutEst401() throws Exception {
-        mockMvc.perform(post(APPLICATIONS_PATH)
+        mockMvc.perform(put(APPLICATIONS_PATH + "/draft")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"jobPublicId\": \"abc123def456\"}"))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(post(APPLICATIONS_PATH + "/" + UUID.randomUUID() + "/submit"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete(APPLICATIONS_PATH + "/" + UUID.randomUUID())).andExpect(status().isUnauthorized());
         mockMvc.perform(get(APPLICATIONS_PATH + "/mine")).andExpect(status().isUnauthorized());
         mockMvc.perform(get(APPLICATIONS_PATH + "/context/abc123def456")).andExpect(status().isUnauthorized());
         mockMvc.perform(post(APPLICATIONS_PATH + "/" + UUID.randomUUID() + "/withdraw"))
@@ -577,12 +597,40 @@ class ApplicationIntegrationTest {
     }
 
     private void assertAlreadyApplied(String token, String publicId) throws Exception {
-        mockMvc.perform(post(APPLICATIONS_PATH)
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"jobPublicId\": \"" + publicId + "\"}"))
+        saveDraft(token, publicId, "[]")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("You have already applied to this job offer."));
+    }
+
+    private ResultActions saveDraft(String token, String publicId, String answersJson) throws Exception {
+        return mockMvc.perform(put(APPLICATIONS_PATH + "/draft")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"jobPublicId\": \"" + publicId + "\", \"answers\": " + answersJson + "}"));
+    }
+
+    private ResultActions submit(String token, UUID applicationId, String bodyJson) throws Exception {
+        MockHttpServletRequestBuilder request = post(APPLICATIONS_PATH + "/" + applicationId + "/submit")
+                .header("Authorization", "Bearer " + token);
+        if (bodyJson != null) {
+            request = request.contentType(MediaType.APPLICATION_JSON).content(bodyJson);
+        }
+        return mockMvc.perform(request);
+    }
+
+    /** Parcours complet : brouillon puis transmission ; renvoie l'id de la candidature. */
+    private UUID apply(String token, String publicId, String answersJson) throws Exception {
+        UUID applicationId = idOf(saveDraft(token, publicId, answersJson).andExpect(status().isOk()).andReturn());
+        submit(token, applicationId, null).andExpect(status().isOk());
+        return applicationId;
+    }
+
+    private UUID idOf(MvcResult result) throws Exception {
+        return UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asText());
+    }
+
+    private Integer statusOf(UUID applicationId) {
+        return jdbcTemplate.queryForObject("SELECT status FROM application WHERE id = ?", Integer.class, applicationId);
     }
 
     private int count(String sql, Object... args) {

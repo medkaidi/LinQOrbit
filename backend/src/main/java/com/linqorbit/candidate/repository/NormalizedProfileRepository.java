@@ -33,6 +33,19 @@ public interface NormalizedProfileRepository extends JpaRepository<NormalizedPro
             order by np.version desc""")
     List<NormalizedProfile> findLatestByCandidateId(UUID candidateId, Pageable pageable);
 
+    /**
+     * Version courante du candidat (Q5) : la dernière version AVEC contenu —
+     * une analyse en cours ou échouée ne remplace jamais la fiche de
+     * référence (matching D50 : identité = cette version).
+     */
+    @Query("""
+            select np
+            from NormalizedProfile np, NormalizedProfileCandidate npc
+            where npc.normalizedProfileId = np.id and npc.candidateId = :candidateId
+              and np.content is not null
+            order by np.version desc""")
+    List<NormalizedProfile> findLatestWithContentByCandidateId(UUID candidateId, Pageable pageable);
+
     /** Écriture du contenu canonique par le worker (profil immuable sinon). */
     @Modifying(clearAutomatically = true)
     @Query("""

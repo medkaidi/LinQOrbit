@@ -1,7 +1,13 @@
 import type { QuestionTypeValue } from "@/types/recruiter";
 
-/** Statut d'une candidature (miroir de l'enum backend `ApplicationStatus`, D49). */
-export type ApplicationStatusValue = "submitted" | "withdrawn" | "accepted" | "rejected";
+/** Statut d'une candidature (miroir de l'enum backend `ApplicationStatus`, D49 révisé par D59). */
+export type ApplicationStatusValue = "draft" | "submitted" | "withdrawn" | "accepted" | "rejected";
+
+/**
+ * Étape du parcours de candidature, **calculée par le serveur** (D59) — le
+ * frontend ne la déduit jamais lui-même.
+ */
+export type ApplicationStep = "recruiter_questions" | "matching" | "submitted";
 
 /** Résumé d'offre porté par une candidature — pointe vers `/jobs/{publicId}-{slug}`. */
 export type ApplicationJobSummary = {
@@ -11,7 +17,7 @@ export type ApplicationJobSummary = {
   companyName: string | null;
 };
 
-/** CV épinglé par la candidature (`originalName` null si le fichier a disparu). */
+/** CV de la candidature (`originalName` null si le fichier a disparu) — épinglé à la transmission. */
 type ApplicationCvSummary = {
   attachmentId: string;
   originalName: string | null;
@@ -41,7 +47,8 @@ export type ApplicationResponse = {
   createdAt: string;
   updatedAt: string;
   job: ApplicationJobSummary;
-  cv: ApplicationCvSummary;
+  /** Null pour un brouillon sans CV (le CV est exigé à la transmission). */
+  cv: ApplicationCvSummary | null;
   answers: ApplicationAnswerView[];
 };
 
@@ -60,22 +67,29 @@ export type ApplicationQuestionView = {
   options: ApplicationQuestionOptionView[];
 };
 
-/** Candidature existante du couple (candidat, offre) — signalée dans le contexte du formulaire. */
+/** Candidature du couple (candidat, offre), brouillon compris — signalée dans le contexte du parcours. */
 export type ApplicationSummary = {
   id: string;
   status: ApplicationStatusValue;
+  /** CV renseigné (null pour un brouillon sans CV). */
+  cvAttachmentId: string | null;
   createdAt: string;
 };
 
-/** Contexte de candidature d'une offre publiée (pré-remplissage du formulaire). */
+/** Contexte du parcours de candidature d'une offre publiée (D59). */
 export type ApplicationContext = {
   job: ApplicationJobSummary;
   questions: ApplicationQuestionView[];
   currentCvAttachmentId: string | null;
   existingApplication: ApplicationSummary | null;
+  /** Réponses enregistrées de la candidature du couple (vide sans candidature). */
+  answers: ApplicationAnswerView[];
+  step: ApplicationStep;
+  /** Brouillon dont toutes les questions obligatoires sont répondues. */
+  canSubmit: boolean;
 };
 
-/** Corps de `POST /api/v1/applications` : une seule forme de réponse selon le type de question. */
+/** Réponse envoyée avec le brouillon : une seule forme selon le type de question. */
 export type ApplicationAnswerRequest = {
   questionId: string;
   text?: string;
@@ -84,9 +98,13 @@ export type ApplicationAnswerRequest = {
   optionIds?: string[];
 };
 
-export type SubmitApplicationRequest = {
+/** Corps de `PUT /api/v1/applications/draft` : crée le brouillon ou remplace ses réponses (partiel permis). */
+export type SaveApplicationDraftRequest = {
   jobPublicId: string;
-  /** Absent ≡ CV courant du candidat (résolu côté backend). */
-  cvAttachmentId?: string;
   answers: ApplicationAnswerRequest[];
+};
+
+/** Corps de `POST /api/v1/applications/{id}/submit` : CV absent ≡ CV du brouillon, sinon courant. */
+export type SubmitApplicationRequest = {
+  cvAttachmentId?: string;
 };

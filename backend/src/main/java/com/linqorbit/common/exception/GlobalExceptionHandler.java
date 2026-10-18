@@ -43,6 +43,8 @@ import com.linqorbit.joboffer.exception.InvalidJobOfferStatusException;
 import com.linqorbit.joboffer.exception.JobOfferAccessDeniedException;
 import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
 import com.linqorbit.joboffer.exception.JobOfferReferenceNotFoundException;
+import com.linqorbit.matching.exception.InvalidMatchingException;
+import com.linqorbit.matching.exception.MatchingNotFoundException;
 import com.linqorbit.recruiter.exception.RecruiterAlreadyExistsException;
 import com.linqorbit.recruiter.exception.RecruiterNotFoundException;
 
@@ -170,6 +172,25 @@ public class GlobalExceptionHandler {
         problem.setTitle("Application operation failed");
         problem.setDetail(ex.getMessage());
         log.warn("Application operation rejected : {} {}", ex.getStatus().value(), ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(MatchingNotFoundException.class)
+    public ProblemDetail handleMatchingNotFound(MatchingNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Matching not found");
+        problem.setDetail("No match has been run for this job offer yet.");
+        log.warn("Matching operation rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    /** Matching refusé : le statut (409) est porté par l'exception, miroir des candidatures. */
+    @ExceptionHandler(InvalidMatchingException.class)
+    public ProblemDetail handleInvalidMatching(InvalidMatchingException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(ex.getStatus());
+        problem.setTitle("Matching operation failed");
+        problem.setDetail(ex.getMessage());
+        log.warn("Matching operation rejected : {} {}", ex.getStatus().value(), ex.getMessage());
         return problem;
     }
 

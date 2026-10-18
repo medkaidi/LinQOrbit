@@ -65,4 +65,8 @@ export const queryKeys = {
     mine: ["applications", "mine"] as const,
     context: (publicId: string) => ["applications", "context", publicId] as const,
   },
+  matching: {
+    /** Matching courant du couple pour la fiche courante du candidat (D58). */
+    current: (publicId: string) => ["matching", "current", publicId] as const,
+  },
 } as const;

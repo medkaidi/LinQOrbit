@@ -52,6 +52,18 @@ public interface NormalizedProfileJobOfferRepository
     List<NormalizedProfile> findLatestByOfferId(UUID offerId, Pageable pageable);
 
     /**
+     * Fiche courante de l'offre : la dernière version AVEC contenu (référence
+     * du matching, D58 — une analyse en cours ne la remplace pas).
+     */
+    @Query("""
+            select np
+            from NormalizedProfile np, NormalizedProfileJobOffer npo
+            where npo.normalizedProfileId = np.id and npo.jobOfferId = :offerId
+              and np.content is not null
+            order by np.version desc""")
+    List<NormalizedProfile> findLatestWithContentByOfferId(UUID offerId, Pageable pageable);
+
+    /**
      * Supersede des jobs en attente d'une offre (validation postérieure) :
      * jamais exécutés, zéro coût LLM.
      */

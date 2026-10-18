@@ -4,7 +4,7 @@ Service indépendant spécialisé IA pour LinQOrbit. **Spring Boot reste le back
 
 ## Rôle
 
-Reçoit des données structurées de Spring Boot (HTTP/JSON) → analyse via LangGraph/agents/LLM → renvoie un résultat structuré. Existant : `POST /cv/parse` (import de CV), `POST /profile/normalize` (normalisation de profil, appelée par le worker Spring Boot), `POST /job-offer/normalize` (normalisation d'offre, même worker unique côté Spring). À terme : `POST /ai/matching/analyze`, `POST /ai/matching/clarify`.
+Reçoit des données structurées de Spring Boot (HTTP/JSON) → analyse via LangGraph/agents/LLM → renvoie un résultat structuré. Existant : `POST /cv/parse` (import de CV), `POST /profile/normalize` (normalisation de profil, appelée par le worker Spring Boot), `POST /job-offer/normalize` (normalisation d'offre, même worker unique côté Spring), `POST /matching/analyze` (T-61, D58 — score 0-100 par critère de la fiche offre, contexte complet à chaque appel ; appelé par le worker de matching). À venir : la clarification (T-62) — même convention de chemin, sans préfixe `/ai` (D51 fait foi).
 
 ## Stack
 
@@ -18,8 +18,8 @@ Reçoit des données structurées de Spring Boot (HTTP/JSON) → analyse via Lan
 ```text
 app/
 ├── main.py          # app FastAPI + routers
-├── api/routes/       # HTTP uniquement (health.py, cv.py, normalize.py, job_offer.py ; plus tard matching.py)
-├── schemas/          # contrats Pydantic API (cv.py, normalize.py, job_offer.py ; plus tard matching…) — JAMAIS d'ORM
+├── api/routes/       # HTTP uniquement (health.py, cv.py, normalize.py, job_offer.py, matching.py)
+├── schemas/          # contrats Pydantic API (cv.py, normalize.py, job_offer.py, matching.py) — JAMAIS d'ORM
 ├── agents/           # logique des agents
 ├── graphs/           # orchestration LangGraph (workflow des agents)
 ├── llm/              # config et appels LLM centralisés (jamais dispersés dans les routes)
@@ -35,6 +35,12 @@ Règles :
 ## Interdits (V0)
 
 Pas de PostgreSQL/SQLAlchemy/Alembic/ORM (Spring Boot est propriétaire des données), pas de Celery/Redis/Kafka/queues, pas de authentification métier, pas de dépendance concurrente à FastAPI. Aucune clé API réelle dans le repo (`.env` gitignoré, `.env.example` = noms seuls).
+
+## Sans état (D58)
+
+**Politique de comparaison du matching** : isolée dans `app/graphs/matching_policy.py` (`POLICY_VERSION` + `POLICY_RULES`) — seul module à remplacer quand la politique produit sera définie (bumper la version : chaque résultat la stocke). Les règles de contrat (une évaluation par critère, absent = 0, expérience **pertinente** jamais `yearsOfExperience` tel quel, preuves, jamais de recommandation) vivent dans `matching_agent.py` et survivent au changement de politique.
+
+Le service ne garde **aucun contexte entre deux appels** : pas de checkpointer LangGraph, pas de `thread_id` persistant, aucun stockage. Pour un échange en plusieurs tours (matching, clarifications), le backend renvoie **tout** le contexte à chaque appel depuis sa base (fiches normalisées, critères, résultat précédent, questions/réponses). Le LLM n'a pas de mémoire : un historique serveur ne réduirait pas les tokens envoyés, il dupliquerait des données métier hors de la base et divergerait après un échec ou un retry du worker Spring. L'identifiant de conversation fourni par le backend (`matchingId`) est passé **uniquement en métadonnée LangSmith** (`thread_id`) pour regrouper les traces.
 
 ## Asynchrone
 

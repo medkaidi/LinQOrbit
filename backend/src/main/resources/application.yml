@@ -36,6 +36,9 @@ app:
   normalization:
     retry-delay-seconds: ${NORMALIZATION_RETRY_DELAY_SECONDS:60}
     threads: ${NORMALIZATION_THREADS:2}
+  matching:
+    retry-delay-seconds: ${MATCHING_RETRY_DELAY_SECONDS:60}
+    threads: ${MATCHING_THREADS:2}
   attachments:
     storage-root: ${APP_ATTACHMENTS_ROOT:./data/attachments}
   admin:

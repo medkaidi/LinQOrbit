@@ -87,4 +87,24 @@ describe("Dialog", () => {
     unmount();
     expect(document.body.style.overflow).toBe("auto");
   });
+
+  it("is a centred card by default", () => {
+    renderDialog();
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveClass("max-w-xl");
+    expect(dialog.parentElement).toHaveClass("items-center");
+  });
+
+  it("drops from the top as a wide scrolling curtain with placement top", () => {
+    const onClose = renderDialog({ placement: "top" });
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveClass("max-w-6xl", "overflow-y-auto", "curtain-in");
+    expect(dialog).not.toHaveClass("max-w-xl");
+    expect(dialog.parentElement).toHaveClass("items-start");
+    // Même shell : Échap ferme le rideau.
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
 });

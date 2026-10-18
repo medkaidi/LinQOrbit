@@ -12,7 +12,7 @@ import {
   PageHeader,
 } from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
-import { CtaButton } from "@/components/ui/button";
+import { ButtonLink, CtaButton } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -55,12 +55,14 @@ function ApplicationCard({
   onWithdraw: (applicationId: string) => void;
 }) {
   const appliedOn = appliedOnLabel(application.createdAt);
+  const isDraft = application.status === "draft";
+  const jobPath = `/jobs/${application.job.publicId}-${application.job.slug}`;
   return (
     <li className={ITEM_CARD_CLASS}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <Link
-            href={`/jobs/${application.job.publicId}-${application.job.slug}`}
+            href={jobPath}
             className={cn(
               LINK_ACCENT_CLASS,
               "font-headline-md text-headline-md text-text-primary font-bold tracking-tight",
@@ -78,8 +80,12 @@ function ApplicationCard({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-body-sm text-body-sm text-text-tertiary">
-        {appliedOn ? <span>Applied {appliedOn}</span> : null}
-        <span>CV: {application.cv.originalName ?? "No longer available"}</span>
+        {appliedOn ? <span>{isDraft ? "Started" : "Applied"} {appliedOn}</span> : null}
+        {application.cv ? (
+          <span>CV: {application.cv.originalName ?? "No longer available"}</span>
+        ) : (
+          <span>No CV yet</span>
+        )}
       </div>
 
       {application.answers.length > 0 ? (
@@ -95,6 +101,14 @@ function ApplicationCard({
         </dl>
       ) : null}
 
+      {isDraft ? (
+        <div className="mt-3 pt-3 border-t border-slate-border flex justify-end">
+          <ButtonLink variant="outline-sm" href={`${jobPath}/apply`}>
+            Continue application
+          </ButtonLink>
+        </div>
+      ) : null}
+
       {application.status === "submitted" ? (
         <div className="mt-3 pt-3 border-t border-slate-border flex justify-end">
           <CtaButton tone="danger" icon="undo" onClick={() => onWithdraw(application.id)}>
@@ -107,10 +121,11 @@ function ApplicationCard({
 }
 
 /**
- * Liste des candidatures du candidat (`/applications`, D48) : statut, CV
- * épinglé, réponses en lecture seule, retrait (Confirmation `danger`) réservé
- * aux candidatures `submitted` — une candidature retirée ou arbitrée n'expose
- * plus l'action.
+ * Liste des candidatures du candidat (`/applications`, D48, D59) : statut, CV
+ * épinglé, réponses en lecture seule ; un brouillon propose « Continue
+ * application » (retour au parcours), le retrait (confirmation `danger`) reste
+ * réservé aux candidatures `submitted` — une candidature retirée ou arbitrée
+ * n'expose plus l'action.
  */
 export function ApplicationsView() {
   const applications = useMyApplications();

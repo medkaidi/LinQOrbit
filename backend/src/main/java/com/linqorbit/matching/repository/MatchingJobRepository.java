@@ -1,0 +1,62 @@
+package com.linqorbit.matching.repository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+
+import com.linqorbit.matching.entity.MatchingJob;
+import com.linqorbit.matching.entity.MatchingJobStatus;
+
+/**
+ * Transitions des jobs de matching, miroir de {@code NormalizationJobRepository} :
+ * toutes en CAS {@code WHERE status = :expected} (sûr multi-instances).
+ */
+public interface MatchingJobRepository extends JpaRepository<MatchingJob, UUID> {
+
+    /** Claim atomique PENDING → RUNNING ; 0 = déjà réclamé ou terminal. */
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            update MatchingJob j
+            set j.status = :target, j.startedAt = :now
+            where j.id = :jobId and j.status = :expected""")
+    int casStatus(UUID jobId, MatchingJobStatus expected, MatchingJobStatus target, LocalDateTime now);
+
+    /** Tous les jobs d'un statut (recovery au démarrage). */
+    List<MatchingJob> findByStatus(MatchingJobStatus status);
+
+    /** Jobs RUNNING dont le worker est probablement mort. */
+    @Query("""
+            select j from MatchingJob j
+            where j.status = :status and j.startedAt <= :threshold""")
+    List<MatchingJob> findByStatusAndStartedAtLessThanEqual(MatchingJobStatus status, LocalDateTime threshold);
+
+    /** RUNNING → DONE : résultat écrit dans la même tx. */
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            update MatchingJob j
+            set j.status = :target, j.completedAt = :now, j.error = null
+            where j.id = :jobId and j.status = :expected""")
+    int casDone(UUID jobId, MatchingJobStatus expected, MatchingJobStatus target, LocalDateTime now);
+
+    /** RUNNING → PENDING : nouvel essai planifié, erreur conservée. */
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            update MatchingJob j
+            set j.status = :target, j.attempts = :attempts, j.nextAttemptAt = :nextAttemptAt, j.error = :error
+            where j.id = :jobId and j.status = :expected""")
+    int casRetry(UUID jobId, MatchingJobStatus expected, MatchingJobStatus target,
+            int attempts, LocalDateTime nextAttemptAt, String error);
+
+    /** RUNNING → FAILED : plus d'essai, le candidat peut relancer (nouvelle version). */
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            update MatchingJob j
+            set j.status = :target, j.attempts = :attempts, j.completedAt = :now, j.error = :error
+            where j.id = :jobId and j.status = :expected""")
+    int casFail(UUID jobId, MatchingJobStatus expected, MatchingJobStatus target,
+            int attempts, LocalDateTime now, String error);
+}

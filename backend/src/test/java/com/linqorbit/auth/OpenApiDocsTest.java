@@ -192,6 +192,28 @@ class OpenApiDocsTest {
     }
 
     @Test
+    void exposeLeDocumentOpenApiAvecLeParcoursDeCandidatureEtLeMatching() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/applications/draft'].put.summary")
+                        .value("Enregistrer le brouillon de candidature"))
+                .andExpect(jsonPath("$.paths['/api/v1/applications/{applicationId}/submit'].post.summary")
+                        .value("Transmettre la candidature"))
+                .andExpect(jsonPath("$.paths['/api/v1/applications/{applicationId}'].delete.summary")
+                        .value("Abandonner le brouillon"))
+                .andExpect(jsonPath("$.paths['/api/v1/applications/context/{publicId}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/applications/mine'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/applications/{applicationId}/withdraw'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/applications'].post").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/v1/matchings'].post.summary")
+                        .value("Lancer ou reprendre le matching"))
+                .andExpect(jsonPath("$.paths['/api/v1/matchings/offer/{publicId}'].get.summary")
+                        .value("Lire le matching courant"))
+                .andExpect(jsonPath("$.paths['/api/v1/matchings/offer/{publicId}/events'].get.summary")
+                        .value("Suivre le statut du matching (SSE)"));
+    }
+
+    @Test
     void exposeSwaggerUi() throws Exception {
         MvcResult result = mockMvc.perform(get("/swagger-ui.html")).andReturn();
         assertThat(result.getResponse().getStatus()).isBetween(200, 399);

@@ -3,20 +3,23 @@ package com.linqorbit.application.entity;
 import lombok.Getter;
 
 /**
- * Statut d'une candidature (D49), stocké en SMALLINT (colonne
- * application.status). Cycle au MVP : SUBMITTED → WITHDRAWN (retrait
- * candidat, terminal — l'UNIQUE du couple interdit la repostulation),
- * ACCEPTED / REJECTED (décisions recruteur, T-66). Code et valeur API
- * déclarés ensemble pour qu'aucun des deux mappings ne dépende de l'ordre des
- * constantes.
+ * Statut d'une candidature (D49, révisé par D59), stocké en SMALLINT
+ * (colonne application.status). Cycle : DRAFT (brouillon — réponses aux
+ * questions du recruteur remplaçables, matching ouvert) → SUBMITTED
+ * (transmise, réponses figées) → WITHDRAWN (retrait candidat, terminal —
+ * l'UNIQUE du couple interdit la repostulation) ou ACCEPTED / REJECTED
+ * (décisions recruteur, T-66). Les codes sont des identifiants, jamais un
+ * ordre : aucune logique ne les compare. Code et valeur API déclarés ensemble
+ * pour qu'aucun des deux mappings ne dépende de l'ordre des constantes.
  */
 @Getter
 public enum ApplicationStatus {
 
-    SUBMITTED(1, "submitted"),
-    WITHDRAWN(2, "withdrawn"),
-    ACCEPTED(3, "accepted"),
-    REJECTED(4, "rejected");
+    DRAFT(1, "draft"),
+    SUBMITTED(2, "submitted"),
+    WITHDRAWN(3, "withdrawn"),
+    ACCEPTED(4, "accepted"),
+    REJECTED(5, "rejected");
 
     private final int code;
     private final String apiValue;

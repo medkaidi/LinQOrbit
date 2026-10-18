@@ -46,6 +46,9 @@ public class SecurityConfig {
                         // Candidatures (V20) : explicitement authentifiées — le
                         // catch-all plus bas rendrait la racine publique (TD-037).
                         .requestMatchers("/api/v1/applications/**").authenticated()
+                        // Matching (D58, V21) : explicitement authentifié, même
+                        // raison (TD-037).
+                        .requestMatchers("/api/v1/matchings/**").authenticated()
                         // Lecture publique d'une offre publiée (V15) : sans jeton,
                         // 404 sûr sur tout ce qui n'est pas PUBLISHED et non expiré.
                         .requestMatchers("/api/v1/jobs/**").permitAll()

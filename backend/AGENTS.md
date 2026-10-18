@@ -64,21 +64,37 @@ com.linqorbit/
 │   │                  enums + converters ; mapper MapStruct ; exceptions métier
 │   └── service/       (JobOfferService, JobOfferReferenceService, JobOfferNormalizationService,
 │                      JobOfferNormalizeSnapshotBuilder)
-├── application/       candidatures (implémenté, T-60) : ApplicationApi/Controller/Service —
-│   ├── dto/           soumission atomique par étages (application → réponses → sélections),
-│   │                  contexte candidat, liste « mine », retrait terminal ; DTOs Request/
-│   │                  Response reconstruits `[{questionId, label, type, value}]`
+├── application/       candidatures (implémenté, T-60, brouillon T-61/D59) : ApplicationApi/
+│   ├── dto/           Controller/Service — brouillon (réponses remplaçables, insertion par
+│   │                  étages application → réponses → sélections), transmission (CV épinglé,
+│   │                  matching_id posé serveur), abandon, contexte avec étape calculée
+│   │                  (ApplicationStep, jamais stockée), liste « mine », retrait terminal ;
+│   │                  DTOs Request/Response reconstruits `[{questionId, label, type, value}]`
 │   ├── entity/        Application, ApplicationAnswer, ApplicationAnswerOption (+IdClass),
-│   │                  ApplicationStatus (+converter) — ids pré-assignés sans générateur
-│   └── exception/     InvalidApplicationException (400/409), ApplicationNotFoundException (404)
-├── company/ recruiter/ matching/
-│                      company/recruiter implémentés (Phase 1) ; matching/ roadmap — vide
-│                      jusqu'à sa 1re classe (T-61)
+│   │                  ApplicationStatus DRAFT(1)…REJECTED(5) (+converter) — ids pré-assignés
+│   └── exception/     InvalidApplicationException (400/404/409), ApplicationNotFoundException (404)
+├── matching/          moteur de matching (implémenté, T-61, D58) : MatchingApi/Controller,
+│   ├── service/       MatchingService (préconditions D59, identité D50, versions sous verrou),
+│   │                  MatchingWorker (miroir NormalizationWorker, pool matchingExecutor),
+│   │                  MatchingCriteriaBuilder (grille extraite de la fiche offre, clés
+│   │                  stables), MatchingScoring (barème provisoire `weighted-1`, couverture
+│   │                  exacte des clés), MatchingSection, MatchingRequestedEvent,
+│   │                  MatchingStatusBroadcaster (push SSE du statut, D60)
+│   ├── client/        MatchingAnalyzeClient (POST /matching/analyze — contexte rejoué)
+│   ├── entity/        Matching, MatchingResult (result JSONB), MatchingJob (+ status/converter)
+│   ├── repository/    MatchingRepository (verrou pessimiste), MatchingResultRepository,
+│   │                  MatchingJobRepository (CAS)
+│   ├── dto/           StartMatchingRequest, MatchingResponse (score par critère seul côté
+│   │                  candidat), MatchingAnalyzeRequest/MatchingCriterionPayload (sans poids)
+│   └── exception/     InvalidMatchingException (409), MatchingNotFoundException (404),
+│                      InvalidMatchingAnalysisException (interne worker → retry)
+├── company/ recruiter/
+│                      implémentés (Phase 1)
 ```
 
 - Chaque domaine est **autonome** : interdits les packages globaux `controllers/`, `services/`, `repositories/`, `entities/`, `dtos/` partagés entre domaines — les sous-packages sont **internes à leur domaine**.
 - **Regroupement par nature dans le domaine** (décision d'équipe, appliquée à `candidate/`) : chaque classe va dans le sous-package de sa nature — `controller/` (Api + contrôleur), `service/`, `client/` (appels HTTP du service IA), `entity/` (+ enums et converters), `repository/`, `dto/`, `mapper/`, `exception/` — et **les tests suivent le même miroir** (`src/test/…/candidate/{controller,service,client}/`). `user/` et `admin/` (déjà en place) restent en l'état. Ne **jamais** créer un sous-package par anticipation : il naît avec son premier fichier ; un seul fichier de cette nature n'empêche pas le sous-package dès qu'il appartient à un domaine structuré ainsi.
-- **Exception roadmap (décision explicite de l'équipe)** : les domaines pré-créés volontairement pour matérialiser le périmètre du projet (`application/`, `attachment/`, `company/`, `joboffer/`, `matching/`, `recruiter/`) naissent avec leur première classe — seul `matching/` attend encore la sienne (T-61). **Toute autre** exception : un dossier naît avec sa première classe, jamais en avance (pas de nouveaux dossiers vides ni de `.gitkeep`).
+- **Exception roadmap (décision explicite de l'équipe)** : les domaines pré-créés volontairement pour matérialiser le périmètre du projet (`application/`, `attachment/`, `company/`, `joboffer/`, `matching/`, `recruiter/`) sont tous nés avec leur première classe (`matching/` en dernier, T-61). **Toute autre** exception : un dossier naît avec sa première classe, jamais en avance (pas de nouveaux dossiers vides ni de `.gitkeep`).
 - `common/` : uniquement ce qui est **réellement partagé** (traitement d'erreurs HTTP, pagination, utilitaires transverses). Une classe utilisée par plusieurs domaines mais appartenant à l'un d'eux reste dans son domaine.
 - Ne **jamais** créer de classes vides ou de packages pour respecter une architecture théorique.
 - Ne jamais utiliser le default package.
@@ -118,7 +134,7 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 
 ## Sécurité
 
-- `config/SecurityConfig` : stateless, CSRF off, `/api/v1/admin/**` = `hasRole("ADMIN")`. **Matchers explicites obligatoires** : le catch-all `.anyRequest().permitAll()` est un filet pour l'infrastructure seule — il rend toute racine non listée **publique par défaut** ; chaque nouvelle racine authentifiée doit y être ajoutée explicitement (`candidates`, `recruiters`, `companies`, `job-offers`, `applications` ; à venir `matchings`), avec un test `jwt()` (TD-037). `/api/v1/jobs/**` reste **volontairement public** (fiche V15 + job board T-72 + `/{publicId}/related` T-74).
+- `config/SecurityConfig` : stateless, CSRF off, `/api/v1/admin/**` = `hasRole("ADMIN")`. **Matchers explicites obligatoires** : le catch-all `.anyRequest().permitAll()` est un filet pour l'infrastructure seule — il rend toute racine non listée **publique par défaut** ; chaque nouvelle racine authentifiée doit y être ajoutée explicitement (`candidates`, `recruiters`, `companies`, `job-offers`, `applications`, `matchings`), avec un test `jwt()` (TD-037). `/api/v1/jobs/**` reste **volontairement public** (fiche V15 + job board T-72 + `/{publicId}/related` T-74).
 - **Modèle en deux couches (décision d'équipe)** : les rôles (`user_roles`, colonne `role` SMALLINT = capacité : `ADMIN(1)` via enum `Role`) disent ce qu'un compte **peut faire** ; l'identité reste dans `candidates`/`recruiters` (cumul natif, un utilisateur peut être les deux). **Jamais** dupliquer un membership en rôle, jamais de `USER.type`, pas de PERMISSIONS.
 - JWT : claim **`roles`** = codes SMALLINT (`AuthService.roleCodes`) ; `config/JwtRoleAuthoritiesConverter` les transforme en autorités `ROLE_*` (code inconnu ignoré).
 - `admin/AdminBootstrap` (`CommandLineRunner`) garantit au moins un compte ADMIN à chaque démarrage (idempotent, `app.admin.*` / env `ADMIN_EMAIL`, `ADMIN_PASSWORD`).
@@ -126,8 +142,8 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 
 ## Communication
 
-- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,admin,recruiters,companies,job-offers,applications,matchings}` — `auth`, `candidates` et `admin` existent (`/api/v1/candidates/me/profile` + `/{about,about/target-position,experiences,projects,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}` ; `POST /api/v1/candidates/me/profile/validate` déclenche la normalisation — voir « Normalisation du profil » ; `/api/v1/admin/{users,users/{userId}/status,skill-suggestions,skill-suggestions/{id}/{approve,link,reject}}` sous rôle ADMIN), ainsi que `recruiters`, `companies`, `job-offers` (Phase 1 — dont la **surface publique** `GET /api/v1/jobs`, job board paginé T-72 : PUBLISHED non expirées, tri `published_at desc`, DTO léger labels résolus en batch, **toutes les compétences exposées en libellés** (`skills: List<String>`, T-76 — aucun plafond, ordre poids desc puis nom asc, vocabulaire manquant ignoré ; `/related` en hérite), enveloppe D34 `page` seule exposée ; `GET /api/v1/jobs/{publicId}` sert la fiche depuis V15 ; `GET /api/v1/jobs/{publicId}/related` (T-74) renvoie en **tableau brut** jusqu'à 3 autres offres publiées non expirées de la même company, offre courante exclue, tri `published_at desc`, mêmes 404 sûrs que la fiche) et **`applications` (T-60)** : `POST /api/v1/applications` (soumission 201), `GET /applications/context/{publicId}`, `GET /applications/mine`, `POST /applications/{applicationId}/withdraw` (204) — soumission atomique par étages, messages 400/404/409 sûrs affichés tels quels par le FE ; seul `matchings` reste à venir (T-61). `PUT …/about` n'écrit jamais `targetPosition` (poste recherché isolé sur `PUT …/about/target-position`, conservé mais non consommé par l'UI actuelle) ; `GET …/profile` renvoie bien `about.targetPosition` et le signal `hasUnvalidatedChanges`.
-- **Service IA Python (FastAPI)** : appelé par ce backend en HTTP, jamais par le frontend. Deux clients dans `candidate/client/` : `CvParseClient` (`POST /cv/parse`, import de CV) et `ProfileNormalizeClient` (`POST /profile/normalize`, normalisation de profil — appelé par le worker) — pas de fake AI.
+- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,admin,recruiters,companies,job-offers,applications,matchings}` — `auth`, `candidates` et `admin` existent (`/api/v1/candidates/me/profile` + `/{about,about/target-position,experiences,projects,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}` ; `POST /api/v1/candidates/me/profile/validate` déclenche la normalisation — voir « Normalisation du profil » ; `/api/v1/admin/{users,users/{userId}/status,skill-suggestions,skill-suggestions/{id}/{approve,link,reject}}` sous rôle ADMIN), ainsi que `recruiters`, `companies`, `job-offers` (Phase 1 — dont la **surface publique** `GET /api/v1/jobs`, job board paginé T-72 : PUBLISHED non expirées, tri `published_at desc`, DTO léger labels résolus en batch, **toutes les compétences exposées en libellés** (`skills: List<String>`, T-76 — aucun plafond, ordre poids desc puis nom asc, vocabulaire manquant ignoré ; `/related` en hérite), enveloppe D34 `page` seule exposée ; `GET /api/v1/jobs/{publicId}` sert la fiche depuis V15 ; `GET /api/v1/jobs/{publicId}/related` (T-74) renvoie en **tableau brut** jusqu'à 3 autres offres publiées non expirées de la même company, offre courante exclue, tri `published_at desc`, mêmes 404 sûrs que la fiche) , **`applications` (T-60, brouillon T-61/D59)** : `PUT /api/v1/applications/draft` (crée le brouillon ou remplace ses réponses, partiel permis), `POST /applications/{applicationId}/submit` (DRAFT → SUBMITTED, CV épinglé, `matching_id` posé serveur), `DELETE /applications/{applicationId}` (abandon du brouillon, 204), `GET /applications/context/{publicId}` (réponses + étape calculée + `canSubmit`), `GET /applications/mine` (brouillons compris), `POST /applications/{applicationId}/withdraw` (204, SUBMITTED seulement) — l'ancienne soumission d'un coup `POST /applications` n'existe plus ; et **`matchings` (T-61, D58)** : `POST /api/v1/matchings` (lancement/reprise/relance après échec — 409 si obligatoires manquantes, candidature transmise ou fiche absente/périmée), `GET /matchings/offer/{publicId}` (statut + score de chaque critère par section ; 404 aucun matching, 409 accès fermé), `GET /matchings/offer/{publicId}/events` (push SSE du statut, D60 — `MatchingStatusBroadcaster` en mémoire, publié par le worker après chaque transition commitée ; mono-instance tant qu'il n'y a pas de broker) — messages 400/404/409 sûrs affichés tels quels par le FE. `PUT …/about` n'écrit jamais `targetPosition` (poste recherché isolé sur `PUT …/about/target-position`, conservé mais non consommé par l'UI actuelle) ; `GET …/profile` renvoie bien `about.targetPosition` et le signal `hasUnvalidatedChanges`.
+- **Service IA Python (FastAPI)** : appelé par ce backend en HTTP, jamais par le frontend. Clients : `candidate/client/` `CvParseClient` (`POST /cv/parse`) et `ProfileNormalizeClient` (`POST /profile/normalize`), `joboffer/client/JobOfferNormalizeClient` (`POST /job-offer/normalize`), `matching/client/MatchingAnalyzeClient` (`POST /matching/analyze`) — les trois derniers appelés par les workers ; pas de fake AI. **Le service IA est sans état (D58)** : pour un échange en plusieurs tours, le backend renvoie tout le contexte depuis sa base à chaque appel (jamais de `thread_id` persistant côté IA).
 
 ## Normalisation du profil
 

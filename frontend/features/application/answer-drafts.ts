@@ -1,4 +1,8 @@
-import type { ApplicationAnswerRequest, ApplicationQuestionView } from "@/types/application";
+import type {
+  ApplicationAnswerRequest,
+  ApplicationAnswerView,
+  ApplicationQuestionView,
+} from "@/types/application";
 
 /** Brouillon de réponse, une forme par type de question (seul le slot utile vit). */
 export type AnswerDraft = {
@@ -16,6 +20,42 @@ export function emptyAnswerDrafts(
   questions: ApplicationQuestionView[],
 ): Record<string, AnswerDraft> {
   return Object.fromEntries(questions.map((question) => [question.id, emptyAnswerDraft()]));
+}
+
+/** Brouillon d'une réponse enregistrée (reprise d'un brouillon de candidature, D59). */
+function draftFromAnswer(answer: ApplicationAnswerView): AnswerDraft {
+  const draft = emptyAnswerDraft();
+  const { value } = answer;
+  if (typeof value === "string") {
+    return { ...draft, text: value };
+  }
+  if (typeof value === "number") {
+    return { ...draft, number: String(value) };
+  }
+  if (typeof value === "boolean") {
+    return { ...draft, yesNo: value ? "yes" : "no" };
+  }
+  if (Array.isArray(value)) {
+    return { ...draft, optionIds: value.map((option) => option.optionId) };
+  }
+  return value ? { ...draft, optionIds: [value.optionId] } : draft;
+}
+
+/**
+ * Brouillons pré-remplis par les réponses déjà enregistrées ; une question
+ * sans réponse (ou une réponse d'une question disparue) reste vide.
+ */
+export function draftsFromAnswers(
+  questions: ApplicationQuestionView[],
+  answers: ApplicationAnswerView[],
+): Record<string, AnswerDraft> {
+  const byQuestion = new Map(answers.map((answer) => [answer.questionId, answer]));
+  return Object.fromEntries(
+    questions.map((question) => {
+      const answer = byQuestion.get(question.id);
+      return [question.id, answer ? draftFromAnswer(answer) : emptyAnswerDraft()];
+    }),
+  );
 }
 
 /**

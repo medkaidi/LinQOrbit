@@ -2,28 +2,46 @@ import { api } from "@/lib/api/axios";
 import type {
   ApplicationContext,
   ApplicationResponse,
+  SaveApplicationDraftRequest,
   SubmitApplicationRequest,
 } from "@/types/application";
 
 /**
- * Contexte d'une offre publiée pour le formulaire de candidature (offre,
- * questions de présélection sans `preferred`, CV courant, candidature
- * existante éventuelle) — 404 sur toute offre indisponible.
+ * Contexte du parcours de candidature d'une offre publiée (questions sans
+ * `preferred`, CV courant, candidature du couple et ses réponses, étape
+ * calculée par le serveur) — 404 sur toute offre indisponible.
  */
 export async function getApplicationContext(publicId: string): Promise<ApplicationContext> {
   const { data } = await api.get<ApplicationContext>(`/api/v1/applications/context/${publicId}`);
   return data;
 }
 
-/** Soumission : `answers` vide/absente ≡ aucune réponse ; `cvAttachmentId` absent ≡ CV courant. */
-export async function submitApplication(
-  body: SubmitApplicationRequest,
+/** Brouillon (D59) : créé au premier enregistrement, réponses remplacées ensuite — partiel permis. */
+export async function saveApplicationDraft(
+  body: SaveApplicationDraftRequest,
 ): Promise<ApplicationResponse> {
-  const { data } = await api.post<ApplicationResponse>("/api/v1/applications", body);
+  const { data } = await api.put<ApplicationResponse>("/api/v1/applications/draft", body);
   return data;
 }
 
-/** Candidatures du candidat connecté (tous statuts), les plus récentes d'abord. */
+/** Transmission du brouillon : `cvAttachmentId` absent ≡ CV du brouillon, sinon CV courant. */
+export async function submitApplication(
+  applicationId: string,
+  body: SubmitApplicationRequest = {},
+): Promise<ApplicationResponse> {
+  const { data } = await api.post<ApplicationResponse>(
+    `/api/v1/applications/${applicationId}/submit`,
+    body,
+  );
+  return data;
+}
+
+/** Abandon d'un brouillon (suppression ; le matching du couple est conservé). */
+export async function discardApplication(applicationId: string): Promise<void> {
+  await api.delete(`/api/v1/applications/${applicationId}`);
+}
+
+/** Candidatures du candidat connecté (brouillons compris), les plus récentes d'abord. */
 export async function listMyApplications(): Promise<ApplicationResponse[]> {
   const { data } = await api.get<ApplicationResponse[]>("/api/v1/applications/mine");
   return data;

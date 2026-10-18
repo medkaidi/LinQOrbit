@@ -49,6 +49,21 @@ describe("ApplicationsView", () => {
     expect(screen.getAllByRole("button", { name: "Withdraw" })).toHaveLength(1);
   });
 
+  it("offers to continue a draft (no CV yet) and never to withdraw it", async () => {
+    listMock.mockResolvedValue([buildApplication({ id: "draft-1", status: "draft", cv: null, answers: [] })]);
+
+    renderWithQueryClient(<ApplicationsView />);
+
+    expect(await screen.findByText("Draft")).toBeInTheDocument();
+    expect(screen.getByText("No CV yet")).toBeInTheDocument();
+    expect(screen.getByText(/^Started /)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Continue application" })).toHaveAttribute(
+      "href",
+      "/jobs/abcdefghijkl-backend-engineer/apply",
+    );
+    expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument();
+  });
+
   it("withdraws only after the confirmation dialog is accepted", async () => {
     listMock.mockResolvedValue([buildApplication()]);
     withdrawMock.mockResolvedValue(undefined);

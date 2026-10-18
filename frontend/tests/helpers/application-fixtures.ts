@@ -80,6 +80,9 @@ export function buildApplicationContext(
     questions: [TEXT_QUESTION, SINGLE_CHOICE_QUESTION],
     currentCvAttachmentId: CV_ID,
     existingApplication: null,
+    answers: [],
+    step: "recruiter_questions",
+    canSubmit: false,
     ...overrides,
   };
 }

@@ -21,6 +21,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 
 import com.linqorbit.application.dto.ApplicationAnswerOptionView;
@@ -28,6 +29,7 @@ import com.linqorbit.application.dto.ApplicationAnswerRequest;
 import com.linqorbit.application.dto.ApplicationAnswerView;
 import com.linqorbit.application.dto.ApplicationContextResponse;
 import com.linqorbit.application.dto.ApplicationResponse;
+import com.linqorbit.application.dto.SaveApplicationDraftRequest;
 import com.linqorbit.application.dto.SubmitApplicationRequest;
 import com.linqorbit.application.entity.Application;
 import com.linqorbit.application.entity.ApplicationAnswer;
@@ -40,6 +42,8 @@ import com.linqorbit.application.repository.ApplicationAnswerRepository;
 import com.linqorbit.application.repository.ApplicationRepository;
 import com.linqorbit.attachment.entity.Attachment;
 import com.linqorbit.attachment.repository.AttachmentRepository;
+import com.linqorbit.candidate.entity.NormalizedProfile;
+import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.candidate.service.CandidateService;
 import com.linqorbit.company.entity.Company;
 import com.linqorbit.company.repository.CompanyRepository;
@@ -51,7 +55,15 @@ import com.linqorbit.joboffer.entity.QuestionType;
 import com.linqorbit.joboffer.repository.JobOfferQuestionOptionRepository;
 import com.linqorbit.joboffer.repository.JobOfferQuestionRepository;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
+import com.linqorbit.matching.entity.Matching;
+import com.linqorbit.matching.repository.MatchingRepository;
 
+/**
+ * Candidature en brouillon (D59) : enregistrement par étages, remplacement
+ * des réponses, transmission, abandon, contexte avec l'étape calculée, liste
+ * et retrait. Repositories mockés — l'ordre réel des INSERT et la chaîne FK
+ * sont épinglés par {@code ApplicationIntegrationTest} (PostgreSQL réel).
+ */
 class ApplicationServiceTest {
 
     private static final UUID USER_ID = UUID.randomUUID();
@@ -71,14 +83,18 @@ class ApplicationServiceTest {
     private final AttachmentRepository attachmentRepository = mock(AttachmentRepository.class);
     private final CompanyRepository companyRepository = mock(CompanyRepository.class);
     private final CandidateService candidateService = mock(CandidateService.class);
+    private final NormalizedProfileRepository normalizedProfileRepository = mock(NormalizedProfileRepository.class);
+    private final MatchingRepository matchingRepository = mock(MatchingRepository.class);
 
     private final ApplicationService applicationService = new ApplicationService(applicationRepository,
             applicationAnswerRepository, applicationAnswerOptionRepository, jobOfferRepository,
             jobOfferQuestionRepository, jobOfferQuestionOptionRepository, attachmentRepository, companyRepository,
-            candidateService);
+            candidateService, normalizedProfileRepository, matchingRepository);
+
+    // --- Brouillon ---------------------------------------------------------
 
     @Test
-    void soumissionNominaleInsereParEtagesEtReconstruitLesReponsesDansLOrdreDesQuestions() {
+    void premierEnregistrementCreeLeBrouillonAvecLeCvCourantPuisInsereParEtages() {
         JobOfferQuestion text = question(1, QuestionType.TEXT, true, 0);
         JobOfferQuestion single = question(2, QuestionType.SINGLE_CHOICE, true, 1);
         JobOfferQuestion multiple = question(3, QuestionType.MULTIPLE_CHOICE, false, 2);
@@ -90,24 +106,19 @@ class ApplicationServiceTest {
         JobOfferQuestionOption multipleB = option(14, multiple.getId(), "Spring");
 
         stubOpenOffer();
-        when(candidateService.getCurrentCvAttachmentId(USER_ID)).thenReturn(Optional.of(CV_ID));
-        when(attachmentRepository.findByIdAndCandidateId(CV_ID, USER_ID))
-                .thenReturn(Optional.of(attachment("my cv.pdf")));
-        when(jobOfferQuestionRepository.findByJobOfferIdInOrderBySortOrderAscIdAsc(List.of(OFFER_ID)))
-                .thenReturn(List.of(text, single, multiple, yesNo, number));
-        when(jobOfferQuestionOptionRepository.findByQuestionIdInOrderBySortOrderAscIdAsc(anyList()))
-                .thenReturn(List.of(singleA, singleB, multipleA, multipleB));
+        stubCurrentCv("my cv.pdf");
+        stubQuestions(List.of(text, single, multiple, yesNo, number), List.of(singleA, singleB, multipleA, multipleB));
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.empty());
+        when(attachmentRepository.findById(CV_ID)).thenReturn(Optional.of(attachment("my cv.pdf")));
 
         // Réponses volontairement dans le désordre : la sortie suit l'ordre des questions.
-        SubmitApplicationRequest request = new SubmitApplicationRequest(PUBLIC_ID, null, List.of(
-                new ApplicationAnswerRequest(number.getId(), null, new BigDecimal("42.50"), null, null),
-                new ApplicationAnswerRequest(multiple.getId(), null, null, null, List.of(multipleB.getId(),
-                        multipleA.getId(), multipleA.getId())),
-                new ApplicationAnswerRequest(text.getId(), "  Backend fan  ", null, null, null),
-                new ApplicationAnswerRequest(single.getId(), null, null, null, List.of(singleB.getId())),
-                new ApplicationAnswerRequest(yesNo.getId(), null, null, true, null)));
-
-        ApplicationResponse response = applicationService.submit(USER_ID, request);
+        ApplicationResponse response = applicationService.saveDraft(USER_ID, draft(List.of(
+                answer(number.getId(), null, new BigDecimal("42.50"), null, null),
+                answer(multiple.getId(), null, null, null, List.of(multipleB.getId(), multipleA.getId(),
+                        multipleA.getId())),
+                answer(text.getId(), "  Backend fan  ", null, null, null),
+                answer(single.getId(), null, null, null, List.of(singleB.getId())),
+                answer(yesNo.getId(), null, null, true, null))));
 
         ArgumentCaptor<Application> applicationCaptor = ArgumentCaptor.forClass(Application.class);
         ArgumentCaptor<List<ApplicationAnswer>> answersCaptor = ArgumentCaptor.forClass(List.class);
@@ -117,117 +128,88 @@ class ApplicationServiceTest {
         stages.verify(applicationRepository).saveAndFlush(applicationCaptor.capture());
         stages.verify(applicationAnswerRepository).saveAllAndFlush(answersCaptor.capture());
         stages.verify(applicationAnswerOptionRepository).saveAllAndFlush(selectionsCaptor.capture());
+        verify(applicationAnswerRepository, never()).deleteByApplicationIdInBulk(any());
 
         Application application = applicationCaptor.getValue();
         assertThat(application.getCandidateId()).isEqualTo(USER_ID);
         assertThat(application.getJobOfferId()).isEqualTo(OFFER_ID);
         assertThat(application.getCvAttachmentId()).isEqualTo(CV_ID);
         assertThat(application.getMatchingId()).isNull();
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.SUBMITTED);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.DRAFT);
 
         List<ApplicationAnswer> answers = answersCaptor.getValue();
-        assertThat(answers).hasSize(5);
         assertThat(answers).extracting(ApplicationAnswer::getQuestionId).containsExactly(text.getId(), single.getId(),
                 multiple.getId(), yesNo.getId(), number.getId());
-        ApplicationAnswer textRow = answers.get(0);
-        assertThat(textRow.getApplicationId()).isEqualTo(application.getId());
-        assertThat(textRow.getJobOfferId()).isEqualTo(OFFER_ID);
-        assertThat(textRow.getAnswerText()).isEqualTo("Backend fan");
-        assertThat(textRow.getAnswerNumber()).isNull();
-        assertThat(textRow.getAnswerBoolean()).isNull();
+        assertThat(answers.get(0).getApplicationId()).isEqualTo(application.getId());
+        assertThat(answers.get(0).getJobOfferId()).isEqualTo(OFFER_ID);
+        assertThat(answers.get(0).getAnswerText()).isEqualTo("Backend fan");
         assertThat(answers.get(4).getAnswerNumber()).isEqualByComparingTo("42.50");
 
-        List<ApplicationAnswerOption> selections = selectionsCaptor.getValue();
         // QCS (1 sélection) + QCM (dédupliqué, ordre du client conservé) = 3 lignes.
-        assertThat(selections).hasSize(3);
-        assertThat(selections).extracting(ApplicationAnswerOption::getOptionId).containsExactly(singleB.getId(),
-                multipleB.getId(), multipleA.getId());
-        assertThat(selections).extracting(ApplicationAnswerOption::getQuestionId).containsExactly(single.getId(),
-                multiple.getId(), multiple.getId());
+        assertThat(selectionsCaptor.getValue()).extracting(ApplicationAnswerOption::getOptionId)
+                .containsExactly(singleB.getId(), multipleB.getId(), multipleA.getId());
 
-        assertThat(response.id()).isEqualTo(application.getId());
-        assertThat(response.status()).isEqualTo("submitted");
-        assertThat(response.job().publicId()).isEqualTo(PUBLIC_ID);
-        assertThat(response.job().title()).isEqualTo("Backend Engineer");
+        assertThat(response.status()).isEqualTo("draft");
         assertThat(response.job().companyName()).isEqualTo("Acme");
-        assertThat(response.cv().attachmentId()).isEqualTo(CV_ID);
         assertThat(response.cv().originalName()).isEqualTo("my cv.pdf");
         assertThat(response.answers()).extracting(ApplicationAnswerView::questionId)
                 .containsExactly(text.getId(), single.getId(), multiple.getId(), yesNo.getId(), number.getId());
-        assertThat(response.answers().get(0).value()).isEqualTo("Backend fan");
         assertThat(response.answers().get(1).value())
                 .isEqualTo(new ApplicationAnswerOptionView(singleB.getId(), "On site"));
         assertThat(response.answers().get(2).value()).isEqualTo(List.of(
                 new ApplicationAnswerOptionView(multipleB.getId(), "Spring"),
                 new ApplicationAnswerOptionView(multipleA.getId(), "Java")));
-        assertThat(response.answers().get(3).value()).isEqualTo(Boolean.TRUE);
-        assertThat((BigDecimal) response.answers().get(4).value()).isEqualByComparingTo("42.50");
     }
 
     @Test
-    void soumissionUtiliseLeCvCourantQuandAucunCvNestChoisi() {
+    void brouillonSansCvCourantEtPartielEstAccepte() {
+        JobOfferQuestion required = question(1, QuestionType.TEXT, true, 0);
         stubOpenOffer();
-        when(candidateService.getCurrentCvAttachmentId(USER_ID)).thenReturn(Optional.of(CV_ID));
-        when(attachmentRepository.findByIdAndCandidateId(CV_ID, USER_ID))
-                .thenReturn(Optional.of(attachment("current.pdf")));
-        when(jobOfferQuestionRepository.findByJobOfferIdInOrderBySortOrderAscIdAsc(List.of(OFFER_ID)))
-                .thenReturn(List.of());
+        stubQuestions(List.of(required), List.of());
+        when(candidateService.getCurrentCvAttachmentId(USER_ID)).thenReturn(Optional.empty());
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.empty());
 
-        ApplicationResponse response = applicationService.submit(USER_ID,
-                new SubmitApplicationRequest(PUBLIC_ID, null, null));
+        ApplicationResponse response = applicationService.saveDraft(USER_ID, draft(null));
 
-        assertThat(response.cv().originalName()).isEqualTo("current.pdf");
         ArgumentCaptor<Application> captor = ArgumentCaptor.forClass(Application.class);
         verify(applicationRepository).saveAndFlush(captor.capture());
-        assertThat(captor.getValue().getCvAttachmentId()).isEqualTo(CV_ID);
+        assertThat(captor.getValue().getCvAttachmentId()).isNull();
+        assertThat(response.cv()).isNull();
+        assertThat(response.answers()).isEmpty();
+        verify(applicationAnswerRepository, never()).saveAllAndFlush(anyList());
     }
 
     @Test
-    void soumissionRejetteUnCvInconnuEtUnCandidatSansCv() {
+    void reenregistrementRemplaceLesReponsesDuBrouillonSansRecreerLaCandidature() {
+        JobOfferQuestion text = question(1, QuestionType.TEXT, false, 0);
+        Application existing = application(ApplicationStatus.DRAFT, CV_ID);
         stubOpenOffer();
+        stubQuestions(List.of(text), List.of());
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.of(existing));
 
-        assertThatThrownBy(() -> applicationService.submit(USER_ID,
-                new SubmitApplicationRequest(PUBLIC_ID, UUID.randomUUID(), List.of())))
-                .isInstanceOf(InvalidApplicationException.class)
-                .satisfies(ex -> assertThat(((InvalidApplicationException) ex).getStatus())
-                        .isEqualTo(HttpStatus.BAD_REQUEST));
+        applicationService.saveDraft(USER_ID, draft(List.of(answer(text.getId(), "Updated", null, null, null))));
 
-        when(candidateService.getCurrentCvAttachmentId(USER_ID)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> applicationService.submit(USER_ID,
-                new SubmitApplicationRequest(PUBLIC_ID, null, List.of())))
-                .isInstanceOf(InvalidApplicationException.class)
-                .satisfies(ex -> assertThat(((InvalidApplicationException) ex).getStatus())
-                        .isEqualTo(HttpStatus.CONFLICT));
-
+        InOrder order = inOrder(applicationAnswerRepository);
+        order.verify(applicationAnswerRepository).deleteByApplicationIdInBulk(existing.getId());
+        order.verify(applicationAnswerRepository).saveAllAndFlush(anyList());
         verify(applicationRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    void soumissionRejetteUneOffreInconnueNonPublieeOuExpiree() {
-        assertOfferUnavailable(null, HttpStatus.NOT_FOUND);
-        assertOfferUnavailable(offer(JobOfferStatus.DRAFT, null), HttpStatus.NOT_FOUND);
-        assertOfferUnavailable(offer(JobOfferStatus.PUBLISHED, LocalDate.now().minusDays(1)), HttpStatus.NOT_FOUND);
-
-        verify(applicationRepository, never()).saveAndFlush(any());
-    }
-
-    @Test
-    void soumissionRejetteLeDoublonDeCoupleYComprisApresRetrait() {
+    void uneCandidatureTransmiseNeSeModifiePlus() {
         stubOpenOffer();
-        when(applicationRepository.existsByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(true);
+        stubQuestions(List.of(), List.of());
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID))
+                .thenReturn(Optional.of(application(ApplicationStatus.WITHDRAWN, CV_ID)));
 
-        assertThatThrownBy(() -> applicationService.submit(USER_ID,
-                new SubmitApplicationRequest(PUBLIC_ID, null, List.of())))
-                .isInstanceOf(InvalidApplicationException.class)
-                .satisfies(ex -> assertThat(((InvalidApplicationException) ex).getStatus())
-                        .isEqualTo(HttpStatus.CONFLICT));
+        assertStatus(() -> applicationService.saveDraft(USER_ID, draft(List.of())), HttpStatus.CONFLICT);
 
-        verifyNoInteractions(attachmentRepository);
-        verify(applicationRepository, never()).saveAndFlush(any());
+        verify(applicationAnswerRepository, never()).deleteByApplicationIdInBulk(any());
+        verify(applicationAnswerRepository, never()).saveAllAndFlush(anyList());
     }
 
     @Test
-    void soumissionRejetteLesReponsesInvalidesEtLesObligatoiresManquantes() {
+    void brouillonRejetteLesReponsesInvalides() {
         JobOfferQuestion text = question(1, QuestionType.TEXT, true, 0);
         JobOfferQuestion single = question(2, QuestionType.SINGLE_CHOICE, false, 1);
         JobOfferQuestion multiple = question(3, QuestionType.MULTIPLE_CHOICE, false, 2);
@@ -237,41 +219,167 @@ class ApplicationServiceTest {
         JobOfferQuestionOption multipleA = option(13, multiple.getId(), "B");
         UUID foreignQuestionId = UUID.randomUUID();
         UUID foreignOptionId = UUID.randomUUID();
-
         stubOpenOffer();
-        when(candidateService.getCurrentCvAttachmentId(USER_ID)).thenReturn(Optional.of(CV_ID));
-        when(attachmentRepository.findByIdAndCandidateId(CV_ID, USER_ID))
-                .thenReturn(Optional.of(attachment("cv.pdf")));
-        when(jobOfferQuestionRepository.findByJobOfferIdInOrderBySortOrderAscIdAsc(List.of(OFFER_ID)))
-                .thenReturn(List.of(text, single, multiple, yesNo, number));
-        when(jobOfferQuestionOptionRepository.findByQuestionIdInOrderBySortOrderAscIdAsc(anyList()))
-                .thenReturn(List.of(singleA, multipleA));
+        stubQuestions(List.of(text, single, multiple, yesNo, number), List.of(singleA, multipleA));
 
-        assertBadRequest(List.of()); // obligatoire non répondue
-        assertBadRequest(List.of(answer(foreignQuestionId, "x", null, null, null))); // question inconnue
-        assertBadRequest(List.of(answer(text.getId(), "  ", null, null, null))); // texte vide
-        assertBadRequest(List.of(answer(text.getId(), "ok", null, null, List.of(singleA.getId())))); // texte + option
-        assertBadRequest(List.of(answer(text.getId(), null, new BigDecimal("10.999"), null, null))); // 3 décimales
-        assertBadRequest(List.of(answer(text.getId(), null, new BigDecimal("10000000000.00"), null, null))); // > 12,2
-        assertBadRequest(List.of(answer(yesNo.getId(), null, null, null, null))); // oui/non sans valeur
-        assertBadRequest(List.of(answer(yesNo.getId(), null, new BigDecimal("1"), true, null))); // deux porteurs
-        assertBadRequest(List.of(answer(single.getId(), null, null, null, List.of()))); // QCS sans option
-        assertBadRequest(List.of(answer(single.getId(), null, null, null,
+        assertDraftBadRequest(List.of(answer(foreignQuestionId, "x", null, null, null))); // question inconnue
+        assertDraftBadRequest(List.of(answer(text.getId(), "  ", null, null, null))); // texte vide
+        assertDraftBadRequest(List.of(answer(text.getId(), "ok", null, null, List.of(singleA.getId()))));
+        assertDraftBadRequest(List.of(answer(text.getId(), null, new BigDecimal("10.999"), null, null)));
+        assertDraftBadRequest(List.of(answer(number.getId(), null, new BigDecimal("10.999"), null, null)));
+        assertDraftBadRequest(List.of(answer(number.getId(), null, new BigDecimal("10000000000.00"), null, null)));
+        assertDraftBadRequest(List.of(answer(yesNo.getId(), null, null, null, null))); // oui/non sans valeur
+        assertDraftBadRequest(List.of(answer(yesNo.getId(), null, new BigDecimal("1"), true, null))); // 2 porteurs
+        assertDraftBadRequest(List.of(answer(single.getId(), null, null, null, List.of()))); // QCS sans option
+        assertDraftBadRequest(List.of(answer(single.getId(), null, null, null,
                 List.of(singleA.getId(), multipleA.getId())))); // QCS à 2 options
-        assertBadRequest(List.of(answer(single.getId(), null, null, null, List.of(foreignOptionId))));
-        // option d'une question étrangère
-        assertBadRequest(List.of(answer(multiple.getId(), null, null, null, List.of()))); // QCM vide
-        assertBadRequest(List.of(answer(multiple.getId(), null, null, null, List.of(foreignOptionId))));
-        // option étrangère
-        assertBadRequest(List.of(answer(text.getId(), "ok", null, null, null),
-                answer(text.getId(), null, new BigDecimal("1"), null, null))); // doublon de question
+        assertDraftBadRequest(List.of(answer(single.getId(), null, null, null, List.of(foreignOptionId))));
+        assertDraftBadRequest(List.of(answer(multiple.getId(), null, null, null, List.of()))); // QCM vide
+        assertDraftBadRequest(List.of(answer(multiple.getId(), null, null, null, List.of(foreignOptionId))));
+        assertDraftBadRequest(List.of(answer(text.getId(), "ok", null, null, null),
+                answer(text.getId(), "again", null, null, null))); // doublon de question
 
         verify(applicationRepository, never()).saveAndFlush(any());
         verify(applicationAnswerRepository, never()).saveAllAndFlush(anyList());
     }
 
     @Test
-    void contexteExposeLesQuestionsSansPreferredEtLaCandidatureExistante() {
+    void brouillonRejetteUneOffreInconnueNonPublieeOuExpiree() {
+        assertDraftOfferUnavailable(null);
+        assertDraftOfferUnavailable(offer(JobOfferStatus.DRAFT, null));
+        assertDraftOfferUnavailable(offer(JobOfferStatus.CLOSED, null));
+        assertDraftOfferUnavailable(offer(JobOfferStatus.PUBLISHED, LocalDate.now().minusDays(1)));
+
+        verify(applicationRepository, never()).saveAndFlush(any());
+    }
+
+    // --- Transmission ------------------------------------------------------
+
+    @Test
+    void transmissionFigeLeCvDuBrouillonEtRattacheLeMatchingDeLaFicheCourante() {
+        JobOfferQuestion required = question(1, QuestionType.TEXT, true, 0);
+        Application draft = application(ApplicationStatus.DRAFT, CV_ID);
+        UUID sheetId = UUID.randomUUID();
+        UUID matchingId = UUID.randomUUID();
+        stubOwned(draft);
+        stubOfferById(offer(JobOfferStatus.PUBLISHED, null));
+        stubQuestions(List.of(required), List.of());
+        when(applicationAnswerRepository.findByApplicationIdIn(List.of(draft.getId())))
+                .thenReturn(List.of(textAnswer(draft.getId(), required.getId(), "Because")));
+        when(attachmentRepository.findByIdAndCandidateId(CV_ID, USER_ID)).thenReturn(Optional.of(attachment("cv.pdf")));
+        when(normalizedProfileRepository.findLatestWithContentByCandidateId(any(), any(Pageable.class)))
+                .thenReturn(List.of(NormalizedProfile.builder().id(sheetId).build()));
+        when(matchingRepository.findByCandidateIdAndJobOfferIdAndCandidateNormalizedProfileId(USER_ID, OFFER_ID,
+                sheetId)).thenReturn(Optional.of(Matching.builder().id(matchingId).build()));
+
+        ApplicationResponse response = applicationService.submit(USER_ID, draft.getId(), null);
+
+        assertThat(draft.getStatus()).isEqualTo(ApplicationStatus.SUBMITTED);
+        assertThat(draft.getCvAttachmentId()).isEqualTo(CV_ID);
+        assertThat(draft.getMatchingId()).isEqualTo(matchingId);
+        verify(applicationRepository).saveAndFlush(draft);
+        assertThat(response.status()).isEqualTo("submitted");
+        assertThat(response.answers()).extracting(ApplicationAnswerView::value).containsExactly("Because");
+    }
+
+    @Test
+    void transmissionDirecteSansMatchingNiFicheLaisseMatchingIdNul() {
+        Application draft = application(ApplicationStatus.DRAFT, null);
+        UUID chosenCv = UUID.randomUUID();
+        stubOwned(draft);
+        stubOfferById(offer(JobOfferStatus.PUBLISHED, null));
+        stubQuestions(List.of(), List.of());
+        when(attachmentRepository.findByIdAndCandidateId(chosenCv, USER_ID))
+                .thenReturn(Optional.of(attachmentWithId(chosenCv, "chosen.pdf")));
+        when(normalizedProfileRepository.findLatestWithContentByCandidateId(any(), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        applicationService.submit(USER_ID, draft.getId(), new SubmitApplicationRequest(chosenCv));
+
+        assertThat(draft.getCvAttachmentId()).isEqualTo(chosenCv);
+        assertThat(draft.getMatchingId()).isNull();
+        verifyNoInteractions(matchingRepository);
+    }
+
+    @Test
+    void transmissionSansCvChoisiNiBrouillonPrendLeCvCourant() {
+        Application draft = application(ApplicationStatus.DRAFT, null);
+        stubOwned(draft);
+        stubOfferById(offer(JobOfferStatus.PUBLISHED, null));
+        stubQuestions(List.of(), List.of());
+        stubCurrentCv("current.pdf");
+        when(normalizedProfileRepository.findLatestWithContentByCandidateId(any(), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        applicationService.submit(USER_ID, draft.getId(), new SubmitApplicationRequest(null));
+
+        assertThat(draft.getCvAttachmentId()).isEqualTo(CV_ID);
+    }
+
+    @Test
+    void transmissionRefuseObligatoireManquanteCvInconnuOuAbsentEtOffreFermee() {
+        JobOfferQuestion required = question(1, QuestionType.TEXT, true, 0);
+        Application draft = application(ApplicationStatus.DRAFT, null);
+        stubOwned(draft);
+        stubOfferById(offer(JobOfferStatus.PUBLISHED, null));
+        stubQuestions(List.of(required), List.of());
+
+        // Obligatoire sans réponse enregistrée.
+        when(applicationAnswerRepository.findByApplicationIdIn(List.of(draft.getId()))).thenReturn(List.of());
+        assertStatus(() -> applicationService.submit(USER_ID, draft.getId(), null), HttpStatus.BAD_REQUEST);
+
+        when(applicationAnswerRepository.findByApplicationIdIn(List.of(draft.getId())))
+                .thenReturn(List.of(textAnswer(draft.getId(), required.getId(), "ok")));
+        // CV choisi qui n'appartient pas au candidat.
+        assertStatus(() -> applicationService.submit(USER_ID, draft.getId(),
+                new SubmitApplicationRequest(UUID.randomUUID())), HttpStatus.BAD_REQUEST);
+        // Aucun CV du tout.
+        when(candidateService.getCurrentCvAttachmentId(USER_ID)).thenReturn(Optional.empty());
+        assertStatus(() -> applicationService.submit(USER_ID, draft.getId(), null), HttpStatus.CONFLICT);
+        // Offre fermée entre-temps.
+        stubOfferById(offer(JobOfferStatus.CLOSED, null));
+        assertStatus(() -> applicationService.submit(USER_ID, draft.getId(), null), HttpStatus.NOT_FOUND);
+
+        assertThat(draft.getStatus()).isEqualTo(ApplicationStatus.DRAFT);
+        verify(applicationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void transmissionRefuseUneCandidatureDejaTransmiseOuInconnue() {
+        Application submitted = application(ApplicationStatus.SUBMITTED, CV_ID);
+        stubOwned(submitted);
+        assertStatus(() -> applicationService.submit(USER_ID, submitted.getId(), null), HttpStatus.CONFLICT);
+
+        UUID unknown = UUID.randomUUID();
+        when(applicationRepository.findByIdAndCandidateId(unknown, USER_ID)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> applicationService.submit(USER_ID, unknown, null))
+                .isInstanceOf(ApplicationNotFoundException.class);
+    }
+
+    // --- Abandon -----------------------------------------------------------
+
+    @Test
+    void abandonSupprimeUnBrouillonEtRefuseUneCandidatureTransmise() {
+        Application draft = application(ApplicationStatus.DRAFT, CV_ID);
+        stubOwned(draft);
+        applicationService.discard(USER_ID, draft.getId());
+        verify(applicationRepository).delete(draft);
+
+        Application submitted = application(ApplicationStatus.SUBMITTED, CV_ID);
+        stubOwned(submitted);
+        assertStatus(() -> applicationService.discard(USER_ID, submitted.getId()), HttpStatus.CONFLICT);
+        verify(applicationRepository, never()).delete(submitted);
+
+        UUID unknown = UUID.randomUUID();
+        when(applicationRepository.findByIdAndCandidateId(unknown, USER_ID)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> applicationService.discard(USER_ID, unknown))
+                .isInstanceOf(ApplicationNotFoundException.class);
+    }
+
+    // --- Contexte : étape calculée ------------------------------------------
+
+    @Test
+    void contexteSansCandidatureEstALEtapeQuestionsRecruteurSansPreferred() {
         JobOfferQuestion choice = question(2, QuestionType.SINGLE_CHOICE, true, 1);
         JobOfferQuestion text = question(1, QuestionType.TEXT, false, 0);
         JobOfferQuestionOption preferred = JobOfferQuestionOption.builder()
@@ -281,72 +389,91 @@ class ApplicationServiceTest {
                 .sortOrder(0)
                 .preferred(true)
                 .build();
-
         stubOpenOffer();
-        when(jobOfferQuestionRepository.findByJobOfferIdInOrderBySortOrderAscIdAsc(List.of(OFFER_ID)))
-                .thenReturn(List.of(text, choice));
-        when(jobOfferQuestionOptionRepository.findByQuestionIdInOrderBySortOrderAscIdAsc(anyList()))
-                .thenReturn(List.of(preferred));
-        when(candidateService.getCurrentCvAttachmentId(USER_ID)).thenReturn(Optional.of(CV_ID));
+        stubQuestions(List.of(text, choice), List.of(preferred));
+        stubCurrentCv("cv.pdf");
         when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.empty());
 
         ApplicationContextResponse context = applicationService.getContext(USER_ID, PUBLIC_ID);
 
-        assertThat(context.job().title()).isEqualTo("Backend Engineer");
-        assertThat(context.job().companyName()).isEqualTo("Acme");
         assertThat(context.questions()).extracting(question -> question.id())
                 .containsExactly(text.getId(), choice.getId());
-        assertThat(context.questions().get(1).type()).isEqualTo("single_choice");
-        assertThat(context.questions().get(1).isRequired()).isTrue();
-        assertThat(context.questions().get(1).options()).extracting(option -> option.label())
-                .containsExactly("Ideal");
+        assertThat(context.questions().get(1).options()).extracting(option -> option.label()).containsExactly("Ideal");
         assertThat(context.currentCvAttachmentId()).isEqualTo(CV_ID);
         assertThat(context.existingApplication()).isNull();
-
-        Application existing = Application.builder()
-                .id(UUID.randomUUID())
-                .candidateId(USER_ID)
-                .jobOfferId(OFFER_ID)
-                .cvAttachmentId(CV_ID)
-                .status(ApplicationStatus.WITHDRAWN)
-                .createdAt(LocalDateTime.now())
-                .build();
-        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID))
-                .thenReturn(Optional.of(existing));
-        ApplicationContextResponse withExisting = applicationService.getContext(USER_ID, PUBLIC_ID);
-        assertThat(withExisting.existingApplication().id()).isEqualTo(existing.getId());
-        assertThat(withExisting.existingApplication().status()).isEqualTo("withdrawn");
+        assertThat(context.answers()).isEmpty();
+        assertThat(context.step()).isEqualTo("recruiter_questions");
+        assertThat(context.canSubmit()).isFalse();
     }
 
     @Test
-    void mesCandidaturesReconstruisentLesValeursSansPreferred() {
-        Application application = Application.builder()
-                .id(UUID.randomUUID())
-                .candidateId(USER_ID)
-                .jobOfferId(OFFER_ID)
-                .cvAttachmentId(CV_ID)
-                .status(ApplicationStatus.SUBMITTED)
-                .createdAt(LocalDateTime.now())
-                .build();
+    void contexteSuitLaCompletudeDuBrouillonPuisLaTransmission() {
+        JobOfferQuestion required = question(1, QuestionType.TEXT, true, 0);
+        JobOfferQuestion optional = question(2, QuestionType.TEXT, false, 1);
+        Application draft = application(ApplicationStatus.DRAFT, null);
+        stubOpenOffer();
+        stubQuestions(List.of(required, optional), List.of());
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.of(draft));
+
+        // Brouillon partiel : l'obligatoire manque.
+        when(applicationAnswerRepository.findByApplicationIdIn(List.of(draft.getId())))
+                .thenReturn(List.of(textAnswer(draft.getId(), optional.getId(), "Optional only")));
+        ApplicationContextResponse partial = applicationService.getContext(USER_ID, PUBLIC_ID);
+        assertThat(partial.existingApplication().status()).isEqualTo("draft");
+        assertThat(partial.existingApplication().cvAttachmentId()).isNull();
+        assertThat(partial.answers()).extracting(ApplicationAnswerView::value).containsExactly("Optional only");
+        assertThat(partial.step()).isEqualTo("recruiter_questions");
+        assertThat(partial.canSubmit()).isFalse();
+
+        // Obligatoire répondue : matching ouvert, transmission possible.
+        when(applicationAnswerRepository.findByApplicationIdIn(List.of(draft.getId())))
+                .thenReturn(List.of(textAnswer(draft.getId(), required.getId(), "Done")));
+        ApplicationContextResponse complete = applicationService.getContext(USER_ID, PUBLIC_ID);
+        assertThat(complete.step()).isEqualTo("matching");
+        assertThat(complete.canSubmit()).isTrue();
+
+        // Toute candidature transmise (même retirée) est à l'étape « submitted ».
+        draft.setStatus(ApplicationStatus.WITHDRAWN);
+        ApplicationContextResponse withdrawn = applicationService.getContext(USER_ID, PUBLIC_ID);
+        assertThat(withdrawn.existingApplication().status()).isEqualTo("withdrawn");
+        assertThat(withdrawn.step()).isEqualTo("submitted");
+        assertThat(withdrawn.canSubmit()).isFalse();
+    }
+
+    @Test
+    void candidatureDuCoupleExposeStatutEtCompletudePourLeMatching() {
+        JobOfferQuestion required = question(1, QuestionType.TEXT, true, 0);
+        Application draft = application(ApplicationStatus.DRAFT, null);
+        stubQuestions(List.of(required), List.of());
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.of(draft));
+        when(applicationAnswerRepository.findByApplicationIdIn(List.of(draft.getId()))).thenReturn(List.of());
+
+        assertThat(applicationService.findCoupleApplication(USER_ID, OFFER_ID))
+                .contains(new ApplicationService.CoupleApplication(ApplicationStatus.DRAFT, false));
+
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.empty());
+        assertThat(applicationService.findCoupleApplication(USER_ID, OFFER_ID)).isEmpty();
+    }
+
+    // --- Liste et retrait --------------------------------------------------
+
+    @Test
+    void mesCandidaturesReconstruisentLesValeursEtToleresUnBrouillonSansCv() {
+        Application submitted = application(ApplicationStatus.SUBMITTED, CV_ID);
+        Application draft = application(ApplicationStatus.DRAFT, null);
         JobOfferQuestion text = question(1, QuestionType.TEXT, true, 0);
         JobOfferQuestion single = question(2, QuestionType.SINGLE_CHOICE, true, 1);
         JobOfferQuestionOption preferred = JobOfferQuestionOption.builder()
-                .id(option(11, single.getId(), "Yes").getId())
+                .id(new UUID(0, 11))
                 .questionId(single.getId())
                 .label("Yes")
                 .sortOrder(0)
                 .preferred(true)
                 .build();
-        ApplicationAnswer textAnswer = ApplicationAnswer.builder()
-                .id(UUID.randomUUID())
-                .applicationId(application.getId())
-                .jobOfferId(OFFER_ID)
-                .questionId(text.getId())
-                .answerText("Hello")
-                .build();
+        ApplicationAnswer textAnswer = textAnswer(submitted.getId(), text.getId(), "Hello");
         ApplicationAnswer singleAnswer = ApplicationAnswer.builder()
                 .id(UUID.randomUUID())
-                .applicationId(application.getId())
+                .applicationId(submitted.getId())
                 .jobOfferId(OFFER_ID)
                 .questionId(single.getId())
                 .build();
@@ -355,16 +482,12 @@ class ApplicationServiceTest {
                 .questionId(single.getId())
                 .optionId(preferred.getId())
                 .build();
-
         when(applicationRepository.findByCandidateIdOrderByCreatedAtDescIdDesc(USER_ID))
-                .thenReturn(List.of(application));
-        when(jobOfferRepository.findAllById(List.of(OFFER_ID))).thenReturn(List.of(offer(JobOfferStatus.PUBLISHED,
-                null)));
-        when(jobOfferQuestionRepository.findByJobOfferIdInOrderBySortOrderAscIdAsc(List.of(OFFER_ID)))
-                .thenReturn(List.of(text, single));
-        when(jobOfferQuestionOptionRepository.findByQuestionIdInOrderBySortOrderAscIdAsc(anyList()))
-                .thenReturn(List.of(preferred));
-        when(applicationAnswerRepository.findByApplicationIdIn(List.of(application.getId())))
+                .thenReturn(List.of(draft, submitted));
+        when(jobOfferRepository.findAllById(List.of(OFFER_ID)))
+                .thenReturn(List.of(offer(JobOfferStatus.PUBLISHED, null)));
+        stubQuestions(List.of(text, single), List.of(preferred));
+        when(applicationAnswerRepository.findByApplicationIdIn(List.of(draft.getId(), submitted.getId())))
                 .thenReturn(List.of(textAnswer, singleAnswer));
         when(applicationAnswerOptionRepository.findByApplicationAnswerIdIn(List.of(textAnswer.getId(),
                 singleAnswer.getId()))).thenReturn(List.of(selection));
@@ -372,12 +495,11 @@ class ApplicationServiceTest {
 
         List<ApplicationResponse> responses = applicationService.listMine(USER_ID);
 
-        assertThat(responses).hasSize(1);
-        ApplicationResponse response = responses.get(0);
-        assertThat(response.status()).isEqualTo("submitted");
+        assertThat(responses).extracting(ApplicationResponse::status).containsExactly("draft", "submitted");
+        assertThat(responses.get(0).cv()).isNull();
+        assertThat(responses.get(0).answers()).isEmpty();
+        ApplicationResponse response = responses.get(1);
         assertThat(response.cv().originalName()).isEqualTo("pinned.pdf");
-        assertThat(response.answers()).extracting(ApplicationAnswerView::questionId)
-                .containsExactly(text.getId(), single.getId());
         assertThat(response.answers().get(0).value()).isEqualTo("Hello");
         assertThat(response.answers().get(1).value())
                 .isEqualTo(new ApplicationAnswerOptionView(preferred.getId(), "Yes"));
@@ -394,37 +516,20 @@ class ApplicationServiceTest {
     }
 
     @Test
-    void retraitSeulementDepuisSoumise() {
-        Application submitted = Application.builder()
-                .id(UUID.randomUUID())
-                .candidateId(USER_ID)
-                .jobOfferId(OFFER_ID)
-                .cvAttachmentId(CV_ID)
-                .status(ApplicationStatus.SUBMITTED)
-                .build();
-        when(applicationRepository.findByIdAndCandidateId(submitted.getId(), USER_ID))
-                .thenReturn(Optional.of(submitted));
-
+    void retraitSeulementDepuisTransmise() {
+        Application submitted = application(ApplicationStatus.SUBMITTED, CV_ID);
+        stubOwned(submitted);
         applicationService.withdraw(USER_ID, submitted.getId());
-
         assertThat(submitted.getStatus()).isEqualTo(ApplicationStatus.WITHDRAWN);
         verify(applicationRepository).save(submitted);
 
-        Application accepted = Application.builder()
-                .id(UUID.randomUUID())
-                .candidateId(USER_ID)
-                .jobOfferId(OFFER_ID)
-                .cvAttachmentId(CV_ID)
-                .status(ApplicationStatus.ACCEPTED)
-                .build();
-        when(applicationRepository.findByIdAndCandidateId(accepted.getId(), USER_ID))
-                .thenReturn(Optional.of(accepted));
-
-        assertThatThrownBy(() -> applicationService.withdraw(USER_ID, accepted.getId()))
-                .isInstanceOf(InvalidApplicationException.class)
-                .satisfies(ex -> assertThat(((InvalidApplicationException) ex).getStatus())
-                        .isEqualTo(HttpStatus.CONFLICT));
-        assertThat(accepted.getStatus()).isEqualTo(ApplicationStatus.ACCEPTED);
+        for (ApplicationStatus status : List.of(ApplicationStatus.DRAFT, ApplicationStatus.ACCEPTED,
+                ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN)) {
+            Application other = application(status, CV_ID);
+            stubOwned(other);
+            assertStatus(() -> applicationService.withdraw(USER_ID, other.getId()), HttpStatus.CONFLICT);
+            assertThat(other.getStatus()).isEqualTo(status);
+        }
 
         UUID unknownId = UUID.randomUUID();
         when(applicationRepository.findByIdAndCandidateId(unknownId, USER_ID)).thenReturn(Optional.empty());
@@ -432,29 +537,71 @@ class ApplicationServiceTest {
                 .isInstanceOf(ApplicationNotFoundException.class);
     }
 
-    private void assertBadRequest(List<ApplicationAnswerRequest> answers) {
-        assertThatThrownBy(() -> applicationService.submit(USER_ID,
-                new SubmitApplicationRequest(PUBLIC_ID, null, answers)))
-                .isInstanceOf(InvalidApplicationException.class)
-                .satisfies(ex -> assertThat(((InvalidApplicationException) ex).getStatus())
-                        .isEqualTo(HttpStatus.BAD_REQUEST));
+    // --- Outils ------------------------------------------------------------
+
+    private void assertDraftBadRequest(List<ApplicationAnswerRequest> answers) {
+        assertStatus(() -> applicationService.saveDraft(USER_ID, draft(answers)), HttpStatus.BAD_REQUEST);
     }
 
-    private void assertOfferUnavailable(JobOffer offer, HttpStatus expected) {
+    private void assertDraftOfferUnavailable(JobOffer offer) {
         when(jobOfferRepository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.ofNullable(offer));
-        assertThatThrownBy(() -> applicationService.submit(USER_ID,
-                new SubmitApplicationRequest(PUBLIC_ID, null, List.of())))
+        assertStatus(() -> applicationService.saveDraft(USER_ID, draft(List.of())), HttpStatus.NOT_FOUND);
+    }
+
+    private static void assertStatus(Runnable call, HttpStatus expected) {
+        assertThatThrownBy(call::run)
                 .isInstanceOf(InvalidApplicationException.class)
                 .satisfies(ex -> assertThat(((InvalidApplicationException) ex).getStatus()).isEqualTo(expected));
     }
 
+    private static SaveApplicationDraftRequest draft(List<ApplicationAnswerRequest> answers) {
+        return new SaveApplicationDraftRequest(PUBLIC_ID, answers);
+    }
+
     private void stubOpenOffer() {
-        when(jobOfferRepository.findByPublicId(PUBLIC_ID))
-                .thenReturn(Optional.of(offer(JobOfferStatus.PUBLISHED, null)));
+        when(jobOfferRepository.findByPublicId(PUBLIC_ID)).thenReturn(Optional.of(offer(JobOfferStatus.PUBLISHED,
+                null)));
+        stubCompany();
+    }
+
+    private void stubOfferById(JobOffer offer) {
+        when(jobOfferRepository.findById(OFFER_ID)).thenReturn(Optional.of(offer));
+        stubCompany();
+    }
+
+    private void stubCompany() {
         when(companyRepository.findById(COMPANY_ID)).thenReturn(Optional.of(Company.builder()
                 .id(COMPANY_ID)
                 .name("Acme")
                 .build()));
+    }
+
+    private void stubCurrentCv(String name) {
+        when(candidateService.getCurrentCvAttachmentId(USER_ID)).thenReturn(Optional.of(CV_ID));
+        when(attachmentRepository.findByIdAndCandidateId(CV_ID, USER_ID)).thenReturn(Optional.of(attachment(name)));
+    }
+
+    private void stubQuestions(List<JobOfferQuestion> questions, List<JobOfferQuestionOption> options) {
+        when(jobOfferQuestionRepository.findByJobOfferIdInOrderBySortOrderAscIdAsc(List.of(OFFER_ID)))
+                .thenReturn(questions);
+        when(jobOfferQuestionOptionRepository.findByQuestionIdInOrderBySortOrderAscIdAsc(anyList()))
+                .thenReturn(options);
+    }
+
+    private void stubOwned(Application application) {
+        when(applicationRepository.findByIdAndCandidateId(application.getId(), USER_ID))
+                .thenReturn(Optional.of(application));
+    }
+
+    private static Application application(ApplicationStatus status, UUID cvId) {
+        return Application.builder()
+                .id(UUID.randomUUID())
+                .candidateId(USER_ID)
+                .jobOfferId(OFFER_ID)
+                .cvAttachmentId(cvId)
+                .status(status)
+                .createdAt(LocalDateTime.now())
+                .build();
     }
 
     private JobOffer offer(JobOfferStatus status, LocalDate expiresAt) {
@@ -491,14 +638,28 @@ class ApplicationServiceTest {
                 .build();
     }
 
+    private static ApplicationAnswer textAnswer(UUID applicationId, UUID questionId, String text) {
+        return ApplicationAnswer.builder()
+                .id(UUID.randomUUID())
+                .applicationId(applicationId)
+                .jobOfferId(OFFER_ID)
+                .questionId(questionId)
+                .answerText(text)
+                .build();
+    }
+
     private ApplicationAnswerRequest answer(UUID questionId, String text, BigDecimal number, Boolean booleanValue,
             List<UUID> optionIds) {
         return new ApplicationAnswerRequest(questionId, text, number, booleanValue, optionIds);
     }
 
     private Attachment attachment(String originalName) {
+        return attachmentWithId(CV_ID, originalName);
+    }
+
+    private static Attachment attachmentWithId(UUID id, String originalName) {
         return Attachment.builder()
-                .id(CV_ID)
+                .id(id)
                 .candidateId(USER_ID)
                 .originalName(originalName)
                 .mimeType("application/pdf")

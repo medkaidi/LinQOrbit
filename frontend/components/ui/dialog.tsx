@@ -17,10 +17,22 @@ type DialogProps = {
   onClose: () => void;
   /** Emplacement bas de carte : actions alignées entre elles. */
   footer?: ReactNode;
-  /** Largeur du conteneur (max-w-xl par défaut). */
+  /**
+   * `center` (défaut) : carte centrée `max-w-xl`. `top` : **rideau** qui
+   * descend du haut de l'écran, large (`max-w-6xl`) et défilant — détail
+   * d'une offre consulté sans quitter le parcours de candidature (D59). La
+   * largeur fait partie de la variante (`cn()` ne fusionne pas les classes).
+   */
+  placement?: "center" | "top";
+  /** Classes additionnelles du conteneur (jamais une largeur : elle vient de `placement`). */
   className?: string;
   children: ReactNode;
 };
+
+const PLACEMENT_CLASSES = {
+  center: { overlay: "items-center", panel: "max-w-xl" },
+  top: { overlay: "items-start pt-4", panel: "max-w-6xl max-h-[calc(100vh-2rem)] overflow-y-auto curtain-in" },
+} as const;
 
 /**
  * Fenêtre modale de base (fond plein + carte centrée) : fermeture Échap et
@@ -38,9 +50,11 @@ export function Dialog({
   dismissable = true,
   onClose,
   footer,
+  placement = "center",
   className,
   children,
 }: DialogProps) {
+  const layout = PLACEMENT_CLASSES[placement];
   const titleId = useId();
 
   useEffect(() => {
@@ -64,7 +78,7 @@ export function Dialog({
 
   const content = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className={cn("fixed inset-0 z-50 flex justify-center p-4", layout.overlay)}
       onClick={dismissable ? onClose : undefined}
     >
       <div className="absolute inset-0 bg-text-primary/40" aria-hidden="true" />
@@ -74,7 +88,8 @@ export function Dialog({
         aria-label={ariaLabel}
         aria-labelledby={ariaLabel ? undefined : titleId}
         className={cn(
-          "relative w-full max-w-xl bg-canvas-white rounded-2xl shadow-xl",
+          "relative w-full bg-canvas-white rounded-2xl shadow-xl",
+          layout.panel,
           className,
         )}
         onClick={(event) => event.stopPropagation()}

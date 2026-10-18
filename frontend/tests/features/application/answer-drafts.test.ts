@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAnswerRequests,
+  draftsFromAnswers,
   emptyAnswerDrafts,
   invalidAnswerNumbers,
   isStorableAnswerNumber,
@@ -133,6 +134,46 @@ describe("buildAnswerRequests", () => {
       { questionId: TEXT_QUESTION.id, text: "Hello" },
       { questionId: YES_NO_QUESTION.id, booleanValue: false },
       { questionId: NUMBER_QUESTION.id, number: 3 },
+    ]);
+  });
+});
+
+describe("draftsFromAnswers", () => {
+  it("prefills each question from its saved answer, by type", () => {
+    const drafts = draftsFromAnswers(
+      [TEXT_QUESTION, SINGLE_CHOICE_QUESTION, MULTIPLE_CHOICE_QUESTION, YES_NO_QUESTION, NUMBER_QUESTION],
+      [
+        { questionId: TEXT_QUESTION.id, label: "", type: "text", value: "Because" },
+        { questionId: SINGLE_CHOICE_QUESTION.id, label: "", type: "single_choice",
+          value: { optionId: "opt-remote", label: "Remote" } },
+        { questionId: MULTIPLE_CHOICE_QUESTION.id, label: "", type: "multiple_choice",
+          value: [{ optionId: "opt-java", label: "Java" }, { optionId: "opt-kotlin", label: "Kotlin" }] },
+        { questionId: YES_NO_QUESTION.id, label: "", type: "yes_no", value: false },
+        { questionId: NUMBER_QUESTION.id, label: "", type: "number", value: 7.5 },
+      ],
+    );
+
+    expect(drafts[TEXT_QUESTION.id]).toEqual(draft({ text: "Because" }));
+    expect(drafts[SINGLE_CHOICE_QUESTION.id]).toEqual(draft({ optionIds: ["opt-remote"] }));
+    expect(drafts[MULTIPLE_CHOICE_QUESTION.id]).toEqual(draft({ optionIds: ["opt-java", "opt-kotlin"] }));
+    expect(drafts[YES_NO_QUESTION.id]).toEqual(draft({ yesNo: "no" }));
+    expect(drafts[NUMBER_QUESTION.id]).toEqual(draft({ number: "7.5" }));
+  });
+
+  it("leaves unanswered questions empty and ignores answers of unknown questions", () => {
+    const drafts = draftsFromAnswers(
+      [TEXT_QUESTION],
+      [{ questionId: "gone", label: "", type: "text", value: "Old" }],
+    );
+
+    expect(drafts).toEqual({ [TEXT_QUESTION.id]: draft() });
+  });
+
+  it("round-trips a saved answer to the same request", () => {
+    const answers = [{ questionId: YES_NO_QUESTION.id, label: "", type: "yes_no" as const, value: true }];
+
+    expect(buildAnswerRequests([YES_NO_QUESTION], draftsFromAnswers([YES_NO_QUESTION], answers))).toEqual([
+      { questionId: YES_NO_QUESTION.id, booleanValue: true },
     ]);
   });
 });

@@ -271,6 +271,26 @@
 }
 
 /*
+ * Rideau (D59, `Dialog placement="top"`) : le détail d'une offre descend du
+ * haut de l'écran — même durée que le drawer, même neutralisation en
+ * mouvement réduit.
+ */
+@keyframes curtain-in {
+  from {
+    transform: translateY(-1.5rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.curtain-in {
+  animation: curtain-in 180ms ease-out;
+}
+
+/*
  * Mouvement réduit (règle globale validée) : la préférence système neutralise
  * les animations et transitions — spinner figé, fondus instantanés. Les
  * variants `motion-reduce:` locaux restent valables pour un effacement ciblé.
