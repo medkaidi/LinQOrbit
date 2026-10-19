@@ -29,9 +29,13 @@ import type { ApplicationContext } from "@/types/application";
 export function SubmitPanel({
   context,
   applicationId,
+  ensureDraft,
 }: {
   context: ApplicationContext;
-  applicationId: string;
+  /** Brouillon du couple ; null pour une offre sans question tant qu'aucun geste ne l'a créé. */
+  applicationId: string | null;
+  /** Crée le brouillon au besoin et renvoie son id. */
+  ensureDraft: () => Promise<string>;
 }) {
   const router = useRouter();
   const publicId = context.job.publicId;
@@ -40,6 +44,8 @@ export function SubmitPanel({
   const discard = useDiscardApplication(publicId);
   const [cvId, setCvId] = useState("");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // Une opération à la fois : pas d'abandon pendant l'envoi, ni l'inverse.
+  const busy = submit.isPending || discard.isPending;
 
   const hasCvs = (cvs.data?.length ?? 0) > 0;
   const cvOptions = (cvs.data ?? []).map((cv) => ({
@@ -58,7 +64,11 @@ export function SubmitPanel({
 
   const handleSubmit = () =>
     submit.mutate(
-      { applicationId, body: effectiveCvId !== "" ? { cvAttachmentId: effectiveCvId } : {} },
+      {
+        applicationId,
+        ensureDraft,
+        body: effectiveCvId !== "" ? { cvAttachmentId: effectiveCvId } : {},
+      },
       { onSuccess: () => router.push("/applications") },
     );
 
@@ -110,14 +120,16 @@ export function SubmitPanel({
             type="button"
             icon="send"
             busy={submit.isPending}
-            disabled={cvs.isLoading || !hasCvs}
+            disabled={cvs.isLoading || !hasCvs || discard.isPending}
             onClick={handleSubmit}
           >
             Submit application
           </CtaButton>
-          <Button variant="outline-sm" type="button" onClick={() => setConfirmDiscard(true)}>
-            Discard application
-          </Button>
+          {applicationId ? (
+            <Button variant="outline-sm" type="button" disabled={busy} onClick={() => setConfirmDiscard(true)}>
+              Discard application
+            </Button>
+          ) : null}
         </div>
 
         {submit.error ? (
@@ -132,7 +144,7 @@ export function SubmitPanel({
         ) : null}
       </div>
 
-      {confirmDiscard ? (
+      {confirmDiscard && applicationId ? (
         <ConfirmDialog
           title="Discard this application?"
           message="Your answers to the recruiter's questions will be deleted. You can start a new application for this offer later."

@@ -18,6 +18,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -259,6 +265,10 @@ class ApplicationIntegrationTest {
         assertAlreadyApplied(candidateJwt, publicId);
         mockMvc.perform(get(APPLICATIONS_PATH + "/mine").header("Authorization", "Bearer " + candidateJwt))
                 .andExpect(jsonPath("$[0].status").value("withdrawn"));
+        // Une candidature retirée reste à l'étape « submitted » (parcours clos).
+        mockMvc.perform(get(APPLICATIONS_PATH + "/context/" + publicId).header("Authorization", "Bearer " + candidateJwt))
+                .andExpect(jsonPath("$.step").value("submitted"))
+                .andExpect(jsonPath("$.canSubmit").value(false));
     }
 
     @Test
@@ -457,7 +467,121 @@ class ApplicationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentCvAttachmentId").doesNotExist())
                 .andExpect(jsonPath("$.existingApplication").doesNotExist())
-                .andExpect(jsonPath("$.step").value("recruiter_questions"));
+                // Offre sans question : étape matching dès l'ouverture, avant tout brouillon.
+                .andExpect(jsonPath("$.step").value("matching"))
+                .andExpect(jsonPath("$.canSubmit").value(true));
+    }
+
+    @Test
+    void suppressionDuCvDetacheLesBrouillonsMaisRefuseUnCvJointAUneCandidatureTransmise() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Cv Delete", null);
+        publish(owner.token(), offerId);
+        String candidateJwt = signup();
+        UUID firstCv = uploadCv(candidateJwt);
+        UUID draftId = idOf(saveDraft(candidateJwt, publicIdOf(offerId), "[]").andExpect(status().isOk()).andReturn());
+        assertThat(jdbcTemplate.queryForObject("SELECT cv_attachment_id FROM application WHERE id = ?", UUID.class,
+                draftId)).isEqualTo(firstCv);
+        UUID secondCv = uploadCv(candidateJwt);
+
+        // TD-054 : le CV d'un brouillon n'est pas figé — détaché puis supprimé (204, jamais un 500 de FK).
+        mockMvc.perform(delete(ATTACHMENTS_PATH + "/" + firstCv).header("Authorization", "Bearer " + candidateJwt))
+                .andExpect(status().isNoContent());
+        assertThat(jdbcTemplate.queryForObject("SELECT cv_attachment_id FROM application WHERE id = ?", UUID.class,
+                draftId)).isNull();
+        assertThat(count("SELECT count(*) FROM attachment WHERE id = ?", firstCv)).isZero();
+
+        // La transmission reprend le CV courant, qui devient figé.
+        submit(candidateJwt, draftId, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cv.attachmentId").value(secondCv.toString()));
+        mockMvc.perform(delete(ATTACHMENTS_PATH + "/" + secondCv).header("Authorization", "Bearer " + candidateJwt))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail")
+                        .value("This CV is attached to an application you sent and cannot be deleted."));
+        assertThat(count("SELECT count(*) FROM attachment WHERE id = ?", secondCv)).isOne();
+        assertThat(jdbcTemplate.queryForObject("SELECT cv_attachment_id FROM application WHERE id = ?", UUID.class,
+                draftId)).isEqualTo(secondCv);
+    }
+
+    @Test
+    void entreesFacultativesDuBrouillonEtDeLaTransmission() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Optional Inputs", null);
+        publish(owner.token(), offerId);
+        String candidateJwt = signup();
+        UUID cvId = uploadCv(candidateJwt);
+        String publicId = publicIdOf(offerId);
+
+        // jobPublicId absent ou vide : 400 de validation, jamais un 500.
+        for (String body : List.of("{\"answers\": []}", "{\"jobPublicId\": \"\", \"answers\": []}")) {
+            mockMvc.perform(put(APPLICATIONS_PATH + "/draft").header("Authorization", "Bearer " + candidateJwt)
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        // Une réponse null dans la liste : 400.
+        saveDraft(candidateJwt, publicId, "[null]").andExpect(status().isBadRequest());
+        // answers absent du JSON ≡ vide.
+        UUID draftId = idOf(mockMvc.perform(put(APPLICATIONS_PATH + "/draft")
+                        .header("Authorization", "Bearer " + candidateJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"jobPublicId\": \"" + publicId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answers.length()").value(0))
+                .andReturn());
+
+        // Identifiants illisibles : 400 générique (handleUnreadableClientInput), aucune écriture.
+        mockMvc.perform(post(APPLICATIONS_PATH + "/not-a-uuid/submit").header("Authorization", "Bearer " + candidateJwt))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("The request could not be processed."));
+        submit(candidateJwt, draftId, "{\"cvAttachmentId\": \"abc\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("The request could not be processed."));
+        assertThat(statusOf(draftId)).isEqualTo(1);
+
+        // {"cvAttachmentId": null} ≡ {} ≡ corps absent : le CV du brouillon est épinglé.
+        submit(candidateJwt, draftId, "{\"cvAttachmentId\": null}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("submitted"))
+                .andExpect(jsonPath("$.cv.attachmentId").value(cvId.toString()));
+
+        UUID secondOffer = createOffer(owner.token(), owner.companyId(), "Optional Inputs Bis", null);
+        publish(owner.token(), secondOffer);
+        UUID secondDraft = idOf(saveDraft(candidateJwt, publicIdOf(secondOffer), "[]").andReturn());
+        submit(candidateJwt, secondDraft, "{}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cv.attachmentId").value(cvId.toString()));
+    }
+
+    @Test
+    void unCompteSansProfilCandidatNePeutPasOuvrirDeBrouillon() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "No Profile", null);
+        publish(owner.token(), offerId);
+        String freshJwt = signup();
+
+        // Compte inscrit mais jamais passé par son profil : refus métier explicite, plus de 500 de FK.
+        saveDraft(freshJwt, publicIdOf(offerId), "[]")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Complete your candidate profile before applying."));
+        assertThat(count("SELECT count(*) FROM application WHERE job_offer_id = ?", offerId)).isZero();
+    }
+
+    @Test
+    void deuxPremiersEnregistrementsSimultanesNeCreentQuUnSeulBrouillon() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Concurrent Draft", null);
+        publish(owner.token(), offerId);
+        String candidateJwt = signup();
+        uploadCv(candidateJwt);
+        String publicId = publicIdOf(offerId);
+
+        // TD-053 : double clic / deux onglets — le verrou candidat sérialise, aucun 500 d'unicité.
+        List<Integer> statuses = twoAtOnce(
+                () -> saveDraft(candidateJwt, publicId, "[]").andReturn().getResponse().getStatus());
+
+        assertThat(statuses).containsExactly(200, 200);
+        assertThat(count("SELECT count(*) FROM application WHERE job_offer_id = ?", offerId)).isOne();
     }
 
     @Test
@@ -623,6 +747,29 @@ class ApplicationIntegrationTest {
         UUID applicationId = idOf(saveDraft(token, publicId, answersJson).andExpect(status().isOk()).andReturn());
         submit(token, applicationId, null).andExpect(status().isOk());
         return applicationId;
+    }
+
+    /** Lance deux appels au même instant (TD-053) et renvoie leurs statuts HTTP. */
+    private List<Integer> twoAtOnce(Callable<Integer> call) throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch go = new CountDownLatch(1);
+        try {
+            List<Future<Integer>> calls = new ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                calls.add(pool.submit(() -> {
+                    go.await();
+                    return call.call();
+                }));
+            }
+            go.countDown();
+            List<Integer> statuses = new ArrayList<>();
+            for (Future<Integer> future : calls) {
+                statuses.add(future.get(30, TimeUnit.SECONDS));
+            }
+            return statuses;
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     private UUID idOf(MvcResult result) throws Exception {

@@ -694,6 +694,63 @@ class JobOfferIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+/**
+     * Plafond de questions IA (T-62, V22) : défaut 3 quand absent, bornes
+     * 0–10 validées en 400, modifiable en DRAFT/VALIDATED, figé ensuite (règle
+     * d'édition existante), copié à la duplication.
+     */
+    @Test
+    void plafondDeQuestionsIAParDefautBorneEditableEtCopie() throws Exception {
+        String ownerToken = signup("owner");
+        becomeRecruiter(ownerToken);
+        UUID companyId = createCompany(ownerToken, "Acme");
+        UUID offerId = createOffer(ownerToken, companyId, "Backend Engineer");
+        createdOfferIds.add(offerId);
+        mockMvc.perform(get("/api/v1/job-offers/" + offerId).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(jsonPath("$.maxClarificationQuestions").value(3));
+
+        for (int invalid : new int[] {-1, 11}) {
+            mockMvc.perform(put("/api/v1/job-offers/" + offerId)
+                            .header("Authorization", "Bearer " + ownerToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(withCap(offerBody(companyId, "Backend Engineer", false), invalid)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("maxClarificationQuestions")));
+        }
+        for (int valid : new int[] {0, 10, 5}) {
+            mockMvc.perform(put("/api/v1/job-offers/" + offerId)
+                            .header("Authorization", "Bearer " + ownerToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(withCap(offerBody(companyId, "Backend Engineer", false), valid)))
+                    .andExpect(status().isNoContent());
+        }
+        assertThat(jdbcTemplate.queryForObject("SELECT max_clarification_questions FROM job_offer WHERE id = ?",
+                Integer.class, offerId)).isEqualTo(5);
+
+        MvcResult duplicated = mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/duplicate")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.maxClarificationQuestions").value(5))
+                .andReturn();
+        createdOfferIds.add(UUID.fromString(
+                objectMapper.readTree(duplicated.getResponse().getContentAsString()).get("id").asText()));
+
+        MvcResult created = mockMvc.perform(post("/api/v1/job-offers")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(withCap(offerBody(companyId, "Data Engineer", false), 0)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.maxClarificationQuestions").value(0))
+                .andReturn();
+        createdOfferIds.add(UUID.fromString(
+                objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText()));
+    }
+
+    /** Ajoute le plafond de questions IA à un corps d'offre JSON. */
+    private static String withCap(String body, int cap) {
+        return body.replaceFirst("\\{", "{\"maxClarificationQuestions\": " + cap + ",");
+    }
+
     private String offerBodyWithQuestions(UUID companyId, String title, String questionsJson) {
         return """
                 {

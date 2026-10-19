@@ -1,6 +1,7 @@
 package com.linqorbit.matching.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -31,11 +32,16 @@ class MatchingStatusBroadcasterTest {
         boolean completed;
         boolean failing;
         private final List<Runnable> completionCallbacks = new ArrayList<>();
+        private final List<Runnable> timeoutCallbacks = new ArrayList<>();
 
         @Override
         public void send(SseEventBuilder builder) throws IOException {
             if (failing) {
                 throw new IOException("client gone");
+            }
+            if (completed) {
+                // Comme le vrai SseEmitter : plus aucun envoi une fois clos.
+                throw new IllegalStateException("already completed");
             }
             StringBuilder text = new StringBuilder();
             builder.build().forEach(part -> {
@@ -63,6 +69,16 @@ class MatchingStatusBroadcasterTest {
         public synchronized void onCompletion(Runnable callback) {
             completionCallbacks.add(callback);
         }
+
+        @Override
+        public synchronized void onTimeout(Runnable callback) {
+            timeoutCallbacks.add(callback);
+        }
+
+        /** Ce que fait le conteneur à l'échéance du flux. */
+        void timeOut() {
+            timeoutCallbacks.forEach(Runnable::run);
+        }
     }
 
     private final Deque<RecordingEmitter> nextEmitters = new ArrayDeque<>();
@@ -75,7 +91,7 @@ class MatchingStatusBroadcasterTest {
     };
 
     private RecordingEmitter subscribe(UUID matchingId, MatchingJobStatus status) {
-        return (RecordingEmitter) broadcaster.subscribe(matchingId, status);
+        return (RecordingEmitter) broadcaster.subscribe(matchingId, () -> status);
     }
 
     @Test
@@ -155,7 +171,7 @@ class MatchingStatusBroadcasterTest {
         gone.failing = true;
         nextEmitters.push(gone);
 
-        broadcaster.subscribe(matchingId, MatchingJobStatus.PENDING);
+        broadcaster.subscribe(matchingId, () -> MatchingJobStatus.PENDING);
 
         assertThat(gone.completed).isTrue();
         assertThat(broadcaster.listenerCount(matchingId)).isZero();
@@ -178,6 +194,64 @@ class MatchingStatusBroadcasterTest {
         RecordingEmitter emitter = subscribe(matchingId, MatchingJobStatus.PENDING);
 
         emitter.complete();
+
+        assertThat(broadcaster.listenerCount(matchingId)).isZero();
+    }
+    @Test
+    void chaqueMatchingNeRecoitQueSesPropresTransitions() {
+        // Deux candidats sur la même offre = deux matchings : la fin de l'un ne touche jamais l'autre.
+        UUID mine = UUID.randomUUID();
+        UUID theirs = UUID.randomUUID();
+        RecordingEmitter myTab = subscribe(mine, MatchingJobStatus.RUNNING);
+        RecordingEmitter myOtherTab = subscribe(mine, MatchingJobStatus.RUNNING);
+        RecordingEmitter theirTab = subscribe(theirs, MatchingJobStatus.RUNNING);
+
+        broadcaster.publish(mine, MatchingJobStatus.DONE);
+
+        assertThat(myTab.sent.get(1)).contains(mine + "|done");
+        assertThat(myOtherTab.completed).isTrue();
+        assertThat(theirTab.sent).singleElement().asString().contains(theirs + "|running");
+        assertThat(theirTab.sent).noneMatch(event -> event.contains(mine.toString()));
+        assertThat(theirTab.completed).isFalse();
+        assertThat(broadcaster.listenerCount(theirs)).isEqualTo(1);
+        assertThat(broadcaster.listenerCount(mine)).isZero();
+    }
+
+    @Test
+    void uneTransitionPublieePendantLAbonnementNEstJamaisPerdue() {
+        UUID matchingId = UUID.randomUUID();
+        RecordingEmitter emitter = new RecordingEmitter();
+        nextEmitters.push(emitter);
+
+        // Le worker publie « done » entre l'inscription et la lecture du statut courant.
+        broadcaster.subscribe(matchingId, () -> {
+            broadcaster.publish(matchingId, MatchingJobStatus.DONE);
+            return MatchingJobStatus.DONE;
+        });
+
+        assertThat(emitter.sent).singleElement().asString().contains("|done");
+        assertThat(emitter.completed).isTrue();
+        assertThat(broadcaster.listenerCount(matchingId)).isZero();
+    }
+
+    @Test
+    void lEcheanceDuFluxLeClotProprementEtDesinscritLAbonne() {
+        UUID matchingId = UUID.randomUUID();
+        RecordingEmitter emitter = subscribe(matchingId, MatchingJobStatus.RUNNING);
+
+        emitter.timeOut();
+
+        assertThat(emitter.completed).isTrue();
+        assertThat(broadcaster.listenerCount(matchingId)).isZero();
+    }
+
+    @Test
+    void uneLectureDuStatutEnEchecNeLaissePasDAbonneFantome() {
+        UUID matchingId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> broadcaster.subscribe(matchingId, () -> {
+            throw new IllegalStateException("database down");
+        })).isInstanceOf(IllegalStateException.class);
 
         assertThat(broadcaster.listenerCount(matchingId)).isZero();
     }

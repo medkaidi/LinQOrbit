@@ -76,6 +76,7 @@ function validatedOffer(): JobOffer {
     degreeIds: ["d1"],
     studyFieldIds: [],
     questions: [],
+    maxClarificationQuestions: 3,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
   };

@@ -210,7 +210,7 @@ class JobOfferServiceTest {
                 COMPANY_ID, "Backend Engineer", null, null, null, null, null,
                 null, null, null, null,
                 new BigDecimal("90000"), new BigDecimal("70000"), "EUR", "year",
-                List.of(), List.of(), List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of(), List.of(), null);
 
         assertThatThrownBy(() -> jobOfferService.create(RECRUITER_ID, request))
                 .isInstanceOf(InvalidJobOfferException.class);
@@ -664,7 +664,7 @@ class JobOfferServiceTest {
                 null, null, null, null,
                 null, null, null, null,
                 List.of(), List.of(), List.of(), List.of(),
-                List.of(new JobOfferQuestionRequest("Q?", "text", false, 0, List.of())));
+                List.of(new JobOfferQuestionRequest("Q?", "text", false, 0, List.of())), null);
 
         assertThatThrownBy(() -> jobOfferService.update(RECRUITER_ID, OFFER_ID, request))
                 .isInstanceOf(InvalidJobOfferStatusException.class);
@@ -801,7 +801,7 @@ class JobOfferServiceTest {
                 CONTRACT_TYPE_ID, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
                 List.of(new com.linqorbit.joboffer.dto.JobOfferSkillRequest(SKILL_ID, "mandatory", 3, 2)),
-                List.of(), List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of(), null);
     }
 
     private UpdateJobOfferRequest updateRequest(String title) {
@@ -809,7 +809,7 @@ class JobOfferServiceTest {
                 title, null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null,
-                List.of(), List.of(), List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of(), List.of(), null);
     }
 
     private CreateJobOfferRequest createRequestWithQuestions() {
@@ -826,6 +826,6 @@ class JobOfferServiceTest {
                 CONTRACT_TYPE_ID, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
                 List.of(new com.linqorbit.joboffer.dto.JobOfferSkillRequest(SKILL_ID, "mandatory", 3, 2)),
-                List.of(), List.of(), List.of(), questions);
+                List.of(), List.of(), List.of(), questions, null);
     }
 }

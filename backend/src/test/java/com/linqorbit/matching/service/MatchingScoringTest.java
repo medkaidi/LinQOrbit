@@ -35,8 +35,8 @@ class MatchingScoringTest {
                 [
                   {"criterionKey": "skill:java", "score": 80, "rationale": "Strong.", "evidence": [{"source": "skill", "index": 0}]},
                   {"criterionKey": "skill:go", "score": 0, "rationale": "Not shown.", "evidence": []},
-                  {"criterionKey": "skill:react", "score": 50, "rationale": "Related."},
-                  {"criterionKey": "language:english", "score": 100, "rationale": "C2."}
+                  {"criterionKey": "skill:react", "score": 50, "rationale": "Related.", "evidence": [{"source": "skill", "index": 0}]},
+                  {"criterionKey": "language:english", "score": 100, "rationale": "C2.", "evidence": [{"source": "skill", "index": 0}]}
                 ]"""));
 
         assertThat(result.path("schemaVersion").asString()).isEqualTo("1");
@@ -68,7 +68,7 @@ class MatchingScoringTest {
     @Test
     void sectionSansCritereEstOmise() {
         ObjectNode result = scoring.score(List.of(CRITERIA.get(3)), analysis("""
-                [{"criterionKey": "language:english", "score": 40, "rationale": "B1."}]"""));
+                [{"criterionKey": "language:english", "score": 40, "rationale": "B1.", "evidence": [{"source": "skill", "index": 0}]}]"""));
 
         assertThat(result.path("sections")).hasSize(1);
         assertThat(result.path("sections").get(0).path("section").asString()).isEqualTo("languages");
@@ -85,15 +85,15 @@ class MatchingScoringTest {
     @Test
     void analyseIncompleteEnTropOuDupliqueeEstRefusee() {
         assertInvalid(CRITERIA, """
-                [{"criterionKey": "skill:java", "score": 80, "rationale": "r"}]""", "missed criterion");
+                [{"criterionKey": "skill:java", "score": 80, "rationale": "r", "evidence": [{"source": "skill", "index": 0}]}]""", "missed criterion");
         assertInvalid(List.of(CRITERIA.get(0)), """
-                [{"criterionKey": "skill:java", "score": 80, "rationale": "r"},
-                 {"criterionKey": "skill:rust", "score": 10, "rationale": "r"}]""", "unknown criteria");
+                [{"criterionKey": "skill:java", "score": 80, "rationale": "r", "evidence": [{"source": "skill", "index": 0}]},
+                 {"criterionKey": "skill:rust", "score": 10, "rationale": "r", "evidence": [{"source": "skill", "index": 0}]}]""", "unknown criteria");
         assertInvalid(List.of(CRITERIA.get(0)), """
-                [{"criterionKey": "skill:java", "score": 80, "rationale": "r"},
-                 {"criterionKey": "skill:java", "score": 70, "rationale": "r"}]""", "duplicate");
+                [{"criterionKey": "skill:java", "score": 80, "rationale": "r", "evidence": [{"source": "skill", "index": 0}]},
+                 {"criterionKey": "skill:java", "score": 70, "rationale": "r", "evidence": [{"source": "skill", "index": 0}]}]""", "duplicate");
         assertInvalid(List.of(CRITERIA.get(0)), """
-                [{"criterionKey": "", "score": 80, "rationale": "r"}]""", "blank");
+                [{"criterionKey": "", "score": 80, "rationale": "r", "evidence": [{"source": "skill", "index": 0}]}]""", "blank");
     }
 
     @Test
@@ -108,10 +108,35 @@ class MatchingScoringTest {
     @Test
     void bornesInclusesSontAcceptees() {
         ObjectNode result = scoring.score(List.of(CRITERIA.get(0), CRITERIA.get(1)), analysis("""
-                [{"criterionKey": "skill:java", "score": 100, "rationale": "r"},
+                [{"criterionKey": "skill:java", "score": 100, "rationale": "r", "evidence": [{"source": "skill", "index": 0}]},
                  {"criterionKey": "skill:go", "score": 0, "rationale": "r"}]"""));
 
         assertThat(result.path("sections").get(0).path("score").asDouble()).isEqualTo(83.3);
+    }
+
+    @Test
+    void unScoreNulAvecPreuveOuPositifSansPreuveEstRefuse() {
+        assertInvalid(List.of(CRITERIA.get(0)), """
+                [{"criterionKey": "skill:java", "score": 0, "rationale": "r", "evidence": [{"source": "skill", "index": 0}]}]""",
+                "evidence to a zero score");
+        // Positif sans preuve : tableau vide, clé absente ou valeur non tableau.
+        for (String evidence : List.of(", \"evidence\": []", "", ", \"evidence\": null", ", \"evidence\": {}")) {
+            assertInvalid(List.of(CRITERIA.get(0)),
+                    "[{\"criterionKey\": \"skill:java\", \"score\": 60, \"rationale\": \"r\"" + evidence + "}]",
+                    "no evidence to a positive score");
+        }
+    }
+
+    @Test
+    void unScoreNulSansPreuveEtUnScorePositifAvecPreuveSontAcceptes() {
+        ObjectNode result = scoring.score(List.of(CRITERIA.get(0), CRITERIA.get(1)), analysis("""
+                [{"criterionKey": "skill:java", "score": 60, "rationale": "r", "evidence": [{"source": "clarification", "index": 0}]},
+                 {"criterionKey": "skill:go", "score": 0, "rationale": "r", "evidence": []}]"""));
+
+        JsonNode criteria = result.path("sections").get(0).path("criteria");
+        assertThat(criteria.get(0).path("score").asInt()).isEqualTo(60);
+        assertThat(criteria.get(0).path("evidence")).hasSize(1);
+        assertThat(criteria.get(1).path("evidence")).isEmpty();
     }
 
     @Test

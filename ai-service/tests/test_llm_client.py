@@ -37,3 +37,18 @@ def test_get_model_is_cached(monkeypatch):
 
     reset_model_cache()
     assert get_model() is not first
+
+
+def test_the_cache_keeps_the_temperature_apart(monkeypatch):
+    monkeypatch.setattr(settings, "google_api_key", "test-key")
+    reset_model_cache()
+
+    default = get_model()
+    deterministic = get_model(temperature=0.0)
+
+    # Sans température : défaut du fournisseur, jamais l'instance à 0 du matching.
+    assert default is not deterministic
+    assert default.temperature is None
+    assert deterministic.temperature == 0.0
+    assert get_model() is default
+    assert get_model(temperature=0.0) is deterministic

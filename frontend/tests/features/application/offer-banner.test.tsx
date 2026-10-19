@@ -49,24 +49,37 @@ describe("OfferBanner", () => {
     expect(within(banner).queryByText(/EUR/)).not.toBeInTheDocument();
   });
 
-  it("drops the curtain over the page with the full offer, then closes it", async () => {
+  it("unfolds the card downward in place from the footer toggle, then folds it back", async () => {
     getPublicJobMock.mockResolvedValue(buildPublicJob());
     renderWithQueryClient(<OfferBanner publicId="abcdefghijkl" />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "View full job description" }));
+    const banner = await screen.findByRole("region", { name: "Job offer summary" });
+    const toggle = within(banner).getByRole("button", { name: "View full job description" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    // Replié : le détail n'est ni monté ni exposé aux technologies d'assistance.
+    expect(screen.queryByRole("region", { name: "Full job description" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Build our platform APIs.")).not.toBeInTheDocument();
+    fireEvent.click(toggle);
 
-    const curtain = screen.getByRole("dialog", { name: "Backend Engineer" });
-    expect(within(curtain).getByText("Build our platform APIs.")).toBeInTheDocument();
-    // Le rideau rend la fiche sans ses actions publiques.
-    expect(within(curtain).queryByRole("link", { name: "Apply for this job" })).not.toBeInTheDocument();
-    expect(document.body.style.overflow).toBe("hidden");
+    // Déplié dans la carte même, entre le résumé et le pied — aucun voile.
+    const detail = within(banner).getByRole("region", { name: "Full job description" });
+    expect(within(detail).getByText("Build our platform APIs.")).toBeInTheDocument();
+    expect(within(detail).queryByRole("link", { name: "Apply for this job" })).not.toBeInTheDocument();
+    // Aucun en-tête répété : titre et société ne figurent qu'une fois, dans le résumé.
+    expect(within(banner).getAllByText("Backend Engineer")).toHaveLength(1);
+    expect(within(banner).getAllByText("Nimbus Labs")).toHaveLength(1);
+    expect(detail).not.toHaveAttribute("inert");
+    // Le même bouton bascule : son libellé et son état suivent, le focus ne bouge pas.
+    expect(toggle).toHaveAccessibleName("Hide full job description");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle).toHaveAttribute("aria-controls", detail.id);
 
-    fireEvent.click(within(curtain).getByRole("button", { name: "Back to my application" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "View full job description" }));
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.queryByRole("region", { name: "Full job description" })).not.toBeInTheDocument();
+    expect(toggle).toHaveAccessibleName("View full job description");
+    expect(document.getElementById(detail.id)).toHaveAttribute("inert");
+    // Aucun verrou de défilement : la page défile normalement.
+    expect(document.body.style.overflow).toBe("");
   });
 
   it("renders nothing until the offer is loaded", () => {
@@ -75,5 +88,32 @@ describe("OfferBanner", () => {
     const { container } = renderWithQueryClient(<OfferBanner publicId="abcdefghijkl" />);
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("keeps at most five mandatory skills, heaviest first", async () => {
+    const skills = ["A", "B", "C", "D", "E", "F"].map((name, index) => ({
+      skillId: `k${index}`,
+      name,
+      requirementType: "mandatory" as const,
+      weight: index + 1,
+      yearsExperience: null,
+    }));
+    getPublicJobMock.mockResolvedValue(buildPublicJob({ skills }));
+
+    renderWithQueryClient(<OfferBanner publicId="abcdefghijkl" />);
+
+    const banner = await screen.findByRole("region", { name: "Job offer summary" });
+    const shown = within(banner).getAllByText(/^[A-F]$/).map((node) => node.textContent);
+    expect(shown).toEqual(["F", "E", "D", "C", "B"]);
+  });
+
+  it("shows no company line when the offer has no company", async () => {
+    getPublicJobMock.mockResolvedValue(buildPublicJob({ companyName: null }));
+
+    renderWithQueryClient(<OfferBanner publicId="abcdefghijkl" />);
+
+    const banner = await screen.findByRole("region", { name: "Job offer summary" });
+    expect(within(banner).queryByText("Nimbus Labs")).not.toBeInTheDocument();
+    expect(within(banner).getByText("Backend Engineer")).toBeInTheDocument();
   });
 });

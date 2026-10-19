@@ -2,16 +2,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import { MatchingPanel } from "@/features/matching/matching-panel";
-import { getCurrentMatching, startMatching, streamMatchingStatus } from "@/lib/api/matching.api";
+import {
+  answerClarification,
+  finishAssessment,
+  getCurrentMatching,
+  skipClarification,
+  startMatching,
+  streamMatchingStatus,
+} from "@/lib/api/matching.api";
 import type { Matching } from "@/types/matching";
+import { buildClarification, buildMatching } from "@/tests/helpers/matching-fixtures";
 import { renderWithQueryClient } from "@/tests/helpers/test-utils";
 
 vi.mock("@/lib/api/matching.api", () => ({
   getCurrentMatching: vi.fn(),
   startMatching: vi.fn(),
   streamMatchingStatus: vi.fn(),
+  answerClarification: vi.fn(),
+  skipClarification: vi.fn(),
+  finishAssessment: vi.fn(),
 }));
 
+const answerMock = vi.mocked(answerClarification);
+const skipMock = vi.mocked(skipClarification);
+const finishMock = vi.mocked(finishAssessment);
 const getMock = vi.mocked(getCurrentMatching);
 const startMock = vi.mocked(startMatching);
 const streamMock = vi.mocked(streamMatchingStatus);
@@ -25,11 +39,13 @@ function httpError(status: number, detail?: string) {
 }
 
 function matching(overrides: Partial<Matching> = {}): Matching {
-  return { matchingId: "m-1", status: "pending", sections: [], ...overrides };
+  return buildMatching(overrides);
 }
 
 const DONE: Matching = matching({
   status: "done",
+  // Évaluation close : aucune question en attente (le panneau n'affiche que les scores).
+  assessmentFinished: true,
   sections: [
     {
       section: "required_skills",
@@ -47,6 +63,9 @@ describe("MatchingPanel", () => {
     getMock.mockReset();
     startMock.mockReset();
     streamMock.mockReset();
+    answerMock.mockReset();
+    skipMock.mockReset();
+    finishMock.mockReset();
     // Par défaut : un flux qui reste ouvert sans rien pousser.
     streamMock.mockImplementation(() => new Promise(() => {}));
   });
@@ -100,7 +119,7 @@ describe("MatchingPanel", () => {
     const required = await screen.findByRole("region", { name: "Required skills" });
     expect(within(required).getByText("Java")).toBeInTheDocument();
     expect(within(required).getByText("90%")).toBeInTheDocument();
-    expect(within(required).getByRole("progressbar", { name: "Kubernetes" })).toHaveAttribute("aria-valuenow", "0");
+    expect(within(required).getByRole("meter", { name: "Kubernetes" })).toHaveAttribute("aria-valuenow", "0");
     expect(within(screen.getByRole("region", { name: "Languages" })).getByText("100%")).toBeInTheDocument();
     // Aucune section vide n'est rendue, aucun score de section n'est montré au candidat.
     expect(screen.queryByRole("region", { name: "Education" })).not.toBeInTheDocument();
@@ -118,6 +137,22 @@ describe("MatchingPanel", () => {
 
     await waitFor(() => expect(startMock).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+  });
+
+  it("runs the preparation first, and never starts the match when it fails", async () => {
+    getMock.mockRejectedValue(httpError(404));
+    startMock.mockResolvedValue(matching());
+    const prepare = vi.fn().mockRejectedValueOnce(httpError(404, "This job offer is no longer available.")).mockResolvedValueOnce(undefined);
+
+    renderWithQueryClient(<MatchingPanel publicId={PUBLIC_ID} prepare={prepare} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Run the match" }));
+
+    expect(await screen.findByText("This job offer is no longer available.")).toBeInTheDocument();
+    expect(startMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Run the match" }));
+    await waitFor(() => expect(startMock).toHaveBeenCalledWith(PUBLIC_ID));
+    expect(prepare).toHaveBeenCalledTimes(2);
   });
 
   it("shows the server detail when the match cannot be run", async () => {
@@ -147,4 +182,69 @@ describe("MatchingPanel", () => {
 
     expect(await screen.findByText("This offer has no criterion to compare yet.")).toBeInTheDocument();
   });
+
+  it("keeps the previous scores on screen while the answer is taken into account", async () => {
+    const asked = { ...DONE, assessmentFinished: false, clarification: buildClarification() };
+    getMock.mockResolvedValue(asked);
+    answerMock.mockResolvedValue({ ...DONE, status: "pending", assessmentFinished: false, clarification: null });
+
+    renderWithQueryClient(<MatchingPanel publicId={PUBLIC_ID} />);
+    fireEvent.change(await screen.findByRole("textbox", { name: "Your answer" }), {
+      target: { value: "Yes, two years on GKE." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Answer" }));
+
+    expect(await screen.findByText("Updating your match…")).toBeInTheDocument();
+    expect(answerMock).toHaveBeenCalledWith(PUBLIC_ID, asked.clarification.id, "Yes, two years on GKE.");
+    // Les scores précédents restent visibles ; la question fermée disparaît ; le flux SSE suit la fin.
+    expect(screen.getByRole("region", { name: "Required skills" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "AI clarification" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Analysis in progress")).not.toBeInTheDocument();
+    await waitFor(() => expect(streamMock).toHaveBeenCalledWith(PUBLIC_ID, expect.any(Function), expect.anything()));
+  });
+
+  it("never renders the evaluation rationale or weights, even if the payload carried them", async () => {
+    const leaky = {
+      ...DONE,
+      sections: [
+        {
+          section: "required_skills" as const,
+          score: 73,
+          weight: 0.6,
+          criteria: [{ key: "skill:java", label: "Java", score: 90, weight: 5, rationale: "Strong Java background" }],
+        },
+      ],
+    } as unknown as Matching;
+    getMock.mockResolvedValue(leaky);
+
+    renderWithQueryClient(<MatchingPanel publicId={PUBLIC_ID} />);
+
+    expect(await screen.findByText("90%")).toBeInTheDocument();
+    expect(screen.queryByText("Strong Java background")).not.toBeInTheDocument();
+    expect(screen.queryByText(/73/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/weight/i)).not.toBeInTheDocument();
+  });
+
+  it("tells when the assessment is complete and asks nothing more", async () => {
+    getMock.mockResolvedValue(DONE);
+
+    renderWithQueryClient(<MatchingPanel publicId={PUBLIC_ID} />);
+
+    expect(await screen.findByText("Assessment complete")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+  });
+
+  it("never re-reads by itself a done match without open question on an open assessment", async () => {
+    getMock.mockResolvedValue({ ...DONE, assessmentFinished: false, clarification: null });
+
+    renderWithQueryClient(<MatchingPanel publicId={PUBLIC_ID} />);
+
+    expect(await screen.findByText("No AI question is waiting for you.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Finish the assessment" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Required skills" })).toBeInTheDocument();
+    // Ni relecture périodique ni flux SSE : l'état est stable (données antérieures à T-62).
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    expect(getMock).toHaveBeenCalledTimes(1);
+    expect(streamMock).not.toHaveBeenCalled();
+  }, 10_000);
 });

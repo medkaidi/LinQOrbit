@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -22,11 +23,13 @@ import com.linqorbit.matching.entity.MatchingJobStatus;
  * servi par la lecture {@code GET /matchings/offer/{publicId}}, seule source
  * de vérité.
  *
- * <p>À l'abonnement, le statut courant est envoyé aussitôt (aucune course
- * entre la lecture et l'abonnement) ; un statut terminal ({@code done},
- * {@code failed}) ferme le flux. Timeout {@value #TIMEOUT_MS} ms, au-delà de
- * la durée maximale d'un job : le client se reconnecte tant que l'analyse est
- * en cours, et la reconnexion renvoie le statut courant.</p>
+ * <p>À l'abonnement, l'emitter est <b>inscrit avant</b> la lecture du statut
+ * courant, qui est envoyé aussitôt : une transition publiée pendant
+ * l'abonnement arrive soit par la publication, soit par cette lecture (au pire
+ * en double, jamais perdue). Un statut terminal ({@code done}, {@code failed})
+ * ferme le flux. Timeout {@value #TIMEOUT_MS} ms (un job avec ses reprises peut
+ * durer plus longtemps) : le flux est clos proprement (aucune erreur levée) et
+ * le client se reconnecte tant que l'analyse est en cours.</p>
  *
  * <p>Limite assumée : le registre vit <b>en mémoire</b> de l'instance —
  * correct en mono-instance ; avec plusieurs instances il faudrait un broker
@@ -42,25 +45,42 @@ public class MatchingStatusBroadcaster {
 
     private final Map<UUID, Set<SseEmitter>> emittersByMatching = new ConcurrentHashMap<>();
 
-    /** Ouvre un flux pour ce matching et y envoie aussitôt le statut courant. */
-    public SseEmitter subscribe(UUID matchingId, MatchingJobStatus currentStatus) {
+    /**
+     * Ouvre un flux pour ce matching : inscription d'abord, puis lecture et envoi
+     * du statut courant ({@code currentStatus} relit la base — jamais une valeur
+     * lue avant l'inscription).
+     */
+    public SseEmitter subscribe(UUID matchingId, Supplier<MatchingJobStatus> currentStatus) {
         SseEmitter emitter = newEmitter();
-        if (!send(emitter, matchingId, currentStatus)) {
-            return emitter;
-        }
-        if (isTerminal(currentStatus)) {
-            emitter.complete();
-            return emitter;
-        }
         Set<SseEmitter> emitters = emittersByMatching.computeIfAbsent(matchingId,
                 key -> ConcurrentHashMap.newKeySet());
         emitters.add(emitter);
         Runnable remove = () -> unregister(matchingId, emitter);
         emitter.onCompletion(remove);
-        emitter.onTimeout(remove);
+        // Fin normale d'un flux long : clore sans erreur (sinon Spring lève AsyncRequestTimeoutException).
+        emitter.onTimeout(() -> {
+            remove.run();
+            emitter.complete();
+        });
         emitter.onError(error -> remove.run());
+
+        MatchingJobStatus status;
+        try {
+            status = currentStatus.get();
+        } catch (RuntimeException ex) {
+            unregister(matchingId, emitter);
+            throw ex;
+        }
+        if (!send(emitter, matchingId, status)) {
+            return emitter;
+        }
+        if (isTerminal(status)) {
+            unregister(matchingId, emitter);
+            emitter.complete();
+            return emitter;
+        }
         log.info("Matching status stream opened : matchingId={}, status={}, listeners={}",
-                matchingId, currentStatus.getApiValue(), emitters.size());
+                matchingId, status.getApiValue(), listenerCount(matchingId));
         return emitter;
     }
 
@@ -72,11 +92,10 @@ public class MatchingStatusBroadcaster {
         }
         for (SseEmitter emitter : Set.copyOf(emitters)) {
             if (send(emitter, matchingId, status) && isTerminal(status)) {
+                // Désinscription ciblée : un abonné arrivé après la copie n'est jamais éjecté sans réponse.
+                unregister(matchingId, emitter);
                 emitter.complete();
             }
-        }
-        if (isTerminal(status)) {
-            emittersByMatching.remove(matchingId);
         }
         log.info("Matching status published : matchingId={}, status={}, listeners={}",
                 matchingId, status.getApiValue(), emitters.size());

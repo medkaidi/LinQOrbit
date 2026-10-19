@@ -2,6 +2,7 @@ package com.linqorbit.matching.repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,6 +25,13 @@ public interface MatchingJobRepository extends JpaRepository<MatchingJob, UUID> 
             set j.status = :target, j.startedAt = :now
             where j.id = :jobId and j.status = :expected""")
     int casStatus(UUID jobId, MatchingJobStatus expected, MatchingJobStatus target, LocalDateTime now);
+
+    /**
+     * Statut relu en base (requête scalaire : jamais l'entité déjà chargée dans le
+     * contexte de persistance) — abonnement SSE, D60.
+     */
+    @Query("select j.status from MatchingJob j where j.id = :jobId")
+    Optional<MatchingJobStatus> findStatusById(UUID jobId);
 
     /** Tous les jobs d'un statut (recovery au démarrage). */
     List<MatchingJob> findByStatus(MatchingJobStatus status);

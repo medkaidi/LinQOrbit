@@ -3,6 +3,8 @@ package com.linqorbit.matching.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -11,11 +13,13 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -26,16 +30,20 @@ import com.linqorbit.application.entity.ApplicationStatus;
 import com.linqorbit.application.service.ApplicationService;
 import com.linqorbit.application.service.ApplicationService.CoupleApplication;
 import com.linqorbit.candidate.entity.NormalizedProfile;
+import com.linqorbit.candidate.repository.CandidateRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.joboffer.entity.JobOffer;
 import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.matching.dto.MatchingResponse;
+import com.linqorbit.matching.entity.ClarificationStatus;
 import com.linqorbit.matching.entity.Matching;
 import com.linqorbit.matching.entity.MatchingJob;
 import com.linqorbit.matching.entity.MatchingJobStatus;
 import com.linqorbit.matching.entity.MatchingResult;
 import com.linqorbit.matching.exception.InvalidMatchingException;
 import com.linqorbit.matching.exception.MatchingNotFoundException;
+import com.linqorbit.matching.repository.ClarificationRepository;
+import com.linqorbit.matching.repository.MatchingCriterionFeedbackRepository;
 import com.linqorbit.matching.repository.MatchingJobRepository;
 import com.linqorbit.matching.repository.MatchingRepository;
 import com.linqorbit.matching.repository.MatchingResultRepository;
@@ -63,10 +71,14 @@ class MatchingServiceTest {
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     private final MatchingStatusBroadcaster broadcaster = mock(MatchingStatusBroadcaster.class);
 
+    private final CandidateRepository candidateRepository = mock(CandidateRepository.class);
+    private final ClarificationRepository clarificationRepository = mock(ClarificationRepository.class);
+    private final MatchingCriterionFeedbackRepository feedbackRepository =
+            mock(MatchingCriterionFeedbackRepository.class);
     private final MatchingService matchingService = new MatchingService(applicationService,
             normalizedProfileRepository, normalizedProfileJobOfferRepository, matchingRepository,
             matchingResultRepository, matchingJobRepository, eventPublisher, JsonMapper.builder().build(),
-            broadcaster);
+            broadcaster, candidateRepository, clarificationRepository, feedbackRepository);
 
     /** Dernier job enregistré : relu par findById comme le ferait la base. */
     private final AtomicReference<MatchingJob> savedJob = new AtomicReference<>();
@@ -95,6 +107,12 @@ class MatchingServiceTest {
         when(matchingJobRepository.findById(any())).thenAnswer(call -> Optional.ofNullable(savedJob.get()));
 
         MatchingResponse response = matchingService.start(USER_ID, PUBLIC_ID);
+
+        // TD-053 : la ligne candidat est verrouillée avant de chercher le matching du couple.
+        InOrder lockFirst = inOrder(candidateRepository, matchingRepository);
+        lockFirst.verify(candidateRepository).findByIdForUpdate(USER_ID);
+        lockFirst.verify(matchingRepository).findByCandidateIdAndJobOfferIdAndCandidateNormalizedProfileId(USER_ID,
+                OFFER_ID, CANDIDATE_SHEET_ID);
 
         ArgumentCaptor<Matching> matchingCaptor = ArgumentCaptor.forClass(Matching.class);
         verify(matchingRepository).saveAndFlush(matchingCaptor.capture());
@@ -286,9 +304,13 @@ class MatchingServiceTest {
                 MatchingJobStatus.RUNNING)));
         org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter =
                 new org.springframework.web.servlet.mvc.method.annotation.SseEmitter();
-        when(broadcaster.subscribe(existing.getId(), MatchingJobStatus.RUNNING)).thenReturn(emitter);
+        ArgumentCaptor<Supplier<MatchingJobStatus>> currentStatus = ArgumentCaptor.captor();
+        when(broadcaster.subscribe(eq(existing.getId()), currentStatus.capture())).thenReturn(emitter);
+        // Le statut est relu en base au moment de l'envoi (après l'inscription) : il a pu avancer.
+        when(matchingJobRepository.findStatusById(running.getId())).thenReturn(Optional.of(MatchingJobStatus.DONE));
 
         assertThat(matchingService.subscribe(USER_ID, PUBLIC_ID)).isSameAs(emitter);
+        assertThat(currentStatus.getValue().get()).isEqualTo(MatchingJobStatus.DONE);
 
         // Candidature transmise : accès fermé avant toute inscription au flux.
         when(applicationService.findCoupleApplication(USER_ID, OFFER_ID))
@@ -301,7 +323,7 @@ class MatchingServiceTest {
                 CANDIDATE_SHEET_ID)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> matchingService.subscribe(USER_ID, PUBLIC_ID))
                 .isInstanceOf(MatchingNotFoundException.class);
-        verify(broadcaster).subscribe(existing.getId(), MatchingJobStatus.RUNNING);
+        verify(broadcaster).subscribe(eq(existing.getId()), any());
     }
 
     private void assertRefused(String message) {
@@ -309,6 +331,68 @@ class MatchingServiceTest {
                 .isInstanceOf(InvalidMatchingException.class)
                 .hasMessage(message)
                 .satisfies(ex -> assertThat(((InvalidMatchingException) ex).getStatus()).isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    // --- Fin d'évaluation (M2) -------------------------------------------------
+
+    @Test
+    void terminerUneEvaluationDejaCloseNeTouchePlusRien() {
+        stubCompleteDraft();
+        stubSheets("3", "2");
+        Matching existing = stubExistingMatching();
+        existing.setAssessmentFinishedAt(java.time.LocalDateTime.now());
+        stubLatestJob(existing, MatchingJobStatus.DONE, "{\"sections\": []}");
+        when(matchingRepository.findByIdForUpdate(existing.getId())).thenReturn(Optional.of(existing));
+
+        matchingService.finishAssessment(USER_ID, PUBLIC_ID);
+
+        verify(clarificationRepository, never()).closeOpen(any(), any(), any());
+        verify(matchingRepository, never()).finishAssessment(any(), any());
+    }
+
+    @Test
+    void terminerSansResultatTermineEstRefuseSansRienFermer() {
+        stubCompleteDraft();
+        stubSheets("3", "2");
+        Matching existing = stubExistingMatching();
+        stubLatestJob(existing, MatchingJobStatus.FAILED, null);
+        when(matchingRepository.findByIdForUpdate(existing.getId())).thenReturn(Optional.of(existing));
+        when(matchingResultRepository.findFirstByMatchingIdAndResultIsNotNullOrderByVersionDesc(existing.getId()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> matchingService.finishAssessment(USER_ID, PUBLIC_ID))
+                .isInstanceOfSatisfying(InvalidMatchingException.class, ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(ex.getMessage()).isEqualTo(MatchingService.NOTHING_TO_REVIEW);
+                });
+        verify(clarificationRepository, never()).closeOpen(any(), any(), any());
+        verify(matchingRepository, never()).finishAssessment(any(), any());
+    }
+
+    @Test
+    void terminerAvecUnResultatAnterieurTermineEstAccepteMemeSiLaDerniereAnalyseAEchoue() {
+        stubCompleteDraft();
+        stubSheets("3", "2");
+        Matching existing = stubExistingMatching();
+        stubLatestJob(existing, MatchingJobStatus.FAILED, null);
+        when(matchingRepository.findByIdForUpdate(existing.getId())).thenReturn(Optional.of(existing));
+        when(matchingResultRepository.findFirstByMatchingIdAndResultIsNotNullOrderByVersionDesc(existing.getId()))
+                .thenReturn(Optional.of(result(existing.getId(), 1, """
+                        {"sections": [{"section": "required_skills", "criteria": [{"key": "skill:java", "score": 80}]}]}""")));
+
+        matchingService.finishAssessment(USER_ID, PUBLIC_ID);
+
+        verify(clarificationRepository).closeOpen(existing.getId(), ClarificationStatus.OPEN,
+                ClarificationStatus.SKIPPED);
+        verify(matchingRepository).finishAssessment(eq(existing.getId()), any());
+    }
+
+    /** Dernier résultat du matching et son job (contenu null = en cours ou en échec). */
+    private void stubLatestJob(Matching matching, MatchingJobStatus status, String content) {
+        MatchingResult latest = result(matching.getId(), 2, content);
+        when(matchingResultRepository.findFirstByMatchingIdOrderByVersionDesc(matching.getId()))
+                .thenReturn(Optional.of(latest));
+        when(matchingJobRepository.findById(latest.getId())).thenReturn(Optional.of(job(latest.getId(), status)));
     }
 
     private void stubCompleteDraft() {

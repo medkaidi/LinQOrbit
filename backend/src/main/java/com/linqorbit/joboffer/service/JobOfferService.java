@@ -164,6 +164,7 @@ public class JobOfferService {
                 .salaryMax(request.salaryMax())
                 .salaryCurrency(trimToNull(request.salaryCurrency()))
                 .salaryPeriod(parseSalaryPeriod(request.salaryPeriod()))
+                .maxClarificationQuestions(clarificationCap(request.maxClarificationQuestions()))
                 .updatedAt(now)
                 .build();
         jobOfferRepository.save(offer);
@@ -398,6 +399,7 @@ public class JobOfferService {
         offer.setSalaryMax(request.salaryMax());
         offer.setSalaryCurrency(trimToNull(request.salaryCurrency()));
         offer.setSalaryPeriod(parseSalaryPeriod(request.salaryPeriod()));
+        offer.setMaxClarificationQuestions(clarificationCap(request.maxClarificationQuestions()));
         offer.setUpdatedAt(LocalDateTime.now());
 
         replaceChildren(offerId, request.skills(), request.languages(), request.degreeIds(),
@@ -459,6 +461,7 @@ public class JobOfferService {
                 .salaryMax(source.getSalaryMax())
                 .salaryCurrency(source.getSalaryCurrency())
                 .salaryPeriod(source.getSalaryPeriod())
+                .maxClarificationQuestions(source.getMaxClarificationQuestions())
                 .updatedAt(now)
                 .build();
         jobOfferRepository.save(copy);
@@ -564,6 +567,11 @@ public class JobOfferService {
             log.warn("Job offer management rejected : offerId={}, recruiterId={}", offerId, userId);
             throw new JobOfferAccessDeniedException(offerId, userId);
         }
+    }
+
+    /** Plafond de questions IA (D52) : absent → défaut ; bornes 0–10 validées par la requête. */
+    private static int clarificationCap(Integer requested) {
+        return requested == null ? JobOffer.DEFAULT_MAX_CLARIFICATION_QUESTIONS : requested;
     }
 
     private void requireEditable(JobOffer offer) {
@@ -974,6 +982,7 @@ public class JobOfferService {
                         offer.getSalaryMax(),
                         offer.getSalaryCurrency(),
                         offer.getSalaryPeriod() == null ? null : offer.getSalaryPeriod().getApiValue(),
+                        offer.getMaxClarificationQuestions(),
                         // D13 : le dirty-flag n'a de sens que sur un statut éditable —
                         // publish/close posent updatedAt après validatedAt et fausseraient
                         // le signal sur PUBLISHED/CLOSED (lecture seule).

@@ -7,7 +7,12 @@ import lombok.Getter;
  * contexte et jamais stockée : elle se déduit des données (brouillon,
  * obligatoires répondues, transmission). Une revalidation du profil recrée le
  * matching (D50) sans toucher aux réponses du recruteur — l'étape suit
- * d'elle-même. Les étapes clarifications et arbitrage arrivent avec T-62/T-63.
+ * d'elle-même. Le serveur n'expose que ces trois étapes ; l'avancement des
+ * clarifications et de la contestation (T-62/T-63) passe par l'objet
+ * {@code assessment} du contexte ({@code matched}, {@code assessmentFinished},
+ * {@code contested}), dont le frontend dérive ses quatre étapes visuelles
+ * (Recruiter questions, AI clarifications, Candidate review, Summary &amp; apply).
+ * Une offre sans aucune question ouvre directement l'étape {@code MATCHING}.
  */
 @Getter
 public enum ApplicationStep {

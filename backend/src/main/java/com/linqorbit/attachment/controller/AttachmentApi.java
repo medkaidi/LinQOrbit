@@ -81,11 +81,14 @@ public interface AttachmentApi {
     @DeleteMapping("/me/attachments/{attachmentId}")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Supprimer un CV",
-            description = "Supprime le CV et son fichier. S'il était le CV courant, le pointeur est remis à vide.")
+            description = "Supprime le CV et son fichier. S'il était le CV courant, le pointeur est remis à vide. "
+                    + "Un CV joint à une candidature transmise ne se supprime pas (409) ; celui d'un brouillon en "
+                    + "est détaché (la transmission reprendra le CV courant).")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "CV supprimé"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
-            @ApiResponse(responseCode = "404", description = "CV inconnu pour ce candidat")
+            @ApiResponse(responseCode = "404", description = "CV inconnu pour ce candidat"),
+            @ApiResponse(responseCode = "409", description = "CV joint à une candidature transmise")
     })
     ResponseEntity<Void> delete(@PathVariable UUID attachmentId, Authentication authentication);
 }

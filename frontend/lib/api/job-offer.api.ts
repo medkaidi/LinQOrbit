@@ -45,6 +45,8 @@ type JobOfferPayload = {
     sortOrder: number;
     options: { label: string; preferred: boolean; sortOrder: number }[];
   }[];
+  /** null → défaut serveur (3). */
+  maxClarificationQuestions: number | null;
 };
 
 const numberOrNull = (value: string): number | null =>
@@ -115,6 +117,7 @@ export function toJobOfferPayload(
           }))
         : [],
     })),
+    maxClarificationQuestions: numberOrNull(values.maxClarificationQuestions),
   };
 }
 

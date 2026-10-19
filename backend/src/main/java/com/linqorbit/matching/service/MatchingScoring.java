@@ -121,10 +121,24 @@ public class MatchingScoring {
         return byKey;
     }
 
+    /**
+     * Score 0–100 du critère, cohérent avec ses preuves (D61) : un score de 0
+     * n'a aucune preuve, un score positif en a au moins une — sinon l'analyse
+     * est inexploitable (retry du worker, jamais de résultat incohérent écrit).
+     */
     private static int scoreOf(String key, JsonNode assessment) {
         JsonNode score = assessment.path("score");
         if (!score.isIntegralNumber() || score.asInt() < 0 || score.asInt() > 100) {
             throw new InvalidMatchingAnalysisException("AI analysis gave an invalid score for criterion: " + key);
+        }
+        JsonNode evidence = assessment.path("evidence");
+        boolean hasEvidence = evidence.isArray() && !evidence.isEmpty();
+        if (score.asInt() == 0 && hasEvidence) {
+            throw new InvalidMatchingAnalysisException("AI analysis gave evidence to a zero score for criterion: " + key);
+        }
+        if (score.asInt() > 0 && !hasEvidence) {
+            throw new InvalidMatchingAnalysisException("AI analysis gave no evidence to a positive score for criterion: "
+                    + key);
         }
         return score.asInt();
     }

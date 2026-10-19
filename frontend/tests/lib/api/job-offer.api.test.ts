@@ -33,6 +33,7 @@ const emptyValues: JobOfferValues = {
   degreeIds: [],
   studyFieldIds: [],
   questions: [],
+  maxClarificationQuestions: "3",
 };
 
 describe("toJobOfferPayload", () => {
@@ -172,6 +173,12 @@ describe("toJobOfferPayload", () => {
     );
 
     expect(payload.description).toBeNull();
+  });
+
+  it("sends the AI questions cap as a number, and null when left empty (server default)", () => {
+    expect(toJobOfferPayload({ ...emptyValues, maxClarificationQuestions: "0" }, COMPANY_ID).maxClarificationQuestions).toBe(0);
+    expect(toJobOfferPayload({ ...emptyValues, maxClarificationQuestions: "10" }, COMPANY_ID).maxClarificationQuestions).toBe(10);
+    expect(toJobOfferPayload({ ...emptyValues, maxClarificationQuestions: "" }, COMPANY_ID).maxClarificationQuestions).toBeNull();
   });
 });
 

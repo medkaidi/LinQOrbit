@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { JobOfferForm } from "@/features/job-offer/job-offer-form";
-import type { Company } from "@/types/recruiter";
+import type { Company, JobOffer } from "@/types/recruiter";
 
 const pushMock = vi.hoisted(() => vi.fn());
+const createMutateMock = vi.hoisted(() => vi.fn());
+const updateMutateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
@@ -52,8 +54,8 @@ vi.mock("@/hooks/use-job-offers", () => ({
     isLoading: false,
     isError: false,
   }),
-  useCreateJobOffer: () => ({ mutate: vi.fn(), isPending: false, error: null }),
-  useUpdateJobOffer: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  useCreateJobOffer: () => ({ mutate: createMutateMock, isPending: false, error: null }),
+  useUpdateJobOffer: () => ({ mutate: updateMutateMock, isPending: false, error: null }),
 }));
 
 const companies: Company[] = [
@@ -67,6 +69,8 @@ function renderForm() {
 describe("JobOfferForm", () => {
   beforeEach(() => {
     pushMock.mockClear();
+    createMutateMock.mockClear();
+    updateMutateMock.mockClear();
   });
 
   it("renders the skills section with the Add skill button under the list", () => {
@@ -255,6 +259,109 @@ describe("JobOfferForm", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Add at least one skill")).toBeInTheDocument();
+    });
+  });
+
+  describe("Max AI questions", () => {
+    const COMPANY_ID = "33333333-3333-4333-8333-333333333333";
+
+    function editableOffer(overrides: Partial<JobOffer> = {}): JobOffer {
+      return {
+        id: "o1",
+        companyId: COMPANY_ID,
+        recruiterId: "r1",
+        status: "draft",
+        title: "Backend Engineer",
+        publicId: "abcdefghijkl",
+        slug: "backend-engineer",
+        description: "<p>Build APIs.</p>",
+        seniority: null,
+        requiredExpYear: null,
+        city: null,
+        country: "FR",
+        contractTypeId: null,
+        employmentTypeId: "e0000000-0000-4000-8000-0000000000e1",
+        workModeId: null,
+        validatedAt: null,
+        publishedAt: null,
+        expiresAt: null,
+        salaryMin: null,
+        salaryMax: null,
+        salaryCurrency: null,
+        salaryPeriod: null,
+        hasUnvalidatedChanges: false,
+        normalizationInProgress: false,
+        normalizationFailed: false,
+        skills: [
+          {
+            skillId: "a0000000-0000-4000-8000-000000000001",
+            name: "Java",
+            requirementType: "mandatory",
+            weight: 3,
+            yearsExperience: null,
+          },
+        ],
+        languages: [],
+        degreeIds: [],
+        studyFieldIds: [],
+        questions: [],
+        maxClarificationQuestions: 5,
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+        ...overrides,
+      };
+    }
+
+    const capField = () => screen.getByRole("textbox", { name: /Max AI questions/ });
+
+    it("defaults to 3 on a new offer", () => {
+      renderForm();
+
+      expect(capField()).toHaveValue("3");
+    });
+
+    it("loads the cap of the edited offer", () => {
+      render(<JobOfferForm mode="edit" offer={editableOffer()} companies={companies} />);
+
+      expect(capField()).toHaveValue("5");
+    });
+
+    it("sends the edited cap with the update", async () => {
+      render(<JobOfferForm mode="edit" offer={editableOffer()} companies={companies} />);
+
+      fireEvent.change(capField(), { target: { value: "7" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+      await waitFor(() => expect(updateMutateMock).toHaveBeenCalled());
+      expect(updateMutateMock.mock.calls[0][0]).toEqual({
+        offerId: "o1",
+        values: expect.objectContaining({ maxClarificationQuestions: "7" }),
+      });
+    });
+
+    it("sends 0 to disable the AI questions", async () => {
+      render(<JobOfferForm mode="edit" offer={editableOffer()} companies={companies} />);
+
+      fireEvent.change(capField(), { target: { value: "0" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+      await waitFor(() => expect(updateMutateMock).toHaveBeenCalled());
+      expect(updateMutateMock.mock.calls[0][0].values.maxClarificationQuestions).toBe("0");
+    });
+
+    it.each([
+      ["11", "Max AI questions must be at most 10"],
+      ["-1", "Max AI questions must be at least 0"],
+      ["2.5", "Max AI questions must be a whole number"],
+    ])("rejects %s with the backend message", async (value, message) => {
+      render(<JobOfferForm mode="edit" offer={editableOffer()} companies={companies} />);
+
+      fireEvent.change(capField(), { target: { value } });
+      fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(capField()).toHaveAttribute("aria-invalid", "true");
+      expect(updateMutateMock).not.toHaveBeenCalled();
     });
   });
 });

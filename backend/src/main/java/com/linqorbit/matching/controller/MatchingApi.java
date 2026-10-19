@@ -1,11 +1,14 @@
 package com.linqorbit.matching.controller;
 
+import java.util.UUID;
+
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -18,13 +21,17 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 import com.linqorbit.config.OpenApiConfig;
+import com.linqorbit.matching.dto.AnswerClarificationRequest;
+import com.linqorbit.matching.dto.MatchingFeedbackResponse;
 import com.linqorbit.matching.dto.MatchingResponse;
+import com.linqorbit.matching.dto.SaveMatchingFeedbackRequest;
 import com.linqorbit.matching.dto.StartMatchingRequest;
 
 /**
  * Contrat d'API du matching côté candidat (D58–D59) : lancement ou reprise de
- * l'analyse et lecture du résultat courant. Implémenté par
- * {@link MatchingController}.
+ * l'analyse, lecture du résultat courant et suivi SSE (D60), clarifications
+ * IA (T-62 : répondre, passer, terminer) et contestation par critère (T-63).
+ * Implémenté par {@link MatchingController}.
  */
 @Tag(name = "Matchings", description = "Matching du candidat connecté avec une offre publiée")
 public interface MatchingApi {
@@ -66,4 +73,58 @@ public interface MatchingApi {
             @ApiResponse(responseCode = "409", description = "Candidature transmise (accès fermé)")
     })
     SseEmitter events(@PathVariable String publicId, Authentication authentication);
+
+    @PostMapping("/offer/{publicId}/clarifications/{clarificationId}/answer")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Répondre à la question IA ouverte",
+            description = "La question passe ANSWERED et une réévaluation démarre (nouvelle version de résultat liée à la réponse, analyse asynchrone suivie par le flux SSE) ; la question suivante, ou la fin d'évaluation, arrive avec le résultat.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "202", description = "Réponse enregistrée, réévaluation lancée"),
+            @ApiResponse(responseCode = "400", description = "Réponse vide ou trop longue (3000 caractères)"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "404", description = "Offre indisponible, aucun matching ou question inconnue"),
+            @ApiResponse(responseCode = "409", description = "Question déjà fermée, analyse en cours ou candidature transmise")
+    })
+    ResponseEntity<MatchingResponse> answerClarification(@PathVariable String publicId,
+            @PathVariable UUID clarificationId, @Valid @RequestBody AnswerClarificationRequest request,
+            Authentication authentication);
+
+    @PostMapping("/offer/{publicId}/clarifications/{clarificationId}/skip")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Passer la question IA ouverte",
+            description = "La question passe SKIPPED (elle consomme un cran du plafond de l'offre) et une réévaluation démarre ; l'agent visera une autre lacune.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "202", description = "Question passée, réévaluation lancée"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "404", description = "Offre indisponible, aucun matching ou question inconnue"),
+            @ApiResponse(responseCode = "409", description = "Question déjà fermée, analyse en cours ou candidature transmise")
+    })
+    ResponseEntity<MatchingResponse> skipClarification(@PathVariable String publicId,
+            @PathVariable UUID clarificationId, Authentication authentication);
+
+    @PostMapping("/offer/{publicId}/assessment/finish")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Terminer l'évaluation",
+            description = "Ferme la question ouverte (SKIPPED) et clôt l'évaluation : plus aucune question. Idempotent.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Évaluation close"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "404", description = "Offre indisponible ou aucun matching"),
+            @ApiResponse(responseCode = "409", description = "Analyse en cours ou candidature transmise")
+    })
+    ResponseEntity<Void> finishAssessment(@PathVariable String publicId, Authentication authentication);
+
+    @PutMapping("/offer/{publicId}/feedback")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Enregistrer la contestation par critère",
+            description = "Remplacement complet sur le dernier résultat terminé : score propre 0–100 et commentaire facultatif par critère ; items absents supprimés, liste vide = tout effacer. Ne modifie jamais les scores. Modifiable jusqu'à la transmission de la candidature.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Contestations enregistrées"),
+            @ApiResponse(responseCode = "400", description = "Score hors 0–100, critère inconnu ou dupliqué, commentaire trop long"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "404", description = "Offre indisponible ou aucun matching"),
+            @ApiResponse(responseCode = "409", description = "Évaluation non close, question ouverte, analyse en cours ou candidature transmise")
+    })
+    ResponseEntity<MatchingFeedbackResponse> saveFeedback(@PathVariable String publicId,
+            @Valid @RequestBody SaveMatchingFeedbackRequest request, Authentication authentication);
 }

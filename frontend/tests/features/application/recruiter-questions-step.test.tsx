@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import { RecruiterQuestionsStep } from "@/features/application/recruiter-questions-step";
 import { saveApplicationDraft } from "@/lib/api/application.api";
@@ -37,9 +37,8 @@ function renderStep(context = buildApplicationContext(), onContinue = vi.fn()) {
 }
 
 function answerRequired() {
-  fireEvent.change(screen.getByLabelText("Why this role? *"), { target: { value: "I love APIs" } });
-  fireEvent.click(screen.getByRole("combobox", { name: "Preferred setup? *" }));
-  fireEvent.click(screen.getByRole("option", { name: "Remote" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Why this role?" }), { target: { value: "I love APIs" } });
+  fireEvent.click(within(screen.getByRole("radiogroup", { name: "Preferred setup?" })).getByRole("radio", { name: "Remote" }));
 }
 
 describe("RecruiterQuestionsStep", () => {
@@ -59,9 +58,8 @@ describe("RecruiterQuestionsStep", () => {
 
     answerRequired();
     fireEvent.click(screen.getByRole("checkbox", { name: "Java" }));
-    fireEvent.click(screen.getByRole("combobox", { name: "Open to travel?" }));
-    fireEvent.click(screen.getByRole("option", { name: "Yes" }));
-    fireEvent.change(screen.getByLabelText("Years of experience?"), { target: { value: "7.50" } });
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Open to travel?" })).getByRole("radio", { name: "Yes" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Years of experience?" }), { target: { value: "7.50" } });
     fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
 
     await waitFor(() =>
@@ -82,11 +80,11 @@ describe("RecruiterQuestionsStep", () => {
   it("saves a partial draft but stays on the step while a required question is unanswered", async () => {
     const onContinue = renderStep();
 
-    fireEvent.change(screen.getByLabelText("Why this role? *"), { target: { value: "Only this one" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Why this role?" }), { target: { value: "Only this one" } });
     fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
 
     expect(
-      await screen.findByText("Your answers are saved. Answer every required question (*) to continue."),
+      await screen.findByText("Your answers are saved. Still required to continue: Preferred setup?."),
     ).toBeInTheDocument();
     expect(saveMock).toHaveBeenCalledWith({
       jobPublicId: "abcdefghijkl",
@@ -95,10 +93,27 @@ describe("RecruiterQuestionsStep", () => {
     expect(onContinue).not.toHaveBeenCalled();
   });
 
+  it("saves a two-decimal number that floating point cannot represent exactly", async () => {
+    renderStep(buildApplicationContext({ questions: [NUMBER_QUESTION] }));
+
+    // Régression F1 : 0.29 était refusé à tort (« Answer for question … is invalid »).
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Years of experience?" }), { target: { value: "0.29" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+
+    await waitFor(() =>
+      expect(saveMock).toHaveBeenCalledWith({
+        jobPublicId: "abcdefghijkl",
+        answers: [{ questionId: NUMBER_QUESTION.id, number: 0.29 }],
+      }),
+    );
+    expect(screen.queryByText(/is invalid/)).not.toBeInTheDocument();
+    expect(screen.getByText("1 of 1 answered")).toBeInTheDocument();
+  });
+
   it("refuses a number that cannot be stored, without calling the server", async () => {
     renderStep(buildApplicationContext({ questions: [NUMBER_QUESTION] }));
 
-    fireEvent.change(screen.getByLabelText("Years of experience?"), { target: { value: "1.005" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Years of experience?" }), { target: { value: "1.005" } });
     fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
 
     expect(await screen.findByText("Answer for question 'Years of experience?' is invalid.")).toBeInTheDocument();
@@ -113,8 +128,10 @@ describe("RecruiterQuestionsStep", () => {
       }),
     );
 
-    expect(screen.getByLabelText("Why this role? *")).toHaveValue("I love APIs");
-    expect(screen.getByRole("combobox", { name: "Preferred setup? *" })).toHaveTextContent("Remote");
+    expect(screen.getByRole("textbox", { name: "Why this role?" })).toHaveValue("I love APIs");
+    expect(screen.getByRole("radio", { name: "Remote" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Hybrid" })).not.toBeChecked();
+    expect(screen.getByText("2 of 2 answered")).toBeInTheDocument();
   });
 
   it("saves then leaves for My applications on Save and quit", async () => {
@@ -126,13 +143,32 @@ describe("RecruiterQuestionsStep", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/applications"));
   });
 
-  it("continues at once on an offer without questions", async () => {
-    const onContinue = renderStep(buildApplicationContext({ questions: [] }));
+  it("shows each question in its own numbered card with its required or optional status", () => {
+    renderStep(buildApplicationContext({ questions: [TEXT_QUESTION, YES_NO_QUESTION] }));
 
-    expect(screen.getByText("The recruiter did not ask any question for this offer.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+    const first = screen.getByRole("region", { name: "Why this role?" });
+    expect(within(first).getByText("1")).toBeInTheDocument();
+    expect(within(first).getByText("Required")).toBeInTheDocument();
+    expect(within(first).getByRole("textbox", { name: "Why this role?" })).toHaveAttribute("aria-required", "true");
+    const second = screen.getByRole("region", { name: "Open to travel?" });
+    expect(within(second).getByText("2")).toBeInTheDocument();
+    expect(within(second).getByText("Optional")).toBeInTheDocument();
+  });
 
-    await waitFor(() => expect(onContinue).toHaveBeenCalledTimes(1));
+  it("counts the answered questions as the candidate types and picks", () => {
+    renderStep(buildApplicationContext({ questions: [TEXT_QUESTION, SINGLE_CHOICE_QUESTION, MULTIPLE_CHOICE_QUESTION] }));
+
+    expect(screen.getByText("0 of 3 answered")).toBeInTheDocument();
+    answerRequired();
+    expect(screen.getByText("2 of 3 answered")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Java" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Kotlin" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Java" }));
+    expect(screen.getByRole("checkbox", { name: "Kotlin" })).toBeChecked();
+    expect(screen.getByText("3 of 3 answered")).toBeInTheDocument();
+    // Une saisie vide ne compte pas comme une réponse.
+    fireEvent.change(screen.getByRole("textbox", { name: "Why this role?" }), { target: { value: "   " } });
+    expect(screen.getByText("2 of 3 answered")).toBeInTheDocument();
   });
 
   it("shows the server detail when the draft cannot be saved", async () => {
@@ -149,5 +185,52 @@ describe("RecruiterQuestionsStep", () => {
 
     expect(await screen.findByText("You have already applied to this job offer.")).toBeInTheDocument();
     expect(onContinue).not.toHaveBeenCalled();
+  });
+
+  it("keeps a single option on a single-choice question when the candidate changes it", () => {
+    renderStep(buildApplicationContext({ questions: [SINGLE_CHOICE_QUESTION] }));
+    const group = screen.getByRole("radiogroup", { name: "Preferred setup?" });
+
+    fireEvent.click(within(group).getByRole("radio", { name: "Remote" }));
+    fireEvent.click(within(group).getByRole("radio", { name: "Hybrid" }));
+
+    expect(within(group).getByRole("radio", { name: "Hybrid" })).toBeChecked();
+    expect(within(group).getByRole("radio", { name: "Remote" })).not.toBeChecked();
+  });
+
+  it("flags a non-storable number on the field itself, and never leaves on Save and quit", async () => {
+    renderStep(buildApplicationContext({ questions: [NUMBER_QUESTION] }));
+    const field = screen.getByRole("spinbutton", { name: "Years of experience?" });
+
+    fireEvent.change(field, { target: { value: "1.005" } });
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("Use a number below 10 billion with at most two decimals.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save and quit" }));
+
+    expect(await screen.findByText("Answer for question 'Years of experience?' is invalid.")).toBeInTheDocument();
+    expect(saveMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("clears the error alert once a later save succeeds", async () => {
+    saveMock.mockRejectedValueOnce(
+      Object.assign(new Error("boom"), { isAxiosError: true, response: { status: 404, data: { detail: "Gone." } } }),
+    );
+    renderStep(buildApplicationContext({ questions: [YES_NO_QUESTION] }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+    expect(await screen.findByText("Gone.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+
+    await waitFor(() => expect(screen.queryByText("Gone.")).not.toBeInTheDocument());
+  });
+
+  it("continues when only optional questions are left unanswered", async () => {
+    const onContinue = renderStep(buildApplicationContext({ questions: [YES_NO_QUESTION, NUMBER_QUESTION] }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+
+    await waitFor(() => expect(onContinue).toHaveBeenCalledTimes(1));
+    expect(saveMock).toHaveBeenCalledWith({ jobPublicId: "abcdefghijkl", answers: [] });
   });
 });

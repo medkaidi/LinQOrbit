@@ -18,6 +18,13 @@ public interface MatchingResultRepository extends JpaRepository<MatchingResult, 
 
     Optional<MatchingResult> findFirstByMatchingIdOrderByVersionDesc(UUID matchingId);
 
+    /** Dernier résultat terminé (avec contenu) : scores affichés, cible des contestations (T-63). */
+    Optional<MatchingResult> findFirstByMatchingIdAndResultIsNotNullOrderByVersionDesc(UUID matchingId);
+
+    /** Résultat terminé qui précède une version : évaluations précédentes rejouées à l'agent (T-62). */
+    Optional<MatchingResult> findFirstByMatchingIdAndResultIsNotNullAndVersionLessThanOrderByVersionDesc(
+            UUID matchingId, Integer version);
+
     @Query("select max(r.version) from MatchingResult r where r.matchingId = :matchingId")
     Integer findMaxVersionByMatchingId(UUID matchingId);
 

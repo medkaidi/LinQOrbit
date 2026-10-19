@@ -1,23 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  answerClarification,
+  finishAssessment,
   getCurrentMatching,
   MatchingStreamError,
   parseStatusEvents,
+  saveMatchingFeedback,
+  skipClarification,
   startMatching,
   streamMatchingStatus,
+  toMatchingFeedbackPayload,
 } from "@/lib/api/matching.api";
 import { useAuthStore } from "@/stores/auth-store";
 import type { MatchingStatusEvent } from "@/types/matching";
 
 vi.mock("@/lib/api/axios", () => ({
-  api: { get: vi.fn(), post: vi.fn(), defaults: { baseURL: "http://api.test" } },
+  api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), defaults: { baseURL: "http://api.test" } },
 }));
 
 import { api } from "@/lib/api/axios";
 
 const getMock = vi.mocked(api.get);
 const postMock = vi.mocked(api.post);
+const putMock = vi.mocked(api.put);
 
 /** Réponse fetch dont le corps livre les morceaux donnés, dans l'ordre. */
 function streamResponse(chunks: string[], init: { ok?: boolean; status?: number } = {}) {
@@ -114,6 +120,78 @@ describe("matching.api", () => {
       streamMatchingStatus("abcdefghijkl", vi.fn(), new AbortController().signal),
     ).rejects.toBeInstanceOf(MatchingStreamError);
     expect(useAuthStore.getState().token).toBe("jwt-token");
+  });
+});
+
+describe("clarifications and candidate review", () => {
+  beforeEach(() => {
+    postMock.mockReset();
+    putMock.mockReset();
+  });
+
+  it("answers the open question by its id, the answer in the body", async () => {
+    const matching = { matchingId: "m-1", status: "pending" };
+    postMock.mockResolvedValue({ data: matching });
+
+    expect(await answerClarification("abcdefghijkl", "c-1", "Two years on GKE")).toEqual(matching);
+    expect(postMock).toHaveBeenCalledWith("/api/v1/matchings/offer/abcdefghijkl/clarifications/c-1/answer", {
+      answer: "Two years on GKE",
+    });
+  });
+
+  it("skips the open question without a body", async () => {
+    postMock.mockResolvedValue({ data: { status: "pending" } });
+
+    await skipClarification("abcdefghijkl", "c-1");
+
+    expect(postMock).toHaveBeenCalledWith("/api/v1/matchings/offer/abcdefghijkl/clarifications/c-1/skip");
+  });
+
+  it("finishes the assessment (204, nothing returned)", async () => {
+    postMock.mockResolvedValue({ data: "" });
+
+    expect(await finishAssessment("abcdefghijkl")).toBeUndefined();
+    expect(postMock).toHaveBeenCalledWith("/api/v1/matchings/offer/abcdefghijkl/assessment/finish");
+  });
+
+  it("replaces the candidate's view with a PUT of the converted list", async () => {
+    const response = { items: [{ criterionKey: "skill:java", selfValue: 80, comment: null }] };
+    putMock.mockResolvedValue({ data: response });
+
+    const saved = await saveMatchingFeedback("abcdefghijkl", {
+      items: [{ criterionKey: "skill:java", selfValue: "80", comment: "" }],
+    });
+
+    expect(saved).toEqual(response);
+    expect(putMock).toHaveBeenCalledWith("/api/v1/matchings/offer/abcdefghijkl/feedback", {
+      items: [{ criterionKey: "skill:java", selfValue: 80, comment: null }],
+    });
+  });
+});
+
+describe("toMatchingFeedbackPayload", () => {
+  it("omits criteria without a score, converts scores and trims comments (blank → null)", () => {
+    expect(
+      toMatchingFeedbackPayload({
+        items: [
+          { criterionKey: "skill:java", selfValue: "0", comment: "  Daily  " },
+          { criterionKey: "skill:go", selfValue: "", comment: "" },
+          { criterionKey: "language:english", selfValue: "100", comment: "   " },
+        ],
+      }),
+    ).toEqual({
+      items: [
+        { criterionKey: "skill:java", selfValue: 0, comment: "Daily" },
+        { criterionKey: "language:english", selfValue: 100, comment: null },
+      ],
+    });
+  });
+
+  it("sends an empty list when nothing is contested (clears everything)", () => {
+    expect(toMatchingFeedbackPayload({ items: [] })).toEqual({ items: [] });
+    expect(
+      toMatchingFeedbackPayload({ items: [{ criterionKey: "skill:java", selfValue: "", comment: "" }] }),
+    ).toEqual({ items: [] });
   });
 });
 

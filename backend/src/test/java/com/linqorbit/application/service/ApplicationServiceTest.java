@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -42,7 +43,9 @@ import com.linqorbit.application.repository.ApplicationAnswerRepository;
 import com.linqorbit.application.repository.ApplicationRepository;
 import com.linqorbit.attachment.entity.Attachment;
 import com.linqorbit.attachment.repository.AttachmentRepository;
+import com.linqorbit.candidate.entity.Candidate;
 import com.linqorbit.candidate.entity.NormalizedProfile;
+import com.linqorbit.candidate.repository.CandidateRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.candidate.service.CandidateService;
 import com.linqorbit.company.entity.Company;
@@ -56,6 +59,7 @@ import com.linqorbit.joboffer.repository.JobOfferQuestionOptionRepository;
 import com.linqorbit.joboffer.repository.JobOfferQuestionRepository;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.matching.entity.Matching;
+import com.linqorbit.matching.repository.MatchingCriterionFeedbackRepository;
 import com.linqorbit.matching.repository.MatchingRepository;
 
 /**
@@ -86,12 +90,37 @@ class ApplicationServiceTest {
     private final NormalizedProfileRepository normalizedProfileRepository = mock(NormalizedProfileRepository.class);
     private final MatchingRepository matchingRepository = mock(MatchingRepository.class);
 
+    private final CandidateRepository candidateRepository = mock(CandidateRepository.class);
+    private final MatchingCriterionFeedbackRepository feedbackRepository =
+            mock(MatchingCriterionFeedbackRepository.class);
     private final ApplicationService applicationService = new ApplicationService(applicationRepository,
             applicationAnswerRepository, applicationAnswerOptionRepository, jobOfferRepository,
             jobOfferQuestionRepository, jobOfferQuestionOptionRepository, attachmentRepository, companyRepository,
-            candidateService, normalizedProfileRepository, matchingRepository);
+            candidateService, candidateRepository, normalizedProfileRepository, matchingRepository,
+            feedbackRepository);
+
+    /** Par défaut le compte a sa ligne candidat (verrouillée à l'enregistrement du brouillon). */
+    @BeforeEach
+    void candidateExists() {
+        when(candidateRepository.findByIdForUpdate(USER_ID))
+                .thenReturn(Optional.of(Candidate.builder().id(USER_ID).build()));
+    }
 
     // --- Brouillon ---------------------------------------------------------
+
+    @Test
+    void brouillonRefuseEn409UnCompteSansProfilCandidatSansRienEcrire() {
+        stubOpenOffer();
+        stubQuestions(List.of(), List.of());
+        when(candidateRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> applicationService.saveDraft(USER_ID, draft(List.of())))
+                .isInstanceOfSatisfying(InvalidApplicationException.class, ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(ex.getMessage()).isEqualTo(ApplicationService.PROFILE_REQUIRED);
+                });
+        verify(applicationRepository, never()).saveAndFlush(any());
+    }
 
     @Test
     void premierEnregistrementCreeLeBrouillonAvecLeCvCourantPuisInsereParEtages() {
@@ -119,6 +148,11 @@ class ApplicationServiceTest {
                 answer(text.getId(), "  Backend fan  ", null, null, null),
                 answer(single.getId(), null, null, null, List.of(singleB.getId())),
                 answer(yesNo.getId(), null, null, true, null))));
+
+        // TD-053 : la ligne candidat est verrouillée avant de chercher le brouillon du couple.
+        InOrder lockFirst = inOrder(candidateRepository, applicationRepository);
+        lockFirst.verify(candidateRepository).findByIdForUpdate(USER_ID);
+        lockFirst.verify(applicationRepository).findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID);
 
         ArgumentCaptor<Application> applicationCaptor = ArgumentCaptor.forClass(Application.class);
         ArgumentCaptor<List<ApplicationAnswer>> answersCaptor = ArgumentCaptor.forClass(List.class);
@@ -402,6 +436,34 @@ class ApplicationServiceTest {
         assertThat(context.currentCvAttachmentId()).isEqualTo(CV_ID);
         assertThat(context.existingApplication()).isNull();
         assertThat(context.answers()).isEmpty();
+        assertThat(context.step()).isEqualTo("recruiter_questions");
+        assertThat(context.canSubmit()).isFalse();
+    }
+
+    @Test
+    void contexteSansQuestionOuvreDirectementLEtapeMatchingAvantToutBrouillon() {
+        stubOpenOffer();
+        stubQuestions(List.of(), List.of());
+        stubCurrentCv("cv.pdf");
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.empty());
+
+        ApplicationContextResponse context = applicationService.getContext(USER_ID, PUBLIC_ID);
+
+        assertThat(context.existingApplication()).isNull();
+        assertThat(context.step()).isEqualTo("matching");
+        assertThat(context.canSubmit()).isTrue();
+    }
+
+    @Test
+    void contexteAvecQuestionsFacultativesSeulesResteAuxQuestionsSansBrouillon() {
+        stubOpenOffer();
+        stubQuestions(List.of(question(1, QuestionType.TEXT, false, 0)), List.of());
+        stubCurrentCv("cv.pdf");
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.empty());
+
+        ApplicationContextResponse context = applicationService.getContext(USER_ID, PUBLIC_ID);
+
+        // Des questions à montrer, même facultatives : l'étape 1 s'affiche.
         assertThat(context.step()).isEqualTo("recruiter_questions");
         assertThat(context.canSubmit()).isFalse();
     }

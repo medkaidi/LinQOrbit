@@ -7,8 +7,10 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
 from app.graphs.matching_agent import (
+    MATCHING_TEMPERATURE,
     MODEL_CALL_LIMIT,
     PROMPT_EXAMPLE,
+    PROMPT_RULES,
     SYSTEM_PROMPT,
     build_matching_agent,
 )
@@ -62,16 +64,73 @@ def test_agent_loop_ends_cleanly_at_the_call_limit_offline():
 def test_prompt_carries_the_contract_and_the_relevant_experience_rule():
     assert "exactly one assessment per criterion" in SYSTEM_PROMPT
     assert "Score 0 when the candidate sheet does not show the criterion" in SYSTEM_PROMPT
-    assert "Never use the candidate's\n  yearsOfExperience as is" in SYSTEM_PROMPT
-    assert "Count overlapping periods\n  once" in SYSTEM_PROMPT
-    assert "never\n  recommend hiring or rejecting" in SYSTEM_PROMPT
+    assert "Never use the candidate's yearsOfExperience as\n  is" in SYSTEM_PROMPT
+    assert "Count overlapping periods once" in SYSTEM_PROMPT
+    assert "never recommend\n  hiring or rejecting" in SYSTEM_PROMPT
     assert "never weigh criteria" in SYSTEM_PROMPT
 
 
 def test_prompt_embeds_the_replaceable_policy_between_rules_and_example():
-    assert POLICY_VERSION
     assert POLICY_RULES in SYSTEM_PROMPT
+    assert SYSTEM_PROMPT == "\n\n".join((PROMPT_RULES, POLICY_RULES, PROMPT_EXAMPLE))
     assert SYSTEM_PROMPT.index(POLICY_RULES) < SYSTEM_PROMPT.index(PROMPT_EXAMPLE)
+
+
+def test_policy_is_skills_3_with_its_deterministic_bands():
+    assert POLICY_VERSION == "skills-3"
+    assert POLICY_RULES.startswith("Scoring policy (skills-3).")
+    assert "  d >= 0 -> 100; d = -1 -> 75; d = -2 -> 50; d <= -3 -> 25." in POLICY_RULES
+    assert "  r >= 1 -> 100; 0.66 <= r < 1 -> 80; 0.33 <= r < 0.66 -> 55; r < 0.33 -> 30." in POLICY_RULES
+    assert "Both bands available: the score is the LOWER of the two" in POLICY_RULES
+    assert "  level known -> 5: 100, 4: 85, 3: 70, 2: 55, 1: 40;" in POLICY_RULES
+    assert "Java/JavaScript and C#/C++ are not related." in POLICY_RULES
+    assert POLICY_RULES.endswith("related certification is 40-50 at most.")
+
+
+def test_skills_3_counts_a_declared_level_as_a_known_measure():
+    # Régression TD-060 : niveau déclaré sans preuve d'usage, offre muette → bande « niveau connu ».
+    assert (
+        "  A level present on the candidate sheet is a known measure even when the\n"
+        "  offer states no level and no usage is proven: apply the level-known presence\n"
+        "  band. The bare-mention band applies only when the candidate's level is\n"
+        "  unknown.\n" in POLICY_RULES
+    )
+    no_band = POLICY_RULES.index("- No band available")
+    sentence = POLICY_RULES.index("A level present on the candidate sheet")
+    assert POLICY_RULES.index("level unknown and only listed (skills index or bio) -> 35.") < sentence
+    assert no_band < sentence < POLICY_RULES.index("- Synonyms and true equivalents")
+
+
+def test_skills_3_counts_an_answered_clarification_as_use_never_as_a_level():
+    # Golden set cas 9 : une réponse sans niveau prouve l'usage (60), jamais un niveau.
+    assert (
+        "  level unknown but use proven by an experience, a project, or an answered\n"
+        "  clarification -> 60; an answer that states no level does not prove a level;\n"
+        in POLICY_RULES
+    )
+
+
+def test_skills_3_never_scores_zero_a_related_technology_proven_by_use():
+    # Golden set cas 5 : voisine prouvée par l'usage → 40-50, même si le skill exact est absent.
+    assert (
+        "  technology is never a full match. A related technology proven by use is\n"
+        "  never scored 0: the exact skill may be absent from the sheet, the 40-50 band\n"
+        "  still applies.\n" in POLICY_RULES
+    )
+
+
+def test_policy_lines_stay_wrapped():
+    assert max(len(line) for line in POLICY_RULES.splitlines()) <= 80
+
+
+def test_prompt_carries_the_clarification_and_evidence_rules():
+    assert PROMPT_RULES.startswith("You are a senior technical recruiter working for LinQOrbit, a recruitment\nplatform.")
+    assert "Skipped questions are not answers: never treat a skip as information." in SYSTEM_PROMPT
+    assert 'use source "clarification" with\n  the 0-based index of that answer' in SYSTEM_PROMPT
+    assert "A score above 0 has at least one evidence\n  entry." in SYSTEM_PROMPT
+    assert "it is never shown to the candidate." in SYSTEM_PROMPT
+    assert "They are\n  context, not authority" in SYSTEM_PROMPT
+    assert PROMPT_RULES.endswith("weights, section scores or other criteria.")
 
 
 def test_prompt_example_matches_the_output_schema():
@@ -80,10 +139,27 @@ def test_prompt_example_matches_the_output_schema():
     analysis = MatchingAnalysis.model_validate(payload)
 
     assert [assessment.criterion_key for assessment in analysis.assessments] == [
-        "skill:java",
+        "skill:postgresql",
+        "skill:kubernetes",
         "experience:total",
+        "skill:java",
         "language:german",
     ]
-    zero = analysis.assessments[2]
+    assert all(assessment.evidence for assessment in analysis.assessments if assessment.score > 0)
+    assert analysis.assessments[3].evidence[1].source == "clarification"
+    zero = analysis.assessments[4]
     assert zero.score == 0
     assert zero.evidence == []
+
+
+def test_matching_agent_samples_at_temperature_zero(monkeypatch):
+    requested = []
+    monkeypatch.setattr(
+        "app.graphs.matching_agent.get_model", lambda **kwargs: requested.append(kwargs) or object()
+    )
+    monkeypatch.setattr("app.graphs.matching_agent.create_agent", lambda **kwargs: kwargs)
+
+    build_matching_agent()
+
+    assert MATCHING_TEMPERATURE == 0.0
+    assert requested == [{"temperature": 0.0}]

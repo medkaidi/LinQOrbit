@@ -44,7 +44,7 @@ public interface ApplicationApi {
             @ApiResponse(responseCode = "400", description = "Réponse invalide, question inconnue ou doublon"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
             @ApiResponse(responseCode = "404", description = "Offre inconnue, non publiée ou expirée"),
-            @ApiResponse(responseCode = "409", description = "Candidature déjà transmise")
+            @ApiResponse(responseCode = "409", description = "Candidature déjà transmise ou profil candidat absent")
     })
     ResponseEntity<ApplicationResponse> saveDraft(@Valid @RequestBody SaveApplicationDraftRequest request,
             Authentication authentication);

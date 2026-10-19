@@ -55,8 +55,9 @@ com.linqorbit/
 ├── attachment/        CV candidat (implémenté) : Attachment, AttachmentRepository,
 │                      AttachmentService + AttachmentStorage (stockage disque local, sha256) —
 │                      upload PDF, liste, téléchargement streamé propriétaire, bascule du
-│                      courant (UPDATE bulk JPQL : `updated_at` intact), suppression refusée
-│                      si épinglé par une candidature (FK composite V20)
+│                      courant (UPDATE bulk JPQL : `updated_at` intact), suppression d'un CV joint à
+│                      une candidature transmise refusée (409 explicite), détaché des
+│                      brouillons puis supprimé (TD-054)
 ├── joboffer/          offres (implémenté) : JobOfferApi/Controller/Service — CRUD + cycle de
 │   ├── client/        vie, questions de présélection figées en PUBLISHED (409) ;
 │   ├── entity/        JobOfferNormalizeClient (IA) ; JobOffer + enfants (Skill/Language/
@@ -73,19 +74,31 @@ com.linqorbit/
 │   ├── entity/        Application, ApplicationAnswer, ApplicationAnswerOption (+IdClass),
 │   │                  ApplicationStatus DRAFT(1)…REJECTED(5) (+converter) — ids pré-assignés
 │   └── exception/     InvalidApplicationException (400/404/409), ApplicationNotFoundException (404)
-├── matching/          moteur de matching (implémenté, T-61, D58) : MatchingApi/Controller,
-│   ├── service/       MatchingService (préconditions D59, identité D50, versions sous verrou),
-│   │                  MatchingWorker (miroir NormalizationWorker, pool matchingExecutor),
+├── matching/          moteur de matching (implémenté, T-61, D58 ; clarifications T-62, contestation T-63) :
+│   │                  MatchingApi/Controller,
+│   ├── service/       MatchingService (préconditions D59, identité D50, versions sous verrou ;
+│   │                  réponse/skip → réévaluation versionnée, fin d'évaluation, contestation en
+│   │                  remplacement complet sans recalcul — D52, D62),
+│   │                  MatchingWorker (miroir NormalizationWorker, pool matchingExecutor ; analyse
+│   │                  puis question suivante, une tx : résultat + DONE + question OPEN ou fin),
 │   │                  MatchingCriteriaBuilder (grille extraite de la fiche offre, clés
 │   │                  stables), MatchingScoring (barème provisoire `weighted-1`, couverture
 │   │                  exacte des clés), MatchingSection, MatchingRequestedEvent,
 │   │                  MatchingStatusBroadcaster (push SSE du statut, D60)
-│   ├── client/        MatchingAnalyzeClient (POST /matching/analyze — contexte rejoué)
-│   ├── entity/        Matching, MatchingResult (result JSONB), MatchingJob (+ status/converter)
-│   ├── repository/    MatchingRepository (verrou pessimiste), MatchingResultRepository,
-│   │                  MatchingJobRepository (CAS)
+│   ├── client/        MatchingAnalyzeClient (POST /matching/analyze — contexte rejoué),
+│   │                  MatchingClarifyClient (POST /matching/clarify, T-62)
+│   ├── entity/        Matching, MatchingResult (result JSONB), MatchingJob (+ status/converter),
+│   │                  Clarification + ClarificationStatus OPEN(1)/ANSWERED(2)/SKIPPED(3) (+converter),
+│   │                  MatchingCriterionFeedback (V22/V23)
+│   ├── repository/    MatchingRepository (verrou pessimiste, finishAssessment), MatchingResultRepository
+│   │                  (dernier résultat avec contenu), MatchingJobRepository (CAS),
+│   │                  ClarificationRepository (OPEN, historique ordonné, compte du plafond),
+│   │                  MatchingCriterionFeedbackRepository
 │   ├── dto/           StartMatchingRequest, MatchingResponse (score par critère seul côté
-│   │                  candidat), MatchingAnalyzeRequest/MatchingCriterionPayload (sans poids)
+│   │                  candidat + question ouverte + fin d'évaluation + contestations du candidat),
+│   │                  MatchingAnalyzeRequest/MatchingCriterionPayload (sans poids ; évaluations
+│   │                  précédentes + historique des clarifications), MatchingClarifyRequest,
+│   │                  AnswerClarificationRequest, SaveMatchingFeedbackRequest (+ vues)
 │   └── exception/     InvalidMatchingException (409), MatchingNotFoundException (404),
 │                      InvalidMatchingAnalysisException (interne worker → retry)
 ├── company/ recruiter/
@@ -142,7 +155,7 @@ Règle fondamentale : **les Entity JPA ne sortent jamais en JSON**. Flux : `Requ
 
 ## Communication
 
-- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,admin,recruiters,companies,job-offers,applications,matchings}` — `auth`, `candidates` et `admin` existent (`/api/v1/candidates/me/profile` + `/{about,about/target-position,experiences,projects,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}` ; `POST /api/v1/candidates/me/profile/validate` déclenche la normalisation — voir « Normalisation du profil » ; `/api/v1/admin/{users,users/{userId}/status,skill-suggestions,skill-suggestions/{id}/{approve,link,reject}}` sous rôle ADMIN), ainsi que `recruiters`, `companies`, `job-offers` (Phase 1 — dont la **surface publique** `GET /api/v1/jobs`, job board paginé T-72 : PUBLISHED non expirées, tri `published_at desc`, DTO léger labels résolus en batch, **toutes les compétences exposées en libellés** (`skills: List<String>`, T-76 — aucun plafond, ordre poids desc puis nom asc, vocabulaire manquant ignoré ; `/related` en hérite), enveloppe D34 `page` seule exposée ; `GET /api/v1/jobs/{publicId}` sert la fiche depuis V15 ; `GET /api/v1/jobs/{publicId}/related` (T-74) renvoie en **tableau brut** jusqu'à 3 autres offres publiées non expirées de la même company, offre courante exclue, tri `published_at desc`, mêmes 404 sûrs que la fiche) , **`applications` (T-60, brouillon T-61/D59)** : `PUT /api/v1/applications/draft` (crée le brouillon ou remplace ses réponses, partiel permis), `POST /applications/{applicationId}/submit` (DRAFT → SUBMITTED, CV épinglé, `matching_id` posé serveur), `DELETE /applications/{applicationId}` (abandon du brouillon, 204), `GET /applications/context/{publicId}` (réponses + étape calculée + `canSubmit`), `GET /applications/mine` (brouillons compris), `POST /applications/{applicationId}/withdraw` (204, SUBMITTED seulement) — l'ancienne soumission d'un coup `POST /applications` n'existe plus ; et **`matchings` (T-61, D58)** : `POST /api/v1/matchings` (lancement/reprise/relance après échec — 409 si obligatoires manquantes, candidature transmise ou fiche absente/périmée), `GET /matchings/offer/{publicId}` (statut + score de chaque critère par section ; 404 aucun matching, 409 accès fermé), `GET /matchings/offer/{publicId}/events` (push SSE du statut, D60 — `MatchingStatusBroadcaster` en mémoire, publié par le worker après chaque transition commitée ; mono-instance tant qu'il n'y a pas de broker) — messages 400/404/409 sûrs affichés tels quels par le FE. `PUT …/about` n'écrit jamais `targetPosition` (poste recherché isolé sur `PUT …/about/target-position`, conservé mais non consommé par l'UI actuelle) ; `GET …/profile` renvoie bien `about.targetPosition` et le signal `hasUnvalidatedChanges`.
+- **Frontend Next.js** appelle l'API REST : préfixe `/api/v1/{auth,candidates,admin,recruiters,companies,job-offers,applications,matchings}` — `auth`, `candidates` et `admin` existent (`/api/v1/candidates/me/profile` + `/{about,about/target-position,experiences,projects,diplomas,skills,languages,links}` et `/reference/{skills,languages,degrees,study-fields}` ; `POST /api/v1/candidates/me/profile/validate` déclenche la normalisation — voir « Normalisation du profil » ; `/api/v1/admin/{users,users/{userId}/status,skill-suggestions,skill-suggestions/{id}/{approve,link,reject}}` sous rôle ADMIN), ainsi que `recruiters`, `companies`, `job-offers` (Phase 1 — dont la **surface publique** `GET /api/v1/jobs`, job board paginé T-72 : PUBLISHED non expirées, tri `published_at desc`, DTO léger labels résolus en batch, **toutes les compétences exposées en libellés** (`skills: List<String>`, T-76 — aucun plafond, ordre poids desc puis nom asc, vocabulaire manquant ignoré ; `/related` en hérite), enveloppe D34 `page` seule exposée ; `GET /api/v1/jobs/{publicId}` sert la fiche depuis V15 ; `GET /api/v1/jobs/{publicId}/related` (T-74) renvoie en **tableau brut** jusqu'à 3 autres offres publiées non expirées de la même company, offre courante exclue, tri `published_at desc`, mêmes 404 sûrs que la fiche) , **`applications` (T-60, brouillon T-61/D59)** : `PUT /api/v1/applications/draft` (crée le brouillon ou remplace ses réponses, partiel permis ; ligne candidat verrouillée — 409 « Complete your candidate profile before applying. » sans profil), `POST /applications/{applicationId}/submit` (DRAFT → SUBMITTED, CV épinglé, `matching_id` posé serveur), `DELETE /applications/{applicationId}` (abandon du brouillon, 204), `GET /applications/context/{publicId}` (réponses + étape calculée + `canSubmit` ; offre sans aucune question → étape `matching` dès l'ouverture, avant tout brouillon), `GET /applications/mine` (brouillons compris), `POST /applications/{applicationId}/withdraw` (204, SUBMITTED seulement) — l'ancienne soumission d'un coup `POST /applications` n'existe plus ; et **`matchings` (T-61, D58)** : `POST /api/v1/matchings` (lancement/reprise/relance après échec — 409 si obligatoires manquantes, candidature transmise ou fiche absente/périmée), `GET /matchings/offer/{publicId}` (statut + score de chaque critère par section ; 404 aucun matching, 409 accès fermé), `GET /matchings/offer/{publicId}/events` (push SSE du statut, D60 — `MatchingStatusBroadcaster` en mémoire, publié par le worker après chaque transition commitée ; mono-instance tant qu'il n'y a pas de broker), `POST /matchings/offer/{publicId}/clarifications/{clarificationId}/answer|skip` (T-62 — 202 + matching, réévaluation versionnée ; 404 question inconnue, 409 question fermée / analyse en cours / candidature transmise), `POST /matchings/offer/{publicId}/assessment/finish` (204 idempotent, 409 pendant une analyse), `PUT /matchings/offer/{publicId}/feedback` (T-63, D62 — remplacement complet, 400 clé dupliquée/inconnue/score hors 0–100/commentaire > 2 000, 409 évaluation non close / question ouverte / analyse en cours / candidature transmise ; jamais de recalcul) ; le GET du matching ne sérialise jamais poids, justification ni score de section. Offres : `maxClarificationQuestions` (0–10, défaut 3 si absent) dans les requêtes de création/modification et le détail recruteur — messages 400/404/409 sûrs affichés tels quels par le FE. `PUT …/about` n'écrit jamais `targetPosition` (poste recherché isolé sur `PUT …/about/target-position`, conservé mais non consommé par l'UI actuelle) ; `GET …/profile` renvoie bien `about.targetPosition` et le signal `hasUnvalidatedChanges`.
 - **Service IA Python (FastAPI)** : appelé par ce backend en HTTP, jamais par le frontend. Clients : `candidate/client/` `CvParseClient` (`POST /cv/parse`) et `ProfileNormalizeClient` (`POST /profile/normalize`), `joboffer/client/JobOfferNormalizeClient` (`POST /job-offer/normalize`), `matching/client/MatchingAnalyzeClient` (`POST /matching/analyze`) — les trois derniers appelés par les workers ; pas de fake AI. **Le service IA est sans état (D58)** : pour un échange en plusieurs tours, le backend renvoie tout le contexte depuis sa base à chaque appel (jamais de `thread_id` persistant côté IA).
 
 ## Normalisation du profil
@@ -157,7 +170,7 @@ Profil candidat → objet canonique JSON, en **async durable** (11 décisions ac
 - **Recovery au boot** (`recoverOrphanJobs`, seule « filet » du système) : RUNNING > 10 min (worker mort) → replanifié ; PENDING dû → exécuté immédiatement ; PENDING dont le retry n'est pas échu → planifié à son échéance. `SUPERSEDED` structurellement inéxécutable (le claim exige `PENDING`).
 - **Timeouts IA** (`app.ai.connect-timeout-ms` 5000 / `app.ai.read-timeout-ms` 120000) : le read timeout libère le thread de l'exécution mais **n'annule pas** le calcul côté FastAPI/LLM (réponse tardive perdue sur la socket fermée, corrélation `X-Request-Id` = jobId). Un RUNNING légitime ne dépasse donc jamais ~2 min, très loin du seuil de stale de 10 minutes.
 - **Signal d'affichage** : `normalizationInProgress` sur `GET …/profile` = le job le plus récent du candidat est `PENDING` ou `RUNNING` ; le bandeau frontend affiche « Analyzing… » (4ᵉ état, GET-driven, survit à la navigation) tant que ce signal est vrai, avec priorité succès flash 4 s > analyzing > failed > dirty.
-- **Format canonique v2** : JSON camelCase validé par le service IA (`app/schemas/normalize.py` : schemaVersion `2`, dates `YYYY-MM`, CEFR, niveaux 1–5, rien inventé, jamais d'UUID dans le contenu ; les `evidence` des skills référencent les sections par index 0-based). Contient notamment `seniority`, `location`, `certifications[]`, `projects[]`, `links[].linkType`, et les index capacités des skills (`category`, `levelSource`, `origin`, `yearsExperience`, `evidence`).
+- **Format canonique v3** : JSON camelCase validé par le service IA (`app/schemas/normalize.py` : schemaVersion `3`, dates `YYYY-MM`, CEFR, niveaux 1–5, rien inventé, jamais d'UUID dans le contenu ; les `evidence` des skills référencent les sections par index 0-based). Contient notamment `seniority`, `location`, `certifications[]`, `projects[]`, `links[].linkType`, et les index capacités des skills (`category`, `levelSource`, `origin`, `yearsExperience`, `evidence`).
 
 ## Erreurs
 

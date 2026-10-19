@@ -1,0 +1,150 @@
+package com.linqorbit.matching.client;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+
+import java.io.IOException;
+import java.util.List;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
+
+import com.linqorbit.candidate.exception.AiServiceException;
+import com.linqorbit.matching.dto.ClarificationHistoryPayload;
+import com.linqorbit.matching.dto.MatchingClarifyRequest;
+import com.linqorbit.matching.dto.MatchingCriterionPayload;
+
+import tools.jackson.databind.json.JsonMapper;
+
+/**
+ * Teste l'appel POST /matching/clarify (T-62) : contexte complet envoyé en
+ * JSON (évaluations du tour, historique, budget restant — jamais de poids),
+ * suggestion renvoyée telle quelle, traduction des statuts d'erreur — sans
+ * réseau réel. Miroir de {@code MatchingAnalyzeClientTest}.
+ */
+class MatchingClarifyClientTest {
+
+    private static final String CLARIFY_URL = "http://ai.test/matching/clarify";
+
+    private final JsonMapper jsonMapper = JsonMapper.builder().build();
+    private MockRestServiceServer server;
+    private MatchingClarifyClient matchingClarifyClient;
+
+    @BeforeEach
+    void setUp() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://ai.test");
+        server = MockRestServiceServer.bindTo(builder).build();
+        matchingClarifyClient = new MatchingClarifyClient(builder.build(), jsonMapper);
+    }
+
+    private MatchingClarifyRequest request() {
+        return new MatchingClarifyRequest("6f1c9a2e-0000-4000-8000-000000000001",
+                jsonMapper.readTree("{\"schemaVersion\": \"3\", \"skills\": []}"),
+                jsonMapper.readTree("{\"schemaVersion\": \"2\", \"title\": \"Backend Engineer\"}"),
+                List.of(new MatchingCriterionPayload("skill:java", "required_skills", "Java", "5 years")),
+                List.of(jsonMapper.readTree("{\"criterionKey\": \"skill:java\", \"score\": 80, \"rationale\": \"r\", \"evidence\": [{\"source\": \"skill\", \"index\": 0}]}")),
+                List.of(new ClarificationHistoryPayload("Q?", "R.", null, "skipped")), 2);
+    }
+
+    @Test
+    void clarifyEnvoieToutLeContexteEnJsonSansPoids() {
+        server.expect(requestTo(CLARIFY_URL))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Content-Type", containsString("application/json")))
+                .andExpect(content().string(containsString("\"matchingId\":\"6f1c9a2e-0000-4000-8000-000000000001\"")))
+                .andExpect(content().string(containsString("\"candidate\":{\"schemaVersion\":\"3\"")))
+                .andExpect(content().string(containsString("\"offer\":{\"schemaVersion\":\"2\"")))
+                .andExpect(content().string(containsString("\"key\":\"skill:java\"")))
+                .andExpect(content().string(containsString("\"remainingQuestions\":2")))
+                .andExpect(content().string(containsString("\"status\":\"skipped\"")))
+                .andExpect(content().string(not(containsString("weight"))))
+                .andRespond(withSuccess("{\"assessments\": []}", MediaType.APPLICATION_JSON));
+
+        matchingClarifyClient.clarify(request());
+
+        server.verify();
+    }
+
+    @Test
+    void clarifyRenvoieLaSuggestionTelleQuelle() {
+        String analysis = """
+                {"schemaVersion": "1", "policyVersion": "generic-1",
+                 "assessments": [{"criterionKey": "skill:java", "score": 90, "rationale": "r", "evidence": []}]}
+                """;
+        server.expect(requestTo(CLARIFY_URL)).andRespond(withSuccess(analysis, MediaType.APPLICATION_JSON));
+
+        assertThat(matchingClarifyClient.clarify(request())).isEqualTo(analysis);
+        server.verify();
+    }
+
+    @Test
+    void clarifyRelitLeDetailDUn4xxDuServiceIA() {
+        server.expect(requestTo(CLARIFY_URL)).andRespond(withStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"detail\": \"The offer has no criterion to assess.\"}"));
+
+        assertThatThrownBy(() -> matchingClarifyClient.clarify(request()))
+                .isInstanceOfSatisfying(AiServiceException.class, ai -> {
+                    assertThat(ai.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
+                    assertThat(ai.getMessage()).isEqualTo("The offer has no criterion to assess.");
+                });
+    }
+
+    @Test
+    void clarifyTombeSurLeMessageDeFallbackSansDetailJson() {
+        server.expect(requestTo(CLARIFY_URL)).andRespond(withStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+                .contentType(MediaType.TEXT_PLAIN)
+                .body("boom"));
+
+        assertThatThrownBy(() -> matchingClarifyClient.clarify(request()))
+                .isInstanceOfSatisfying(AiServiceException.class, ai -> {
+                    assertThat(ai.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
+                    assertThat(ai.getMessage()).isEqualTo("No clarification question could be prepared.");
+                });
+    }
+
+    @Test
+    void clarifyTraduitUneErreurServeurIAEn502() {
+        server.expect(requestTo(CLARIFY_URL)).andRespond(withServerError());
+
+        assertThatThrownBy(() -> matchingClarifyClient.clarify(request()))
+                .isInstanceOfSatisfying(AiServiceException.class,
+                        ai -> assertThat(ai.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY));
+    }
+
+    @Test
+    void clarifyTraduitUnServiceIAInjoignableEn504() {
+        server.expect(requestTo(CLARIFY_URL)).andRespond(request -> {
+            throw new IOException("connection refused");
+        });
+
+        assertThatThrownBy(() -> matchingClarifyClient.clarify(request()))
+                .isInstanceOfSatisfying(AiServiceException.class, ai -> {
+                    assertThat(ai.getStatus()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
+                    assertThat(ai.getMessage()).isEqualTo("The AI service is unreachable.");
+                });
+    }
+
+    @Test
+    void clarifyRejetteUneReponseVide() {
+        server.expect(requestTo(CLARIFY_URL)).andRespond(withSuccess("", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> matchingClarifyClient.clarify(request()))
+                .isInstanceOfSatisfying(AiServiceException.class,
+                        ai -> assertThat(ai.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY));
+    }
+}

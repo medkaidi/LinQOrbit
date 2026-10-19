@@ -25,6 +25,8 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 
+import com.linqorbit.application.entity.ApplicationStatus;
+import com.linqorbit.application.repository.ApplicationRepository;
 import com.linqorbit.attachment.dto.AttachmentContent;
 import com.linqorbit.attachment.dto.AttachmentResponse;
 import com.linqorbit.attachment.entity.Attachment;
@@ -41,8 +43,9 @@ class AttachmentServiceTest {
     private final AttachmentRepository attachmentRepository = mock(AttachmentRepository.class);
     private final AttachmentStorage attachmentStorage = mock(AttachmentStorage.class);
     private final CandidateService candidateService = mock(CandidateService.class);
+    private final ApplicationRepository applicationRepository = mock(ApplicationRepository.class);
     private final AttachmentService attachmentService = new AttachmentService(attachmentRepository, attachmentStorage,
-            candidateService);
+            candidateService, applicationRepository);
 
     @Test
     void uploadNominalEcritLigneEtFichierEtDeduitLeCvCourant() {
@@ -229,10 +232,32 @@ class AttachmentServiceTest {
 
         attachmentService.delete(USER_ID, attachmentId);
 
-        InOrder order = inOrder(attachmentRepository, attachmentStorage);
+        InOrder order = inOrder(applicationRepository, attachmentRepository, attachmentStorage);
+        // TD-054 : détaché des brouillons avant le DELETE (sinon la FK composite le rejetterait).
+        order.verify(applicationRepository).detachCvFromDrafts(attachmentId, ApplicationStatus.DRAFT);
         order.verify(attachmentRepository).delete(attachment);
         order.verify(attachmentRepository).flush();
         order.verify(attachmentStorage).delete(attachment.getStoragePath());
+    }
+
+    @Test
+    void deleteRefuseEn409UnCvJointAUneCandidatureTransmiseSansRienToucher() {
+        UUID attachmentId = UUID.randomUUID();
+        when(attachmentRepository.findByIdAndCandidateId(attachmentId, USER_ID))
+                .thenReturn(Optional.of(attachment(attachmentId, "cv.pdf")));
+        when(applicationRepository.existsByCvAttachmentIdAndStatusNot(attachmentId, ApplicationStatus.DRAFT))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> attachmentService.delete(USER_ID, attachmentId))
+                .isInstanceOfSatisfying(InvalidAttachmentException.class, ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(ex.getMessage())
+                            .isEqualTo("This CV is attached to an application you sent and cannot be deleted.");
+                });
+
+        verify(applicationRepository, never()).detachCvFromDrafts(any(), any());
+        verify(attachmentRepository, never()).delete(any());
+        verifyNoInteractions(attachmentStorage);
     }
 
     @Test

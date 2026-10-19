@@ -111,6 +111,25 @@ describe("PublicJobArticle", () => {
     );
   });
 
+  it("renders only the full-width sections when embedded, without the overview header", () => {
+    const { container, rerender } = render(<PublicJobArticle article={fullArticle()} />);
+    // Défaut (fiche publique, prévisualisation recruteur) : en-tête + grille 8/4 inchangés.
+    expect(screen.getByRole("region", { name: "Job overview" })).toBeInTheDocument();
+    expect(container.querySelector("aside")).not.toBeNull();
+    expect(screen.getByText("Build APIs.").closest(".lg\\:col-span-8")).not.toBeNull();
+
+    rerender(<PublicJobArticle article={fullArticle()} embedded />);
+
+    // Plus d'en-tête (le bandeau l'affiche déjà) : ni titre de niveau 1, ni société en double.
+    expect(screen.queryByRole("region", { name: "Job overview" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.queryByText("Acme Inc.")).not.toBeInTheDocument();
+    expect(screen.getByText("Java")).toBeInTheDocument();
+    expect(container.querySelector("aside")).toBeNull();
+    expect(screen.getByText("Build APIs.").closest(".lg\\:col-span-12")).not.toBeNull();
+    expect(screen.getByText("Build APIs.").closest(".lg\\:col-span-8")).toBeNull();
+  });
+
   it("shows the posted and expiry chips from the server dates", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-15T12:00:00Z"));

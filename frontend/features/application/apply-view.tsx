@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   Breadcrumb,
@@ -29,8 +29,9 @@ import { RecruiterQuestionsStep } from "@/features/application/recruiter-questio
 import { SubmitPanel } from "@/features/application/submit-panel";
 import { PublicJobLoading, PublicJobNotFound } from "@/features/job-offer/public-job-states";
 import { parsePublicId } from "@/features/job-offer/job-offer-shared";
+import { AssessmentReview } from "@/features/matching/assessment-review";
 import { MatchingPanel } from "@/features/matching/matching-panel";
-import { useApplicationContext } from "@/hooks/use-applications";
+import { useApplicationContext, useSaveApplicationDraft } from "@/hooks/use-applications";
 import type { ApplicationContext, ApplicationSummary } from "@/types/application";
 
 function Header({ jobParam, context }: { jobParam: string; context: ApplicationContext }) {
@@ -101,8 +102,11 @@ function AnswersRecap({ context, onEdit }: { context: ApplicationContext; onEdit
 
 function ApplicationJourney({ publicId, jobParam }: { publicId: string; jobParam: string }) {
   const context = useApplicationContext(publicId);
+  const saveDraft = useSaveApplicationDraft();
   // Retour volontaire à l'étape des questions depuis l'étape matching (état d'affichage seul).
   const [editingAnswers, setEditingAnswers] = useState(false);
+  // Création du brouillon en vol : « Run the match » puis « Submit » enchaînés n'en créent qu'un.
+  const pendingDraft = useRef<Promise<string> | null>(null);
 
   if (context.isLoading) {
     return <PublicJobLoading />;
@@ -113,13 +117,31 @@ function ApplicationJourney({ publicId, jobParam }: { publicId: string; jobParam
 
   const data = context.data;
   const draft = data.existingApplication?.status === "draft" ? data.existingApplication : null;
-  const showQuestions = data.step === "recruiter_questions" || editingAnswers;
+  const hasRecruiterQuestions = data.questions.length > 0;
+  const showQuestions = hasRecruiterQuestions && (data.step === "recruiter_questions" || editingAnswers);
+  // Offre sans question : l'étape IA s'ouvre sans brouillon, créé au premier geste du candidat.
+  const ensureDraft = (): Promise<string> => {
+    if (draft) {
+      return Promise.resolve(draft.id);
+    }
+    pendingDraft.current ??= saveDraft
+      .mutateAsync({ jobPublicId: publicId, answers: [] })
+      .then((created) => created.id)
+      .finally(() => {
+        pendingDraft.current = null;
+      });
+    return pendingDraft.current;
+  };
 
   return (
     <div className="w-full flex flex-col gap-6">
       <Header jobParam={jobParam} context={data} />
       <OfferBanner publicId={publicId} />
-      <ApplicationSteps step={data.step} />
+      <ApplicationSteps
+        step={data.step}
+        assessment={data.assessment}
+        hasRecruiterQuestions={hasRecruiterQuestions}
+      />
 
       {data.step === "submitted" && data.existingApplication ? (
         <AlreadyApplied application={data.existingApplication} />
@@ -129,14 +151,22 @@ function ApplicationJourney({ publicId, jobParam }: { publicId: string; jobParam
         <RecruiterQuestionsStep context={data} onContinue={() => setEditingAnswers(false)} />
       ) : null}
 
-      {data.step === "matching" && !editingAnswers && draft ? (
+      {data.step === "matching" && !showQuestions ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <div className="lg:col-span-7 flex flex-col gap-6">
-            <SubmitPanel context={data} applicationId={draft.id} />
-            <AnswersRecap context={data} onEdit={() => setEditingAnswers(true)} />
+            {/* Revue candidat (T-63) : visible seulement une fois l'évaluation close. */}
+            <AssessmentReview publicId={publicId} />
+            <SubmitPanel context={data} applicationId={draft?.id ?? null} ensureDraft={ensureDraft} />
+            {hasRecruiterQuestions ? (
+              <AnswersRecap context={data} onEdit={() => setEditingAnswers(true)} />
+            ) : null}
           </div>
           <div className="lg:col-span-5 lg:sticky lg:top-24">
-            <MatchingPanel publicId={publicId} />
+            <MatchingPanel
+              publicId={publicId}
+              prepare={draft ? undefined : ensureDraft}
+              stepAssessmentFinished={data.assessment.assessmentFinished}
+            />
           </div>
         </div>
       ) : null}

@@ -5,22 +5,33 @@ type TextareaProps = Omit<ComponentPropsWithRef<"textarea">, "className"> & {
   label: string;
   /** Contenu aligné à droite sur la ligne de label (compteur de caractères…). */
   labelAction?: ReactNode;
+  /** Masque visuellement le label (titre porté ailleurs, ex. carte de question) — il reste lu par les lecteurs d'écran. */
+  hideLabel?: boolean;
   error?: string;
 };
 
-export function Textarea({ label, labelAction, error, id, ...textareaProps }: TextareaProps) {
+export function Textarea({ label, labelAction, hideLabel = false, error, id, ...textareaProps }: TextareaProps) {
   const generatedId = useId();
   const textareaId = id ?? generatedId;
   const errorId = `${textareaId}-error`;
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-3">
-        <label htmlFor={textareaId} className="font-label-md text-label-md text-text-secondary">
+      {!hideLabel || labelAction ? (
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor={textareaId}
+            className={cn("font-label-md text-label-md text-text-secondary", hideLabel && "sr-only")}
+          >
+            {label}
+          </label>
+          {labelAction}
+        </div>
+      ) : (
+        <label htmlFor={textareaId} className="sr-only">
           {label}
         </label>
-        {labelAction}
-      </div>
+      )}
       <textarea
         id={textareaId}
         aria-invalid={error ? true : undefined}

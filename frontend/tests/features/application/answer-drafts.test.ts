@@ -29,6 +29,27 @@ describe("isStorableAnswerNumber", () => {
     expect(isStorableAnswerNumber(-2.25)).toBe(true);
   });
 
+  it("accepts two-decimal values that are inexact in binary floating point", () => {
+    // Régression F1 : value * 100 donnait 28.999999999999996, 7.000000000000001, 110.00000000000001.
+    expect(isStorableAnswerNumber(0.29)).toBe(true);
+    expect(isStorableAnswerNumber(0.07)).toBe(true);
+    expect(isStorableAnswerNumber(1.1)).toBe(true);
+    expect(isStorableAnswerNumber(-0.29)).toBe(true);
+    expect(isStorableAnswerNumber(0)).toBe(true);
+  });
+
+  it("accepts the bounds of NUMERIC(12,2) and refuses the next value", () => {
+    expect(isStorableAnswerNumber(9_999_999_999.99)).toBe(true);
+    expect(isStorableAnswerNumber(-9_999_999_999.99)).toBe(true);
+    expect(isStorableAnswerNumber(10_000_000_000)).toBe(false);
+  });
+
+  it("refuses more than two decimals, including tiny values written with an exponent", () => {
+    expect(isStorableAnswerNumber(0.001)).toBe(false);
+    expect(isStorableAnswerNumber(1.005)).toBe(false);
+    expect(isStorableAnswerNumber(1e-7)).toBe(false);
+  });
+
   it("rejects non-finite values, more than two decimals and values beyond NUMERIC(12,2)", () => {
     expect(isStorableAnswerNumber(Number.NaN)).toBe(false);
     expect(isStorableAnswerNumber(Number.POSITIVE_INFINITY)).toBe(false);
@@ -56,6 +77,15 @@ describe("toAnswerRequest", () => {
     expect(toAnswerRequest(NUMBER_QUESTION, draft({ number: "" }))).toBeNull();
     expect(toAnswerRequest(NUMBER_QUESTION, draft({ number: "not-a-number" }))).toBeNull();
     expect(toAnswerRequest(NUMBER_QUESTION, draft({ number: "1.005" }))).toBeNull();
+    // Saisies réelles à deux décimales, et zéros de fin retirés comme le backend (stripTrailingZeros).
+    expect(toAnswerRequest(NUMBER_QUESTION, draft({ number: "0.29" }))).toEqual({
+      questionId: NUMBER_QUESTION.id,
+      number: 0.29,
+    });
+    expect(toAnswerRequest(NUMBER_QUESTION, draft({ number: "1.10" }))).toEqual({
+      questionId: NUMBER_QUESTION.id,
+      number: 1.1,
+    });
   });
 
   it("maps yes/no drafts to booleans and omits the unanswered state", () => {

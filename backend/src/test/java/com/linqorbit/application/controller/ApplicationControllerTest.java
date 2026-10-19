@@ -28,6 +28,7 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.linqorbit.application.dto.ApplicationAssessmentView;
 import com.linqorbit.application.dto.ApplicationContextResponse;
 import com.linqorbit.application.dto.ApplicationCvSummary;
 import com.linqorbit.application.dto.ApplicationJobSummary;
@@ -146,7 +147,8 @@ class ApplicationControllerTest {
         when(applicationService.getContext(userId, PUBLIC_ID)).thenReturn(
                 new ApplicationContextResponse(
                         new ApplicationJobSummary(PUBLIC_ID, "backend-engineer", "Backend Engineer", "Acme"),
-                        List.of(), null, null, List.of(), "recruiter_questions", false));
+                        List.of(), null, null, List.of(), "recruiter_questions", false,
+                        ApplicationAssessmentView.NONE));
 
         mockMvc.perform(get("/api/v1/applications/mine").with(jwt(userId)))
                 .andExpect(status().isOk())

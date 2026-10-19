@@ -76,6 +76,17 @@ export type ApplicationSummary = {
   createdAt: string;
 };
 
+/**
+ * État de l'évaluation du couple, **calculé par le serveur** (T-62/T-63) :
+ * matching courant pour un brouillon, matching rattaché pour une candidature
+ * transmise (`matched` false si transmise sans matching). Pilote l'indicateur d'étapes.
+ */
+export type ApplicationAssessment = {
+  matched: boolean;
+  assessmentFinished: boolean;
+  contested: boolean;
+};
+
 /** Contexte du parcours de candidature d'une offre publiée (D59). */
 export type ApplicationContext = {
   job: ApplicationJobSummary;
@@ -87,6 +98,7 @@ export type ApplicationContext = {
   step: ApplicationStep;
   /** Brouillon dont toutes les questions obligatoires sont répondues. */
   canSubmit: boolean;
+  assessment: ApplicationAssessment;
 };
 
 /** Réponse envoyée avec le brouillon : une seule forme selon le type de question. */

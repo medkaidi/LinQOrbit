@@ -1,0 +1,157 @@
+{
+  "date": "2026-10-18T23:50:56+00:00",
+  "model": "gemini-3.1-flash-lite",
+  "policyVersion": "skills-2",
+  "analysisPolicyVersions": [
+    "skills-2",
+    "skills-2"
+  ],
+  "passed": 7,
+  "total": 9,
+  "verdict": "FAIL",
+  "cases": [
+    {
+      "id": 1,
+      "name": "level -1",
+      "key": "skill:java",
+      "round": 1,
+      "expected": {
+        "exact": 75
+      },
+      "obtained": 75,
+      "evidence": [
+        "skill[0]"
+      ],
+      "rationale": "The candidate has level 3 Java, while the offer requires level 4.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 2,
+      "name": "level -2",
+      "key": "skill:python",
+      "round": 1,
+      "expected": {
+        "exact": 50
+      },
+      "obtained": 50,
+      "evidence": [
+        "skill[1]"
+      ],
+      "rationale": "The candidate has level 2 Python, while the offer requires level 4.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 3,
+      "name": "years ratio 0.5",
+      "key": "skill:kubernetes",
+      "round": 1,
+      "expected": {
+        "exact": 55
+      },
+      "obtained": 55,
+      "evidence": [
+        "skill[2]"
+      ],
+      "rationale": "The candidate has 2 years of experience with Kubernetes, while the offer requires at least 4 years.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 4,
+      "name": "years ratio 0.2",
+      "key": "skill:terraform",
+      "round": 1,
+      "expected": {
+        "exact": 30
+      },
+      "obtained": 30,
+      "evidence": [
+        "skill[3]"
+      ],
+      "rationale": "The candidate has 1 year of experience with Terraform, while the offer requires at least 5 years.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 5,
+      "name": "related technology",
+      "key": "skill:postgresql",
+      "round": 1,
+      "expected": {
+        "min": 40,
+        "max": 50
+      },
+      "obtained": 0,
+      "evidence": [],
+      "rationale": "The candidate does not mention PostgreSQL; MySQL is listed instead.",
+      "passed": false,
+      "detail": "score 0 outside 40-50"
+    },
+    {
+      "id": 6,
+      "name": "bare mention",
+      "key": "skill:docker",
+      "round": 1,
+      "expected": {
+        "exact": 35
+      },
+      "obtained": 35,
+      "evidence": [
+        "skill[5]"
+      ],
+      "rationale": "Docker is listed as a skill but with no specific level or experience provided.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 7,
+      "name": "absent skill",
+      "key": "skill:go",
+      "round": 1,
+      "expected": {
+        "exact": 0,
+        "noEvidence": true
+      },
+      "obtained": 0,
+      "evidence": [],
+      "rationale": "The candidate does not mention Go.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 8,
+      "name": "silent offer, declared level 4 (TD-060 regression)",
+      "key": "skill:redis",
+      "round": 1,
+      "expected": {
+        "exact": 85
+      },
+      "obtained": 85,
+      "evidence": [
+        "skill[6]"
+      ],
+      "rationale": "Redis is listed as a skill with level 4; no years of experience are specified, but the level is known.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 9,
+      "name": "answered clarification as evidence",
+      "key": "skill:go",
+      "round": 2,
+      "expected": {
+        "exact": 60,
+        "evidenceSource": "clarification"
+      },
+      "obtained": 100,
+      "evidence": [
+        "clarification[0]"
+      ],
+      "rationale": "The candidate confirmed 2 years of professional experience with Go in a gRPC production environment.",
+      "passed": false,
+      "detail": "score 100 != 60"
+    }
+  ]
+}

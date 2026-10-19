@@ -210,7 +210,15 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.paths['/api/v1/matchings/offer/{publicId}'].get.summary")
                         .value("Lire le matching courant"))
                 .andExpect(jsonPath("$.paths['/api/v1/matchings/offer/{publicId}/events'].get.summary")
-                        .value("Suivre le statut du matching (SSE)"));
+                        .value("Suivre le statut du matching (SSE)"))
+                .andExpect(jsonPath("$.paths['/api/v1/matchings/offer/{publicId}/clarifications/{clarificationId}/answer'].post.summary")
+                        .value("Répondre à la question IA ouverte"))
+                .andExpect(jsonPath("$.paths['/api/v1/matchings/offer/{publicId}/clarifications/{clarificationId}/skip'].post.summary")
+                        .value("Passer la question IA ouverte"))
+                .andExpect(jsonPath("$.paths['/api/v1/matchings/offer/{publicId}/assessment/finish'].post.summary")
+                        .value("Terminer l'évaluation"))
+                .andExpect(jsonPath("$.paths['/api/v1/matchings/offer/{publicId}/feedback'].put.summary")
+                        .value("Enregistrer la contestation par critère"));
     }
 
     @Test

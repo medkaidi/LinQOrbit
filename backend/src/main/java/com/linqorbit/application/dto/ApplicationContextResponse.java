@@ -10,7 +10,8 @@ import java.util.UUID;
  * couple (brouillon ou transmise) avec ses réponses, l'<b>étape calculée</b>
  * par le serveur ({@code recruiter_questions}, {@code matching},
  * {@code submitted} — jamais stockée) et {@code canSubmit} (brouillon dont
- * toutes les questions obligatoires sont répondues).
+ * toutes les questions obligatoires sont répondues). {@code assessment} :
+ * avancement de l'évaluation IA (clarifications, contestation) du couple.
  */
 public record ApplicationContextResponse(
         ApplicationJobSummary job,
@@ -19,5 +20,6 @@ public record ApplicationContextResponse(
         ApplicationSummary existingApplication,
         List<ApplicationAnswerView> answers,
         String step,
-        boolean canSubmit) {
+        boolean canSubmit,
+        ApplicationAssessmentView assessment) {
 }

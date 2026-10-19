@@ -30,10 +30,17 @@ export function useMyApplications() {
   });
 }
 
-/** Après toute écriture du parcours : le contexte (étape serveur) et la liste se relisent. */
-function invalidateApplication(queryClient: QueryClient, publicId: string) {
-  queryClient.invalidateQueries({ queryKey: queryKeys.applications.mine });
-  queryClient.invalidateQueries({ queryKey: queryKeys.applications.context(publicId) });
+/**
+ * Après toute écriture du parcours : le contexte (étape serveur) et la liste se
+ * relisent. La promesse est renvoyée à `onSuccess` : la mutation reste
+ * `isPending` jusqu'à la relecture — le bouton occupé couvre le changement
+ * d'étape (pas de double clic sur un écran périmé).
+ */
+function invalidateApplication(queryClient: QueryClient, publicId: string): Promise<unknown> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.applications.mine }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.applications.context(publicId) }),
+  ]);
 }
 
 /** Erreur 409 (course entre deux onglets…) : le contexte se relit pour rebasculer l'état. */
@@ -53,15 +60,26 @@ export function useSaveApplicationDraft() {
   });
 }
 
-/** Transmission du brouillon : le matching se ferme côté serveur, sa clé est relue aussi. */
+/**
+ * Transmission du brouillon : le matching se ferme côté serveur, sa clé est
+ * retirée. Sans brouillon encore créé (offre sans question, D59),
+ * `ensureDraft` le crée d'abord — une seule mutation, un seul `isPending`.
+ */
 export function useSubmitApplication(publicId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ applicationId, body }: { applicationId: string; body?: SubmitApplicationRequest }) =>
-      submitApplication(applicationId, body),
+    mutationFn: async ({
+      applicationId,
+      ensureDraft,
+      body,
+    }: {
+      applicationId: string | null;
+      ensureDraft: () => Promise<string>;
+      body?: SubmitApplicationRequest;
+    }) => submitApplication(applicationId ?? (await ensureDraft()), body),
     onSuccess: () => {
-      invalidateApplication(queryClient, publicId);
       queryClient.removeQueries({ queryKey: queryKeys.matching.current(publicId) });
+      return invalidateApplication(queryClient, publicId);
     },
     onError: (error) => refreshOnConflict(queryClient, publicId, error),
   });

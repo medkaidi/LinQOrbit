@@ -56,6 +56,28 @@ const yearsOrEmpty = z.union(
   "Enter a number between 0 and 60",
 );
 
+/** Plafond par défaut des questions de clarification IA (miroir du défaut serveur). */
+export const DEFAULT_MAX_CLARIFICATION_QUESTIONS = "3";
+
+const WHOLE_NUMBER = /^-?\d+$/;
+
+/**
+ * Plafond de questions IA (T-62) : entier 0–10, messages miroirs du backend ;
+ * `""` = vide → null dans la couche API (défaut serveur 3).
+ */
+const clarificationCapOrEmpty = z
+  .string()
+  .trim()
+  .refine((value) => value === "" || WHOLE_NUMBER.test(value), "Max AI questions must be a whole number")
+  .refine(
+    (value) => !WHOLE_NUMBER.test(value) || Number(value) >= 0,
+    "Max AI questions must be at least 0",
+  )
+  .refine(
+    (value) => !WHOLE_NUMBER.test(value) || Number(value) <= 10,
+    "Max AI questions must be at most 10",
+  );
+
 const weightString = z.enum(
   ["1", "2", "3", "4", "5"],
   "Weight must be between 1 and 5",
@@ -127,6 +149,7 @@ const jobOfferBaseSchema = z.object({
   degreeIds: z.array(z.uuid("Pick a degree")),
   studyFieldIds: z.array(z.uuid("Pick a field of study")),
   questions: z.array(jobOfferQuestionRowSchema),
+  maxClarificationQuestions: clarificationCapOrEmpty,
 });
 
 type JobOfferBaseValues = z.infer<typeof jobOfferBaseSchema>;

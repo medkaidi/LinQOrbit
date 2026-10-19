@@ -36,6 +36,7 @@ import {
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import {
   createJobOfferSchema,
+  DEFAULT_MAX_CLARIFICATION_QUESTIONS,
   JOB_OFFER_SALARY_PERIODS,
   REQUIREMENT_TYPES,
   type CreateJobOfferValues,
@@ -123,6 +124,7 @@ function toFormValues(offer: JobOffer, companyId: string): CreateJobOfferValues 
         preferred: option.preferred,
       })),
     })),
+    maxClarificationQuestions: String(offer.maxClarificationQuestions),
   };
 }
 
@@ -148,6 +150,7 @@ function emptyValues(companyId: string): CreateJobOfferValues {
     degreeIds: [],
     studyFieldIds: [],
     questions: [],
+    maxClarificationQuestions: DEFAULT_MAX_CLARIFICATION_QUESTIONS,
   };
 }
 
@@ -559,6 +562,28 @@ export function JobOfferForm({
       </section>
 
       <OfferQuestionsSection control={control} errors={errors} />
+
+      <section className="bg-canvas-white rounded-2xl shadow-sm">
+        <header className={SECTION_HEADER_CLASS}>
+          <h2 className={SECTION_TITLE_CLASS}>AI clarifications</h2>
+        </header>
+        <div className="px-6 pt-5 pb-6 flex flex-col gap-4">
+          <p className="text-body-sm font-body-sm text-text-secondary">
+            After their match, candidates may be asked a few questions by the AI to clarify their
+            profile. Set 0 to never ask any.
+          </p>
+          <div className="w-full max-w-xs">
+            <TextField
+              label="Max AI questions"
+              inputMode="numeric"
+              placeholder={DEFAULT_MAX_CLARIFICATION_QUESTIONS}
+              labelAction={<span className="text-body-sm font-body-sm text-text-tertiary">0–10</span>}
+              error={errors.maxClarificationQuestions?.message}
+              {...register("maxClarificationQuestions")}
+            />
+          </div>
+        </div>
+      </section>
 
       <div className="bg-canvas-white rounded-2xl shadow-sm px-6 py-4 flex items-center justify-end gap-3">
         <Button type="button" variant="outline-sm" onClick={() => router.push("/recruiter")}>

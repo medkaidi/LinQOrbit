@@ -1,10 +1,12 @@
 package com.linqorbit.matching.repository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import jakarta.persistence.LockModeType;
@@ -24,4 +26,11 @@ public interface MatchingRepository extends JpaRepository<Matching, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select m from Matching m where m.id = :id")
     Optional<Matching> findByIdForUpdate(UUID id);
+
+    /** Clôt l'évaluation (D52) : idempotent, la première date est conservée. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Matching m set m.assessmentFinishedAt = :now, m.updatedAt = :now
+            where m.id = :id and m.assessmentFinishedAt is null""")
+    int finishAssessment(UUID id, LocalDateTime now);
 }

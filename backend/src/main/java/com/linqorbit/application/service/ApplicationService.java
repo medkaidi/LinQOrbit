@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import com.linqorbit.application.dto.ApplicationAnswerOptionView;
 import com.linqorbit.application.dto.ApplicationAnswerRequest;
 import com.linqorbit.application.dto.ApplicationAnswerView;
+import com.linqorbit.application.dto.ApplicationAssessmentView;
 import com.linqorbit.application.dto.ApplicationContextResponse;
 import com.linqorbit.application.dto.ApplicationCvSummary;
 import com.linqorbit.application.dto.ApplicationJobSummary;
@@ -46,6 +47,7 @@ import com.linqorbit.application.repository.ApplicationRepository;
 import com.linqorbit.attachment.entity.Attachment;
 import com.linqorbit.attachment.repository.AttachmentRepository;
 import com.linqorbit.candidate.entity.NormalizedProfile;
+import com.linqorbit.candidate.repository.CandidateRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.candidate.service.CandidateService;
 import com.linqorbit.company.entity.Company;
@@ -59,6 +61,7 @@ import com.linqorbit.joboffer.repository.JobOfferQuestionOptionRepository;
 import com.linqorbit.joboffer.repository.JobOfferQuestionRepository;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.matching.entity.Matching;
+import com.linqorbit.matching.repository.MatchingCriterionFeedbackRepository;
 import com.linqorbit.matching.repository.MatchingRepository;
 
 /**
@@ -86,6 +89,7 @@ public class ApplicationService {
 
     private static final String OFFER_UNAVAILABLE = "This job offer is no longer available.";
     private static final String ALREADY_APPLIED = "You have already applied to this job offer.";
+    static final String PROFILE_REQUIRED = "Complete your candidate profile before applying.";
     private static final BigDecimal STORABLE_NUMBER_LIMIT = new BigDecimal("10000000000");
 
     private final ApplicationRepository applicationRepository;
@@ -97,8 +101,10 @@ public class ApplicationService {
     private final AttachmentRepository attachmentRepository;
     private final CompanyRepository companyRepository;
     private final CandidateService candidateService;
+    private final CandidateRepository candidateRepository;
     private final NormalizedProfileRepository normalizedProfileRepository;
     private final MatchingRepository matchingRepository;
+    private final MatchingCriterionFeedbackRepository feedbackRepository;
 
     /**
      * Enregistre le brouillon du couple : création au premier appel (CV
@@ -114,6 +120,14 @@ public class ApplicationService {
         Map<UUID, List<JobOfferQuestionOption>> optionsByQuestion = loadOptionsByQuestion(questions);
         List<ValidatedAnswer> answers = validateAnswers(questions, optionsByQuestion, request.answers());
 
+        // TD-053 : verrou de la ligne candidat (motif de validateProfile) — deux premiers enregistrements
+        // simultanés (double clic, deux onglets) se sérialisent : le second trouve le brouillon et le remplace.
+        // Sans ligne candidat (compte jamais passé par son profil) : refus métier explicite, jamais un 500 de FK.
+        if (candidateRepository.findByIdForUpdate(userId).isEmpty()) {
+            log.warn("Application draft save rejected : no candidate profile, userId={}, offerId={}", userId,
+                    offer.getId());
+            throw new InvalidApplicationException(HttpStatus.CONFLICT, PROFILE_REQUIRED);
+        }
         Application application = applicationRepository.findByCandidateIdAndJobOfferId(userId, offer.getId())
                 .orElse(null);
         if (application == null) {
@@ -209,7 +223,9 @@ public class ApplicationService {
      * Contexte du parcours : l'offre doit être publiée et non expirée (même
      * 404 sûr que la lecture publique), les questions sortent sans
      * {@code preferred}, la candidature du couple avec ses réponses, l'étape
-     * calculée et {@code canSubmit}.
+     * calculée et {@code canSubmit}. Offre sans aucune question : le parcours
+     * s'ouvre directement à l'étape matching, avant même le brouillon — il naît
+     * au premier geste du candidat (lancement du matching ou transmission).
      */
     @Transactional(readOnly = true)
     public ApplicationContextResponse getContext(UUID userId, String jobPublicId) {
@@ -229,7 +245,7 @@ public class ApplicationService {
                 .orElse(null);
         ApplicationSummary existing = null;
         List<ApplicationAnswerView> answerViews = List.of();
-        ApplicationStep step = ApplicationStep.RECRUITER_QUESTIONS;
+        ApplicationStep step = questions.isEmpty() ? ApplicationStep.MATCHING : ApplicationStep.RECRUITER_QUESTIONS;
         if (application != null) {
             existing = new ApplicationSummary(application.getId(), application.getStatus().getApiValue(),
                     application.getCvAttachmentId(), application.getCreatedAt());
@@ -243,7 +259,22 @@ public class ApplicationService {
                 userId, offer.getId(), questionViews.size(),
                 application == null ? null : application.getStatus().getApiValue(), step.getApiValue());
         return new ApplicationContextResponse(jobSummary(offer), questionViews, currentCvAttachmentId, existing,
-                answerViews, step.getApiValue(), step == ApplicationStep.MATCHING);
+                answerViews, step.getApiValue(), step == ApplicationStep.MATCHING,
+                assessmentOf(userId, offer, application));
+    }
+
+    /**
+     * Avancement de l'évaluation IA (T-62/T-63) : matching rattaché à une
+     * candidature transmise, sinon matching courant du couple.
+     */
+    private ApplicationAssessmentView assessmentOf(UUID userId, JobOffer offer, Application application) {
+        Optional<UUID> matchingId = application != null && application.getStatus() != ApplicationStatus.DRAFT
+                ? Optional.ofNullable(application.getMatchingId())
+                : currentMatchingId(userId, offer.getId());
+        return matchingId.flatMap(matchingRepository::findById)
+                .map(matching -> new ApplicationAssessmentView(true, matching.getAssessmentFinishedAt() != null,
+                        feedbackRepository.existsByMatchingId(matching.getId())))
+                .orElse(ApplicationAssessmentView.NONE);
     }
 
     /**

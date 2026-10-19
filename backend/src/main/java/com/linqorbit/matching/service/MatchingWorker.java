@@ -3,6 +3,7 @@ package com.linqorbit.matching.service;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -23,20 +24,29 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import com.linqorbit.candidate.entity.NormalizedProfile;
 import com.linqorbit.candidate.exception.AiServiceException;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.common.logging.RequestLoggingFilter;
+import com.linqorbit.joboffer.entity.JobOffer;
+import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.matching.client.MatchingAnalyzeClient;
+import com.linqorbit.matching.client.MatchingClarifyClient;
+import com.linqorbit.matching.dto.ClarificationHistoryPayload;
 import com.linqorbit.matching.dto.MatchingAnalyzeRequest;
+import com.linqorbit.matching.dto.MatchingClarifyRequest;
 import com.linqorbit.matching.dto.MatchingCriterionPayload;
+import com.linqorbit.matching.entity.Clarification;
+import com.linqorbit.matching.entity.ClarificationStatus;
 import com.linqorbit.matching.entity.Matching;
 import com.linqorbit.matching.entity.MatchingJob;
 import com.linqorbit.matching.entity.MatchingJobStatus;
 import com.linqorbit.matching.entity.MatchingResult;
 import com.linqorbit.matching.exception.InvalidMatchingAnalysisException;
+import com.linqorbit.matching.repository.ClarificationRepository;
 import com.linqorbit.matching.repository.MatchingJobRepository;
 import com.linqorbit.matching.repository.MatchingRepository;
 import com.linqorbit.matching.repository.MatchingResultRepository;
@@ -61,6 +71,15 @@ import lombok.extern.slf4j.Slf4j;
  * offre — le service IA ne garde rien. L'analyse est contrôlée puis notée par
  * {@link MatchingScoring} ; une analyse inexploitable (clé manquante ou en
  * trop, score hors bornes) est un échec d'exécution comme un autre.</p>
+ *
+ * <p>Clarifications (T-62, D52) : chaque exécution rejoue aussi les
+ * évaluations du résultat terminé précédent (sans poids) et toutes les
+ * clarifications fermées dans l'ordre d'ajout, puis — tant que le plafond de
+ * l'offre n'est pas atteint et l'évaluation pas close — demande la question
+ * suivante à {@code /matching/clarify}. Une seule transaction écrit ensuite le
+ * résultat, le DONE et, soit la nouvelle question OPEN, soit la fin
+ * d'évaluation ({@code assessment_finished_at}). Un échec rejoue tout :
+ * l'historique est déjà en base.</p>
  */
 @Slf4j
 @Component
@@ -73,6 +92,9 @@ public class MatchingWorker {
     static final int STALE_RUNNING_MINUTES = 10;
     /** Taille max de la colonne matching_job.error. */
     private static final int ERROR_MAX_LENGTH = 500;
+    /** Colonnes clarification.question / rationale (V22). */
+    private static final int QUESTION_MAX_LENGTH = 500;
+    private static final int RATIONALE_MAX_LENGTH = 700;
 
     @Qualifier("matchingExecutor")
     private final ThreadPoolTaskExecutor matchingExecutor;
@@ -86,6 +108,9 @@ public class MatchingWorker {
     private final MatchingCriteriaBuilder matchingCriteriaBuilder;
     private final MatchingScoring matchingScoring;
     private final MatchingAnalyzeClient matchingAnalyzeClient;
+    private final MatchingClarifyClient matchingClarifyClient;
+    private final ClarificationRepository clarificationRepository;
+    private final JobOfferRepository jobOfferRepository;
     private final ObjectMapper objectMapper;
     private final MatchingStatusBroadcaster matchingStatusBroadcaster;
     @Value("${app.matching.retry-delay-seconds}")
@@ -206,7 +231,11 @@ public class MatchingWorker {
         });
     }
 
-    /** Contexte complet → IA (hors tx) → contrôle + barème → résultat + DONE en une tx. */
+    /**
+     * Contexte complet → analyse IA (hors tx) → contrôle + barème → question
+     * suivante (hors tx) → résultat + DONE + question OPEN ou fin d'évaluation
+     * en une tx.
+     */
     private void execute(MatchingJob job) {
         MatchingResult result = matchingResultRepository.findById(job.getId())
                 .orElseThrow(() -> new IllegalStateException("Job without matching result"));
@@ -222,18 +251,127 @@ public class MatchingWorker {
                 .map(criterion -> new MatchingCriterionPayload(criterion.key(), criterion.section().getApiValue(),
                         criterion.label(), criterion.requirement()))
                 .toList();
-        String analysis = matchingAnalyzeClient.analyze(
-                new MatchingAnalyzeRequest(matching.getId().toString(), candidate, offer, payload));
-        ObjectNode scored = matchingScoring.score(criteria, parse(analysis));
+        List<ClarificationHistoryPayload> history = closedClarifications(matching.getId());
+        String analysis = matchingAnalyzeClient.analyze(new MatchingAnalyzeRequest(matching.getId().toString(),
+                candidate, offer, payload, previousAssessments(matching.getId(), result.getVersion()), history));
+        JsonNode parsedAnalysis = parse(analysis);
+        ObjectNode scored = matchingScoring.score(criteria, parsedAnalysis);
         String json = objectMapper.writeValueAsString(scored);
+        NextQuestion next = nextQuestion(matching, candidate, offer, payload, parsedAnalysis, history);
         LocalDateTime now = LocalDateTime.now();
-        transactionTemplate.executeWithoutResult(txStatus -> {
+        Integer done = transactionTemplate.execute(txStatus -> {
             matchingResultRepository.setResult(result.getId(), json);
-            matchingJobRepository.casDone(job.getId(), MatchingJobStatus.RUNNING, MatchingJobStatus.DONE, now);
+            int applied = matchingJobRepository.casDone(job.getId(), MatchingJobStatus.RUNNING,
+                    MatchingJobStatus.DONE, now);
+            if (applied == 1) {
+                if (next.question() != null) {
+                    clarificationRepository.saveAndFlush(Clarification.builder()
+                            .id(UUID.randomUUID())
+                            .matchingId(matching.getId())
+                            .matchingResultId(result.getId())
+                            .question(next.question())
+                            .rationale(next.rationale())
+                            .status(ClarificationStatus.OPEN)
+                            .build());
+                } else if (next.finish()) {
+                    matchingRepository.finishAssessment(matching.getId(), now);
+                }
+            }
+            return applied;
         });
-        publishStatus(job.getId(), MatchingJobStatus.DONE);
-        log.info("Matching analysis done : jobId={}, matchingId={}, version={}, criteria={}",
-                job.getId(), matching.getId(), result.getVersion(), criteria.size());
+        publishIfApplied(done, job.getId(), MatchingJobStatus.DONE);
+        log.info("Matching analysis done : jobId={}, matchingId={}, version={}, criteria={}, question={}, finished={}",
+                job.getId(), matching.getId(), result.getVersion(), criteria.size(), next.question() != null,
+                next.finish());
+    }
+
+    /**
+     * Suite de la boucle (D52) : question OPEN suivante, fin d'évaluation, ou
+     * rien (évaluation déjà close). Le budget restant = plafond de l'offre −
+     * questions déjà posées (skips compris) ; budget épuisé ou agent à sec →
+     * fin, sans appel IA dans le premier cas.
+     */
+    private NextQuestion nextQuestion(Matching matching, JsonNode candidate, JsonNode offer,
+            List<MatchingCriterionPayload> criteria, JsonNode analysis, List<ClarificationHistoryPayload> history) {
+        if (matching.getAssessmentFinishedAt() != null) {
+            return NextQuestion.NONE;
+        }
+        int cap = jobOfferRepository.findById(matching.getJobOfferId())
+                .map(JobOffer::getMaxClarificationQuestions)
+                .orElse(0);
+        int remaining = cap - (int) clarificationRepository.countByMatchingId(matching.getId());
+        if (remaining <= 0) {
+            log.info("Matching assessment finished : budget used, matchingId={}, cap={}", matching.getId(), cap);
+            return NextQuestion.FINISH;
+        }
+        List<JsonNode> assessments = new ArrayList<>();
+        analysis.path("assessments").forEach(assessments::add);
+        JsonNode suggestion = parse(matchingClarifyClient.clarify(new MatchingClarifyRequest(
+                matching.getId().toString(), candidate, offer, criteria, assessments, history, remaining)));
+        JsonNode question = suggestion.path("question");
+        if (question.isMissingNode() || question.isNull()) {
+            log.info("Matching assessment finished : no question left, matchingId={}", matching.getId());
+            return NextQuestion.FINISH;
+        }
+        String text = question.path("question").asString("").strip();
+        String rationale = question.path("rationale").asString("").strip();
+        if (text.isEmpty() || text.length() > QUESTION_MAX_LENGTH || rationale.length() > RATIONALE_MAX_LENGTH) {
+            throw new InvalidMatchingAnalysisException("Unusable clarification question");
+        }
+        return new NextQuestion(text, rationale.isEmpty() ? null : rationale, false);
+    }
+
+    /** Question suivante à ouvrir, ou fin d'évaluation à poser (les deux absents : rien à faire). */
+    private record NextQuestion(String question, String rationale, boolean finish) {
+        static final NextQuestion NONE = new NextQuestion(null, null, false);
+        static final NextQuestion FINISH = new NextQuestion(null, null, true);
+    }
+
+    /**
+     * Clarifications fermées, plus ancienne d'abord : l'ordre est stable d'un
+     * tour à l'autre (append-only), donc les index de preuve
+     * {@code clarification} des résultats précédents restent valables.
+     */
+    private List<ClarificationHistoryPayload> closedClarifications(UUID matchingId) {
+        return clarificationRepository.findByMatchingIdAndStatusInOrderByCreatedAtAscIdAsc(matchingId,
+                        List.of(ClarificationStatus.ANSWERED, ClarificationStatus.SKIPPED))
+                .stream()
+                .map(clarification -> new ClarificationHistoryPayload(clarification.getQuestion(),
+                        clarification.getRationale(), clarification.getAnswer(),
+                        clarification.getStatus().getApiValue()))
+                .toList();
+    }
+
+    /**
+     * Évaluations du dernier résultat terminé avant cette version : clé, score,
+     * justification et preuves — jamais le poids. Un item incohérent avec la
+     * règle de preuve (score 0 ⇔ aucune preuve, D61) — un résultat produit
+     * avant cette règle — n'est pas rejoué : le service IA le refuserait.
+     */
+    private List<JsonNode> previousAssessments(UUID matchingId, Integer version) {
+        return matchingResultRepository
+                .findFirstByMatchingIdAndResultIsNotNullAndVersionLessThanOrderByVersionDesc(matchingId, version)
+                .map(previous -> {
+                    List<JsonNode> assessments = new ArrayList<>();
+                    for (JsonNode section : parse(previous.getResult()).path("sections")) {
+                        for (JsonNode item : section.path("criteria")) {
+                            JsonNode evidence = item.path("evidence");
+                            int score = item.path("score").asInt();
+                            boolean hasEvidence = evidence.isArray() && !evidence.isEmpty();
+                            if ((score == 0) == hasEvidence) {
+                                continue;
+                            }
+                            ObjectNode assessment = objectMapper.createObjectNode();
+                            assessment.put("criterionKey", item.path("key").asString(""));
+                            assessment.put("score", score);
+                            assessment.put("rationale", item.path("rationale").asString(""));
+                            assessment.set("evidence", hasEvidence ? evidence : objectMapper.createArrayNode());
+                            assessments.add(assessment);
+                        }
+                    }
+                    return assessments;
+                })
+                .orElse(List.of());
     }
 
     private JsonNode sheetContent(UUID normalizedProfileId) {
@@ -257,20 +395,20 @@ public class MatchingWorker {
         int attempts = job.getAttempts() + 1;
         LocalDateTime now = LocalDateTime.now();
         if (attempts >= MAX_ATTEMPTS) {
-            transactionTemplate.executeWithoutResult(txStatus ->
+            Integer failed = transactionTemplate.execute(txStatus ->
                     matchingJobRepository.casFail(job.getId(), MatchingJobStatus.RUNNING, MatchingJobStatus.FAILED,
                             attempts, now, error));
             log.warn("Matching abandoned after {} attempts : jobId={}, error={}", attempts, job.getId(), error);
-            publishStatus(job.getId(), MatchingJobStatus.FAILED);
+            publishIfApplied(failed, job.getId(), MatchingJobStatus.FAILED);
             return;
         }
         LocalDateTime nextAttemptAt = now.plusSeconds(retryDelaySeconds);
-        transactionTemplate.executeWithoutResult(txStatus ->
+        Integer retried = transactionTemplate.execute(txStatus ->
                 matchingJobRepository.casRetry(job.getId(), MatchingJobStatus.RUNNING, MatchingJobStatus.PENDING,
                         attempts, nextAttemptAt, error));
         log.info("Matching scheduled for retry : jobId={}, attempt={}, nextAttemptAt={}",
                 job.getId(), attempts, nextAttemptAt);
-        publishStatus(job.getId(), MatchingJobStatus.PENDING);
+        publishIfApplied(retried, job.getId(), MatchingJobStatus.PENDING);
         scheduleAt(job.getId(), nextAttemptAt);
     }
 
@@ -279,6 +417,16 @@ public class MatchingWorker {
      * <b>après</b> la tx : un abonné ne voit jamais un statut non commité, et
      * un incident de diffusion ne fait jamais échouer le job.
      */
+    private void publishIfApplied(Integer updated, UUID jobId, MatchingJobStatus status) {
+        if (updated == null || updated != 1) {
+            // Le job n'était plus RUNNING (repris ailleurs) : ce statut n'est pas en base, rien à publier.
+            log.warn("Matching transition not applied, nothing pushed : jobId={}, status={}", jobId,
+                    status.getApiValue());
+            return;
+        }
+        publishStatus(jobId, status);
+    }
+
     private void publishStatus(UUID jobId, MatchingJobStatus status) {
         try {
             matchingResultRepository.findById(jobId)

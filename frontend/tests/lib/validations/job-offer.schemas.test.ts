@@ -34,6 +34,7 @@ const baseValues = {
   degreeIds: [],
   studyFieldIds: [],
   questions: [],
+  maxClarificationQuestions: "3",
 };
 
 describe("createJobOfferSchema", () => {
@@ -329,5 +330,33 @@ describe("updateJobOfferSchema", () => {
       expect(messages).toContain("Pick an employment type");
       expect(messages).toContain("Add at least one skill");
     }
+  });
+});
+
+describe("maxClarificationQuestions", () => {
+  const capMessages = (value: string) => {
+    const result = createJobOfferSchema.safeParse({ ...baseValues, maxClarificationQuestions: value });
+    return result.success
+      ? []
+      : result.error.issues
+          .filter((issue) => issue.path.includes("maxClarificationQuestions"))
+          .map((issue) => issue.message);
+  };
+
+  it.each(["0", "3", "10", ""])("accepts %j (empty = server default)", (value) => {
+    expect(capMessages(value)).toEqual([]);
+  });
+
+  it("mirrors the backend bounds messages", () => {
+    expect(capMessages("-1")).toEqual(["Max AI questions must be at least 0"]);
+    expect(capMessages("11")).toEqual(["Max AI questions must be at most 10"]);
+  });
+
+  it.each(["2.5", "abc", "1e1"])("rejects the non-integer %j", (value) => {
+    expect(capMessages(value)).toEqual(["Max AI questions must be a whole number"]);
+  });
+
+  it("applies to updates as well", () => {
+    expect(updateJobOfferSchema.safeParse({ ...baseValues, maxClarificationQuestions: "11" }).success).toBe(false);
   });
 });

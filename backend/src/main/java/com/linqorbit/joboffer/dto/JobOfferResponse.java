@@ -37,6 +37,7 @@ public record JobOfferResponse(
         BigDecimal salaryMax,
         String salaryCurrency,
         String salaryPeriod,
+        int maxClarificationQuestions,
         boolean hasUnvalidatedChanges,
         boolean normalizationInProgress,
         boolean normalizationFailed,

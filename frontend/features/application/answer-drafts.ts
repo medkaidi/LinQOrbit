@@ -12,7 +12,7 @@ export type AnswerDraft = {
   optionIds: string[];
 };
 
-function emptyAnswerDraft(): AnswerDraft {
+export function emptyAnswerDraft(): AnswerDraft {
   return { text: "", number: "", yesNo: "", optionIds: [] };
 }
 
@@ -61,11 +61,21 @@ export function draftsFromAnswers(
 /**
  * Valeur numérique stockable — miroir des bornes backend : NUMERIC(12,2)
  * (deux décimales au plus une fois les zéros retirés) et |v| < 10^10.
+ * Les décimales se comptent sur `String(value)`, la représentation la plus
+ * courte que `JSON.stringify` envoie et que le backend relit en BigDecimal —
+ * jamais par `value * 100`, faussé par les flottants (0.29 × 100 =
+ * 28.999999999999996). Une forme exponentielle (1e-7) n'a pas deux décimales.
  */
 export function isStorableAnswerNumber(value: number): boolean {
-  return (
-    Number.isFinite(value) && Math.abs(value) < 10_000_000_000 && Number.isInteger(value * 100)
-  );
+  if (!Number.isFinite(value) || Math.abs(value) >= 10_000_000_000) {
+    return false;
+  }
+  const text = String(value);
+  if (/e/i.test(text)) {
+    return false;
+  }
+  const fraction = text.split(".")[1] ?? "";
+  return fraction.length <= 2;
 }
 
 /** Réponse à envoyer pour une question, ou null si laissée vide (ou nombre non stockable). */

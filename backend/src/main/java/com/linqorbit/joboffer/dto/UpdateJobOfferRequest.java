@@ -41,7 +41,8 @@ public record UpdateJobOfferRequest(
         @Valid List<JobOfferLanguageRequest> languages,
         List<UUID> degreeIds,
         List<UUID> studyFieldIds,
-        @Valid List<JobOfferQuestionRequest> questions) {
+        @Valid List<JobOfferQuestionRequest> questions,
+        @Min(value = 0, message = "must be at least 0") @Max(value = 10, message = "must be at most 10") Integer maxClarificationQuestions) {
 
     public UpdateJobOfferRequest {
         skills = skills == null ? List.of() : skills;

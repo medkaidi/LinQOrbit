@@ -12,17 +12,16 @@ import {
   SECTION_HEADER_CLASS,
   SECTION_TITLE_CLASS,
 } from "@/components/ui/section";
-import { useCurrentMatching, useMatchingStatusStream, useStartMatching } from "@/hooks/use-matching";
+import { ClarificationPanel } from "@/features/matching/clarification-panel";
+import { MATCHING_SECTION_LABELS } from "@/features/matching/matching-shared";
+import {
+  useAssessmentStepSync,
+  useCurrentMatching,
+  useMatchingStatusStream,
+  useStartMatching,
+} from "@/hooks/use-matching";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
-import type { MatchingCriterion, MatchingSection, MatchingSectionKey } from "@/types/matching";
-
-export const MATCHING_SECTION_LABELS: Record<MatchingSectionKey, string> = {
-  required_skills: "Required skills",
-  preferred_skills: "Preferred skills",
-  languages: "Languages",
-  experience: "Experience",
-  education: "Education",
-};
+import type { MatchingCriterion, MatchingSection } from "@/types/matching";
 
 function CriterionScore({ criterion }: { criterion: MatchingCriterion }) {
   return (
@@ -34,7 +33,7 @@ function CriterionScore({ criterion }: { criterion: MatchingCriterion }) {
         <span className="font-mono text-body-sm text-text-primary shrink-0">{criterion.score}%</span>
       </div>
       <div
-        role="progressbar"
+        role="meter"
         aria-label={criterion.label}
         aria-valuenow={criterion.score}
         aria-valuemin={0}
@@ -70,18 +69,32 @@ function isNotStarted(error: unknown): boolean {
 /**
  * Matching du candidat pour l'offre (D58) : lancement facultatif, analyse
  * asynchrone suivie en **push SSE** (D60 — le panneau se met à jour seul,
- * sans clic), échec + relance, puis le score de chaque critère par section. Le
- * candidat ne voit ni poids, ni score de section, ni justification
- * (réservés au recruteur).
+ * sans clic), échec + relance, puis le score de chaque critère par section et
+ * les clarifications IA (T-62) — une réévaluation garde les scores précédents
+ * à l'écran. Le candidat ne voit ni poids, ni score de section, ni
+ * justification (réservés au recruteur).
  */
-export function MatchingPanel({ publicId }: { publicId: string }) {
+export function MatchingPanel({
+  publicId,
+  prepare,
+  stepAssessmentFinished,
+}: {
+  publicId: string;
+  /** Préalable au lancement (création du brouillon d'une offre sans question, D59). */
+  prepare?: () => Promise<unknown>;
+  /** Évaluation close selon le contexte du parcours (serveur) — relu quand le matching le contredit. */
+  stepAssessmentFinished?: boolean;
+}) {
   const matching = useCurrentMatching(publicId);
   const start = useStartMatching(publicId);
+  const run = () => start.mutate(prepare);
 
   const notStarted = matching.isError && isNotStarted(matching.error);
   const status = matching.data?.status;
   const inProgress = status === "pending" || status === "running";
+  const sections = matching.data?.sections ?? [];
   useMatchingStatusStream(publicId, inProgress);
+  useAssessmentStepSync(publicId, matching.data, stepAssessmentFinished);
 
   return (
     <section className={SECTION_CARD_CLASS} aria-label="Your match">
@@ -105,7 +118,7 @@ export function MatchingPanel({ publicId }: { publicId: string }) {
               Compare your professional profile with this offer, criterion by criterion. This step is
               optional and does not send your application.
             </p>
-            <CtaButton type="button" icon="insights" busy={start.isPending} onClick={() => start.mutate()}>
+            <CtaButton type="button" icon="insights" busy={start.isPending} onClick={run}>
               Run the match
             </CtaButton>
           </div>
@@ -117,7 +130,13 @@ export function MatchingPanel({ publicId }: { publicId: string }) {
           </Alert>
         ) : null}
 
-        {inProgress ? (
+        {inProgress && sections.length > 0 ? (
+          <Alert variant="info" title="Updating your match…">
+            Your input is being taken into account. Your scores below are the previous ones until the
+            new analysis ends — this panel updates automatically.
+          </Alert>
+        ) : null}
+        {inProgress && sections.length === 0 ? (
           <Alert variant="info" title="Analysis in progress">
             Your profile is being compared with this offer. It usually takes less than a minute — this
             panel updates automatically.
@@ -129,22 +148,25 @@ export function MatchingPanel({ publicId }: { publicId: string }) {
             <Alert variant="error" title="The analysis failed">
               Your match could not be computed. You can run it again.
             </Alert>
-            <CtaButton type="button" icon="refresh" busy={start.isPending} onClick={() => start.mutate()}>
+            <CtaButton type="button" icon="refresh" busy={start.isPending} onClick={run}>
               Run the match again
             </CtaButton>
           </div>
         ) : null}
 
-        {status === "done" ? (
-          matching.data && matching.data.sections.length > 0 ? (
-            <div className="flex flex-col gap-6">
-              {matching.data.sections.map((section) => (
-                <SectionScores key={section.section} section={section} />
-              ))}
-            </div>
-          ) : (
-            <p className={MUTED_TEXT_CLASS}>This offer has no criterion to compare yet.</p>
-          )
+        {status === "done" && matching.data ? (
+          <ClarificationPanel publicId={publicId} matching={matching.data} />
+        ) : null}
+
+        {sections.length > 0 ? (
+          <div className="flex flex-col gap-6">
+            {sections.map((section) => (
+              <SectionScores key={section.section} section={section} />
+            ))}
+          </div>
+        ) : null}
+        {status === "done" && sections.length === 0 ? (
+          <p className={MUTED_TEXT_CLASS}>This offer has no criterion to compare yet.</p>
         ) : null}
 
         {start.error ? (

@@ -94,6 +94,8 @@ export type JobOffer = {
   degreeIds: string[];
   studyFieldIds: string[];
   questions: JobOfferQuestion[];
+  /** Plafond de questions de clarification IA posées au candidat (0-10, défaut serveur 3). */
+  maxClarificationQuestions: number;
   createdAt: string;
   updatedAt: string;
 };

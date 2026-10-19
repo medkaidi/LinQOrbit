@@ -52,6 +52,13 @@ function infiniteResult(
   };
 }
 
+/** AAAA-MM-JJ du jour local (jamais le jour UTC). */
+function localIsoDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 describe("PublicJobsView", () => {
   beforeEach(() => {
     useInfinitePublicJobsMock.mockReset();
@@ -121,7 +128,9 @@ describe("PublicJobsView", () => {
   });
 
   it("shows the expiry countdown when the offer is about to expire", () => {
-    const inThreeDays = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    // Date locale (comme expiryCountdown) : toISOString() donnerait le jour UTC, faux entre minuit et 1 h (TD-051).
+    const now = new Date();
+    const inThreeDays = localIsoDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3));
     useInfinitePublicJobsMock.mockReturnValue(
       infiniteResult([job({ expiresAt: inThreeDays })]),
     );

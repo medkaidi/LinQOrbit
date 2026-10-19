@@ -39,6 +39,9 @@ import lombok.Setter;
 @Builder
 public class JobOffer {
 
+    /** Plafond par défaut de questions IA (D52). */
+    public static final int DEFAULT_MAX_CLARIFICATION_QUESTIONS = 3;
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -110,6 +113,11 @@ public class JobOffer {
     @Convert(converter = SalaryPeriodConverter.class)
     @Column(name = "salary_period")
     private SalaryPeriod salaryPeriod;
+
+    /** Plafond de questions IA par matching (D52, V22) : 0–10, 3 par défaut. */
+    @Builder.Default
+    @Column(name = "max_clarification_questions", nullable = false)
+    private Integer maxClarificationQuestions = JobOffer.DEFAULT_MAX_CLARIFICATION_QUESTIONS;
 
     /**
      * Gestion manuelle (pas de {@code @UpdateTimestamp}) : le dirty-flag

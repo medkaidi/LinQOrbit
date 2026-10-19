@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.linqorbit.application.entity.ApplicationStatus;
+import com.linqorbit.application.repository.ApplicationRepository;
 import com.linqorbit.attachment.dto.AttachmentContent;
 import com.linqorbit.attachment.dto.AttachmentResponse;
 import com.linqorbit.attachment.entity.Attachment;
@@ -41,6 +43,7 @@ public class AttachmentService {
     private final AttachmentRepository attachmentRepository;
     private final AttachmentStorage attachmentStorage;
     private final CandidateService candidateService;
+    private final ApplicationRepository applicationRepository;
 
     @Transactional
     public AttachmentResponse upload(UUID userId, MultipartFile file) {
@@ -124,9 +127,20 @@ public class AttachmentService {
     public void delete(UUID userId, UUID attachmentId) {
         log.info("CV delete requested : userId={}, attachmentId={}", userId, attachmentId);
         Attachment attachment = findOwned(userId, attachmentId);
+        // TD-054 : un CV figé par une candidature transmise reste — 409 explicite, jamais un 500 de FK.
+        if (applicationRepository.existsByCvAttachmentIdAndStatusNot(attachmentId, ApplicationStatus.DRAFT)) {
+            log.warn("CV delete rejected : attached to a sent application, userId={}, attachmentId={}", userId,
+                    attachmentId);
+            throw new InvalidAttachmentException(HttpStatus.CONFLICT,
+                    "This CV is attached to an application you sent and cannot be deleted.");
+        }
+        int detached = applicationRepository.detachCvFromDrafts(attachmentId, ApplicationStatus.DRAFT);
+        if (detached > 0) {
+            log.info("CV detached from drafts : userId={}, attachmentId={}, drafts={}", userId, attachmentId, detached);
+        }
         attachmentRepository.delete(attachment);
-        // Flush explicite : la ligne part avant le fichier. L'épinglage par une
-        // candidature (FK composite, V20) rejettera la suppression sans toucher au disque.
+        // Flush explicite : la ligne part avant le fichier. Filet : une candidature
+        // transmise entre le contrôle et le DELETE reste protégée par la FK composite (V20).
         attachmentRepository.flush();
         attachmentStorage.delete(attachment.getStoragePath());
         log.info("CV deleted : userId={}, attachmentId={}", userId, attachmentId);

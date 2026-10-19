@@ -99,18 +99,23 @@ function ArticleSection({
  * Fiche publique d'une offre (T-73, sections à pastille d'icône en T-74) :
  * hero + chips, sections en cartes, colonne latérale sticky (« More from this
  * company ») et barre de candidature sticky. `aria-label` sur les cartes
- * repères : régions adressables en test.
+ * repères : régions adressables en test. `embedded` (parcours de candidature,
+ * D59 — sous le bandeau qui résume déjà l'offre) ne rend que les sections, en
+ * pleine largeur : ni en-tête « Job overview » (doublon du bandeau), ni colonne
+ * latérale.
  */
 export function PublicJobArticle({
   article,
   applyHref,
   relatedJobs,
   topBar,
+  embedded = false,
 }: {
   article: PublicJobArticleModel;
   applyHref?: string;
   relatedJobs?: RelatedPublicJob[];
   topBar?: ReactNode;
+  embedded?: boolean;
 }) {
   const posted = article.publishedAt ? relativeTimeLabel(article.publishedAt) : null;
   const expiry = article.expiresAt ? expiryCountdown(article.expiresAt) : null;
@@ -185,45 +190,47 @@ export function PublicJobArticle({
     <article className="w-full">
       {topBar ? <div className="mb-6">{topBar}</div> : null}
 
-      <section className={CARD} aria-label="Job overview">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
-            <div
-              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-container to-orange-deep font-headline-md text-headline-md font-bold text-canvas-white"
-              aria-hidden="true"
-            >
-              {article.companyName ? (
-                companyInitials(article.companyName)
-              ) : (
-                <Icon name="work" className="text-[28px]" />
-              )}
-            </div>
-            <div className="min-w-0">
-              <p
-                className={`font-label-md text-label-md uppercase tracking-wider ${
-                  article.companyName ? "text-text-primary" : "text-text-tertiary"
-                }`}
+      {embedded ? null : (
+        <section className={CARD} aria-label="Job overview">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              <div
+                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-container to-orange-deep font-headline-md text-headline-md font-bold text-canvas-white"
+                aria-hidden="true"
               >
-                {article.companyName ?? "No company"}
-              </p>
-              <h1 className="mt-1 font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
-                {article.title}
-              </h1>
+                {article.companyName ? (
+                  companyInitials(article.companyName)
+                ) : (
+                  <Icon name="work" className="text-[28px]" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p
+                  className={`font-label-md text-label-md uppercase tracking-wider ${
+                    article.companyName ? "text-text-primary" : "text-text-tertiary"
+                  }`}
+                >
+                  {article.companyName ?? "No company"}
+                </p>
+                <h1 className="mt-1 font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
+                  {article.title}
+                </h1>
+              </div>
             </div>
+            {applyHref ? (
+              <Link href={applyHref} className={APPLY_CTA}>
+                Apply for this job
+              </Link>
+            ) : null}
           </div>
-          {applyHref ? (
-            <Link href={applyHref} className={APPLY_CTA}>
-              Apply for this job
-            </Link>
+          {heroChips.length > 0 ? (
+            <div className="mt-5 flex flex-wrap items-center gap-2">{heroChips}</div>
           ) : null}
-        </div>
-        {heroChips.length > 0 ? (
-          <div className="mt-5 flex flex-wrap items-center gap-2">{heroChips}</div>
-        ) : null}
-      </section>
+        </section>
+      )}
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="flex flex-col gap-6 lg:col-span-8">
+      <div className={embedded ? "grid grid-cols-1 gap-6 lg:grid-cols-12" : "mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12"}>
+        <div className={embedded ? "flex flex-col gap-6 lg:col-span-12" : "flex flex-col gap-6 lg:col-span-8"}>
           {article.description ? (
             <ArticleSection icon="description" title="About the role">
               <div
@@ -316,46 +323,48 @@ export function PublicJobArticle({
           ) : null}
         </div>
 
-        <aside className="lg:col-span-4">
-          <div className="flex flex-col gap-6 lg:sticky lg:top-24">
-            {relatedJobs && relatedJobs.length > 0 ? (
-              <section className={CARD} aria-label="More from this company">
-                <h2 className="font-headline-sm text-headline-sm text-text-primary font-bold">
-                  More from this company
-                </h2>
-                <ul className="mt-2 flex flex-col divide-y divide-slate-border">
-                  {relatedJobs.map((job) => (
-                    <li key={job.publicId} className="py-3">
-                      <Link
-                        href={publicJobPath(job.publicId, job.slug)}
-                        className="group block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
-                      >
-                        <p className="font-body-md text-body-md font-semibold text-text-primary group-hover:text-orange-deep transition-colors">
-                          {job.title}
-                        </p>
-                        {job.salary ? (
-                          <p className="mt-0.5 font-body-sm text-body-sm text-text-secondary">
-                            {job.salary}
+        {embedded ? null : (
+          <aside className="lg:col-span-4">
+            <div className="flex flex-col gap-6 lg:sticky lg:top-24">
+              {relatedJobs && relatedJobs.length > 0 ? (
+                <section className={CARD} aria-label="More from this company">
+                  <h2 className="font-headline-sm text-headline-sm text-text-primary font-bold">
+                    More from this company
+                  </h2>
+                  <ul className="mt-2 flex flex-col divide-y divide-slate-border">
+                    {relatedJobs.map((job) => (
+                      <li key={job.publicId} className="py-3">
+                        <Link
+                          href={publicJobPath(job.publicId, job.slug)}
+                          className="group block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
+                        >
+                          <p className="font-body-md text-body-md font-semibold text-text-primary group-hover:text-orange-deep transition-colors">
+                            {job.title}
                           </p>
-                        ) : null}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href="/jobs"
-                  className="inline-flex items-center gap-1 font-body-sm text-body-sm font-semibold text-orange-deep hover:underline"
-                >
-                  Browse all offers
-                  <Icon name="arrow_forward" className="text-[16px]" />
-                </Link>
-              </section>
-            ) : null}
-          </div>
-        </aside>
+                          {job.salary ? (
+                            <p className="mt-0.5 font-body-sm text-body-sm text-text-secondary">
+                              {job.salary}
+                            </p>
+                          ) : null}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href="/jobs"
+                    className="inline-flex items-center gap-1 font-body-sm text-body-sm font-semibold text-orange-deep hover:underline"
+                  >
+                    Browse all offers
+                    <Icon name="arrow_forward" className="text-[16px]" />
+                  </Link>
+                </section>
+              ) : null}
+            </div>
+          </aside>
+        )}
       </div>
 
-      {applyHref ? (
+      {applyHref && !embedded ? (
         <div className="sticky bottom-4 z-30 mt-8 flex flex-col gap-3 rounded-2xl border border-slate-border bg-canvas-white/95 p-4 shadow-lg backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <p className="truncate font-body-md text-body-md font-semibold text-text-primary">

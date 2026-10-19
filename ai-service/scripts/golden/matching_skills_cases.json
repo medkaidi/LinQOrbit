@@ -1,0 +1,68 @@
+{
+  "description": "Golden set of the skills policy (TD-058): nine cases replayed against the real model, outside CI. Rounds share one candidate and one offer; round 2 replays round 1 with an answered clarification.",
+  "policyVersion": "skills-3",
+  "candidate": {
+    "schemaVersion": "3",
+    "title": "Backend Developer",
+    "yearsOfExperience": 6,
+    "bio": "Backend developer focused on Java services and data pipelines.",
+    "experiences": [
+      {"role": "Backend Developer", "company": "Shopwise", "startDate": "2021-01", "endDate": null,
+       "description": "Java and Spring Boot services on MySQL; operated Kubernetes deployments."},
+      {"role": "Junior Developer", "company": "DataCorp", "startDate": "2019-01", "endDate": "2020-12",
+       "description": "Python scripts and Terraform modules for internal tooling."}
+    ],
+    "projects": [],
+    "diplomas": [],
+    "certifications": [],
+    "languages": [{"name": "English", "level": "C1", "origin": "declared", "evidence": []}],
+    "skills": [
+      {"name": "Java", "level": 3, "yearsExperience": null, "origin": "declared", "evidence": [{"source": "experience", "index": 0}]},
+      {"name": "Python", "level": 2, "yearsExperience": null, "origin": "declared", "evidence": [{"source": "experience", "index": 1}]},
+      {"name": "Kubernetes", "level": null, "yearsExperience": 2, "origin": "declared", "evidence": [{"source": "experience", "index": 0}]},
+      {"name": "Terraform", "level": null, "yearsExperience": 1, "origin": "declared", "evidence": [{"source": "experience", "index": 1}]},
+      {"name": "MySQL", "level": 4, "yearsExperience": 4, "origin": "declared", "evidence": [{"source": "experience", "index": 0}]},
+      {"name": "Docker", "level": null, "yearsExperience": null, "origin": "declared", "evidence": []},
+      {"name": "Redis", "level": 4, "yearsExperience": null, "origin": "declared", "evidence": []}
+    ]
+  },
+  "offer": {"schemaVersion": "2", "title": "Senior Backend Engineer", "requiredSkills": [], "requiredYears": 4},
+  "criteria": [
+    {"key": "skill:java", "section": "required_skills", "label": "Java", "requirement": "level 4/5"},
+    {"key": "skill:python", "section": "required_skills", "label": "Python", "requirement": "level 4/5"},
+    {"key": "skill:kubernetes", "section": "required_skills", "label": "Kubernetes", "requirement": "at least 4 years"},
+    {"key": "skill:terraform", "section": "required_skills", "label": "Terraform", "requirement": "at least 5 years"},
+    {"key": "skill:postgresql", "section": "required_skills", "label": "PostgreSQL"},
+    {"key": "skill:docker", "section": "required_skills", "label": "Docker"},
+    {"key": "skill:go", "section": "required_skills", "label": "Go"},
+    {"key": "skill:redis", "section": "preferred_skills", "label": "Redis"}
+  ],
+  "clarifications": [
+    {
+      "question": "The offer requires Go; your profile does not mention it. Have you used Go professionally?",
+      "rationale": "Go is a required skill for this offer and it does not appear in the profile.",
+      "answer": "Yes: at Shopwise I built and maintained two Go gRPC services in production for 2 years (2022-2024).",
+      "status": "answered"
+    }
+  ],
+  "cases": [
+    {"id": 1, "round": 1, "key": "skill:java", "name": "level -1", "expected": {"exact": 75},
+     "why": "Level band: candidate 3/5 against 4/5 expected, d = -1 -> 75."},
+    {"id": 2, "round": 1, "key": "skill:python", "name": "level -2", "expected": {"exact": 50},
+     "why": "Level band: candidate 2/5 against 4/5 expected, d = -2 -> 50."},
+    {"id": 3, "round": 1, "key": "skill:kubernetes", "name": "years ratio 0.5", "expected": {"exact": 55},
+     "why": "Years band: 2 years against 4 expected, r = 0.5 -> 55; no level stated by the offer."},
+    {"id": 4, "round": 1, "key": "skill:terraform", "name": "years ratio 0.2", "expected": {"exact": 30},
+     "why": "Years band: 1 year against 5 expected, r = 0.2 -> 30."},
+    {"id": 5, "round": 1, "key": "skill:postgresql", "name": "related technology", "expected": {"min": 40, "max": 50},
+     "why": "PostgreSQL absent; MySQL (same family) is proven by an experience -> 40-50, never a full match."},
+    {"id": 6, "round": 1, "key": "skill:docker", "name": "bare mention", "expected": {"exact": 35},
+     "why": "No band; level unknown and only listed in the skills index -> 35."},
+    {"id": 7, "round": 1, "key": "skill:go", "name": "absent skill", "expected": {"exact": 0, "noEvidence": true},
+     "why": "Go is nowhere in the candidate sheet -> 0 without evidence."},
+    {"id": 8, "round": 1, "key": "skill:redis", "name": "silent offer, declared level 4 (TD-060 regression)", "expected": {"exact": 85},
+     "why": "No band (the offer states no measure); the declared level 4 is a known measure -> level-known band 4 -> 85, even without proven use."},
+    {"id": 9, "round": 2, "key": "skill:go", "name": "answered clarification as evidence", "expected": {"exact": 60, "evidenceSource": "clarification"},
+     "why": "The criterion states no measure and the answer states no level: no band applies; the answer proves professional use (two production services) -> level unknown but use proven -> 60, with the answer as clarification evidence."}
+  ]
+}
