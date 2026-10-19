@@ -525,7 +525,7 @@ class AdminServiceTest {
     void getCandidateProfileDelegueAuServiceCandidatQuandLeCompteExiste() {
         UUID candidateId = UUID.randomUUID();
         CandidateProfileResponse profile = new CandidateProfileResponse(null, List.of(), List.of(),
-                List.of(), List.of(), List.of(), List.of(), 60, true, false, false);
+                List.of(), List.of(), List.of(), List.of(), 60, true, false, false, false);
         when(candidateRepository.existsById(candidateId)).thenReturn(true);
         when(candidateService.getProfile(candidateId)).thenReturn(profile);
 

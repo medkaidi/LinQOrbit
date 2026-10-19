@@ -35,6 +35,7 @@ const emptyProfile: CandidateProfile = {
   hasUnvalidatedChanges: false,
   normalizationFailed: false,
   normalizationInProgress: false,
+  analysisOutdated: false,
 };
 
 describe("fullName", () => {

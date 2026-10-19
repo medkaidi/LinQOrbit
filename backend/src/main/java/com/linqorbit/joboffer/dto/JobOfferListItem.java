@@ -11,6 +11,8 @@ import java.util.UUID;
  * ne sont servies que par la fiche détail ({@link JobOfferResponse}).
  * {@code readyToPublish} porte le gate de complétude frontend (description,
  * pays, type d'emploi, au moins un skill) sans exposer la description.
+ * {@code analysisOutdated} : fiche de référence sur une version de schéma
+ * périmée (D63), même signal que la fiche détail.
  */
 public record JobOfferListItem(
         UUID id,
@@ -33,6 +35,7 @@ public record JobOfferListItem(
         boolean hasUnvalidatedChanges,
         boolean normalizationInProgress,
         boolean normalizationFailed,
+        boolean analysisOutdated,
         boolean readyToPublish,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {

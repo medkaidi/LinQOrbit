@@ -265,6 +265,73 @@ class NormalizationServiceTest {
         assertThat(normalizationService.hasInProgressLatestJob(USER_ID)).isFalse();
     }
 
+    // --- D63 : analyse obsolète ---------------------------------------------
+
+    @Test
+    void ficheDeReferenceALaVersionCouranteNEstPasObsolete() {
+        stubReferenceSheet("3");
+
+        assertThat(normalizationService.isAnalysisOutdated(USER_ID)).isFalse();
+    }
+
+    @Test
+    void ficheDeReferenceDUneAutreVersionEstObsolete() {
+        stubReferenceSheet("2");
+
+        assertThat(normalizationService.isAnalysisOutdated(USER_ID)).isTrue();
+    }
+
+    @Test
+    void sansFicheAvecContenuRienNEstObsolete() {
+        when(normalizedProfileRepository.findLatestWithContentByCandidateId(
+                org.mockito.ArgumentMatchers.eq(USER_ID), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of());
+
+        assertThat(normalizationService.isAnalysisOutdated(USER_ID)).isFalse();
+    }
+
+    @Test
+    void validationSansChangementRelanceUneFicheObsolete() {
+        stubCleanCandidateWithLatestJob(NormalizationJobStatus.DONE);
+        stubReferenceSheet("2");
+
+        normalizationService.validateProfile(USER_ID);
+
+        ArgumentCaptor<NormalizedProfile> profileCaptor = ArgumentCaptor.forClass(NormalizedProfile.class);
+        verify(normalizedProfileRepository).save(profileCaptor.capture());
+        assertThat(profileCaptor.getValue().getSchemaVersion()).isEqualTo("3");
+        verify(normalizationJobRepository).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void validationSansChangementAvecFicheObsoleteMaisAnalyseEnCoursEstIgnoree() {
+        // Double-clic pendant l'analyse de la fiche obsolète : aucune nouvelle version.
+        stubCleanCandidateWithLatestJob(NormalizationJobStatus.RUNNING);
+        stubReferenceSheet("2");
+
+        normalizationService.validateProfile(USER_ID);
+
+        verify(normalizedProfileRepository, never()).save(org.mockito.ArgumentMatchers.any());
+        verify(normalizationJobRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void validationSansChangementAvecFicheAJourEstIgnoree() {
+        stubCleanCandidateWithLatestJob(NormalizationJobStatus.DONE);
+        stubReferenceSheet("3");
+
+        normalizationService.validateProfile(USER_ID);
+
+        verify(normalizedProfileRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    private void stubReferenceSheet(String schemaVersion) {
+        when(normalizedProfileRepository.findLatestWithContentByCandidateId(
+                org.mockito.ArgumentMatchers.eq(USER_ID), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(NormalizedProfile.builder().id(UUID.randomUUID()).version(1)
+                        .schemaVersion(schemaVersion).content("{}").build()));
+    }
+
     private void stubLockedDirtyCandidate(Candidate candidate) {
         when(candidateRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(candidate));
         when(normalizedProfileRepository.findMaxValidatedAtByCandidateId(USER_ID)).thenReturn(null);

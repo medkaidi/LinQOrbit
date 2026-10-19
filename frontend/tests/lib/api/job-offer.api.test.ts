@@ -1,15 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { listJobOffers, toJobOfferPayload } from "@/lib/api/job-offer.api";
+import { listJobOffers, revalidateJobOffer, toJobOfferPayload } from "@/lib/api/job-offer.api";
 import type { JobOfferValues } from "@/lib/validations/job-offer.schemas";
 
 vi.mock("@/lib/api/axios", () => ({
-  api: { get: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn() },
 }));
 
 import { api } from "@/lib/api/axios";
 
 const mockedGet = vi.mocked(api.get);
+const mockedPost = vi.mocked(api.post);
 
 const COMPANY_ID = "33333333-3333-4333-8333-333333333333";
 
@@ -203,5 +204,16 @@ describe("listJobOffers", () => {
       params: { page: 2 },
       signal: undefined,
     });
+  });
+});
+
+describe("revalidateJobOffer", () => {
+  it("posts to the dedicated revalidate endpoint, never to validate", async () => {
+    mockedPost.mockResolvedValue({ data: undefined });
+
+    await revalidateJobOffer("o1");
+
+    expect(mockedPost).toHaveBeenCalledTimes(1);
+    expect(mockedPost).toHaveBeenCalledWith("/api/v1/job-offers/o1/revalidate");
   });
 });

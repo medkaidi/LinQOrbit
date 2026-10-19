@@ -19,6 +19,7 @@ import {
   listJobOffers,
   listWorkModes,
   publishJobOffer,
+  revalidateJobOffer,
   updateJobOffer,
   validateJobOffer,
 } from "@/lib/api/job-offer.api";
@@ -116,10 +117,13 @@ export function useJobOfferTransition() {
       action,
     }: {
       offerId: string;
-      action: "validate" | "publish" | "close";
+      action: "validate" | "revalidate" | "publish" | "close";
     }) => {
       if (action === "validate") {
         return validateJobOffer(offerId);
+      }
+      if (action === "revalidate") {
+        return revalidateJobOffer(offerId);
       }
       if (action === "publish") {
         return publishJobOffer(offerId);

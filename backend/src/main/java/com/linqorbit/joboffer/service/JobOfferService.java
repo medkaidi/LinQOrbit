@@ -491,6 +491,27 @@ public class JobOfferService {
         jobOfferNormalizationService.onValidated(offerId);
     }
 
+    /**
+     * Rafraîchissement de l'analyse d'une offre PUBLISHED (D63) : ce n'est
+     * pas une édition de contenu (D13 — PUBLISHED reste en lecture seule).
+     * Le cycle de vie est intact : ni {@code status}, ni {@code publishedAt},
+     * ni {@code validatedAt}, ni {@code updatedAt} ne bougent. Même verrou et
+     * mêmes droits que {@code validate} ; la normalisation passe par
+     * {@code onValidated} (même transaction, verrou déjà détenu, réentrant),
+     * qui reste un no-op si la fiche est à jour ou déjà en cours d'analyse.
+     */
+    @Transactional
+    public void revalidate(UUID userId, UUID offerId) {
+        JobOffer offer = loadForManagementForUpdate(offerId, userId);
+        if (offer.getStatus() != JobOfferStatus.PUBLISHED) {
+            log.warn("Job offer revalidation rejected : offerId={}, status={}",
+                    offerId, offer.getStatus().getApiValue());
+            throw new InvalidJobOfferStatusException(offer.getStatus(), "revalidate");
+        }
+        jobOfferNormalizationService.onValidated(offerId);
+        log.info("Job offer analysis refresh requested : offerId={}, recruiterId={}", offerId, userId);
+    }
+
     @Transactional
     public void publish(UUID userId, UUID offerId) {
         transition(userId, offerId, "publish",
@@ -891,6 +912,7 @@ public class JobOfferService {
         List<UUID> offerIds = offers.stream().map(JobOffer::getId).toList();
         Set<UUID> withSkills = new LinkedHashSet<>(jobOfferSkillRepository.findOfferIdsWithSkills(offerIds));
         Map<UUID, NormalizationJobStatus> latestStatuses = latestJobStatuses(offerIds);
+        Set<UUID> outdated = jobOfferNormalizationService.findOutdatedOfferIds(offerIds);
 
         return offers.stream()
                 .map(offer -> new JobOfferListItem(
@@ -918,6 +940,7 @@ public class JobOfferService {
                                  && offer.getUpdatedAt().isAfter(offer.getValidatedAt()),
                         isInProgress(latestStatuses.get(offer.getId())),
                         latestStatuses.get(offer.getId()) == NormalizationJobStatus.FAILED,
+                        outdated.contains(offer.getId()),
                         offer.getDescription() != null
                                 && offer.getCountry() != null
                                 && offer.getEmploymentTypeId() != null
@@ -957,6 +980,7 @@ public class JobOfferService {
         Map<UUID, List<JobOfferQuestionOption>> optionsByQuestion = groupBy(questionOptions,
                 JobOfferQuestionOption::getQuestionId);
         Map<UUID, NormalizationJobStatus> latestStatuses = latestJobStatuses(offerIds);
+        Set<UUID> outdated = jobOfferNormalizationService.findOutdatedOfferIds(offerIds);
 
         return offers.stream()
                 .map(offer -> new JobOfferResponse(
@@ -993,6 +1017,7 @@ public class JobOfferService {
                                  && offer.getUpdatedAt().isAfter(offer.getValidatedAt()),
                          isInProgress(latestStatuses.get(offer.getId())),
                          latestStatuses.get(offer.getId()) == NormalizationJobStatus.FAILED,
+                         outdated.contains(offer.getId()),
                         skillsByOffer.getOrDefault(offer.getId(), List.of()).stream()
                                 .map(skill -> new JobOfferSkillOption(
                                         skill.getSkillId(),

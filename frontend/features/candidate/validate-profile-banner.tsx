@@ -16,13 +16,54 @@ const FAILED_MESSAGE =
   "We could not finish analyzing your profile. You can try again.";
 const ANALYZING_MESSAGE =
   "Your profile is being analyzed in the background. This can take a few seconds.";
+const OUTDATED_MESSAGE =
+  "Your profile analysis was made with an earlier version of our analysis. Validate again to refresh it and keep job matching available.";
+
+/** État affiché par le bandeau quand une action de validation est proposée. */
+type PendingState = "failed" | "outdated" | "dirty";
+
+const PENDING_CONTENT: Record<
+  PendingState,
+  { variant: "error" | "info"; title: string; message: string; action: string }
+> = {
+  failed: {
+    variant: "error",
+    title: "Last validation attempt failed",
+    message: FAILED_MESSAGE,
+    action: "Validate again",
+  },
+  outdated: {
+    variant: "info",
+    title: "Profile analysis outdated",
+    message: OUTDATED_MESSAGE,
+    action: "Validate again",
+  },
+  dirty: {
+    variant: "info",
+    title: "Profile changes pending",
+    message: DIRTY_MESSAGE,
+    action: "Validate profile",
+  },
+};
+
+function pendingState(profile: CandidateProfile): PendingState | null {
+  if (profile.normalizationFailed) {
+    return "failed";
+  }
+  if (profile.analysisOutdated) {
+    return "outdated";
+  }
+  return profile.hasUnvalidatedChanges ? "dirty" : null;
+}
 
 /**
  * Bandeau « profil à valider » : affiché tant que le profil change depuis la
  * dernière normalisation, si la dernière tentative a échoué (message
- * générique — le détail reste dans les logs backend/IA), ou si une analyse
- * est en cours (signal GET, survit à la navigation). Priorité : confirmation
- * temporaire 4 s > analyse en cours > échec > changements en attente.
+ * générique — le détail reste dans les logs backend/IA), si la fiche de
+ * référence est sur une version de schéma périmée (D63, « Validate again »
+ * même sans modification), ou si une analyse est en cours (signal GET,
+ * survit à la navigation). Priorité : confirmation temporaire 4 s > analyse
+ * en cours > échec > analyse obsolète > changements en attente.
  */
 export function ValidateProfileBanner({ profile }: { profile: CandidateProfile }) {
   const validate = useValidateProfile();
@@ -57,11 +98,13 @@ export function ValidateProfileBanner({ profile }: { profile: CandidateProfile }
     );
   }
 
-  const failed = profile.normalizationFailed;
+  const state = pendingState(profile);
 
-  if (!failed && !profile.hasUnvalidatedChanges) {
+  if (state === null) {
     return null;
   }
+
+  const content = PENDING_CONTENT[state];
 
   return (
     <>
@@ -71,19 +114,19 @@ export function ValidateProfileBanner({ profile }: { profile: CandidateProfile }
         </Alert>
       ) : null}
       <Alert
-        variant={failed ? "error" : "info"}
-        title={failed ? "Last validation attempt failed" : "Profile changes pending"}
+        variant={content.variant}
+        title={content.title}
         action={
           <CtaButton
             icon="task_alt"
             busy={validate.isPending}
             onClick={onValidate}
           >
-            {failed ? "Validate again" : "Validate profile"}
+            {content.action}
           </CtaButton>
         }
       >
-        {failed ? FAILED_MESSAGE : DIRTY_MESSAGE}
+        {content.message}
       </Alert>
     </>
   );

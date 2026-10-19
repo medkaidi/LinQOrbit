@@ -15,6 +15,7 @@ import com.linqorbit.candidate.entity.NormalizationJobStatus;
 import com.linqorbit.candidate.entity.NormalizationSourceType;
 import com.linqorbit.candidate.entity.NormalizedProfile;
 import com.linqorbit.candidate.entity.NormalizedProfileCandidate;
+import com.linqorbit.candidate.entity.NormalizedProfileSchemaVersions;
 import com.linqorbit.candidate.exception.EmptyProfileException;
 import com.linqorbit.candidate.repository.CandidateRepository;
 import com.linqorbit.candidate.repository.NormalizationJobRepository;
@@ -44,9 +45,6 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 public class NormalizationService {
-
-    /** Version du format canonique produit (miroir de schema_version / schemaVersion). */
-    static final String SCHEMA_VERSION = "3";
 
     private final CandidateRepository candidateRepository;
     private final NormalizedProfileRepository normalizedProfileRepository;
@@ -82,14 +80,28 @@ public class NormalizationService {
      * vient de la base, il survit donc à la navigation de l'utilisateur.
      */
     public boolean hasInProgressLatestJob(UUID candidateId) {
-        NormalizationJobStatus status = latestJobStatus(candidateId);
-        return status == NormalizationJobStatus.PENDING || status == NormalizationJobStatus.RUNNING;
+        return isInProgress(latestJobStatus(candidateId));
     }
 
     /**
-     * Validation explicite du profil : no-op si rien n'a changé depuis la
-     * dernière validation (double-clic, re-POST), sauf pour relancer une
-     * analyse passée en FAILED. Le lock pessimiste de la ligne candidat
+     * Analyse obsolète (D63) : la fiche de référence — dernière version AVEC
+     * contenu — porte un {@code schema_version} différent de la version
+     * candidat attendue. {@code false} sans aucune fiche (rien à rafraîchir) ;
+     * une analyse en cours ne remplace pas la référence.
+     */
+    public boolean isAnalysisOutdated(UUID candidateId) {
+        return normalizedProfileRepository
+                .findLatestWithContentByCandidateId(candidateId, PageRequest.of(0, 1)).stream()
+                .findFirst()
+                .map(sheet -> !NormalizedProfileSchemaVersions.CANDIDATE.equals(sheet.getSchemaVersion()))
+                .orElse(false);
+    }
+
+    /**
+     * Validation explicite du profil, autorisée si {@code dirty || analysisOutdated
+     * || failed} (D63) : no-op sinon (double-clic, re-POST). Une fiche
+     * obsolète ne relance pas une analyse déjà en cours (PENDING/RUNNING) —
+     * le double-clic reste un no-op. Le lock pessimiste de la ligne candidat
      * sérialise les validations concurrentes d'un même candidat — le
      * double-clic attend la commit puis tombe sur le no-op.
      */
@@ -99,7 +111,9 @@ public class NormalizationService {
                 .orElseThrow(EmptyProfileException::new);
         boolean dirty = hasUnvalidatedChanges(candidate);
         NormalizationJobStatus latestStatus = latestJobStatus(userId);
-        if (!dirty && latestStatus != NormalizationJobStatus.FAILED) {
+        boolean failed = latestStatus == NormalizationJobStatus.FAILED;
+        boolean outdated = !isInProgress(latestStatus) && isAnalysisOutdated(userId);
+        if (!dirty && !outdated && !failed) {
             log.info("Candidate profile validation skipped : no change since last validation,"
                     + " userId={}, latestStatus={}", userId, latestStatus);
             return;
@@ -115,7 +129,7 @@ public class NormalizationService {
         normalizedProfileRepository.save(NormalizedProfile.builder()
                 .id(profileId)
                 .version(version)
-                .schemaVersion(SCHEMA_VERSION)
+                .schemaVersion(NormalizedProfileSchemaVersions.CANDIDATE)
                 .validatedAt(now)
                 .createdAt(now)
                 .updatedAt(now)
@@ -133,9 +147,14 @@ public class NormalizationService {
                 .createdAt(now)
                 .build());
 
-        log.info("Candidate profile validation registered : userId={}, version={}, supersededPending={}, jobId={}",
-                userId, version, superseded, profileId);
+        log.info("Candidate profile validation registered : userId={}, version={}, dirty={}, outdated={},"
+                + " failed={}, supersededPending={}, jobId={}",
+                userId, version, dirty, outdated, failed, superseded, profileId);
         eventPublisher.publishEvent(new ProfileValidatedEvent(profileId));
+    }
+
+    private static boolean isInProgress(NormalizationJobStatus status) {
+        return status == NormalizationJobStatus.PENDING || status == NormalizationJobStatus.RUNNING;
     }
 
     /** État du job de la dernière version du candidat, ou {@code null} si aucune validation. */

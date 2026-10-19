@@ -81,7 +81,7 @@ class CandidateControllerTest {
         UUID userId = UUID.randomUUID();
         when(candidateService.getProfile(userId)).thenReturn(new CandidateProfileResponse(
                 new AboutResponse("Full-stack Developer", "Staff Engineer", "Passionné de web", 5, "open_to_work"),
-                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), 14, false, false, false));
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), 14, false, false, false, false));
 
         mockMvc.perform(get(PROFILE_PATH)
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))

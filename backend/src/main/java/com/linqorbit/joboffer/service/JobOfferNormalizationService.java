@@ -1,7 +1,9 @@
 package com.linqorbit.joboffer.service;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -13,9 +15,11 @@ import com.linqorbit.candidate.entity.NormalizationJob;
 import com.linqorbit.candidate.entity.NormalizationJobStatus;
 import com.linqorbit.candidate.entity.NormalizationSourceType;
 import com.linqorbit.candidate.entity.NormalizedProfile;
+import com.linqorbit.candidate.entity.NormalizedProfileSchemaVersions;
 import com.linqorbit.candidate.repository.NormalizationJobRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.joboffer.entity.JobOffer;
+import com.linqorbit.joboffer.entity.JobOfferStatus;
 import com.linqorbit.joboffer.entity.NormalizedProfileJobOffer;
 import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
@@ -43,9 +47,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class JobOfferNormalizationService {
 
-    /** Version du format canonique offre (miroir de schema_version / schemaVersion). */
-    static final String SCHEMA_VERSION = "2";
-
     private final JobOfferRepository jobOfferRepository;
     private final NormalizedProfileRepository normalizedProfileRepository;
     private final NormalizedProfileJobOfferRepository normalizedProfileJobOfferRepository;
@@ -66,10 +67,32 @@ public class JobOfferNormalizationService {
     }
 
     /**
-     * Validation explicite de l'offre : no-op si rien n'a changé depuis la
-     * dernière validation (double-clic, re-POST), sauf relance d'un job
-     * FAILED. Le lock pessimiste de la ligne offre sérialise les validations
-     * concurrentes d'une même offre. Miroir strict du candidat
+     * Offres dont l'analyse est obsolète (D63) : la fiche de référence —
+     * dernière version AVEC contenu — porte un {@code schema_version}
+     * différent de la version offre attendue. Une offre sans fiche n'y figure
+     * jamais. Une seule requête pour toute une liste.
+     */
+    public Set<UUID> findOutdatedOfferIds(List<UUID> offerIds) {
+        Set<UUID> outdated = new HashSet<>();
+        if (offerIds.isEmpty()) {
+            return outdated;
+        }
+        for (Object[] row : normalizedProfileJobOfferRepository.findCurrentSheetSchemaVersions(offerIds)) {
+            if (!NormalizedProfileSchemaVersions.OFFER.equals(row[1])) {
+                outdated.add((UUID) row[0]);
+            }
+        }
+        return outdated;
+    }
+
+    /**
+     * Validation explicite de l'offre, autorisée si {@code dirty ||
+     * analysisOutdated || failed} (D63) : no-op sinon (double-clic, re-POST).
+     * Appelée par {@code validate} (DRAFT/VALIDATED) et par {@code revalidate}
+     * (PUBLISHED, rafraîchissement sans changement de cycle de vie) ; le
+     * dirty-flag ne compte que sur un statut éditable. Une fiche obsolète ne
+     * relance pas une analyse déjà en cours (PENDING/RUNNING). Le lock pessimiste de la ligne offre sérialise les
+     * validations concurrentes d'une même offre. Miroir strict du candidat
      * ({@code NormalizationService.validateProfile}) : une édition pendant
      * une analyse en vol crée la version suivante (les PENDING sont
      * supersédés, un RUNNING antérieur termine sur sa propre version).
@@ -79,7 +102,16 @@ public class JobOfferNormalizationService {
         JobOffer offer = jobOfferRepository.findByIdForUpdate(offerId)
                 .orElseThrow(() -> new JobOfferNotFoundException(offerId));
         NormalizationJobStatus latestStatus = latestJobStatus(offerId);
-        if (!hasUnvalidatedChanges(offer) && latestStatus != NormalizationJobStatus.FAILED) {
+        // D13 : le dirty-flag n'a de sens que sur un statut éditable — publish
+        // pose updatedAt après validatedAt, une offre PUBLISHED (revalidate)
+        // serait sinon toujours « sale ». Miroir du signal exposé par l'API.
+        boolean dirty = (offer.getStatus() == JobOfferStatus.DRAFT || offer.getStatus() == JobOfferStatus.VALIDATED)
+                && hasUnvalidatedChanges(offer);
+        boolean failed = latestStatus == NormalizationJobStatus.FAILED;
+        boolean outdated = latestStatus != NormalizationJobStatus.PENDING
+                && latestStatus != NormalizationJobStatus.RUNNING
+                && findOutdatedOfferIds(List.of(offerId)).contains(offerId);
+        if (!dirty && !outdated && !failed) {
             log.info("Job offer normalization skipped : no change since last validation,"
                     + " offerId={}, latestStatus={}", offerId, latestStatus);
             return;
@@ -95,7 +127,7 @@ public class JobOfferNormalizationService {
         normalizedProfileRepository.save(NormalizedProfile.builder()
                 .id(profileId)
                 .version(version)
-                .schemaVersion(SCHEMA_VERSION)
+                .schemaVersion(NormalizedProfileSchemaVersions.OFFER)
                 .validatedAt(now)
                 .createdAt(now)
                 .updatedAt(now)
@@ -113,8 +145,9 @@ public class JobOfferNormalizationService {
                 .createdAt(now)
                 .build());
 
-        log.info("Job offer normalization registered : offerId={}, version={}, supersededPending={}, jobId={}",
-                offerId, version, superseded, profileId);
+        log.info("Job offer normalization registered : offerId={}, version={}, dirty={}, outdated={}, failed={},"
+                + " supersededPending={}, jobId={}",
+                offerId, version, dirty, outdated, failed, superseded, profileId);
         eventPublisher.publishEvent(new JobOfferValidatedEvent(profileId));
     }
 

@@ -122,11 +122,12 @@ public class CandidateService {
         boolean hasUnvalidatedChanges = normalizationService.hasUnvalidatedChanges(candidate);
         boolean normalizationFailed = normalizationService.hasFailedLatestJob(userId);
         boolean normalizationInProgress = normalizationService.hasInProgressLatestJob(userId);
+        boolean analysisOutdated = normalizationService.isAnalysisOutdated(userId);
         log.info("Candidate profile read succeeded : userId={}, completion={}%, normalizationFailed={},"
-                        + " normalizationInProgress={}",
-                userId, completion, normalizationFailed, normalizationInProgress);
+                        + " normalizationInProgress={}, analysisOutdated={}",
+                userId, completion, normalizationFailed, normalizationInProgress, analysisOutdated);
         return new CandidateProfileResponse(about, experiences, projects, diplomas, skills, languages, links,
-                completion, hasUnvalidatedChanges, normalizationFailed, normalizationInProgress);
+                completion, hasUnvalidatedChanges, normalizationFailed, normalizationInProgress, analysisOutdated);
     }
 
     @Transactional
@@ -428,7 +429,7 @@ public class CandidateService {
         return new CandidateProfileResponse(
                 new AboutResponse(null, null, null, null, null),
                 List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-                0, false, false, false);
+                0, false, false, false, false);
     }
 
     private int computeCompletion(AboutResponse about, List<ExperienceResponse> experiences,

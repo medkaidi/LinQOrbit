@@ -100,6 +100,7 @@ const filledProfile: CandidateProfile = {
   hasUnvalidatedChanges: false,
   normalizationFailed: false,
   normalizationInProgress: false,
+  analysisOutdated: false,
 };
 
 const emptyProfile: CandidateProfile = {
@@ -114,6 +115,7 @@ const emptyProfile: CandidateProfile = {
   hasUnvalidatedChanges: false,
   normalizationFailed: false,
   normalizationInProgress: false,
+  analysisOutdated: false,
 };
 
 const accountUser: AuthUser = {

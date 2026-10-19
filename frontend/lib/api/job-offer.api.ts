@@ -165,6 +165,14 @@ export async function validateJobOffer(offerId: string): Promise<void> {
   await api.post(`/api/v1/job-offers/${offerId}/validate`);
 }
 
+/**
+ * Rafraîchit l'analyse d'une offre PUBLISHED (D63) sans changer son cycle de vie :
+ * no-op serveur si la fiche est à jour ou déjà en cours d'analyse.
+ */
+export async function revalidateJobOffer(offerId: string): Promise<void> {
+  await api.post(`/api/v1/job-offers/${offerId}/revalidate`);
+}
+
 export async function publishJobOffer(offerId: string): Promise<void> {
   await api.post(`/api/v1/job-offers/${offerId}/publish`);
 }

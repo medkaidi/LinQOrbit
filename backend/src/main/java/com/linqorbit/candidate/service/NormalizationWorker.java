@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
@@ -29,6 +30,8 @@ import com.linqorbit.candidate.dto.ProfileLocation;
 import com.linqorbit.candidate.entity.NormalizationJob;
 import com.linqorbit.candidate.entity.NormalizationJobStatus;
 import com.linqorbit.candidate.entity.NormalizationSourceType;
+import com.linqorbit.candidate.entity.NormalizedProfile;
+import com.linqorbit.candidate.entity.NormalizedProfileSchemaVersions;
 import com.linqorbit.candidate.exception.AiServiceException;
 import com.linqorbit.candidate.repository.NormalizationJobRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileCandidateRepository;
@@ -46,6 +49,9 @@ import com.linqorbit.user.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Exécution asynchrone des jobs de normalisation, <b>déclenchée uniquement par
@@ -65,6 +71,12 @@ import lombok.extern.slf4j.Slf4j;
  * claim, il branche sur {@code source_type} (snapshot et client IA dédiés
  * par source). Claim, retries, recovery et écriture DONE sont partagés —
  * seule la construction du snapshot et l'appel IA diffèrent.</p>
+ *
+ * <p>Garde de version (D63) : la ligne {@code normalized_profile} doit porter
+ * la version courante de sa source avant l'appel IA, et le JSON IA doit
+ * annoncer cette même version avant toute écriture de {@code content} —
+ * sinon échec courant (retry puis {@code FAILED}), jamais une ligne
+ * incohérente.</p>
  *
  * <p>Timeouts : le read timeout du client IA libère le thread de l'exécution ;
  * il n'annule pas le calcul côté FastAPI/LLM (réponse tardive perdue sur la
@@ -100,6 +112,7 @@ public class NormalizationWorker {
     private final JobOfferRepository jobOfferRepository;
     private final JobOfferNormalizeSnapshotBuilder jobOfferNormalizeSnapshotBuilder;
     private final JobOfferNormalizeClient jobOfferNormalizeClient;
+    private final ObjectMapper objectMapper;
     @Value("${app.normalization.retry-delay-seconds}")
     private final int retryDelaySeconds;
 
@@ -241,6 +254,7 @@ public class NormalizationWorker {
 
     /** Appel IA hors tx ; écriture du contenu + DONE en une tx courte. */
     private void executeCandidate(NormalizationJob job) {
+        String expectedVersion = requireRowOnCurrentSchema(job);
         UUID candidateId = normalizedProfileCandidateRepository
                 .findCandidateIdByNormalizedProfileId(job.getId())
                 .orElseThrow(() -> new IllegalStateException("Job without candidate link"));
@@ -250,6 +264,7 @@ public class NormalizationWorker {
                 .orElseGet(() -> new ProfileLocation(null, null));
         ParseContext context = referenceContextBuilder.build();
         String canonical = profileNormalizeClient.normalize(new NormalizeRequest(profile, location, context));
+        requireSchemaVersion(canonical, expectedVersion);
         LocalDateTime now = LocalDateTime.now();
         transactionTemplate.executeWithoutResult(txStatus -> {
             normalizedProfileRepository.setContent(job.getId(), canonical, now);
@@ -265,6 +280,7 @@ public class NormalizationWorker {
      * écriture du contenu + DONE en une tx (même machine que le candidat).
      */
     private void executeOffer(NormalizationJob job) {
+        String expectedVersion = requireRowOnCurrentSchema(job);
         UUID offerId = normalizedProfileJobOfferRepository
                 .findOfferIdByNormalizedProfileId(job.getId())
                 .orElseThrow(() -> new IllegalStateException("Job without offer link"));
@@ -274,6 +290,7 @@ public class NormalizationWorker {
         ParseContext context = referenceContextBuilder.buildForOffer();
         String canonical = jobOfferNormalizeClient
                 .normalize(new OfferNormalizeRequest(snapshot, context));
+        requireSchemaVersion(canonical, expectedVersion);
         LocalDateTime now = LocalDateTime.now();
         transactionTemplate.executeWithoutResult(txStatus -> {
             normalizedProfileRepository.setContent(job.getId(), canonical, now);
@@ -281,6 +298,46 @@ public class NormalizationWorker {
                     NormalizationJobStatus.RUNNING, NormalizationJobStatus.DONE, now);
         });
         log.info("Offer normalization done : jobId={}, offerId={}", job.getId(), offerId);
+    }
+
+    /**
+     * La ligne {@code normalized_profile} garde la version posée à sa
+     * validation (immuable) : un job validé sous une autre version (montée de
+     * version pendant qu'il attendait, reprise au boot) n'écrit jamais un
+     * contenu au format courant dans une ligne qui en annonce un autre —
+     * échec avant tout appel IA. Retourne la version attendue de la source.
+     */
+    private String requireRowOnCurrentSchema(NormalizationJob job) {
+        String expected = NormalizedProfileSchemaVersions.of(job.getSourceType());
+        String rowVersion = normalizedProfileRepository.findById(job.getId())
+                .map(NormalizedProfile::getSchemaVersion)
+                .orElseThrow(() -> new IllegalStateException("Job without normalized profile"));
+        if (!expected.equals(rowVersion)) {
+            throw new IllegalStateException("Normalized profile validated on schema " + rowVersion
+                    + ", current is " + expected);
+        }
+        return expected;
+    }
+
+    /**
+     * Garde D63 : le JSON IA doit annoncer la version attendue de sa source
+     * AVANT toute écriture de {@code content}. Version absente, différente ou
+     * JSON illisible → échec courant (retry puis {@code FAILED}).
+     */
+    private void requireSchemaVersion(String canonical, String expected) {
+        String actual = null;
+        if (canonical != null) {
+            try {
+                JsonNode version = objectMapper.readTree(canonical).path("schemaVersion");
+                actual = version.isString() ? version.asString() : null;
+            } catch (JacksonException ex) {
+                actual = null;
+            }
+        }
+        if (!expected.equals(actual)) {
+            throw new AiServiceException(HttpStatus.BAD_GATEWAY,
+                    "The AI service returned schemaVersion " + actual + ", expected " + expected + ".");
+        }
     }
 
     /**

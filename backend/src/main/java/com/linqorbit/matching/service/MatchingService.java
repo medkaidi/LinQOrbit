@@ -27,6 +27,7 @@ import com.linqorbit.application.entity.ApplicationStatus;
 import com.linqorbit.application.service.ApplicationService;
 import com.linqorbit.application.service.ApplicationService.CoupleApplication;
 import com.linqorbit.candidate.entity.NormalizedProfile;
+import com.linqorbit.candidate.entity.NormalizedProfileSchemaVersions;
 import com.linqorbit.candidate.repository.CandidateRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.joboffer.entity.JobOffer;
@@ -76,11 +77,6 @@ import com.linqorbit.matching.repository.MatchingResultRepository;
 @RequiredArgsConstructor
 public class MatchingService {
 
-    /** Schéma courant de la fiche candidat (D36) — une fiche plus ancienne se revalide. */
-    static final String CANDIDATE_SCHEMA_VERSION = "3";
-    /** Schéma courant de la fiche offre (D35). */
-    static final String OFFER_SCHEMA_VERSION = "2";
-
     static final String REQUIRED_FIRST = "Answer the recruiter's required questions before running the match.";
     static final String CLOSED = "The match is closed once your application is submitted.";
     static final String PROFILE_MISSING = "Validate your profile before running the match.";
@@ -118,12 +114,12 @@ public class MatchingService {
         requireOpenAccess(userId, offer.getId(), true);
         NormalizedProfile candidateSheet = currentCandidateSheet(userId)
                 .orElseThrow(() -> refused(userId, offer, "candidate sheet missing", PROFILE_MISSING));
-        if (!CANDIDATE_SCHEMA_VERSION.equals(candidateSheet.getSchemaVersion())) {
+        if (!NormalizedProfileSchemaVersions.CANDIDATE.equals(candidateSheet.getSchemaVersion())) {
             throw refused(userId, offer, "candidate sheet schema " + candidateSheet.getSchemaVersion(),
                     PROFILE_OUTDATED);
         }
         NormalizedProfile offerSheet = currentOfferSheet(offer.getId())
-                .filter(sheet -> OFFER_SCHEMA_VERSION.equals(sheet.getSchemaVersion()))
+                .filter(sheet -> NormalizedProfileSchemaVersions.OFFER.equals(sheet.getSchemaVersion()))
                 .orElseThrow(() -> refused(userId, offer, "offer sheet missing or outdated", OFFER_NOT_READY));
 
         // TD-053 : verrou de la ligne candidat — deux premiers lancements simultanés ne créent qu'un matching.
@@ -246,7 +242,7 @@ public class MatchingService {
         }
         requireNoAnalysisRunning(locked, userId);
         NormalizedProfile offerSheet = currentOfferSheet(current.offer().getId())
-                .filter(sheet -> OFFER_SCHEMA_VERSION.equals(sheet.getSchemaVersion()))
+                .filter(sheet -> NormalizedProfileSchemaVersions.OFFER.equals(sheet.getSchemaVersion()))
                 .orElseThrow(() -> refused(userId, current.offer(), "offer sheet missing or outdated",
                         OFFER_NOT_READY));
 

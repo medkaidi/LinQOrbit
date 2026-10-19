@@ -80,6 +80,11 @@ export type CandidateProfile = {
   normalizationFailed: boolean;
   /** True si le job de normalisation le plus récent est en attente ou en cours d'exécution. */
   normalizationInProgress: boolean;
+  /**
+   * True si la fiche de référence (dernière analyse avec contenu) a été produite sous une
+   * version de schéma périmée (D63) : revalidation proposée même sans modification.
+   */
+  analysisOutdated: boolean;
 };
 
 /** Pièce jointe du candidat (CV) renvoyée par /api/v1/candidates/me/attachments. */

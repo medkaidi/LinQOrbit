@@ -204,4 +204,122 @@ class JobOfferNormalizationServiceTest {
 
         assertThat(service.hasUnvalidatedChanges(offer(LocalDateTime.now()))).isTrue();
     }
+
+    // --- D63 : analyse obsolète ---------------------------------------------
+
+    @Test
+    void findOutdatedOfferIdsCompareChaqueFicheALaVersionOffreSeulement() {
+        UUID current = UUID.randomUUID();
+        UUID outdated = UUID.randomUUID();
+        UUID candidateVersion = UUID.randomUUID();
+        when(normalizedProfileJobOfferRepository.findCurrentSheetSchemaVersions(any())).thenReturn(List.of(
+                new Object[] {current, "2"},
+                new Object[] {outdated, "1"},
+                // "3" est la version candidat : jamais une version offre valable.
+                new Object[] {candidateVersion, "3"}));
+
+        assertThat(service.findOutdatedOfferIds(List.of(current, outdated, candidateVersion, UUID.randomUUID())))
+                .containsExactlyInAnyOrder(outdated, candidateVersion);
+    }
+
+    @Test
+    void findOutdatedOfferIdsNInterrogePasLaBaseSansOffre() {
+        assertThat(service.findOutdatedOfferIds(List.of())).isEmpty();
+
+        verify(normalizedProfileJobOfferRepository, never()).findCurrentSheetSchemaVersions(any());
+    }
+
+    @Test
+    void onValidatedRelanceUneFicheObsoleteSansChangement() {
+        stubCleanOfferWithLatestJob(NormalizationJobStatus.DONE);
+        stubReferenceSheet("1");
+
+        service.onValidated(OFFER_ID);
+
+        org.mockito.ArgumentCaptor<NormalizedProfile> captor = org.mockito.ArgumentCaptor.forClass(NormalizedProfile.class);
+        verify(normalizedProfileRepository).save(captor.capture());
+        assertThat(captor.getValue().getSchemaVersion()).isEqualTo("2");
+        verify(eventPublisher).publishEvent(any(JobOfferValidatedEvent.class));
+    }
+
+    @Test
+    void onValidatedEstNoOpPourUneFicheObsoleteDejaEnCoursDAnalyse() {
+        stubCleanOfferWithLatestJob(NormalizationJobStatus.PENDING);
+        stubReferenceSheet("1");
+
+        service.onValidated(OFFER_ID);
+
+        verify(normalizedProfileRepository, never()).save(any());
+        verify(normalizedProfileJobOfferRepository, never()).findCurrentSheetSchemaVersions(any());
+    }
+
+    @Test
+    void onValidatedEstNoOpPourUneFicheAJourSansChangement() {
+        stubCleanOfferWithLatestJob(NormalizationJobStatus.DONE);
+        stubReferenceSheet("2");
+
+        service.onValidated(OFFER_ID);
+
+        verify(normalizedProfileRepository, never()).save(any());
+    }
+
+    @Test
+    void onValidatedIgnoreLeDirtyFlagDUneOffrePublieeAJour() {
+        // publish pose updatedAt après validatedAt : sans la règle D13, une offre
+        // PUBLISHED serait toujours « sale » et chaque revalidate créerait une version.
+        stubCleanOfferWithLatestJob(NormalizationJobStatus.DONE);
+        LocalDateTime validatedAt = LocalDateTime.now().minusHours(1);
+        JobOffer published = offer(validatedAt.plusMinutes(10));
+        published.setStatus(JobOfferStatus.PUBLISHED);
+        when(jobOfferRepository.findByIdForUpdate(OFFER_ID)).thenReturn(Optional.of(published));
+        stubReferenceSheet("2");
+
+        service.onValidated(OFFER_ID);
+
+        verify(normalizedProfileRepository, never()).save(any());
+    }
+
+    @Test
+    void onValidatedRelanceUneOffrePublieeObsolete() {
+        stubCleanOfferWithLatestJob(NormalizationJobStatus.DONE);
+        JobOffer published = offer(LocalDateTime.now());
+        published.setStatus(JobOfferStatus.PUBLISHED);
+        when(jobOfferRepository.findByIdForUpdate(OFFER_ID)).thenReturn(Optional.of(published));
+        stubReferenceSheet("1");
+
+        service.onValidated(OFFER_ID);
+
+        verify(normalizedProfileRepository).save(any());
+        assertThat(published.getStatus()).isEqualTo(JobOfferStatus.PUBLISHED);
+    }
+
+    @Test
+    void onValidatedRelanceUneOffrePublieeEnEchec() {
+        stubCleanOfferWithLatestJob(NormalizationJobStatus.FAILED);
+        JobOffer published = offer(LocalDateTime.now());
+        published.setStatus(JobOfferStatus.PUBLISHED);
+        when(jobOfferRepository.findByIdForUpdate(OFFER_ID)).thenReturn(Optional.of(published));
+        stubReferenceSheet("2");
+
+        service.onValidated(OFFER_ID);
+
+        verify(normalizedProfileRepository).save(any());
+    }
+
+    private void stubCleanOfferWithLatestJob(NormalizationJobStatus status) {
+        LocalDateTime validatedAt = LocalDateTime.now().minusHours(1);
+        stubOffer(validatedAt.minusMinutes(5));
+        UUID latestId = UUID.randomUUID();
+        when(normalizedProfileJobOfferRepository.findMaxValidatedAtByOfferId(OFFER_ID)).thenReturn(validatedAt);
+        when(normalizedProfileJobOfferRepository.findLatestByOfferId(any(), any(PageRequest.class)))
+                .thenReturn(List.of(NormalizedProfile.builder().id(latestId).version(1).build()));
+        when(normalizationJobRepository.findById(latestId)).thenReturn(Optional.of(
+                NormalizationJob.builder().id(latestId).status(status)
+                        .sourceType(NormalizationSourceType.OFFER).build()));
+    }
+
+    private void stubReferenceSheet(String schemaVersion) {
+        when(normalizedProfileJobOfferRepository.findCurrentSheetSchemaVersions(List.of(OFFER_ID)))
+                .thenReturn(List.<Object[]>of(new Object[] {OFFER_ID, schemaVersion}));
+    }
 }

@@ -305,7 +305,7 @@ class AdminControllerTest {
         when(adminService.getCandidateProfile(userId)).thenReturn(new CandidateProfileResponse(
                 null, java.util.List.of(), java.util.List.of(), java.util.List.of(),
                 java.util.List.of(), java.util.List.of(), java.util.List.of(),
-                60, true, false, false));
+                60, true, false, false, false));
 
         mockMvc.perform(get("/api/v1/admin/users/{userId}/profile", userId).with(adminJwt()))
                 .andExpect(status().isOk())

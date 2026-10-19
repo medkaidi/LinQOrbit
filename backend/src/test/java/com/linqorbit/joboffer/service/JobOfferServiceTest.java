@@ -121,6 +121,7 @@ class JobOfferServiceTest {
     private EmploymentTypeRepository employmentTypeRepository;
     private WorkModeRepository workModeRepository;
     private JobOfferService jobOfferService;
+    private JobOfferNormalizationService jobOfferNormalizationService;
 
     @BeforeEach
     void setUp() {
@@ -141,6 +142,7 @@ class JobOfferServiceTest {
         contractTypeRepository = mock(ContractTypeRepository.class);
         employmentTypeRepository = mock(EmploymentTypeRepository.class);
         workModeRepository = mock(WorkModeRepository.class);
+        jobOfferNormalizationService = mock(JobOfferNormalizationService.class);
         jobOfferService = new JobOfferService(
                 jobOfferRepository, jobOfferSkillRepository, jobOfferLanguageRepository,
                 jobOfferDegreeRepository, jobOfferStudyFieldRepository,
@@ -149,7 +151,7 @@ class JobOfferServiceTest {
                 companyRepository, recruiterRepository, skillRepository, languageRepository, degreeRepository,
                 studyFieldRepository, contractTypeRepository, employmentTypeRepository, workModeRepository,
                 mock(NormalizedProfileJobOfferRepository.class),
-                mock(JobOfferNormalizationService.class));
+                jobOfferNormalizationService);
 
         lenient().when(jobOfferSkillRepository.findByJobOfferIdIn(any())).thenReturn(List.of());
         lenient().when(jobOfferLanguageRepository.findByJobOfferIdIn(any())).thenReturn(List.of());
@@ -381,6 +383,77 @@ class JobOfferServiceTest {
         // dirty-flag compare updatedAt à validatedAt — un bump ici créerait
         // un faux positif et un doublon de version au double-clic).
         assertThat(offer.getUpdatedAt()).isNull();
+    }
+
+    // --- D63 : rafraîchissement de l'analyse d'une offre PUBLISHED -----------
+
+    @Test
+    void revalidateDelegueALaNormalisationSansToucherAuCycleDeVie() {
+        JobOffer offer = publishedOffer();
+        LocalDateTime updatedAt = LocalDateTime.now().minusHours(3);
+        offer.setUpdatedAt(updatedAt);
+        LocalDateTime validatedAt = offer.getValidatedAt();
+        LocalDateTime publishedAt = offer.getPublishedAt();
+        stubManagement(offer, RECRUITER_ID, false);
+
+        jobOfferService.revalidate(RECRUITER_ID, OFFER_ID);
+
+        verify(jobOfferNormalizationService).onValidated(OFFER_ID);
+        assertThat(offer.getStatus()).isEqualTo(JobOfferStatus.PUBLISHED);
+        assertThat(offer.getValidatedAt()).isEqualTo(validatedAt);
+        assertThat(offer.getPublishedAt()).isEqualTo(publishedAt);
+        assertThat(offer.getUpdatedAt()).isEqualTo(updatedAt);
+        verify(jobOfferRepository, never()).save(any());
+    }
+
+    @Test
+    void revalidateAutoriseLOwnerDeLaCompany() {
+        JobOffer offer = publishedOffer();
+        stubManagement(offer, OTHER_RECRUITER_ID, true);
+
+        jobOfferService.revalidate(OTHER_RECRUITER_ID, OFFER_ID);
+
+        verify(jobOfferNormalizationService).onValidated(OFFER_ID);
+    }
+
+    @Test
+    void revalidateRejetteToutStatutAutreQuePublie() {
+        JobOffer offer = draftOffer();
+        stubManagement(offer, RECRUITER_ID, false);
+
+        for (JobOfferStatus status : List.of(JobOfferStatus.DRAFT, JobOfferStatus.VALIDATED, JobOfferStatus.CLOSED)) {
+            offer.setStatus(status);
+            assertThatThrownBy(() -> jobOfferService.revalidate(RECRUITER_ID, OFFER_ID))
+                    .isInstanceOf(InvalidJobOfferStatusException.class);
+            assertThat(offer.getStatus()).isEqualTo(status);
+        }
+        verify(jobOfferNormalizationService, never()).onValidated(any());
+    }
+
+    @Test
+    void revalidateRejetteUnMembreQuiNEstNiOwnerNiCreateur() {
+        JobOffer offer = publishedOffer();
+        stubManagement(offer, OTHER_RECRUITER_ID, false);
+
+        assertThatThrownBy(() -> jobOfferService.revalidate(OTHER_RECRUITER_ID, OFFER_ID))
+                .isInstanceOf(JobOfferAccessDeniedException.class);
+        verify(jobOfferNormalizationService, never()).onValidated(any());
+    }
+
+    @Test
+    void revalidateRepond404HorsDeLaCompanyOuSurUneOffreInconnue() {
+        stubRecruiter(true);
+        when(jobOfferRepository.findByIdForUpdate(OFFER_ID)).thenReturn(Optional.of(publishedOffer()));
+        when(companyMemberRepository.findByCompanyIdAndRecruiterId(COMPANY_ID, OTHER_RECRUITER_ID))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> jobOfferService.revalidate(OTHER_RECRUITER_ID, OFFER_ID))
+                .isInstanceOf(JobOfferNotFoundException.class);
+
+        when(jobOfferRepository.findByIdForUpdate(OFFER_ID)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> jobOfferService.revalidate(RECRUITER_ID, OFFER_ID))
+                .isInstanceOf(JobOfferNotFoundException.class);
+        verify(jobOfferNormalizationService, never()).onValidated(any());
     }
 
     @Test

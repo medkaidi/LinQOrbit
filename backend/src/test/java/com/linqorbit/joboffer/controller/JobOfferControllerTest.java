@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -417,6 +418,59 @@ class JobOfferControllerTest {
     }
 
     @Test
+    void revalidateRenvoie204() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/job-offers/" + OFFER_ID + "/revalidate")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isNoContent());
+
+        verify(jobOfferService).revalidate(userId, OFFER_ID);
+    }
+
+    @Test
+    void revalidateRenvoie409SiNonPubliee() throws Exception {
+        UUID userId = UUID.randomUUID();
+        doThrow(new InvalidJobOfferStatusException(com.linqorbit.joboffer.entity.JobOfferStatus.CLOSED, "revalidate"))
+                .when(jobOfferService).revalidate(eq(userId), eq(OFFER_ID));
+
+        mockMvc.perform(post("/api/v1/job-offers/" + OFFER_ID + "/revalidate")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("This action is not allowed from the offer's current status."));
+    }
+
+    @Test
+    void revalidateRenvoie403SansDroits() throws Exception {
+        UUID userId = UUID.randomUUID();
+        doThrow(new JobOfferAccessDeniedException(OFFER_ID, userId))
+                .when(jobOfferService).revalidate(eq(userId), eq(OFFER_ID));
+
+        mockMvc.perform(post("/api/v1/job-offers/" + OFFER_ID + "/revalidate")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void revalidateRenvoie404SiInaccessible() throws Exception {
+        UUID userId = UUID.randomUUID();
+        doThrow(new JobOfferNotFoundException(OFFER_ID))
+                .when(jobOfferService).revalidate(eq(userId), eq(OFFER_ID));
+
+        mockMvc.perform(post("/api/v1/job-offers/" + OFFER_ID + "/revalidate")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void revalidateRenvoie401SansJeton() throws Exception {
+        mockMvc.perform(post("/api/v1/job-offers/" + OFFER_ID + "/revalidate"))
+                .andExpect(status().isUnauthorized());
+
+        verify(jobOfferService, never()).revalidate(any(), any());
+    }
+
+    @Test
     void publishRenvoie409DepuisLeDraft() throws Exception {
         UUID userId = UUID.randomUUID();
         doThrow(new InvalidJobOfferStatusException(com.linqorbit.joboffer.entity.JobOfferStatus.DRAFT, "publish"))
@@ -503,7 +557,7 @@ class JobOfferControllerTest {
                 "abcdefghijkl", "backend-engineer", null,
                 null, null, null, null, null, null, null, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year", 3,
-                false, false, false, List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
+                false, false, false, false, List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
     }
 
     private JobOfferListItem draftListItem() {
@@ -512,6 +566,6 @@ class JobOfferControllerTest {
                 "abcdefghijkl", "backend-engineer",
                 null, null, null, null, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
-                false, false, false, false, null, null);
+                false, false, false, false, false, null, null);
     }
 }

@@ -93,6 +93,11 @@ type JobOfferCardProps = {
   /** Signal du job de normalisation de l'offre (badge « Analyzing… » / « Analysis failed »). */
   normalization?: "progress" | "failed" | null;
   unvalidatedChanges?: boolean;
+  /**
+   * Fiche de référence sur une version de schéma périmée (D63) : badge « Analysis outdated »
+   * en draft, validated et published (revalidable) — jamais sur une offre fermée.
+   */
+  analysisOutdated?: boolean;
   /** Draft incomplet (gate de complétude serveur) : chip « Not ready to publish ». */
   readyToPublish?: boolean;
   createdAt?: string | null;
@@ -127,6 +132,7 @@ export function JobOfferCard({
   expired = false,
   normalization = null,
   unvalidatedChanges = false,
+  analysisOutdated = false,
   readyToPublish = true,
   createdAt,
   updatedAt,
@@ -211,6 +217,8 @@ export function JobOfferCard({
               <Badge>Analyzing…</Badge>
             ) : normalization === "failed" ? (
               <Badge tone="neutral">Analysis failed</Badge>
+            ) : analysisOutdated && status !== "closed" ? (
+              <Badge>Analysis outdated</Badge>
             ) : unvalidatedChanges && status === "validated" ? (
               <Badge>Unvalidated changes</Badge>
             ) : null}

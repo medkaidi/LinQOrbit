@@ -57,7 +57,7 @@ class NormalizationWorkerIntegrationTest {
 
     private static final String PROFILE_PATH = "/api/v1/candidates/me/profile";
     private static final String CANONICAL_JSON =
-            "{\"schemaVersion\": \"1\", \"title\": \"Full Stack Developer\", \"experiences\": []}";
+            "{\"schemaVersion\": \"3\", \"title\": \"Full Stack Developer\", \"experiences\": []}";
     private static final String STALE_ERROR = "Worker presumed dead before completion";
 
     @Autowired
@@ -119,7 +119,7 @@ class NormalizationWorkerIntegrationTest {
         Map<String, Object> row = jobRowWithContent(jobId);
         assertThat(statusOf(row)).isEqualTo(NormalizationJobStatus.DONE);
         assertThat(row.get("completed_at")).isNotNull();
-        assertThat(String.valueOf(row.get("content"))).contains("\"schemaVersion\": \"1\"");
+        assertThat(String.valueOf(row.get("content"))).contains("\"schemaVersion\": \"3\"");
     }
 
     @Test
@@ -250,6 +250,84 @@ class NormalizationWorkerIntegrationTest {
         assertThat(statusOf(jobRow(jobId))).isEqualTo(NormalizationJobStatus.DONE);
     }
 
+    // --- D63 : garde du schemaVersion avant toute écriture de content --------
+
+    @Test
+    void jsonIaSansSchemaVersionEstUnEchecSansEcritureDeContenu() throws Exception {
+        assertJsonIaRejeteSansEcriture("{\"title\": \"Full Stack Developer\", \"experiences\": []}",
+                "The AI service returned schemaVersion null, expected 3.");
+    }
+
+    @Test
+    void jsonIaALaVersionOffreEstRefusePourUnCandidatSansEcriture() throws Exception {
+        // Les versions candidat et offre ne se comparent jamais entre elles : "2" n'est pas "3".
+        assertJsonIaRejeteSansEcriture("{\"schemaVersion\": \"2\", \"title\": \"Full Stack Developer\"}",
+                "The AI service returned schemaVersion 2, expected 3.");
+    }
+
+    @Test
+    void jsonIaAvecUnSchemaVersionNonTexteEstRefuse() throws Exception {
+        assertJsonIaRejeteSansEcriture("{\"schemaVersion\": 3, \"title\": \"Full Stack Developer\"}",
+                "The AI service returned schemaVersion null, expected 3.");
+    }
+
+    @Test
+    void jsonIaIllisibleEstUnEchecSansEcritureDeContenu() throws Exception {
+        assertJsonIaRejeteSansEcriture("not json",
+                "The AI service returned schemaVersion null, expected 3.");
+    }
+
+    @Test
+    void jsonIaDeMauvaiseVersionRetenteDeuxFoisPuisFailedSansJamaisEcrire() throws Exception {
+        UUID jobId = seedValidatedCandidate();
+        clearInvocations(normalizationExecutor);
+        when(profileNormalizeClient.normalize(any())).thenReturn("{\"schemaVersion\": \"1\"}");
+
+        normalizationWorker.executeJob(jobId);
+        runScheduledToCompletion();
+        runScheduledToCompletion();
+
+        Map<String, Object> row = jobRowWithContent(jobId);
+        assertThat(statusOf(row)).isEqualTo(NormalizationJobStatus.FAILED);
+        assertThat((Integer) row.get("attempts")).isEqualTo(3);
+        assertThat(row.get("content")).isNull();
+        verify(profileNormalizeClient, times(3)).normalize(any());
+    }
+
+    @Test
+    void ligneValideeSousUneAutreVersionNAppelleJamaisLIa() throws Exception {
+        String token = signup();
+        seedAboutAndValidate(token);
+        UUID userId = createdUserIds.get(createdUserIds.size() - 1);
+        // Job validé avant une montée de version : sa ligne annonce encore « 2 ».
+        UUID jobId = seedJob(userId, 2, NormalizationJobStatus.PENDING, 0, LocalDateTime.now(), null);
+        jdbcTemplate.update("UPDATE normalized_profile SET schema_version = '2' WHERE normalized_profile_id = ?",
+                jobId);
+        clearInvocations(profileNormalizeClient);
+
+        normalizationWorker.executeJob(jobId);
+
+        Map<String, Object> row = jobRowWithContent(jobId);
+        assertThat(statusOf(row)).isEqualTo(NormalizationJobStatus.PENDING);
+        assertThat((Integer) row.get("attempts")).isEqualTo(1);
+        assertThat(row.get("content")).isNull();
+        verify(profileNormalizeClient, never()).normalize(any());
+    }
+
+    private void assertJsonIaRejeteSansEcriture(String canonical, String expectedError) throws Exception {
+        UUID jobId = seedValidatedCandidate();
+        when(profileNormalizeClient.normalize(any())).thenReturn(canonical);
+
+        normalizationWorker.executeJob(jobId);
+
+        Map<String, Object> row = jobRowWithContent(jobId);
+        assertThat(statusOf(row)).isEqualTo(NormalizationJobStatus.PENDING);
+        assertThat((Integer) row.get("attempts")).isEqualTo(1);
+        assertThat(row.get("error")).isEqualTo(expectedError);
+        assertThat(row.get("content")).isNull();
+        assertThat(row.get("completed_at")).isNull();
+    }
+
     private Runnable takeDispatched() {
         verify(normalizationExecutor).execute(dispatchCaptor.capture());
         clearInvocations(normalizationExecutor);
@@ -283,7 +361,7 @@ class NormalizationWorkerIntegrationTest {
         jdbcTemplate.update("""
                 INSERT INTO normalized_profile
                     (normalized_profile_id, version, schema_version, content, validated_at, created_at, updated_at)
-                VALUES (?, ?, '1', NULL, ?, ?, ?)""", jobId, version, now, now, now);
+                VALUES (?, ?, '3', NULL, ?, ?, ?)""", jobId, version, now, now, now);
         jdbcTemplate.update(
                 "INSERT INTO normalized_profile_candidate (normalized_profile_id, candidate_id) VALUES (?, ?)",
                 jobId, userId);

@@ -48,6 +48,7 @@ function draftOffer(overrides: Partial<JobOfferListItem> = {}): JobOfferListItem
     hasUnvalidatedChanges: false,
     normalizationInProgress: false,
     normalizationFailed: false,
+    analysisOutdated: false,
     readyToPublish: true,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
@@ -662,5 +663,147 @@ describe("JobOffersSection", () => {
     expect(
       within(openActionsMenu()).queryByRole("menuitem", { name: "Validate again" }),
     ).not.toBeInTheDocument();
+  });
+
+  // --- D63 : analyse obsolète -------------------------------------------------
+
+  it("flags an outdated analysis and offers Validate again without any change", () => {
+    const transition = mutation();
+    useJobOfferTransitionMock.mockReturnValue(transition);
+    renderOffers([draftOffer({ status: "validated", analysisOutdated: true })]);
+
+    expect(screen.getByText("Analysis outdated")).toBeInTheDocument();
+    expect(screen.queryByText("Unvalidated changes")).not.toBeInTheDocument();
+
+    fireEvent.click(within(openActionsMenu()).getByRole("menuitem", { name: "Validate again" }));
+
+    expect(
+      screen.getByText(
+        "This offer's analysis was made with an earlier version of our analysis. Validate again to refresh it.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Validate" }),
+    );
+
+    expect(transition.mutate).toHaveBeenCalledWith(
+      { offerId: "o1", action: "validate" },
+      expect.anything(),
+    );
+  });
+
+  it("flags an outdated analysis on a draft, whose Validate stays the primary action", () => {
+    renderOffers([draftOffer({ analysisOutdated: true })]);
+
+    expect(screen.getByText("Analysis outdated")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Validate" })).toBeEnabled();
+  });
+
+  it("prefers Analysis outdated over Unvalidated changes, and Analysis failed over both", () => {
+    renderOffers([
+      draftOffer({ id: "o1", status: "validated", analysisOutdated: true, hasUnvalidatedChanges: true }),
+      draftOffer({
+        id: "o2",
+        status: "validated",
+        normalizationFailed: true,
+        analysisOutdated: true,
+        hasUnvalidatedChanges: true,
+      }),
+    ]);
+
+    expect(screen.getAllByText("Analysis outdated")).toHaveLength(1);
+    expect(screen.getAllByText("Analysis failed")).toHaveLength(1);
+    expect(screen.queryByText("Unvalidated changes")).not.toBeInTheDocument();
+  });
+
+  it("hides the outdated badge and Validate again while the analysis is in progress", () => {
+    renderOffers([
+      draftOffer({ status: "validated", analysisOutdated: true, normalizationInProgress: true }),
+    ]);
+
+    expect(screen.getByText("Analyzing…")).toBeInTheDocument();
+    expect(screen.queryByText("Analysis outdated")).not.toBeInTheDocument();
+    expect(
+      within(openActionsMenu()).queryByRole("menuitem", { name: "Validate again" }),
+    ).not.toBeInTheDocument();
+  });
+
+  // --- D63 : rafraîchissement d'une offre PUBLISHED, sans changement de statut --
+
+  it("flags an outdated published offer and refreshes it through revalidate after confirmation", () => {
+    const transition = mutation();
+    useJobOfferTransitionMock.mockReturnValue(transition);
+    renderOffers([draftOffer({ status: "published", analysisOutdated: true })]);
+
+    expect(screen.getByText("Analysis outdated")).toBeInTheDocument();
+
+    fireEvent.click(within(openActionsMenu()).getByRole("menuitem", { name: "Validate again" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Refresh this offer's analysis?")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "This offer's analysis was made with an earlier version of our analysis. Validate again to refresh it.",
+      ),
+    ).toBeInTheDocument();
+    expect(transition.mutate).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Validate again" }));
+
+    // /revalidate, jamais /validate : l'offre reste publiée.
+    expect(transition.mutate).toHaveBeenCalledWith(
+      { offerId: "o1", action: "revalidate" },
+      expect.anything(),
+    );
+  });
+
+  it("offers Validate again on a published offer whose last analysis failed", () => {
+    const transition = mutation();
+    useJobOfferTransitionMock.mockReturnValue(transition);
+    renderOffers([draftOffer({ status: "published", normalizationFailed: true })]);
+
+    expect(screen.getByText("Analysis failed")).toBeInTheDocument();
+    fireEvent.click(within(openActionsMenu()).getByRole("menuitem", { name: "Validate again" }));
+    expect(
+      screen.getByText("We could not finish analyzing this offer. You can try again."),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Validate again" }),
+    );
+
+    expect(transition.mutate).toHaveBeenCalledWith(
+      { offerId: "o1", action: "revalidate" },
+      expect.anything(),
+    );
+  });
+
+  it("shows neither badge nor Validate again on an up-to-date published offer", () => {
+    renderOffers([draftOffer({ status: "published" })]);
+
+    expect(screen.queryByText("Analysis outdated")).not.toBeInTheDocument();
+    expect(screen.queryByText("Analysis failed")).not.toBeInTheDocument();
+    expect(
+      within(openActionsMenu()).queryByRole("menuitem", { name: "Validate again" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides Validate again on a published offer while its analysis is running", () => {
+    renderOffers([
+      draftOffer({ status: "published", analysisOutdated: true, normalizationInProgress: true }),
+    ]);
+
+    expect(screen.getByText("Analyzing…")).toBeInTheDocument();
+    expect(screen.queryByText("Analysis outdated")).not.toBeInTheDocument();
+    expect(
+      within(openActionsMenu()).queryByRole("menuitem", { name: "Validate again" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("never flags a closed offer as outdated, which has no action left", () => {
+    renderOffers([draftOffer({ status: "closed", analysisOutdated: true })]);
+
+    expect(screen.queryByText("Analysis outdated")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
   });
 });

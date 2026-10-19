@@ -31,15 +31,27 @@ import {
   publicJobPath,
 } from "@/features/job-offer/job-offer-shared";
 
-/** Contenu de la confirmation selon l'action (validate / publish). */
+/** Transition du cycle de vie demandée depuis une ligne (close part sans confirmation). */
+type OfferTransition = "validate" | "revalidate" | "publish" | "close";
+/** Transitions confirmées par un dialogue. */
+type ConfirmedTransition = Exclude<OfferTransition, "close">;
+
+/** Contenu de la confirmation selon l'action (validate / revalidate / publish). */
 const TRANSITION_CONFIRM: Record<
-  "validate" | "publish",
+  ConfirmedTransition,
   { title: string; message: string; confirmLabel: string; icon: string }
 > = {
   validate: {
     title: "Validate this offer?",
     message: "This marks the offer as reviewed and ready to publish. You can still edit it afterwards.",
     confirmLabel: "Validate",
+    icon: "check_circle",
+  },
+  revalidate: {
+    title: "Refresh this offer's analysis?",
+    message:
+      "The offer stays published and visible on the job board while its analysis is refreshed in the background.",
+    confirmLabel: "Validate again",
     icon: "check_circle",
   },
   publish: {
@@ -50,14 +62,18 @@ const TRANSITION_CONFIRM: Record<
   },
 };
 
-function validateConfirmMessage(offer: JobOfferListItem): string {
+/** Message de confirmation d'une (re)validation : la raison de la relance prime sur le texte générique. */
+function validateConfirmMessage(offer: JobOfferListItem, action: "validate" | "revalidate"): string {
   if (offer.normalizationFailed) {
     return "We could not finish analyzing this offer. You can try again.";
+  }
+  if (offer.analysisOutdated) {
+    return "This offer's analysis was made with an earlier version of our analysis. Validate again to refresh it.";
   }
   if (offer.hasUnvalidatedChanges) {
     return "You've made changes to this offer. Validate again to refresh its analysis.";
   }
-  return TRANSITION_CONFIRM.validate.message;
+  return TRANSITION_CONFIRM[action].message;
 }
 
 /** Mutation en cours sur une ligne (busy ciblé : primaire = transition, kebab = tout le reste). */
@@ -77,14 +93,15 @@ function OfferActions({
 }: {
   offer: JobOfferListItem;
   busyAction: OfferAction | null;
-  onTransition: (action: "validate" | "publish" | "close") => void;
+  onTransition: (action: OfferTransition) => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
   const ready = offer.readyToPublish;
   const blocked = ready ? undefined : OFFER_INCOMPLETE_TOOLTIP;
   const canRevalidate =
-    !offer.normalizationInProgress && (offer.normalizationFailed || offer.hasUnvalidatedChanges);
+    !offer.normalizationInProgress &&
+    (offer.normalizationFailed || offer.analysisOutdated || offer.hasUnvalidatedChanges);
   const [menuOpen, setMenuOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -125,6 +142,21 @@ function OfferActions({
     </MenuItem>
   );
   const separatorItem = <MenuSeparator key="separator" />;
+  // « Validate again » : /validate tant que l'offre est éditable, /revalidate une fois publiée
+  // (rafraîchissement de l'analyse sans changement de cycle de vie, D63).
+  const revalidateItems = canRevalidate
+    ? [
+        <MenuItem
+          key="revalidate"
+          icon="check_circle"
+          onClick={() =>
+            runMenuItem(() => onTransition(offer.status === "published" ? "revalidate" : "validate"))
+          }
+        >
+          Validate again
+        </MenuItem>,
+      ]
+    : [];
   const closeItem = (
     <MenuItem key="close" icon="close" onClick={() => runMenuItem(() => onTransition("close"))}>
       Close
@@ -155,23 +187,13 @@ function OfferActions({
       >
         Preview
       </MenuItem>,
-      ...(canRevalidate
-        ? [
-            <MenuItem
-              key="revalidate"
-              icon="check_circle"
-              onClick={() => runMenuItem(() => onTransition("validate"))}
-            >
-              Validate again
-            </MenuItem>,
-          ]
-        : []),
+      ...revalidateItems,
       duplicateItem,
       separatorItem,
       closeItem,
     );
   } else if (offer.status === "published") {
-    menuItems.push(duplicateItem, separatorItem, closeItem);
+    menuItems.push(...revalidateItems, duplicateItem, separatorItem, closeItem);
   }
 
   return (
@@ -263,7 +285,7 @@ function OfferRow({
   employmentTypeLabel: string | null;
   workModeLabel: string | null;
   busyAction: OfferAction | null;
-  onTransition: (action: "validate" | "publish" | "close") => void;
+  onTransition: (action: OfferTransition) => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
@@ -287,6 +309,7 @@ function OfferRow({
         offer.normalizationInProgress ? "progress" : offer.normalizationFailed ? "failed" : null
       }
       unvalidatedChanges={offer.hasUnvalidatedChanges}
+      analysisOutdated={offer.analysisOutdated}
       readyToPublish={offer.readyToPublish}
       createdAt={offer.createdAt}
       updatedAt={offer.updatedAt}
@@ -306,7 +329,7 @@ function OfferRow({
 
 /** Dialogue de confirmation ouvert au-dessus de la liste — un seul état pour les deux modales. */
 type OfferDialog =
-  | { kind: "transition"; offer: JobOfferListItem; action: "validate" | "publish" }
+  | { kind: "transition"; offer: JobOfferListItem; action: ConfirmedTransition }
   | { kind: "delete"; offer: JobOfferListItem };
 
 /**
@@ -437,9 +460,9 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
           <ConfirmDialog
             title={TRANSITION_CONFIRM[dialog.action].title}
             message={
-              dialog.action === "validate"
-                ? validateConfirmMessage(dialog.offer)
-                : TRANSITION_CONFIRM[dialog.action].message
+              dialog.action === "publish"
+                ? TRANSITION_CONFIRM.publish.message
+                : validateConfirmMessage(dialog.offer, dialog.action)
             }
             confirmLabel={TRANSITION_CONFIRM[dialog.action].confirmLabel}
             icon={TRANSITION_CONFIRM[dialog.action].icon}

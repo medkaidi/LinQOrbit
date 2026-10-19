@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -48,7 +49,7 @@ class NormalizationWorkerOfferIntegrationTest {
     private static final String EMPLOYMENT_TYPE_ID = "b1000000-0000-4000-8000-000000000001";
     private static final String CONTRACT_TYPE_ID = "b0000000-0000-4000-8000-000000000001";
     private static final String CANONICAL_OFFER_JSON =
-            "{\"schemaVersion\": \"1\", \"title\": \"Backend Engineer\","
+            "{\"schemaVersion\": \"2\", \"title\": \"Backend Engineer\","
                     + " \"requiredSkills\": [], \"preferredSkills\": []}";
 
     @Autowired
@@ -137,7 +138,7 @@ class NormalizationWorkerOfferIntegrationTest {
                 .isEqualTo(NormalizationJobStatus.DONE);
         // Enum SMALLINT : 2 = OFFER (le worker a branché sur source_type).
         assertThat(((Number) row.get("source_type")).intValue()).isEqualTo(2);
-        assertThat(String.valueOf(row.get("content"))).contains("\"schemaVersion\": \"1\"");
+        assertThat(String.valueOf(row.get("content"))).contains("\"schemaVersion\": \"2\"");
 
         OfferNormalizeRequest sent = requestCaptor.getValue();
         assertThat(sent.offer().title()).isEqualTo("Backend Engineer");
@@ -181,11 +182,210 @@ class NormalizationWorkerOfferIntegrationTest {
         assertThat(versions).isEqualTo(1);
     }
 
+    // --- D63 : garde du schemaVersion, analyse obsolète de l'offre -----------
+
+    @Test
+    void jsonIaALaVersionCandidatEstRefusePourUneOffreSansEcriture() throws Exception {
+        String token = signup();
+        becomeRecruiter(token);
+        UUID offerId = createOffer(token, createCompany(token));
+        createdOfferIds.add(offerId);
+        // "3" est la version candidat : jamais comparée à la version offre "2".
+        when(jobOfferNormalizeClient.normalize(any())).thenReturn("{\"schemaVersion\": \"3\", \"title\": \"X\"}");
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/validate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        UUID jobId = latestOfferJobId(offerId);
+
+        normalizationWorker.executeJob(jobId);
+
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT j.status, j.attempts, j.error, np.content FROM normalization_job j"
+                        + " JOIN normalized_profile np ON np.normalized_profile_id = j.job_id"
+                        + " WHERE j.job_id = ?", jobId);
+        assertThat(NormalizationJobStatus.fromCode(((Number) row.get("status")).shortValue()))
+                .isEqualTo(NormalizationJobStatus.PENDING);
+        assertThat(((Number) row.get("attempts")).intValue()).isEqualTo(1);
+        assertThat(row.get("error")).isEqualTo("The AI service returned schemaVersion 3, expected 2.");
+        assertThat(row.get("content")).isNull();
+    }
+
+    @Test
+    void analyseObsoleteSignaleeEnDetailEtEnListePuisRevalidableSansModification() throws Exception {
+        String token = signup();
+        becomeRecruiter(token);
+        UUID companyId = createCompany(token);
+        UUID outdatedId = createOffer(token, companyId);
+        UUID currentId = createOffer(token, companyId);
+        UUID neverValidatedId = createOffer(token, companyId);
+        createdOfferIds.addAll(List.of(outdatedId, currentId, neverValidatedId));
+        when(jobOfferNormalizeClient.normalize(any())).thenReturn(CANONICAL_OFFER_JSON);
+        for (UUID offerId : List.of(outdatedId, currentId)) {
+            mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/validate")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isNoContent());
+            normalizationWorker.executeJob(latestOfferJobId(offerId));
+        }
+        // Fiche produite avant une montée de version (schéma « 1 »).
+        UUID firstSheet = latestOfferJobId(outdatedId);
+        jdbcTemplate.update("""
+                UPDATE normalized_profile SET schema_version = '1', content = '{"schemaVersion": "1"}'::jsonb
+                WHERE normalized_profile_id = ?""", firstSheet);
+
+        // Liste : une seule requête pour toutes les lignes, offre jamais validée → false.
+        mockMvc.perform(get("/api/v1/job-offers").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == '%s')].analysisOutdated".formatted(outdatedId))
+                        .value(Matchers.contains(true)))
+                .andExpect(jsonPath("$.items[?(@.id == '%s')].analysisOutdated".formatted(currentId))
+                        .value(Matchers.contains(false)))
+                .andExpect(jsonPath("$.items[?(@.id == '%s')].analysisOutdated".formatted(neverValidatedId))
+                        .value(Matchers.contains(false)));
+        expectOfferSignals(token, outdatedId, false, true);
+        expectOfferSignals(token, currentId, false, false);
+
+        // Offre à jour et sans changement : la validation reste un no-op.
+        mockMvc.perform(post("/api/v1/job-offers/" + currentId + "/validate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        assertThat(versionCount(currentId)).isEqualTo(1);
+
+        // Fiche obsolète : relance sans aucune modification de l'offre.
+        mockMvc.perform(post("/api/v1/job-offers/" + outdatedId + "/validate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        assertThat(versionCount(outdatedId)).isEqualTo(2);
+        UUID secondSheet = latestOfferJobId(outdatedId);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT schema_version FROM normalized_profile WHERE normalized_profile_id = ?",
+                String.class, secondSheet)).isEqualTo("2");
+        // La référence reste la v1 tant que la v2 n'a pas de contenu.
+        expectOfferSignals(token, outdatedId, true, true);
+
+        // Double-clic pendant l'analyse : no-op.
+        mockMvc.perform(post("/api/v1/job-offers/" + outdatedId + "/validate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        assertThat(versionCount(outdatedId)).isEqualTo(2);
+
+        normalizationWorker.executeJob(secondSheet);
+        expectOfferSignals(token, outdatedId, false, false);
+    }
+
+    @Test
+    void offrePublieeObsoleteSeRevalideSansChangerSonCycleDeVie() throws Exception {
+        String token = signup();
+        becomeRecruiter(token);
+        UUID companyId = createCompany(token);
+        UUID offerId = createOffer(token, companyId);
+        UUID validatedId = createOffer(token, companyId);
+        createdOfferIds.addAll(List.of(offerId, validatedId));
+        when(jobOfferNormalizeClient.normalize(any())).thenReturn(CANONICAL_OFFER_JSON);
+        for (UUID id : List.of(offerId, validatedId)) {
+            mockMvc.perform(post("/api/v1/job-offers/" + id + "/validate").header("Authorization", "Bearer " + token))
+                    .andExpect(status().isNoContent());
+            normalizationWorker.executeJob(latestOfferJobId(id));
+        }
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/publish").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        // Fiche produite avant une montée de version (schéma « 1 ») — offre de test dédiée.
+        jdbcTemplate.update("""
+                UPDATE normalized_profile SET schema_version = '1', content = '{"schemaVersion": "1"}'::jsonb
+                WHERE normalized_profile_id = ?""", latestOfferJobId(offerId));
+
+        mockMvc.perform(get("/api/v1/job-offers").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == '%s')].status".formatted(offerId))
+                        .value(Matchers.contains("published")))
+                .andExpect(jsonPath("$.items[?(@.id == '%s')].analysisOutdated".formatted(offerId))
+                        .value(Matchers.contains(true)));
+        mockMvc.perform(get("/api/v1/job-offers/" + offerId).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("published"))
+                .andExpect(jsonPath("$.analysisOutdated").value(true));
+        Map<String, Object> lifecycle = offerLifecycle(offerId);
+
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/revalidate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        assertThat(versionCount(offerId)).isEqualTo(2);
+        UUID refreshedSheet = latestOfferJobId(offerId);
+        Map<String, Object> sheet = jdbcTemplate.queryForMap("""
+                SELECT np.schema_version, np.content, j.status FROM normalized_profile np
+                JOIN normalization_job j ON j.job_id = np.normalized_profile_id
+                WHERE np.normalized_profile_id = ?""", refreshedSheet);
+        assertThat(sheet.get("schema_version")).isEqualTo("2");
+        assertThat(sheet.get("content")).isNull();
+        assertThat(NormalizationJobStatus.fromCode(((Number) sheet.get("status")).shortValue()))
+                .isEqualTo(NormalizationJobStatus.PENDING);
+        // Cycle de vie intact : statut, publishedAt, validatedAt et updatedAt inchangés.
+        assertThat(offerLifecycle(offerId)).isEqualTo(lifecycle);
+
+        // Second appel pendant l'analyse : no-op, une seule nouvelle version.
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/revalidate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        assertThat(versionCount(offerId)).isEqualTo(2);
+
+        normalizationWorker.executeJob(refreshedSheet);
+        assertThat(String.valueOf(jdbcTemplate.queryForObject(
+                "SELECT content FROM normalized_profile WHERE normalized_profile_id = ?", String.class,
+                refreshedSheet))).contains("\"schemaVersion\": \"2\"");
+        mockMvc.perform(get("/api/v1/job-offers/" + offerId).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("published"))
+                .andExpect(jsonPath("$.analysisOutdated").value(false))
+                .andExpect(jsonPath("$.normalizationInProgress").value(false));
+
+        // Fiche courante : no-op (publish a posé updatedAt après la validation — jamais « sale »).
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/revalidate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        assertThat(versionCount(offerId)).isEqualTo(2);
+        assertThat(offerLifecycle(offerId)).isEqualTo(lifecycle);
+
+        // DRAFT/VALIDATED passent par /validate ; CLOSED est terminal : 409 sans nouvelle version.
+        mockMvc.perform(post("/api/v1/job-offers/" + validatedId + "/revalidate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/close").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/revalidate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("This action is not allowed from the offer's current status."));
+        assertThat(versionCount(offerId)).isEqualTo(2);
+        assertThat(versionCount(validatedId)).isEqualTo(1);
+    }
+
+    /** Statut et dates de vie de l'offre, lus en base. */
+    private Map<String, Object> offerLifecycle(UUID offerId) {
+        return jdbcTemplate.queryForMap(
+                "SELECT status, published_at, validated_at, updated_at FROM job_offer WHERE id = ?", offerId);
+    }
+
+    private void expectOfferSignals(String token, UUID offerId, boolean inProgress, boolean outdated)
+            throws Exception {
+        mockMvc.perform(get("/api/v1/job-offers/" + offerId).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.normalizationInProgress").value(inProgress))
+                .andExpect(jsonPath("$.normalizationFailed").value(false))
+                .andExpect(jsonPath("$.analysisOutdated").value(outdated));
+    }
+
+    private int versionCount(UUID offerId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM normalized_profile_job_offer WHERE job_offer_id = ?", Integer.class, offerId);
+    }
+
+    /** Job de la dernière version de l'offre (job_id ≡ normalized_profile_id). */
     private UUID latestOfferJobId(UUID offerId) {
         return jdbcTemplate.queryForObject(
                 "SELECT j.job_id FROM normalization_job j"
                         + " JOIN normalized_profile_job_offer npo ON npo.normalized_profile_id = j.job_id"
-                        + " WHERE npo.job_offer_id = ?", UUID.class, offerId);
+                        + " JOIN normalized_profile np ON np.normalized_profile_id = j.job_id"
+                        + " WHERE npo.job_offer_id = ? ORDER BY np.version DESC LIMIT 1", UUID.class, offerId);
     }
 
     private UUID createOffer(String token, UUID companyId) throws Exception {

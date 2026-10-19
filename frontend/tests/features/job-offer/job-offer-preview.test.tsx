@@ -63,6 +63,7 @@ function validatedOffer(): JobOffer {
     hasUnvalidatedChanges: false,
     normalizationInProgress: false,
     normalizationFailed: false,
+    analysisOutdated: false,
     skills: [
       {
         skillId: "s1",

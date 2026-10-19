@@ -12,7 +12,8 @@ import java.util.UUID;
  * dirty-flag (modifications post-validation, miroir candidat) que le frontend
  * affiche avant la re-validation, {@code normalizationInProgress} et
  * {@code normalizationFailed} les signaux du job de normalisation (miroir
- * candidat, pilotés par la base).
+ * candidat, pilotés par la base), {@code analysisOutdated} la fiche de
+ * référence sur une version de schéma périmée (D63).
  */
 public record JobOfferResponse(
         UUID id,
@@ -41,6 +42,7 @@ public record JobOfferResponse(
         boolean hasUnvalidatedChanges,
         boolean normalizationInProgress,
         boolean normalizationFailed,
+        boolean analysisOutdated,
         List<JobOfferSkillOption> skills,
         List<JobOfferLanguageOption> languages,
         List<UUID> degreeIds,

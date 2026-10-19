@@ -89,6 +89,8 @@ export type JobOffer = {
   hasUnvalidatedChanges: boolean;
   normalizationInProgress: boolean;
   normalizationFailed: boolean;
+  /** Fiche de référence produite sous une version de schéma périmée (D63) : « Validate again ». */
+  analysisOutdated: boolean;
   skills: JobOfferSkillOption[];
   languages: JobOfferLanguageOption[];
   degreeIds: string[];
@@ -132,6 +134,8 @@ export type JobOfferListItem = {
   hasUnvalidatedChanges: boolean;
   normalizationInProgress: boolean;
   normalizationFailed: boolean;
+  /** Fiche de référence produite sous une version de schéma périmée (D63) : « Validate again ». */
+  analysisOutdated: boolean;
   /** Gate de complétude calculé serveur (description, pays, type d'emploi, ≥ 1 skill). */
   readyToPublish: boolean;
   createdAt: string;

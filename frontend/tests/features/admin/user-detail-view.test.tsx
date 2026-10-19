@@ -98,6 +98,7 @@ const emptyProfile: CandidateProfile = {
   hasUnvalidatedChanges: false,
   normalizationFailed: false,
   normalizationInProgress: false,
+  analysisOutdated: false,
 };
 
 const profileWithExperience: CandidateProfile = {

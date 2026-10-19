@@ -64,6 +64,25 @@ public interface NormalizedProfileJobOfferRepository
     List<NormalizedProfile> findLatestWithContentByOfferId(UUID offerId, Pageable pageable);
 
     /**
+     * Version de schéma de la fiche courante (dernière version AVEC contenu)
+     * de chaque offre, en une requête pour une liste (D63 : signal
+     * {@code analysisOutdated} sans N+1). Une offre sans fiche n'a pas de
+     * ligne. Ligne = [jobOfferId, schemaVersion].
+     */
+    @Query("""
+            select npo.jobOfferId, np.schemaVersion
+            from NormalizedProfile np, NormalizedProfileJobOffer npo
+            where npo.normalizedProfileId = np.id
+              and np.content is not null
+              and np.version = (select max(np2.version)
+                               from NormalizedProfile np2, NormalizedProfileJobOffer npo2
+                               where npo2.normalizedProfileId = np2.id
+                                 and npo2.jobOfferId = npo.jobOfferId
+                                 and np2.content is not null)
+              and npo.jobOfferId in :offerIds""")
+    List<Object[]> findCurrentSheetSchemaVersions(List<UUID> offerIds);
+
+    /**
      * Supersede des jobs en attente d'une offre (validation postérieure) :
      * jamais exécutés, zéro coût LLM.
      */

@@ -122,6 +122,7 @@ class CandidateServiceTest {
         assertThat(profile.hasUnvalidatedChanges()).isFalse();
         assertThat(profile.normalizationFailed()).isFalse();
         assertThat(profile.normalizationInProgress()).isFalse();
+        assertThat(profile.analysisOutdated()).isFalse();
         verifyNoInteractions(candidateMapper, experienceRepository, projectRepository, diplomaRepository,
                 candidateSkillRepository, candidateLanguageRepository, candidateLinkRepository);
     }
@@ -164,6 +165,27 @@ class CandidateServiceTest {
 
         assertThat(profile.normalizationInProgress()).isTrue();
         verify(normalizationService).hasInProgressLatestJob(USER_ID);
+    }
+
+    @Test
+    void lectureExposeLAnalyseObsoleteSansModificationDuProfil() {
+        Candidate candidate = Candidate.builder().id(USER_ID).build();
+        when(candidateRepository.findById(USER_ID)).thenReturn(Optional.of(candidate));
+        when(candidateMapper.toAboutResponse(candidate))
+                .thenReturn(new AboutResponse(null, null, null, null, null));
+        when(experienceRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID)).thenReturn(List.of());
+        when(projectRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID)).thenReturn(List.of());
+        when(diplomaRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
+        when(candidateSkillRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
+        when(candidateLanguageRepository.findByCandidateId(USER_ID)).thenReturn(List.of());
+        when(candidateLinkRepository.findByCandidateIdOrderBySortOrderAsc(USER_ID)).thenReturn(List.of());
+        when(normalizationService.isAnalysisOutdated(USER_ID)).thenReturn(true);
+
+        CandidateProfileResponse profile = candidateService.getProfile(USER_ID);
+
+        assertThat(profile.analysisOutdated()).isTrue();
+        assertThat(profile.hasUnvalidatedChanges()).isFalse();
+        verify(normalizationService).isAnalysisOutdated(USER_ID);
     }
 
     @Test

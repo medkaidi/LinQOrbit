@@ -71,6 +71,7 @@ const profile: CandidateProfile = {
   hasUnvalidatedChanges: false,
   normalizationFailed: false,
   normalizationInProgress: false,
+  analysisOutdated: false,
 };
 
 const accountUser: AuthUser = {

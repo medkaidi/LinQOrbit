@@ -64,6 +64,12 @@ public class JobOfferController implements JobOfferApi {
     }
 
     @Override
+    public ResponseEntity<Void> revalidate(UUID offerId, Authentication authentication) {
+        jobOfferService.revalidate(CurrentUserId.from(authentication), offerId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
     public ResponseEntity<Void> publish(UUID offerId, Authentication authentication) {
         jobOfferService.publish(CurrentUserId.from(authentication), offerId);
         return ResponseEntity.noContent().build();

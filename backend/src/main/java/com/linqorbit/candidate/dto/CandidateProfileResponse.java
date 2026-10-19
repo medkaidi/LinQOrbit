@@ -15,6 +15,10 @@ import java.util.List;
  * @param normalizationInProgress le job de la dernière validation est en cours
  *        (PENDING ou RUNNING) → afficher « Analyzing… » ; signal persisté en
  *        base, il survit à la navigation
+ * @param analysisOutdated la fiche de référence (dernière version avec
+ *        contenu) porte une version de schéma différente de la version
+ *        candidat courante (D63) → inviter à revalider, même sans
+ *        modification du profil
  */
 public record CandidateProfileResponse(
         AboutResponse about,
@@ -27,5 +31,6 @@ public record CandidateProfileResponse(
         int completionPercentage,
         boolean hasUnvalidatedChanges,
         boolean normalizationFailed,
-        boolean normalizationInProgress) {
+        boolean normalizationInProgress,
+        boolean analysisOutdated) {
 }

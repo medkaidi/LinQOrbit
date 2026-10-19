@@ -51,7 +51,7 @@ class ProfileNormalizeClientTest {
     private static NormalizeRequest request() {
         CandidateProfileResponse profile = new CandidateProfileResponse(null,
                 List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-                42, true, false, false);
+                42, true, false, false, false);
         ProfileLocation location = new ProfileLocation("Paris", "FR");
         ParseContext context = new ParseContext(List.of("French"), List.of("Bachelor's degree"),
                 List.of("Computer Science"), Map.of("Programming Languages", List.of("Java")));

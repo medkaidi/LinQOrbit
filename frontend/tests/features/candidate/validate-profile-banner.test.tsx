@@ -17,6 +17,7 @@ function buildProfile(
   hasUnvalidatedChanges: boolean,
   normalizationFailed = false,
   normalizationInProgress = false,
+  analysisOutdated = false,
 ): CandidateProfile {
   return {
     about: {
@@ -36,6 +37,7 @@ function buildProfile(
     hasUnvalidatedChanges,
     normalizationFailed,
     normalizationInProgress,
+    analysisOutdated,
   };
 }
 
@@ -162,5 +164,52 @@ describe("ValidateProfileBanner", () => {
 
     expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
     expect(screen.queryByText("Last validation attempt failed")).not.toBeInTheDocument();
+  });
+
+  // --- D63 : analyse obsolète -------------------------------------------------
+
+  it("offers Validate again on an outdated analysis, without any profile change", async () => {
+    renderBanner(buildProfile(false, false, false, true));
+
+    expect(await screen.findByText("Profile analysis outdated")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Your profile analysis was made with an earlier version of our analysis. Validate again to refresh it and keep job matching available.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /validate again/i })).toBeEnabled();
+    expect(mockedValidateProfile).not.toHaveBeenCalled();
+  });
+
+  it("revalidates an outdated analysis straight from the banner", async () => {
+    renderBanner(buildProfile(false, false, false, true));
+
+    fireEvent.click(await screen.findByRole("button", { name: /validate again/i }));
+
+    await waitFor(() => expect(mockedValidateProfile).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Profile validated")).toBeInTheDocument();
+    expect(screen.queryByText("Profile analysis outdated")).not.toBeInTheDocument();
+  });
+
+  it("prefers the outdated notice over the pending-changes notice", async () => {
+    renderBanner(buildProfile(true, false, false, true));
+
+    expect(await screen.findByText("Profile analysis outdated")).toBeInTheDocument();
+    expect(screen.queryByText("Profile changes pending")).not.toBeInTheDocument();
+  });
+
+  it("prefers the failure notice over the outdated notice", async () => {
+    renderBanner(buildProfile(false, true, false, true));
+
+    expect(await screen.findByText("Last validation attempt failed")).toBeInTheDocument();
+    expect(screen.queryByText("Profile analysis outdated")).not.toBeInTheDocument();
+  });
+
+  it("prefers the analyzing notice over the outdated notice, without any action", async () => {
+    renderBanner(buildProfile(false, false, true, true));
+
+    expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+    expect(screen.queryByText("Profile analysis outdated")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

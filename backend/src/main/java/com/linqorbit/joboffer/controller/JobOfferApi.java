@@ -121,6 +121,22 @@ public interface JobOfferApi {
     })
     ResponseEntity<Void> validate(@PathVariable UUID offerId, Authentication authentication);
 
+    @PostMapping("/{offerId}/revalidate")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(
+            summary = "Rafraîchir l'analyse d'une offre publiée",
+            description = "Owner ou créateur ; PUBLISHED uniquement, sans changement "
+                    + "de cycle de vie. Crée une nouvelle version de fiche normalisée si "
+                    + "l'analyse est obsolète ou en échec ; no-op sinon.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Analyse rafraîchie ou déjà à jour"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "403", description = "Membre sans droits d'écriture sur l'offre"),
+            @ApiResponse(responseCode = "404", description = "Offre inexistante ou inaccessible"),
+            @ApiResponse(responseCode = "409", description = "Statut autre que PUBLISHED")
+    })
+    ResponseEntity<Void> revalidate(@PathVariable UUID offerId, Authentication authentication);
+
     @PostMapping("/{offerId}/publish")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Publier une offre", description = "Owner ou créateur ; VALIDATED → PUBLISHED uniquement (D13 : validate ≠ publish).")
