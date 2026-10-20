@@ -61,6 +61,31 @@ EVIDENCE_ARRAYS: dict[str, str] = {
 
 ClarificationStatus = Literal["answered", "skipped"]
 
+# Key of the single joint education criterion (D67): scored in code (D68),
+# never sent to the model.
+EDUCATION_CRITERION_KEY = "education:requirement"
+
+
+class EducationRequirement(CvModel):
+    """Structured education requirement of the joint education criterion (D68).
+
+    Values of one dimension are alternatives; both dimensions are required
+    when both are stated. "Professional certificate" is a credential, never a
+    degree level.
+    """
+
+    degree_levels: list[str] = Field(
+        default_factory=list, description="Degree levels, any of them or above (the lowest listed one is required)"
+    )
+    credentials: list[str] = Field(default_factory=list, description="Credentials, any of them (never a degree level)")
+    fields: list[str] = Field(default_factory=list, description="Fields of study, any of them")
+
+    @model_validator(mode="after")
+    def at_least_one_dimension(self) -> "EducationRequirement":
+        if not (self.degree_levels or self.credentials or self.fields):
+            raise ValueError("an education requirement needs at least one dimension")
+        return self
+
 
 class MatchingCriterion(CvModel):
     """One criterion extracted by the backend from the offer sheet."""
@@ -72,6 +97,18 @@ class MatchingCriterion(CvModel):
         default=None,
         description="What the offer expects for this criterion, e.g. 'level 4/5, at least 3 years'",
     )
+    education: EducationRequirement | None = Field(
+        default=None,
+        description="Structured requirement of the education criterion only; scored in code, never by the model",
+    )
+
+    @model_validator(mode="after")
+    def education_only_on_the_education_criterion(self) -> "MatchingCriterion":
+        if self.key == EDUCATION_CRITERION_KEY and self.education is None:
+            raise ValueError(f"the {EDUCATION_CRITERION_KEY} criterion needs its structured education requirement")
+        if self.key != EDUCATION_CRITERION_KEY and self.education is not None:
+            raise ValueError(f"only the {EDUCATION_CRITERION_KEY} criterion carries an education requirement")
+        return self
 
 
 class MatchingEvidence(CvModel):

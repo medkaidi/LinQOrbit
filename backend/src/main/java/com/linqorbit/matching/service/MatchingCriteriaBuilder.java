@@ -3,8 +3,10 @@ package com.linqorbit.matching.service;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.stereotype.Component;
@@ -15,9 +17,10 @@ import tools.jackson.databind.JsonNode;
  * Extraction des critères depuis la fiche offre v2 (D58) — la fiche offre est
  * la grille de référence. Cinq sections : compétences obligatoires
  * ({@code requiredSkills}), souhaitables ({@code preferredSkills}), langues,
- * expérience ({@code requiredYears}), formation (diplômes, domaines d'étude,
- * certifications). Une exigence inférée compte comme une déclarée (révise
- * D35) : la provenance n'entre jamais dans la grille.
+ * expérience ({@code requiredYears}), formation (un critère conjoint
+ * {@code education:requirement} — diplômes et domaines d'étude, D67 — puis
+ * les certifications, critères séparés). Une exigence inférée compte comme
+ * une déclarée (révise D35) : la provenance n'entre jamais dans la grille.
  *
  * <p>Poids : le {@code weight} 1-5 de la fiche pour les compétences (toujours
  * présent au schéma v2 — repli 1 si une vieille fiche en manque), 1 pour tous
@@ -29,6 +32,8 @@ import tools.jackson.databind.JsonNode;
 public class MatchingCriteriaBuilder {
 
     static final int DEFAULT_WEIGHT = 1;
+    /** Credential du catalogue (D67) : jamais un niveau de diplôme. */
+    static final String PROFESSIONAL_CERTIFICATE = "Professional certificate";
 
     public List<MatchingCriterion> build(JsonNode offer) {
         List<MatchingCriterion> criteria = new ArrayList<>();
@@ -54,8 +59,7 @@ public class MatchingCriteriaBuilder {
                     "At least " + requiredYears.asInt() + " years of experience relevant to this role",
                     DEFAULT_WEIGHT));
         }
-        addLabels(criteria, usedKeys, offer.path("requiredDegrees"), "label", "degree", "Degree: ");
-        addLabels(criteria, usedKeys, offer.path("requiredStudyFields"), "label", "study-field", "Field of study: ");
+        addEducation(criteria, usedKeys, offer);
         addLabels(criteria, usedKeys, offer.path("certifications"), "name", "certification", "Certification: ");
         return criteria;
     }
@@ -77,6 +81,53 @@ public class MatchingCriteriaBuilder {
             criteria.add(new MatchingCriterion(uniqueKey(usedKeys, "skill", name), section, name,
                     parts.isEmpty() ? null : String.join(", ", parts), weightOf(skill)));
         }
+    }
+
+    /**
+     * Toute l'exigence de formation en <b>un</b> critère {@code education:requirement}
+     * (D67) : le niveau de diplôme, le credential « Professional certificate »
+     * et le domaine d'étude sont des dimensions, les valeurs d'une même
+     * dimension des alternatives. Rien n'est ajouté quand l'offre n'exige ni
+     * diplôme ni domaine. Le critère porte aussi ces listes structurées
+     * ({@link MatchingEducation}) : le service IA note la formation en code
+     * (D68), sans jamais parser le texte de l'attente.
+     */
+    private void addEducation(List<MatchingCriterion> criteria, Set<String> usedKeys, JsonNode offer) {
+        List<String> degreeLevels = new ArrayList<>();
+        List<String> credentials = new ArrayList<>();
+        for (String label : distinctLabels(offer.path("requiredDegrees"))) {
+            (PROFESSIONAL_CERTIFICATE.equalsIgnoreCase(label) ? credentials : degreeLevels).add(label);
+        }
+        List<String> fields = distinctLabels(offer.path("requiredStudyFields"));
+
+        List<String> parts = new ArrayList<>();
+        if (!degreeLevels.isEmpty()) {
+            parts.add("Degree level (one of, or above): " + String.join(", ", degreeLevels));
+        }
+        if (!credentials.isEmpty()) {
+            parts.add("Credential (one of): " + String.join(", ", credentials));
+        }
+        if (!fields.isEmpty()) {
+            parts.add("Field of study (one of): " + String.join(", ", fields));
+        }
+        if (parts.isEmpty()) {
+            return;
+        }
+        criteria.add(new MatchingCriterion(uniqueKey(usedKeys, "education", "requirement"),
+                MatchingSection.EDUCATION, "Education", String.join("; ", parts), DEFAULT_WEIGHT,
+                new MatchingEducation(List.copyOf(degreeLevels), List.copyOf(credentials), List.copyOf(fields))));
+    }
+
+    /** Labels non vides, dédupliqués sans tenir compte de la casse ni des espaces, ordre conservé. */
+    private static List<String> distinctLabels(JsonNode entries) {
+        Map<String, String> labels = new LinkedHashMap<>();
+        for (JsonNode entry : items(entries)) {
+            String label = text(entry, "label");
+            if (label != null) {
+                labels.putIfAbsent(label.toLowerCase(Locale.ROOT).replaceAll("\\s+", " "), label);
+            }
+        }
+        return new ArrayList<>(labels.values());
     }
 
     private void addLabels(List<MatchingCriterion> criteria, Set<String> usedKeys, JsonNode entries, String field,

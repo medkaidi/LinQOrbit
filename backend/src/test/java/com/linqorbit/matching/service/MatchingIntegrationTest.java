@@ -39,6 +39,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,6 +73,8 @@ import com.linqorbit.matching.client.MatchingAnalyzeClient;
 import com.linqorbit.matching.client.MatchingClarifyClient;
 import com.linqorbit.matching.dto.MatchingAnalyzeRequest;
 import com.linqorbit.matching.dto.MatchingClarifyRequest;
+import com.linqorbit.matching.dto.MatchingCriterionPayload;
+import com.linqorbit.matching.dto.MatchingEducationPayload;
 import com.linqorbit.matching.entity.MatchingJobStatus;
 
 /**
@@ -807,6 +810,86 @@ class MatchingIntegrationTest {
     }
 
     /** Lancement puis analyse initiale exécutée (analyse IA stubée) ; renvoie le matching. */
+    // --- D68 : formation déterministe — métadonnées envoyées, jamais clarifiée ---
+
+    private static final String OFFER_SHEET_WITH_EDUCATION = """
+            {"schemaVersion": "2", "title": "Backend Engineer",
+             "requiredSkills": [{"name": "Java", "weight": 4, "level": 4, "minYears": 3, "origin": "declared"}],
+             "requiredDegrees": [{"label": "Master's degree"}, {"label": "Professional certificate"}],
+             "requiredStudyFields": [{"label": "Computer Science"}],
+             "certifications": [{"name": "AWS Solutions Architect"}]}""";
+    private static final String ANALYSIS_WITH_EDUCATION = """
+            {"schemaVersion": "1", "policyVersion": "education-2", "assessments": [
+              {"criterionKey": "skill:java", "score": 90, "rationale": "Level 4.", "evidence": [{"source": "skill", "index": 0}]},
+              {"criterionKey": "education:requirement", "score": 0, "rationale": "No obtained diploma.", "evidence": []},
+              {"criterionKey": "certification:aws-solutions-architect", "score": 0, "rationale": "None.", "evidence": []}
+            ]}""";
+    private static final String OFFER_SHEET_EDUCATION_ONLY = """
+            {"schemaVersion": "2", "title": "Backend Engineer",
+             "requiredDegrees": [{"label": "Master's degree"}], "requiredStudyFields": [{"label": "Computer Science"}]}""";
+    private static final String ANALYSIS_EDUCATION_ONLY = """
+            {"schemaVersion": "1", "policyVersion": "education-2", "assessments": [
+              {"criterionKey": "education:requirement", "score": 0, "rationale": "No obtained diploma.", "evidence": []}
+            ]}""";
+
+    @Test
+    void laFormationVoyageStructureeVersLAnalyseMaisNEstJamaisClarifiee() throws Exception {
+        Scenario scenario = readyScenario(null);
+        useOfferSheet(scenario.offerId(), OFFER_SHEET_WITH_EDUCATION);
+        when(matchingAnalyzeClient.analyze(any())).thenReturn(ANALYSIS_WITH_EDUCATION);
+        UUID matchingId = UUID.fromString(json(start(scenario.candidateJwt(), scenario.publicId())
+                .andExpect(status().isOk()).andReturn()).get("matchingId").asText());
+
+        matchingWorker.executeJob(latestJobId(matchingId));
+
+        ArgumentCaptor<MatchingAnalyzeRequest> analyzed = ArgumentCaptor.forClass(MatchingAnalyzeRequest.class);
+        verify(matchingAnalyzeClient).analyze(analyzed.capture());
+        Map<String, MatchingCriterionPayload> sent = analyzed.getValue().criteria().stream()
+                .collect(Collectors.toMap(MatchingCriterionPayload::key, criterion -> criterion));
+        assertThat(sent).containsOnlyKeys("skill:java", "education:requirement", "certification:aws-solutions-architect");
+        assertThat(sent.get("education:requirement").education()).isEqualTo(new MatchingEducationPayload(
+                List.of("Master's degree"), List.of("Professional certificate"), List.of("Computer Science")));
+        assertThat(sent.get("certification:aws-solutions-architect").education()).isNull();
+        assertThat(sent.get("skill:java").education()).isNull();
+
+        // Clarification : la formation (critère et évaluation) est retirée, la certification reste clarifiable.
+        ArgumentCaptor<MatchingClarifyRequest> clarified = ArgumentCaptor.forClass(MatchingClarifyRequest.class);
+        verify(matchingClarifyClient).clarify(clarified.capture());
+        assertThat(clarified.getValue().criteria()).extracting(MatchingCriterionPayload::key)
+                .containsExactlyInAnyOrder("skill:java", "certification:aws-solutions-architect");
+        assertThat(clarified.getValue().assessments()).extracting(assessment -> assessment.path("criterionKey").asText())
+                .containsExactlyInAnyOrder("skill:java", "certification:aws-solutions-architect");
+        // Le score de la formation reste dans le résultat stocké.
+        assertThat(jdbcTemplate.queryForObject("SELECT result::text FROM matching_result WHERE matching_id = ?",
+                String.class, matchingId)).contains("education:requirement");
+    }
+
+    @Test
+    void uneOffreQuiNExigeQueLaFormationCloLEvaluationSansAucuneClarification() throws Exception {
+        Scenario scenario = readyScenario(null);
+        useOfferSheet(scenario.offerId(), OFFER_SHEET_EDUCATION_ONLY);
+        when(matchingAnalyzeClient.analyze(any())).thenReturn(ANALYSIS_EDUCATION_ONLY);
+        UUID matchingId = UUID.fromString(json(start(scenario.candidateJwt(), scenario.publicId())
+                .andExpect(status().isOk()).andReturn()).get("matchingId").asText());
+        UUID jobId = latestJobId(matchingId);
+
+        matchingWorker.executeJob(jobId);
+
+        assertThat(jobStatus(jobId)).isEqualTo(MatchingJobStatus.DONE);
+        verify(matchingClarifyClient, never()).clarify(any());
+        assertThat(count("SELECT count(*) FROM clarification WHERE matching_id = ?", matchingId)).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT assessment_finished_at IS NOT NULL FROM matching WHERE id = ?", Boolean.class, matchingId))
+                .isTrue();
+    }
+
+    private void useOfferSheet(UUID offerId, String sheet) {
+        jdbcTemplate.update("""
+                UPDATE normalized_profile SET content = ?::jsonb
+                WHERE normalized_profile_id IN (SELECT normalized_profile_id FROM normalized_profile_job_offer
+                                                 WHERE job_offer_id = ?)""", sheet, offerId);
+    }
+
     private UUID analyzed(Scenario scenario) throws Exception {
         when(matchingAnalyzeClient.analyze(any())).thenReturn(ANALYSIS);
         UUID matchingId = UUID.fromString(json(start(scenario.candidateJwt(), scenario.publicId())

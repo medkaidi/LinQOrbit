@@ -1,6 +1,6 @@
 {
   "description": "Golden set of the skills policy (TD-058): nine cases replayed against the real model, outside CI. Rounds share one candidate and one offer; round 2 replays round 1 with an answered clarification.",
-  "policyVersion": "skills-3",
+  "policyVersion": "education-2",
   "candidate": {
     "schemaVersion": "3",
     "title": "Backend Developer",

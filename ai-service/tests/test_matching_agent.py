@@ -76,15 +76,16 @@ def test_prompt_embeds_the_replaceable_policy_between_rules_and_example():
     assert SYSTEM_PROMPT.index(POLICY_RULES) < SYSTEM_PROMPT.index(PROMPT_EXAMPLE)
 
 
-def test_policy_is_skills_3_with_its_deterministic_bands():
-    assert POLICY_VERSION == "skills-3"
-    assert POLICY_RULES.startswith("Scoring policy (skills-3).")
+def test_policy_is_education_2_with_the_unchanged_skills_bands():
+    assert POLICY_VERSION == "education-2"
+    assert POLICY_RULES.startswith("Scoring policy (education-2).")
     assert "  d >= 0 -> 100; d = -1 -> 75; d = -2 -> 50; d <= -3 -> 25." in POLICY_RULES
     assert "  r >= 1 -> 100; 0.66 <= r < 1 -> 80; 0.33 <= r < 0.66 -> 55; r < 0.33 -> 30." in POLICY_RULES
     assert "Both bands available: the score is the LOWER of the two" in POLICY_RULES
     assert "  level known -> 5: 100, 4: 85, 3: 70, 2: 55, 1: 40;" in POLICY_RULES
     assert "Java/JavaScript and C#/C++ are not related." in POLICY_RULES
-    assert POLICY_RULES.endswith("related certification is 40-50 at most.")
+    # Certifications close the policy (education is scored in code, D68).
+    assert POLICY_RULES.endswith("- A degree never replaces a certification.")
 
 
 def test_skills_3_counts_a_declared_level_as_a_known_measure():
@@ -116,6 +117,44 @@ def test_skills_3_never_scores_zero_a_related_technology_proven_by_use():
         "  technology is never a full match. A related technology proven by use is\n"
         "  never scored 0: the exact skill may be absent from the sheet, the 40-50 band\n"
         "  still applies.\n" in POLICY_RULES
+    )
+
+
+def test_education_2_keeps_the_languages_and_experience_rules_word_for_word():
+    assert (
+        "Languages:\n"
+        "- Compare CEFR levels: meeting or exceeding the expectation is 100; one level\n"
+        "  below 70-90; two levels below 40-60; three or more below 10-30. A language\n"
+        "  without a stated level is scored on its evidence only (a bare mention\n"
+        "  10-30).\n\n"
+        "Experience:\n"
+        "- Compare the RELEVANT years you computed (see the contract) with the required\n"
+        "  years. Meeting them is 100; then decrease in proportion to the gap.\n\n"
+        "Certifications — separate criteria:\n" in POLICY_RULES
+    )
+
+
+def test_education_2_carries_no_education_rule_for_the_model():
+    # Scored in code (score_education): the model never sees the education criterion.
+    body = POLICY_RULES.removeprefix("Scoring policy (education-2).")
+    for word in ("Education", "education", "obtained diploma", "degree level", "Degree level", "field of study"):
+        assert word not in body
+
+
+def test_education_2_restores_a_full_certification_rule():
+    assert (
+        "Certifications — separate criteria:\n"
+        "- A certification criterion names ONE certification the offer expects. The\n"
+        "  candidate's certifications array is the only source: a diploma, a field, a\n"
+        "  skill, a title, an experience or the seniority never proves one.\n"
+        "- The same certification (same name or a true synonym) -> 100.\n"
+        "- A closely related certification (same vendor and family, an adjacent scope\n"
+        "  or level) -> 40-50 at most; never a full match.\n"
+        "- Any other certification, or none -> 0, with no evidence.\n"
+        "- An answered clarification that names the certification is a valid\n"
+        "  declaration (source \"clarification\"); it never turns a related\n"
+        "  certification into an exact one.\n"
+        "- A degree never replaces a certification." in POLICY_RULES
     )
 
 

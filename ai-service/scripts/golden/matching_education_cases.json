@@ -1,0 +1,538 @@
+{
+  "description": "Golden set of the education policy (D67 bands, scored in code since education-2, D68): ten scenarios, deterministic — the education criterion is scored by score_education, no model call. One candidate and one offer per scenario; the education criterion is the only criterion.",
+  "policyVersion": "education-2",
+  "scenarios": [
+    {
+      "id": 1,
+      "name": "Exact degree and field",
+      "why": "Master's degree in Computer Science meets the requirement exactly.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Backend Developer",
+        "yearsOfExperience": 5,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [
+          {
+            "title": "Master's degree in Computer Science",
+            "institution": "State University",
+            "institutionCountry": null,
+            "degreeLabel": "Master's degree",
+            "studyFieldLabel": "Computer Science",
+            "startDate": "2018-09",
+            "endDate": "2020-06",
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "certifications": [],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Backend Developer"
+      },
+      "criteria": [
+        {
+          "key": "education:requirement",
+          "section": "education",
+          "label": "Education",
+          "requirement": "Degree level (one of, or above): Master's degree; Field of study (one of): Computer Science",
+          "education": {
+            "degreeLevels": [
+              "Master's degree"
+            ],
+            "credentials": [],
+            "fields": [
+              "Computer Science"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "exact": 100,
+        "evidenceSource": "diploma"
+      }
+    },
+    {
+      "id": 2,
+      "name": "Above the required level",
+      "why": "A Doctorate is above the required Master's level, same field.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Backend Developer",
+        "yearsOfExperience": 5,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [
+          {
+            "title": "Doctorate in Computer Science",
+            "institution": "State University",
+            "institutionCountry": null,
+            "degreeLabel": "Doctorate",
+            "studyFieldLabel": "Computer Science",
+            "startDate": "2014-09",
+            "endDate": "2018-06",
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "certifications": [],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Backend Developer"
+      },
+      "criteria": [
+        {
+          "key": "education:requirement",
+          "section": "education",
+          "label": "Education",
+          "requirement": "Degree level (one of, or above): Master's degree; Field of study (one of): Computer Science",
+          "education": {
+            "degreeLevels": [
+              "Master's degree"
+            ],
+            "credentials": [],
+            "fields": [
+              "Computer Science"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "exact": 100,
+        "evidenceSource": "diploma"
+      }
+    },
+    {
+      "id": 3,
+      "name": "One level below",
+      "why": "A Bachelor's degree is one level below the required Master's degree.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Backend Developer",
+        "yearsOfExperience": 5,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [
+          {
+            "title": "Bachelor's degree in Computer Science",
+            "institution": "State University",
+            "institutionCountry": null,
+            "degreeLabel": "Bachelor's degree",
+            "studyFieldLabel": "Computer Science",
+            "startDate": "2017-09",
+            "endDate": "2020-06",
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "certifications": [],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Backend Developer"
+      },
+      "criteria": [
+        {
+          "key": "education:requirement",
+          "section": "education",
+          "label": "Education",
+          "requirement": "Degree level (one of, or above): Master's degree; Field of study (one of): Computer Science",
+          "education": {
+            "degreeLevels": [
+              "Master's degree"
+            ],
+            "credentials": [],
+            "fields": [
+              "Computer Science"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "exact": 65,
+        "evidenceSource": "diploma"
+      }
+    },
+    {
+      "id": 4,
+      "name": "Two levels below",
+      "why": "An Associate degree is two levels below the required Master's degree.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Backend Developer",
+        "yearsOfExperience": 5,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [
+          {
+            "title": "Associate degree in Computer Science",
+            "institution": "State University",
+            "institutionCountry": null,
+            "degreeLabel": "Associate degree",
+            "studyFieldLabel": "Computer Science",
+            "startDate": "2018-09",
+            "endDate": "2020-06",
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "certifications": [],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Backend Developer"
+      },
+      "criteria": [
+        {
+          "key": "education:requirement",
+          "section": "education",
+          "label": "Education",
+          "requirement": "Degree level (one of, or above): Master's degree; Field of study (one of): Computer Science",
+          "education": {
+            "degreeLevels": [
+              "Master's degree"
+            ],
+            "credentials": [],
+            "fields": [
+              "Computer Science"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "exact": 35,
+        "evidenceSource": "diploma"
+      }
+    },
+    {
+      "id": 5,
+      "name": "Distant field",
+      "why": "The required level in a distant field: the field caps the score at 25.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Backend Developer",
+        "yearsOfExperience": 5,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [
+          {
+            "title": "Master's degree in Business Administration",
+            "institution": "State University",
+            "institutionCountry": null,
+            "degreeLabel": "Master's degree",
+            "studyFieldLabel": "Business Administration",
+            "startDate": "2018-09",
+            "endDate": "2020-06",
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "certifications": [],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Backend Developer"
+      },
+      "criteria": [
+        {
+          "key": "education:requirement",
+          "section": "education",
+          "label": "Education",
+          "requirement": "Degree level (one of, or above): Master's degree; Field of study (one of): Computer Science",
+          "education": {
+            "degreeLevels": [
+              "Master's degree"
+            ],
+            "credentials": [],
+            "fields": [
+              "Computer Science"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "exact": 25,
+        "evidenceSource": "diploma"
+      }
+    },
+    {
+      "id": 6,
+      "name": "Close field",
+      "why": "Software Engineering is a close field of Computer Science.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Backend Developer",
+        "yearsOfExperience": 5,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [
+          {
+            "title": "Master's degree in Software Engineering",
+            "institution": "State University",
+            "institutionCountry": null,
+            "degreeLabel": "Master's degree",
+            "studyFieldLabel": "Software Engineering",
+            "startDate": "2018-09",
+            "endDate": "2020-06",
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "certifications": [],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Backend Developer"
+      },
+      "criteria": [
+        {
+          "key": "education:requirement",
+          "section": "education",
+          "label": "Education",
+          "requirement": "Degree level (one of, or above): Master's degree; Field of study (one of): Computer Science",
+          "education": {
+            "degreeLevels": [
+              "Master's degree"
+            ],
+            "credentials": [],
+            "fields": [
+              "Computer Science"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "exact": 75,
+        "evidenceSource": "diploma"
+      }
+    },
+    {
+      "id": 7,
+      "name": "Unknown field",
+      "why": "The required level, but the diploma states no field: partial 50.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Backend Developer",
+        "yearsOfExperience": 5,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [
+          {
+            "title": "Master's degree",
+            "institution": "State University",
+            "institutionCountry": null,
+            "degreeLabel": "Master's degree",
+            "studyFieldLabel": null,
+            "startDate": "2018-09",
+            "endDate": "2020-06",
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "certifications": [],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Backend Developer"
+      },
+      "criteria": [
+        {
+          "key": "education:requirement",
+          "section": "education",
+          "label": "Education",
+          "requirement": "Degree level (one of, or above): Master's degree; Field of study (one of): Computer Science",
+          "education": {
+            "degreeLevels": [
+              "Master's degree"
+            ],
+            "credentials": [],
+            "fields": [
+              "Computer Science"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "exact": 50,
+        "evidenceSource": "diploma"
+      }
+    },
+    {
+      "id": 8,
+      "name": "No diploma",
+      "why": "No diploma at all: score 0 with no evidence.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Backend Developer",
+        "yearsOfExperience": 5,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [],
+        "certifications": [],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Backend Developer"
+      },
+      "criteria": [
+        {
+          "key": "education:requirement",
+          "section": "education",
+          "label": "Education",
+          "requirement": "Degree level (one of, or above): Master's degree; Field of study (one of): Computer Science",
+          "education": {
+            "degreeLevels": [
+              "Master's degree"
+            ],
+            "credentials": [],
+            "fields": [
+              "Computer Science"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "exact": 0,
+        "noEvidence": true
+      }
+    },
+    {
+      "id": 9,
+      "name": "Ongoing diploma",
+      "why": "A diploma without endDate is not obtained: score 0 with no evidence.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Backend Developer",
+        "yearsOfExperience": 5,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [
+          {
+            "title": "Master's degree in Computer Science",
+            "institution": "State University",
+            "institutionCountry": null,
+            "degreeLabel": "Master's degree",
+            "studyFieldLabel": "Computer Science",
+            "startDate": "2024-09",
+            "endDate": null,
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "certifications": [],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Backend Developer"
+      },
+      "criteria": [
+        {
+          "key": "education:requirement",
+          "section": "education",
+          "label": "Education",
+          "requirement": "Degree level (one of, or above): Master's degree; Field of study (one of): Computer Science",
+          "education": {
+            "degreeLevels": [
+              "Master's degree"
+            ],
+            "credentials": [],
+            "fields": [
+              "Computer Science"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "exact": 0,
+        "noEvidence": true
+      }
+    },
+    {
+      "id": 10,
+      "name": "Professional certificate vs degree",
+      "why": "A Professional certificate is a credential, never a degree level; a certification is not a diploma.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Backend Developer",
+        "yearsOfExperience": 5,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [
+          {
+            "title": "Professional certificate in Computer Science",
+            "institution": "State University",
+            "institutionCountry": null,
+            "degreeLabel": "Professional certificate",
+            "studyFieldLabel": "Computer Science",
+            "startDate": "2019-09",
+            "endDate": "2020-06",
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "certifications": [
+          {
+            "name": "AWS Solutions Architect"
+          }
+        ],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Backend Developer"
+      },
+      "criteria": [
+        {
+          "key": "education:requirement",
+          "section": "education",
+          "label": "Education",
+          "requirement": "Degree level (one of, or above): Master's degree; Field of study (one of): Computer Science",
+          "education": {
+            "degreeLevels": [
+              "Master's degree"
+            ],
+            "credentials": [],
+            "fields": [
+              "Computer Science"
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "exact": 0,
+        "noEvidence": true
+      }
+    }
+  ]
+}

@@ -16,6 +16,14 @@ message is not replayed: the repair restarts from the request with the exact
 errors to fix. Still rejected after the repair -> ``no_output`` (502), never
 a 500. Any other exception (provider failure, bug) is not caught here and
 stays a 500 (TD-056).
+
+Education is scored IN CODE (D68): the joint ``education:requirement``
+criterion carries its structured requirement and ``score_education`` scores
+it from the candidate sheet. It is never sent to the model, never repaired;
+the agent, its coverage check and its repair turn only see the other
+criteria (and their previous assessments). Without any other criterion, no
+agent is built at all. The deterministic and model assessments are merged
+and their coverage checked against every criterion of the request.
 """
 
 from __future__ import annotations
@@ -33,13 +41,17 @@ from langgraph.errors import GraphRecursionError
 from pydantic import ValidationError
 
 from app.graphs.matching_agent import build_matching_agent
-from app.graphs.matching_policy import POLICY_VERSION
+from app.graphs.matching_policy import POLICY_VERSION, score_education
+from app.graphs.matching_policy import EducationRequirement as EducationRules
 from app.schemas.matching import (
     EVIDENCE_ARRAYS,
     SCHEMA_VERSION,
     ClarificationHistory,
+    CriterionAssessment,
     MatchingAnalysis,
     MatchingAnalyzeRequest,
+    MatchingCriterion,
+    MatchingEvidence,
 )
 
 logger = logging.getLogger(__name__)
@@ -210,11 +222,78 @@ def _finalize(analysis: MatchingAnalysis) -> MatchingAnalysis:
     return analysis
 
 
+def _education_assessment(criterion: MatchingCriterion, candidate: dict) -> CriterionAssessment:
+    """Deterministic assessment of the education criterion: evidence = the selected diploma, none at 0."""
+    education = criterion.education
+    result = score_education(
+        candidate,
+        EducationRules(
+            degree_levels=tuple(education.degree_levels),
+            credentials=tuple(education.credentials),
+            fields=tuple(education.fields),
+        ),
+    )
+    evidence = [] if result.diploma_index is None else [MatchingEvidence(source="diploma", index=result.diploma_index)]
+    return CriterionAssessment(
+        criterion_key=criterion.key, score=result.score, rationale=result.rationale, evidence=evidence
+    )
+
+
 def analyze_matching(request: MatchingAnalyzeRequest) -> MatchingAnalysis:
-    """Score the candidate sheet against every criterion of the offer sheet."""
+    """Score the candidate sheet against every criterion of the offer sheet.
+
+    Education is scored in code; every other criterion goes to the agent.
+    """
     if not request.criteria:
         raise MatchingAnalyzeError("empty_criteria", "The matching has no criterion to score.")
 
+    deterministic = [
+        _education_assessment(criterion, request.candidate)
+        for criterion in request.criteria
+        if criterion.education is not None
+    ]
+    llm_criteria = [criterion for criterion in request.criteria if criterion.education is None]
+    if not llm_criteria:
+        logger.info(
+            "Matching analysis : deterministic criteria only, no model call : deterministic=%d", len(deterministic)
+        )
+        return _finalize(MatchingAnalysis(assessments=deterministic))
+
+    llm_keys = {criterion.key for criterion in llm_criteria}
+    llm_request = request.model_copy(
+        update={
+            "criteria": llm_criteria,
+            # Context of the model only: the education assessment is never its business.
+            "previous_assessments": [
+                assessment for assessment in request.previous_assessments if assessment.criterion_key in llm_keys
+            ],
+        }
+    )
+    scored = _analyze_with_model(llm_request)
+
+    order = {criterion.key: position for position, criterion in enumerate(request.criteria)}
+    merged = MatchingAnalysis(
+        assessments=sorted(
+            [*deterministic, *scored.assessments],
+            key=lambda assessment: order.get(assessment.criterion_key, len(order)),
+        )
+    )
+    missing, unexpected = coverage_gaps(merged, request)
+    if missing or unexpected:
+        # The model subset was already checked: only a broken invariant lands here.
+        logger.error(
+            "Matching analysis : merged assessments do not cover the request : missing=%d, unexpected=%d",
+            len(missing),
+            len(unexpected),
+        )
+        raise MatchingAnalyzeError("no_output", NO_OUTPUT_MESSAGE)
+    if deterministic:
+        logger.info("Matching analysis : deterministic criteria merged : deterministic=%d", len(deterministic))
+    return _finalize(merged)
+
+
+def _analyze_with_model(request: MatchingAnalyzeRequest) -> MatchingAnalysis:
+    """One agent run on the request's criteria, then at most one repair turn; never stamped (the caller is)."""
     payload = {
         "criteria": [criterion.model_dump(by_alias=True, exclude_none=True) for criterion in request.criteria],
         "offer": request.offer,
@@ -266,7 +345,7 @@ def analyze_matching(request: MatchingAnalyzeRequest) -> MatchingAnalysis:
         if isinstance(parsed, MatchingAnalysis):
             missing, unexpected, bad_evidence, bad_clarifications = _gaps(parsed, request)
             if not missing and not unexpected and not bad_evidence and not bad_clarifications:
-                return _finalize(parsed)
+                return parsed
             logger.warning(
                 "Matching analysis : gaps found, running repair turn : missing=%d, unexpected=%d, bad_evidence=%d,"
                 " bad_clarification=%d",
@@ -292,6 +371,6 @@ def analyze_matching(request: MatchingAnalyzeRequest) -> MatchingAnalysis:
     parsed = repair.get("structured_response")
     if isinstance(parsed, MatchingAnalysis) and _gaps(parsed, request) == ([], [], [], []):
         logger.info("Matching analysis : repair turn recovered the structured output")
-        return _finalize(parsed)
+        return parsed
 
     raise MatchingAnalyzeError("no_output", NO_OUTPUT_MESSAGE)

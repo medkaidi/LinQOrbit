@@ -80,9 +80,13 @@ com.linqorbit/
 │   │                  réponse/skip → réévaluation versionnée, fin d'évaluation, contestation en
 │   │                  remplacement complet sans recalcul — D52, D62),
 │   │                  MatchingWorker (miroir NormalizationWorker, pool matchingExecutor ; analyse
-│   │                  puis question suivante, une tx : résultat + DONE + question OPEN ou fin),
+│   │                  puis question suivante, une tx : résultat + DONE + question OPEN ou fin ;
+│   │                  la formation n'est jamais clarifiée — critère et évaluation retirés de la
+│   │                  requête de clarification, sans autre critère fin sans appel IA, D68),
 │   │                  MatchingCriteriaBuilder (grille extraite de la fiche offre, clés
-│   │                  stables), MatchingScoring (barème provisoire `weighted-1`, couverture
+│   │                  stables ; formation = un critère `education:requirement` portant son
+│   │                  exigence structurée `MatchingEducation`, envoyée à l'IA qui la note en
+│   │                  code — D67/D68), MatchingScoring (barème provisoire `weighted-1`, couverture
 │   │                  exacte des clés), MatchingSection, MatchingRequestedEvent,
 │   │                  MatchingStatusBroadcaster (push SSE du statut, D60)
 │   ├── client/        MatchingAnalyzeClient (POST /matching/analyze — contexte rejoué),

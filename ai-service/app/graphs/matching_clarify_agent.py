@@ -40,8 +40,10 @@ Contract:
   to re-score the candidate.
 - Target the most decision-relevant gap: a criterion scored 0 or low that a
   short answer could clarify, missing or thin evidence, ambiguous relevant
-  years, an unclear degree or field, a language level, a certification, or a
-  contradiction or omission in the profile.
+  years, a language level, a certification, or a contradiction or omission in
+  the profile.
+- Education is scored from the candidate sheet only: a clarification can never
+  change it. Never ask about a degree, a diploma or a field of study.
 - Never ask what the sheets already answer. Never ask the same thing twice —
   including a question the candidate skipped: a skip means move on to another
   gap.

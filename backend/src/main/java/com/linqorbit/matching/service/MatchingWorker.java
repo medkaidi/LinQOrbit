@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -39,6 +40,7 @@ import com.linqorbit.matching.dto.ClarificationHistoryPayload;
 import com.linqorbit.matching.dto.MatchingAnalyzeRequest;
 import com.linqorbit.matching.dto.MatchingClarifyRequest;
 import com.linqorbit.matching.dto.MatchingCriterionPayload;
+import com.linqorbit.matching.dto.MatchingEducationPayload;
 import com.linqorbit.matching.entity.Clarification;
 import com.linqorbit.matching.entity.ClarificationStatus;
 import com.linqorbit.matching.entity.Matching;
@@ -249,7 +251,7 @@ public class MatchingWorker {
         }
         List<MatchingCriterionPayload> payload = criteria.stream()
                 .map(criterion -> new MatchingCriterionPayload(criterion.key(), criterion.section().getApiValue(),
-                        criterion.label(), criterion.requirement()))
+                        criterion.label(), criterion.requirement(), educationPayload(criterion.education())))
                 .toList();
         List<ClarificationHistoryPayload> history = closedClarifications(matching.getId());
         String analysis = matchingAnalyzeClient.analyze(new MatchingAnalyzeRequest(matching.getId().toString(),
@@ -285,17 +287,36 @@ public class MatchingWorker {
                 next.finish());
     }
 
+    /** Exigence de formation structurée (D68) ; {@code null} pour tout autre critère. */
+    private static MatchingEducationPayload educationPayload(MatchingEducation education) {
+        return education == null ? null
+                : new MatchingEducationPayload(education.degreeLevels(), education.credentials(), education.fields());
+    }
+
     /**
      * Suite de la boucle (D52) : question OPEN suivante, fin d'évaluation, ou
      * rien (évaluation déjà close). Le budget restant = plafond de l'offre −
      * questions déjà posées (skips compris) ; budget épuisé ou agent à sec →
-     * fin, sans appel IA dans le premier cas.
+     * fin, sans appel IA dans le premier cas. La formation (critère
+     * déterministe, D68) ne se clarifie jamais : son critère et son évaluation
+     * sont retirés de la requête ; sans autre critère, l'évaluation se clôt
+     * sans appel IA.
      */
     private NextQuestion nextQuestion(Matching matching, JsonNode candidate, JsonNode offer,
-            List<MatchingCriterionPayload> criteria, JsonNode analysis, List<ClarificationHistoryPayload> history) {
+            List<MatchingCriterionPayload> payload, JsonNode analysis, List<ClarificationHistoryPayload> history) {
         if (matching.getAssessmentFinishedAt() != null) {
             return NextQuestion.NONE;
         }
+        List<MatchingCriterionPayload> criteria = payload.stream()
+                .filter(criterion -> criterion.education() == null)
+                .toList();
+        if (criteria.isEmpty()) {
+            log.info("Matching assessment finished : nothing to clarify, matchingId={}", matching.getId());
+            return NextQuestion.FINISH;
+        }
+        Set<String> clarifiableKeys = criteria.stream()
+                .map(MatchingCriterionPayload::key)
+                .collect(Collectors.toSet());
         int cap = jobOfferRepository.findById(matching.getJobOfferId())
                 .map(JobOffer::getMaxClarificationQuestions)
                 .orElse(0);
@@ -305,7 +326,11 @@ public class MatchingWorker {
             return NextQuestion.FINISH;
         }
         List<JsonNode> assessments = new ArrayList<>();
-        analysis.path("assessments").forEach(assessments::add);
+        analysis.path("assessments").forEach(assessment -> {
+            if (clarifiableKeys.contains(assessment.path("criterionKey").asString(""))) {
+                assessments.add(assessment);
+            }
+        });
         JsonNode suggestion = parse(matchingClarifyClient.clarify(new MatchingClarifyRequest(
                 matching.getId().toString(), candidate, offer, criteria, assessments, history, remaining)));
         JsonNode question = suggestion.path("question");

@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-20T20:59:22+00:00",
+  "fixture": "certifications",
+  "model": "gemini-3.1-flash-lite",
+  "temperature": 0.0,
+  "policyVersion": "education-2",
+  "analysisPolicyVersions": [
+    "education-2",
+    "education-2",
+    "education-2"
+  ],
+  "passed": 3,
+  "total": 3,
+  "verdict": "PASS",
+  "cases": [
+    {
+      "id": 1,
+      "name": "Exact certification",
+      "key": "certification:aws-solutions-architect-professional",
+      "round": 1,
+      "expected": {
+        "exact": 100,
+        "evidenceSource": "certification"
+      },
+      "obtained": 100,
+      "evidence": [
+        "certification[0]"
+      ],
+      "rationale": "The candidate holds the AWS Solutions Architect Professional certification as declared in their profile.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 2,
+      "name": "Related certification",
+      "key": "certification:aws-solutions-architect-professional",
+      "round": 1,
+      "expected": {
+        "min": 40,
+        "max": 50,
+        "evidenceSource": "certification"
+      },
+      "obtained": 50,
+      "evidence": [
+        "certification[0]"
+      ],
+      "rationale": "The candidate holds the AWS Solutions Architect Associate certification, which is a related certification within the same vendor and family, but not the requested Professional level.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 3,
+      "name": "Other certification",
+      "key": "certification:aws-solutions-architect-professional",
+      "round": 1,
+      "expected": {
+        "exact": 0,
+        "noEvidence": true
+      },
+      "obtained": 0,
+      "evidence": [],
+      "rationale": "The candidate does not hold the AWS Solutions Architect Professional certification; the only listed certification is Certified Scrum Master.",
+      "passed": true,
+      "detail": "ok"
+    }
+  ]
+}

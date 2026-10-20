@@ -112,3 +112,12 @@ def test_clarify_agent_keeps_the_provider_default_sampling(monkeypatch):
 
     # Température 0 réservée au matching : la clarification ne demande aucune température.
     assert requested == [{}]
+
+
+def test_clarify_prompt_never_asks_about_education():
+    # D68: education is scored from the candidate sheet only; a clarification can never change it.
+    assert "an unclear degree or field" not in CLARIFY_PROMPT_RULES
+    assert (
+        "- Education is scored from the candidate sheet only: a clarification can never\n"
+        "  change it. Never ask about a degree, a diploma or a field of study.\n" in CLARIFY_PROMPT_RULES
+    )

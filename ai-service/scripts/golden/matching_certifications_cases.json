@@ -1,0 +1,157 @@
+{
+  "description": "Golden set of the certification rules (education-2, D68): three scenarios replayed against the real model, outside CI. One candidate and one offer per scenario; the certification criterion is the only criterion.",
+  "policyVersion": "education-2",
+  "scenarios": [
+    {
+      "id": 1,
+      "name": "Exact certification",
+      "why": "The candidate holds the very certification the offer names.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Cloud Architect",
+        "yearsOfExperience": 6,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [],
+        "certifications": [
+          {
+            "name": "AWS Solutions Architect Professional",
+            "issuer": "Amazon Web Services",
+            "issuedAt": "2023-03",
+            "url": null,
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Cloud Architect",
+        "certifications": [
+          {
+            "name": "AWS Solutions Architect Professional"
+          }
+        ]
+      },
+      "criteria": [
+        {
+          "key": "certification:aws-solutions-architect-professional",
+          "section": "education",
+          "label": "Certification: AWS Solutions Architect Professional"
+        }
+      ],
+      "expected": {
+        "exact": 100,
+        "evidenceSource": "certification"
+      }
+    },
+    {
+      "id": 2,
+      "name": "Related certification",
+      "why": "The Associate level of the same vendor and family is related, never a full match.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Cloud Architect",
+        "yearsOfExperience": 6,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [],
+        "certifications": [
+          {
+            "name": "AWS Solutions Architect Associate",
+            "issuer": "Amazon Web Services",
+            "issuedAt": "2023-03",
+            "url": null,
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Cloud Architect",
+        "certifications": [
+          {
+            "name": "AWS Solutions Architect Professional"
+          }
+        ]
+      },
+      "criteria": [
+        {
+          "key": "certification:aws-solutions-architect-professional",
+          "section": "education",
+          "label": "Certification: AWS Solutions Architect Professional"
+        }
+      ],
+      "expected": {
+        "min": 40,
+        "max": 50,
+        "evidenceSource": "certification"
+      }
+    },
+    {
+      "id": 3,
+      "name": "Other certification",
+      "why": "An unrelated certification and a Computer Science degree never prove the certification.",
+      "candidate": {
+        "schemaVersion": "3",
+        "title": "Cloud Architect",
+        "yearsOfExperience": 6,
+        "bio": "",
+        "experiences": [],
+        "projects": [],
+        "diplomas": [
+          {
+            "title": "Master's degree in Computer Science",
+            "institution": "State University",
+            "institutionCountry": null,
+            "degreeLabel": "Master's degree",
+            "studyFieldLabel": "Computer Science",
+            "startDate": "2016-09",
+            "endDate": "2018-06",
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "certifications": [
+          {
+            "name": "Certified Scrum Master",
+            "issuer": "Scrum Alliance",
+            "issuedAt": "2022-05",
+            "url": null,
+            "origin": "declared",
+            "evidence": []
+          }
+        ],
+        "languages": [],
+        "skills": []
+      },
+      "offer": {
+        "schemaVersion": "2",
+        "title": "Cloud Architect",
+        "certifications": [
+          {
+            "name": "AWS Solutions Architect Professional"
+          }
+        ]
+      },
+      "criteria": [
+        {
+          "key": "certification:aws-solutions-architect-professional",
+          "section": "education",
+          "label": "Certification: AWS Solutions Architect Professional"
+        }
+      ],
+      "expected": {
+        "exact": 0,
+        "noEvidence": true
+      }
+    }
+  ]
+}

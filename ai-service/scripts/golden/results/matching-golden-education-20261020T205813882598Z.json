@@ -1,0 +1,188 @@
+{
+  "date": "2026-10-20T20:58:13+00:00",
+  "fixture": "education",
+  "model": "gemini-3.1-flash-lite",
+  "temperature": 0.0,
+  "policyVersion": "education-2",
+  "analysisPolicyVersions": [
+    "education-2",
+    "education-2",
+    "education-2",
+    "education-2",
+    "education-2",
+    "education-2",
+    "education-2",
+    "education-2",
+    "education-2",
+    "education-2"
+  ],
+  "passed": 10,
+  "total": 10,
+  "verdict": "PASS",
+  "cases": [
+    {
+      "id": 1,
+      "name": "Exact degree and field",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 100,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 100,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "Master's degree in Computer Science: its degree level meets or exceeds the required level; its field of study matches exactly.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 2,
+      "name": "Above the required level",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 100,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 100,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "Doctorate in Computer Science: its degree level meets or exceeds the required level; its field of study matches exactly.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 3,
+      "name": "One level below",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 65,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 65,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "Bachelor's degree in Computer Science: its degree is one level below the required level; its field of study matches exactly.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 4,
+      "name": "Two levels below",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 35,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 35,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "Associate degree in Computer Science: its degree is two levels below the required level; its field of study matches exactly.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 5,
+      "name": "Distant field",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 25,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 25,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "Master's degree in Business Administration: its field of study is distant from the required one; its degree level meets or exceeds the required level.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 6,
+      "name": "Close field",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 75,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 75,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "Master's degree in Software Engineering: its field of study is close to the required one; its degree level meets or exceeds the required level.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 7,
+      "name": "Unknown field",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 50,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 50,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "Master's degree: its field of study is not stated; its degree level meets or exceeds the required level.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 8,
+      "name": "No diploma",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 0,
+        "noEvidence": true
+      },
+      "obtained": 0,
+      "evidence": [],
+      "rationale": "The candidate sheet lists no obtained diploma.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 9,
+      "name": "Ongoing diploma",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 0,
+        "noEvidence": true
+      },
+      "obtained": 0,
+      "evidence": [],
+      "rationale": "No obtained diploma: the candidate's diploma is still in progress (no end date).",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 10,
+      "name": "Professional certificate vs degree",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 0,
+        "noEvidence": true
+      },
+      "obtained": 0,
+      "evidence": [],
+      "rationale": "Professional certificate in Computer Science: a Professional certificate is a credential, not a degree level; its field of study matches exactly.",
+      "passed": true,
+      "detail": "ok"
+    }
+  ]
+}
