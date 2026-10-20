@@ -12,7 +12,7 @@ import {
   PageHeader,
 } from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
-import { ButtonLink, CtaButton } from "@/components/ui/button";
+import { Button, ButtonLink, CtaButton } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -21,16 +21,16 @@ import {
   appliedOnLabel,
 } from "@/features/application/application-shared";
 import {
-  ITEM_CARD_CLASS,
   MUTED_TEXT_CLASS,
   SECTION_CARD_CLASS,
   SECTION_HEADER_CLASS,
   SECTION_TITLE_CLASS,
 } from "@/components/ui/section";
+import { companyInitials } from "@/features/job-offer/job-offer-shared";
 import { useMyApplications, useWithdrawApplication } from "@/hooks/use-applications";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import { cn } from "@/lib/utils/cn";
-import type { ApplicationResponse } from "@/types/application";
+import type { ApplicationResponse, ApplicationStatusValue } from "@/types/application";
 
 function Header() {
   return (
@@ -47,6 +47,23 @@ function Header() {
   );
 }
 
+const STATUS_BAR_CLASSES: Record<ApplicationStatusValue, string> = {
+  draft: "bg-orange-border",
+  submitted: "bg-blue-deep",
+  accepted: "bg-success-text",
+  rejected: "bg-danger",
+  withdrawn: "bg-slate-border",
+};
+
+/** Monogramme de la société, replié sur l'initiale du titre si le nom manque. */
+function companyMark(application: ApplicationResponse): string {
+  return (
+    companyInitials(application.job.companyName ?? "") ||
+    application.job.title.trim().charAt(0).toUpperCase() ||
+    "?"
+  );
+}
+
 function ApplicationCard({
   application,
   onWithdraw,
@@ -54,66 +71,106 @@ function ApplicationCard({
   application: ApplicationResponse;
   onWithdraw: (applicationId: string) => void;
 }) {
+  const [showAnswers, setShowAnswers] = useState(false);
   const appliedOn = appliedOnLabel(application.createdAt);
   const isDraft = application.status === "draft";
   const jobPath = `/jobs/${application.job.publicId}-${application.job.slug}`;
+  const answersCount = application.answers.length;
+  const answersLabel = answersCount === 1 ? "1 answer" : `${answersCount} answers`;
+  const answersPanelId = `answers-${application.id}`;
+  const metaItems = [
+    appliedOn ? `${isDraft ? "Started" : "Applied"} ${appliedOn}` : null,
+    application.cv
+      ? `CV: ${application.cv.originalName ?? "No longer available"}`
+      : "No CV yet",
+    answersLabel,
+  ].filter((item): item is string => item !== null);
+
   return (
-    <li className={ITEM_CARD_CLASS}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Link
-            href={jobPath}
-            className={cn(
-              LINK_ACCENT_CLASS,
-              "font-headline-md text-headline-md text-text-primary font-bold tracking-tight",
-            )}
+    <li className="relative overflow-hidden rounded-2xl border border-slate-border bg-canvas-white p-5 pl-6">
+      <span
+        aria-hidden="true"
+        className={cn("absolute inset-y-0 left-0 w-1.5", STATUS_BAR_CLASSES[application.status])}
+      />
+      <div className="flex items-start gap-4">
+        <span
+          aria-hidden="true"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-surface text-body-md font-bold text-blue-deep"
+        >
+          {companyMark(application)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <Link
+                href={jobPath}
+                className={cn(
+                  LINK_ACCENT_CLASS,
+                  "font-headline-md text-headline-md text-text-primary font-bold tracking-tight",
+                )}
+              >
+                {application.job.title}
+              </Link>
+              {application.job.companyName ? (
+                <p className="font-label-md text-label-md text-primary uppercase font-bold">
+                  {application.job.companyName}
+                </p>
+              ) : null}
+            </div>
+            <ApplicationStatusPill status={application.status} />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 font-body-sm text-body-sm text-text-tertiary">
+        {metaItems.map((item, index) => (
+          <span key={item} className="flex items-center gap-2">
+            {index > 0 ? <span aria-hidden="true">·</span> : null}
+            <span>{item}</span>
+          </span>
+        ))}
+      </div>
+
+      {answersCount > 0 ? (
+        <div className="mt-3">
+          <Button
+            type="button"
+            variant="outline-sm"
+            aria-expanded={showAnswers}
+            aria-controls={answersPanelId}
+            onClick={() => setShowAnswers((open) => !open)}
           >
-            {application.job.title}
-          </Link>
-          {application.job.companyName ? (
-            <p className="font-label-md text-label-md text-primary uppercase font-bold">
-              {application.job.companyName}
-            </p>
+            {showAnswers ? "Hide answers" : `View answers (${answersCount})`}
+          </Button>
+          {showAnswers ? (
+            <dl
+              id={answersPanelId}
+              className="mt-3 flex flex-col gap-2 rounded-xl border border-slate-border bg-item-surface/50 p-4"
+            >
+              {application.answers.map((answer) => (
+                <div key={answer.questionId}>
+                  <dt className="font-label-md text-label-md text-text-secondary">{answer.label}</dt>
+                  <dd className="text-body-md font-body-md text-text-primary break-words whitespace-pre-wrap">
+                    {answerValueLabel(answer)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           ) : null}
         </div>
-        <ApplicationStatusPill status={application.status} />
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-body-sm text-body-sm text-text-tertiary">
-        {appliedOn ? <span>{isDraft ? "Started" : "Applied"} {appliedOn}</span> : null}
-        {application.cv ? (
-          <span>CV: {application.cv.originalName ?? "No longer available"}</span>
-        ) : (
-          <span>No CV yet</span>
-        )}
-      </div>
-
-      {application.answers.length > 0 ? (
-        <dl className="mt-3 pt-3 border-t border-slate-border flex flex-col gap-2">
-          {application.answers.map((answer) => (
-            <div key={answer.questionId}>
-              <dt className="font-label-md text-label-md text-text-secondary">{answer.label}</dt>
-              <dd className="text-body-md font-body-md text-text-primary break-words whitespace-pre-wrap">
-                {answerValueLabel(answer)}
-              </dd>
-            </div>
-          ))}
-        </dl>
       ) : null}
 
-      {isDraft ? (
-        <div className="mt-3 pt-3 border-t border-slate-border flex justify-end">
-          <ButtonLink variant="outline-sm" href={`${jobPath}/apply`}>
-            Continue application
-          </ButtonLink>
-        </div>
-      ) : null}
-
-      {application.status === "submitted" ? (
-        <div className="mt-3 pt-3 border-t border-slate-border flex justify-end">
-          <CtaButton tone="danger" icon="undo" onClick={() => onWithdraw(application.id)}>
-            Withdraw
-          </CtaButton>
+      {isDraft || application.status === "submitted" ? (
+        <div className="mt-4 border-t border-slate-border pt-4 flex justify-end">
+          {isDraft ? (
+            <ButtonLink variant="outline-sm" href={`${jobPath}/apply`}>
+              Continue application
+            </ButtonLink>
+          ) : (
+            <CtaButton tone="danger" icon="undo" onClick={() => onWithdraw(application.id)}>
+              Withdraw
+            </CtaButton>
+          )}
         </div>
       ) : null}
     </li>
@@ -121,11 +178,12 @@ function ApplicationCard({
 }
 
 /**
- * Liste des candidatures du candidat (`/applications`, D48, D59) : statut, CV
- * épinglé, réponses en lecture seule ; un brouillon propose « Continue
+ * Liste des candidatures du candidat (`/applications`, D48, D59, D70) : cartes
+ * compactes (barre de statut, monogramme, méta sur une ligne), réponses toutes
+ * accessibles derrière un disclosure ; un brouillon propose « Continue
  * application » (retour au parcours), le retrait (confirmation `danger`) reste
  * réservé aux candidatures `submitted` — une candidature retirée ou arbitrée
- * n'expose plus l'action.
+ * n'expose plus l'action. Aucune note de matching ni pipeline fictif.
  */
 export function ApplicationsView() {
   const applications = useMyApplications();
