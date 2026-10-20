@@ -30,7 +30,7 @@ import { companyInitials } from "@/features/job-offer/job-offer-shared";
 import { useMyApplications, useWithdrawApplication } from "@/hooks/use-applications";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import { cn } from "@/lib/utils/cn";
-import type { ApplicationResponse, ApplicationStatusValue } from "@/types/application";
+import type { ApplicationResponse } from "@/types/application";
 
 function Header() {
   return (
@@ -46,14 +46,6 @@ function Header() {
     />
   );
 }
-
-const STATUS_BAR_CLASSES: Record<ApplicationStatusValue, string> = {
-  draft: "bg-orange-border",
-  submitted: "bg-blue-deep",
-  accepted: "bg-success-text",
-  rejected: "bg-danger",
-  withdrawn: "bg-slate-border",
-};
 
 /** Monogramme de la société, replié sur l'initiale du titre si le nom manque. */
 function companyMark(application: ApplicationResponse): string {
@@ -87,11 +79,7 @@ function ApplicationCard({
   ].filter((item): item is string => item !== null);
 
   return (
-    <li className="relative overflow-hidden rounded-2xl border border-slate-border bg-canvas-white p-5 pl-6">
-      <span
-        aria-hidden="true"
-        className={cn("absolute inset-y-0 left-0 w-1.5", STATUS_BAR_CLASSES[application.status])}
-      />
+    <li className="rounded-2xl border border-slate-border bg-canvas-white p-5">
       <div className="flex items-start gap-4">
         <span
           aria-hidden="true"
@@ -145,7 +133,7 @@ function ApplicationCard({
           {showAnswers ? (
             <dl
               id={answersPanelId}
-              className="mt-3 flex flex-col gap-2 rounded-xl border border-slate-border bg-item-surface/50 p-4"
+              className="mt-3 flex flex-col gap-2 rounded-lg border border-slate-border bg-item-surface/50 p-4"
             >
               {application.answers.map((answer) => (
                 <div key={answer.questionId}>
