@@ -69,7 +69,8 @@ com.linqorbit/
 │   ├── dto/           Controller/Service — brouillon (réponses remplaçables, insertion par
 │   │                  étages application → réponses → sélections), transmission (CV épinglé,
 │   │                  matching_id posé serveur), abandon, contexte avec étape calculée
-│   │                  (ApplicationStep, jamais stockée), liste « mine », retrait terminal ;
+│   │                  (ApplicationStep, jamais stockée) et `assessmentOpen` (évaluation
+│   │                  existante non close), liste « mine », retrait terminal ;
 │   │                  DTOs Request/Response reconstruits `[{questionId, label, type, value}]`
 │   ├── entity/        Application, ApplicationAnswer, ApplicationAnswerOption (+IdClass),
 │   │                  ApplicationStatus DRAFT(1)…REJECTED(5) (+converter) — ids pré-assignés

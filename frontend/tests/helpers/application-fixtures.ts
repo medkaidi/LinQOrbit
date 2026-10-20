@@ -83,7 +83,7 @@ export function buildApplicationContext(
     answers: [],
     step: "recruiter_questions",
     canSubmit: false,
-    assessment: { matched: false, assessmentFinished: false, contested: false },
+    assessment: { matched: false, assessmentOpen: false, assessmentFinished: false, contested: false },
     ...overrides,
   };
 }

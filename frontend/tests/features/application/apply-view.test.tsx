@@ -12,9 +12,10 @@ import {
   buildCvAttachment,
   CV_ID,
 } from "@/tests/helpers/application-fixtures";
-import { buildMatching } from "@/tests/helpers/matching-fixtures";
+import { buildClarification, buildMatching } from "@/tests/helpers/matching-fixtures";
 import { buildPublicJob } from "@/tests/helpers/public-job-fixtures";
 import { renderWithQueryClient } from "@/tests/helpers/test-utils";
+import type { ApplicationAssessment } from "@/types/application";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -55,12 +56,32 @@ const listCvsMock = vi.mocked(listCvs);
 const JOB_PARAM = "abcdefghijkl-backend-engineer";
 const NOT_FOUND = Object.assign(new Error("404"), { isAxiosError: true, response: { status: 404, data: {} } });
 
-function matchingContext() {
+const NOT_MATCHED: ApplicationAssessment = {
+  matched: false,
+  assessmentOpen: false,
+  assessmentFinished: false,
+  contested: false,
+};
+const OPEN: ApplicationAssessment = {
+  matched: true,
+  assessmentOpen: true,
+  assessmentFinished: false,
+  contested: false,
+};
+const FINISHED: ApplicationAssessment = {
+  matched: true,
+  assessmentOpen: false,
+  assessmentFinished: true,
+  contested: false,
+};
+
+function matchingContext(assessment: ApplicationAssessment = NOT_MATCHED) {
   return buildApplicationContext({
     existingApplication: { id: "app-1", status: "draft", cvAttachmentId: CV_ID, createdAt: "2026-10-17T10:00:00" },
     answers: buildApplication().answers,
     step: "matching",
     canSubmit: true,
+    assessment,
   });
 }
 
@@ -112,20 +133,24 @@ describe("ApplyView", () => {
     expect(screen.queryByRole("button", { name: "Submit application" })).not.toBeInTheDocument();
   });
 
-  it("shows the match and the submit panel side by side once the required answers are saved", async () => {
+  it("shows the match and the summary side by side once the required answers are saved without a match", async () => {
     getContextMock.mockResolvedValue(matchingContext());
 
     renderWithQueryClient(<ApplyView jobParam={JOB_PARAM} />);
 
     expect(await screen.findByRole("region", { name: "Your match" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Submit your application" })).toBeInTheDocument();
-    expect(currentStep()).toHaveTextContent("AI clarifications");
+    // Sans matching, l'évaluation est sautée et le résumé est l'étape courante (D7).
+    expect(currentStep()).toHaveTextContent("Summary & apply");
+    const steps = within(screen.getByRole("region", { name: "Application progress" })).getAllByRole("listitem");
+    expect(steps[1]).toHaveTextContent("Skipped");
+    expect(steps[2]).toHaveTextContent("Skipped");
     const recap = screen.getByRole("region", { name: "Your answers" });
     expect(within(recap).getByText("I love APIs")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Recruiter questions" })).not.toBeInTheDocument();
   });
 
-  it("opens directly on the AI clarifications with three steps when the offer has no question", async () => {
+  it("opens on the summary with three steps when the offer has no question and no match", async () => {
     getContextMock.mockResolvedValue(
       buildApplicationContext({ questions: [], existingApplication: null, answers: [], step: "matching", canSubmit: true }),
     );
@@ -137,7 +162,8 @@ describe("ApplyView", () => {
     expect(await screen.findByRole("region", { name: "Your match" })).toBeInTheDocument();
     const steps = within(screen.getByRole("region", { name: "Application progress" })).getAllByRole("listitem");
     expect(steps).toHaveLength(3);
-    expect(currentStep()).toHaveTextContent("Step 1AI clarifications");
+    expect(currentStep()).toHaveTextContent("Step 3Summary & apply");
+    expect(screen.getByRole("region", { name: "Submit your application" })).toBeInTheDocument();
     // Ni formulaire de questions, ni rappel de réponses : il n'y a rien à répondre.
     expect(screen.queryByRole("heading", { name: "Recruiter questions" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Your answers" })).not.toBeInTheDocument();
@@ -184,11 +210,72 @@ describe("ApplyView", () => {
     expect(getMatchingMock).not.toHaveBeenCalled();
   });
 
+  it("hides the submission and shows a loader while the assessment is being analysed", async () => {
+    getContextMock.mockResolvedValue(matchingContext(OPEN));
+    getMatchingMock.mockResolvedValue(buildMatching({ status: "running" }));
+
+    renderWithQueryClient(<ApplyView jobParam={JOB_PARAM} />);
+
+    expect(await screen.findByRole("region", { name: "Assessment in progress" })).toBeInTheDocument();
+    expect(screen.getByText("Analyzing your application…")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Submit your application" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Your answers" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Your assessment" })).not.toBeInTheDocument();
+    expect(currentStep()).toHaveTextContent("AI clarifications");
+  });
+
+  it("shows the AI question in the central column, outside the match panel, while the assessment is open", async () => {
+    getContextMock.mockResolvedValue(matchingContext(OPEN));
+    getMatchingMock.mockResolvedValue(
+      buildMatching({
+        status: "done",
+        clarification: buildClarification(),
+        sections: [{ section: "required_skills", criteria: [{ key: "skill:java", label: "Java", score: 80 }] }],
+      }),
+    );
+
+    renderWithQueryClient(<ApplyView jobParam={JOB_PARAM} />);
+
+    const clarification = await screen.findByRole("region", { name: "AI clarification" });
+    const match = screen.getByRole("region", { name: "Your match" });
+    expect(match).not.toContainElement(clarification);
+    expect(screen.queryByRole("region", { name: "Submit your application" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Your answers" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Your assessment" })).not.toBeInTheDocument();
+    expect(currentStep()).toHaveTextContent("AI clarifications");
+  });
+
+  it("reports a failed analysis without reopening the submission", async () => {
+    getContextMock.mockResolvedValue(matchingContext(OPEN));
+    getMatchingMock.mockResolvedValue(buildMatching({ status: "failed" }));
+    startMatchingMock.mockResolvedValue(buildMatching({ status: "pending" }));
+
+    renderWithQueryClient(<ApplyView jobParam={JOB_PARAM} />);
+
+    expect(await screen.findByRole("region", { name: "Assessment failed" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Submit your application" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Run the match again" }));
+    await waitFor(() => expect(startMatchingMock).toHaveBeenCalledWith("abcdefghijkl"));
+  });
+
+  it("hides the submission as soon as the match is launched and the journey context confirms it", async () => {
+    getContextMock.mockResolvedValueOnce(matchingContext()).mockResolvedValue(matchingContext(OPEN));
+    startMatchingMock.mockResolvedValue(buildMatching({ status: "pending" }));
+
+    renderWithQueryClient(<ApplyView jobParam={JOB_PARAM} />);
+
+    expect(await screen.findByRole("region", { name: "Submit your application" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Run the match" }));
+
+    await waitFor(() => expect(getContextMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("region", { name: "Assessment in progress" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Submit your application" })).not.toBeInTheDocument();
+    expect(currentStep()).toHaveTextContent("AI clarifications");
+  });
+
   it("shows the candidate review first, on the current step, once the assessment is finished", async () => {
-    getContextMock.mockResolvedValue({
-      ...matchingContext(),
-      assessment: { matched: true, assessmentFinished: true, contested: false },
-    });
+    getContextMock.mockResolvedValue(matchingContext(FINISHED));
     getMatchingMock.mockResolvedValue(
       buildMatching({
         status: "done",
@@ -209,8 +296,8 @@ describe("ApplyView", () => {
     ).toBeTruthy();
   });
 
-  it("hides the candidate review while the assessment is still open", async () => {
-    getContextMock.mockResolvedValue(matchingContext());
+  it("hides the candidate review and the submission while the assessment is still open", async () => {
+    getContextMock.mockResolvedValue(matchingContext(OPEN));
     getMatchingMock.mockResolvedValue(
       buildMatching({
         status: "done",
@@ -223,11 +310,12 @@ describe("ApplyView", () => {
 
     expect(await screen.findByRole("region", { name: "AI clarification" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Your assessment" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Submit your application" })).not.toBeInTheDocument();
     expect(currentStep()).toHaveTextContent("AI clarifications");
   });
 
   it("re-reads the journey context when the match closes the assessment by itself", async () => {
-    getContextMock.mockResolvedValue(matchingContext());
+    getContextMock.mockResolvedValue(matchingContext(OPEN));
     getMatchingMock.mockResolvedValue(buildMatching({ status: "done", assessmentFinished: true }));
 
     renderWithQueryClient(<ApplyView jobParam={JOB_PARAM} />);
@@ -243,7 +331,7 @@ describe("ApplyView", () => {
       buildApplicationContext({
         existingApplication: { id: "app-1", status: "submitted", cvAttachmentId: CV_ID, createdAt: "2026-10-10T09:30:00" },
         step: "submitted",
-        assessment: { matched: true, assessmentFinished: true, contested: true },
+        assessment: { ...FINISHED, contested: true },
       }),
     );
 

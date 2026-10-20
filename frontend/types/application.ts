@@ -83,6 +83,8 @@ export type ApplicationSummary = {
  */
 export type ApplicationAssessment = {
   matched: boolean;
+  /** Le matching existe et l'évaluation n'est pas close : le candidat doit encore agir (analyse, question, clôture). */
+  assessmentOpen: boolean;
   assessmentFinished: boolean;
   contested: boolean;
 };

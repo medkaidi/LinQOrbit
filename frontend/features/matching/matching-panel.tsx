@@ -12,7 +12,6 @@ import {
   SECTION_HEADER_CLASS,
   SECTION_TITLE_CLASS,
 } from "@/components/ui/section";
-import { ClarificationPanel } from "@/features/matching/clarification-panel";
 import { MATCHING_SECTION_LABELS } from "@/features/matching/matching-shared";
 import {
   useAssessmentStepSync,
@@ -69,10 +68,11 @@ function isNotStarted(error: unknown): boolean {
 /**
  * Matching du candidat pour l'offre (D58) : lancement facultatif, analyse
  * asynchrone suivie en **push SSE** (D60 — le panneau se met à jour seul,
- * sans clic), échec + relance, puis le score de chaque critère par section et
- * les clarifications IA (T-62) — une réévaluation garde les scores précédents
- * à l'écran. Le candidat ne voit ni poids, ni score de section, ni
- * justification (réservés au recruteur).
+ * sans clic), échec + relance, puis le score de chaque critère par section —
+ * une réévaluation garde les scores précédents à l'écran. Les clarifications
+ * IA sont rendues par le parcours (contenu central, refonte D6), jamais ici.
+ * Le candidat ne voit ni poids, ni score de section, ni justification
+ * (réservés au recruteur).
  */
 export function MatchingPanel({
   publicId,
@@ -152,10 +152,6 @@ export function MatchingPanel({
               Run the match again
             </CtaButton>
           </div>
-        ) : null}
-
-        {status === "done" && matching.data ? (
-          <ClarificationPanel publicId={publicId} matching={matching.data} />
         ) : null}
 
         {sections.length > 0 ? (

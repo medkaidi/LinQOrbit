@@ -127,9 +127,10 @@ export function useAssessmentStepSync(
 }
 
 /**
- * Lancement ou reprise : la réponse devient le matching courant en cache.
- * `prepare` (facultatif) s'exécute d'abord dans la même mutation — création
- * du brouillon d'une offre sans question (D59).
+ * Lancement ou reprise : la réponse devient le matching courant en cache et le
+ * contexte du parcours se relit — l'évaluation ouverte masque la transmission
+ * et ouvre le contenu central (D6). `prepare` (facultatif) s'exécute d'abord
+ * dans la même mutation — création du brouillon d'une offre sans question (D59).
  */
 export function useStartMatching(publicId: string) {
   const queryClient = useQueryClient();
@@ -138,7 +139,10 @@ export function useStartMatching(publicId: string) {
       await prepare?.();
       return startMatching(publicId);
     },
-    onSuccess: (matching) => queryClient.setQueryData(queryKeys.matching.current(publicId), matching),
+    onSuccess: (matching) => {
+      queryClient.setQueryData(queryKeys.matching.current(publicId), matching);
+      return queryClient.invalidateQueries({ queryKey: queryKeys.applications.context(publicId) });
+    },
   });
 }
 

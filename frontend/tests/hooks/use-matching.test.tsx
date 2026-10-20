@@ -226,8 +226,9 @@ describe("use-matching", () => {
     expect(getMock).toHaveBeenCalledTimes(1);
   });
 
-  it("puts the started match in cache as the current one", async () => {
+  it("puts the started match in cache and re-reads the journey context", async () => {
     const client = new QueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
     const matching = buildMatching();
     startMock.mockResolvedValue(matching);
 
@@ -235,6 +236,8 @@ describe("use-matching", () => {
     await act(() => result.current.mutateAsync());
 
     expect(client.getQueryData(queryKeys.matching.current("abcdefghijkl"))).toEqual(matching);
+    // L'évaluation ouverte masque la transmission : le parcours doit relire son contexte (D6).
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.applications.context("abcdefghijkl") });
   });
 
   it("runs the preparation before starting, within the same mutation", async () => {

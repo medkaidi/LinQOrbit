@@ -33,7 +33,8 @@ const STEPS: StepDefinition[] = [
 function stateOf(step: StepKey, current: ApplicationStep, assessment: ApplicationAssessment): StepState {
   if (current === "submitted") {
     if (step === "clarifications") {
-      return assessment.matched ? "complete" : "skipped";
+      // Une évaluation encore ouverte à la transmission n'est pas marquée « Done ».
+      return assessment.matched && assessment.assessmentFinished ? "complete" : "skipped";
     }
     if (step === "review") {
       return assessment.contested ? "complete" : "skipped";
@@ -43,14 +44,27 @@ function stateOf(step: StepKey, current: ApplicationStep, assessment: Applicatio
   if (current === "recruiter_questions") {
     return step === "questions" ? "current" : "upcoming";
   }
-  // Étape « matching » : questions faites ; clarifications IA puis revue candidat.
+  // Étape « matching » : questions faites. Sans matching, l'évaluation est
+  // sautée et la transmission devient l'étape courante (le matching reste
+  // facultatif, D59/D7).
+  if (!assessment.matched) {
+    switch (step) {
+      case "questions":
+        return "complete";
+      case "clarifications":
+      case "review":
+        return "skipped";
+      default:
+        return "current";
+    }
+  }
   switch (step) {
     case "questions":
       return "complete";
     case "clarifications":
-      return assessment.assessmentFinished ? "complete" : "current";
+      return assessment.assessmentOpen ? "current" : "complete";
     case "review":
-      return assessment.assessmentFinished ? "current" : "upcoming";
+      return assessment.assessmentOpen ? "upcoming" : "current";
     default:
       return "upcoming";
   }

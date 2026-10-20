@@ -4,7 +4,24 @@ import { render, screen, within } from "@testing-library/react";
 import { ApplicationSteps } from "@/features/application/application-steps";
 import type { ApplicationAssessment, ApplicationStep } from "@/types/application";
 
-const NOT_ASSESSED: ApplicationAssessment = { matched: false, assessmentFinished: false, contested: false };
+const NOT_ASSESSED: ApplicationAssessment = {
+  matched: false,
+  assessmentOpen: false,
+  assessmentFinished: false,
+  contested: false,
+};
+const OPEN: ApplicationAssessment = {
+  matched: true,
+  assessmentOpen: true,
+  assessmentFinished: false,
+  contested: false,
+};
+const FINISHED: ApplicationAssessment = {
+  matched: true,
+  assessmentOpen: false,
+  assessmentFinished: true,
+  contested: false,
+};
 
 function itemsFor(
   step: ApplicationStep,
@@ -35,8 +52,11 @@ describe("ApplicationSteps", () => {
       expect.stringContaining("Step 2Candidate review"),
       expect.stringContaining("Step 3Summary & apply"),
     ]);
-    expect(items[0]).toHaveAttribute("aria-current", "step");
-    expect(items[0]).toHaveTextContent("In progress");
+    // Sans matching, l'évaluation est sautée et la transmission est l'étape courante (D7).
+    expect(items[0]).toHaveTextContent("Skipped");
+    expect(items[1]).toHaveTextContent("Skipped");
+    expect(items[2]).toHaveAttribute("aria-current", "step");
+    expect(items[2]).toHaveTextContent("In progress");
   });
 
   it("marks the recruiter questions as current before they are answered", () => {
@@ -49,15 +69,15 @@ describe("ApplicationSteps", () => {
   });
 
   it("keeps the recruiter questions rule whatever the assessment says", () => {
-    const items = itemsFor("recruiter_questions", true, { matched: true, assessmentFinished: true, contested: true });
+    const items = itemsFor("recruiter_questions", true, { ...FINISHED, contested: true });
 
     expect(items[0]).toHaveAttribute("aria-current", "step");
     expect(items[1]).toHaveTextContent("Upcoming");
     expect(items[2]).toHaveTextContent("Upcoming");
   });
 
-  it("opens the AI clarifications once the required questions are answered", () => {
-    const items = itemsFor("matching");
+  it("opens the AI clarifications once the required questions are answered and the match is open", () => {
+    const items = itemsFor("matching", true, OPEN);
 
     expect(items[0]).toHaveTextContent("Done");
     expect(items[0]).not.toHaveAttribute("aria-current");
@@ -66,7 +86,7 @@ describe("ApplicationSteps", () => {
   });
 
   it("keeps the AI clarifications current while the assessment is open, even once matched", () => {
-    const items = itemsFor("matching", true, { matched: true, assessmentFinished: false, contested: false });
+    const items = itemsFor("matching", true, OPEN);
 
     expect(items[1]).toHaveAttribute("aria-current", "step");
     expect(items[2]).toHaveTextContent("Upcoming");
@@ -74,13 +94,22 @@ describe("ApplicationSteps", () => {
   });
 
   it("moves to the candidate review once the assessment is finished", () => {
-    const items = itemsFor("matching", true, { matched: true, assessmentFinished: true, contested: false });
+    const items = itemsFor("matching", true, FINISHED);
 
     expect(items[1]).toHaveTextContent("Done");
     expect(items[1]).not.toHaveAttribute("aria-current");
     expect(items[2]).toHaveAttribute("aria-current", "step");
     expect(items[2]).toHaveTextContent("In progress");
     expect(items[3]).toHaveTextContent("Final step");
+  });
+
+  it("skips both AI steps and opens the summary when no match exists", () => {
+    const items = itemsFor("matching", true, NOT_ASSESSED);
+
+    expect(items[1]).toHaveTextContent("Skipped");
+    expect(items[2]).toHaveTextContent("Skipped");
+    expect(items[3]).toHaveAttribute("aria-current", "step");
+    expect(items[3]).toHaveTextContent("In progress");
   });
 
   it("marks clarifications and review as skipped after a direct submission, never as done", () => {
@@ -93,8 +122,8 @@ describe("ApplicationSteps", () => {
     expect(items.some((item) => item.hasAttribute("aria-current"))).toBe(false);
   });
 
-  it("marks the clarifications done after a submission with a match, the review skipped without contestation", () => {
-    const items = itemsFor("submitted", true, { matched: true, assessmentFinished: true, contested: false });
+  it("marks the clarifications done after a submission with a closed match, the review skipped without contestation", () => {
+    const items = itemsFor("submitted", true, FINISHED);
 
     expect(items[1]).toHaveTextContent("Done");
     expect(items[2]).toHaveTextContent("Skipped");
@@ -102,11 +131,19 @@ describe("ApplicationSteps", () => {
   });
 
   it("marks the review done after a submission with a contestation", () => {
-    const items = itemsFor("submitted", true, { matched: true, assessmentFinished: true, contested: true });
+    const items = itemsFor("submitted", true, { ...FINISHED, contested: true });
 
     expect(items[1]).toHaveTextContent("Done");
     expect(items[2]).toHaveTextContent("Done");
     expect(items.some((item) => item.hasAttribute("aria-current"))).toBe(false);
+  });
+
+  it("never marks an assessment left open at submission as done", () => {
+    const items = itemsFor("submitted", true, OPEN);
+
+    expect(items[1]).toHaveTextContent("Skipped");
+    expect(items[2]).toHaveTextContent("Skipped");
+    expect(items[3]).toHaveTextContent("Done");
   });
 
   it("marks the AI steps skipped and the last one done after a direct submission without questions", () => {

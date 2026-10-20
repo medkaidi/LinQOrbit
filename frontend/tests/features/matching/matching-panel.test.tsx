@@ -2,14 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import { MatchingPanel } from "@/features/matching/matching-panel";
-import {
-  answerClarification,
-  finishAssessment,
-  getCurrentMatching,
-  skipClarification,
-  startMatching,
-  streamMatchingStatus,
-} from "@/lib/api/matching.api";
+import { getCurrentMatching, startMatching, streamMatchingStatus } from "@/lib/api/matching.api";
 import type { Matching } from "@/types/matching";
 import { buildClarification, buildMatching } from "@/tests/helpers/matching-fixtures";
 import { renderWithQueryClient } from "@/tests/helpers/test-utils";
@@ -18,14 +11,8 @@ vi.mock("@/lib/api/matching.api", () => ({
   getCurrentMatching: vi.fn(),
   startMatching: vi.fn(),
   streamMatchingStatus: vi.fn(),
-  answerClarification: vi.fn(),
-  skipClarification: vi.fn(),
-  finishAssessment: vi.fn(),
 }));
 
-const answerMock = vi.mocked(answerClarification);
-const skipMock = vi.mocked(skipClarification);
-const finishMock = vi.mocked(finishAssessment);
 const getMock = vi.mocked(getCurrentMatching);
 const startMock = vi.mocked(startMatching);
 const streamMock = vi.mocked(streamMatchingStatus);
@@ -63,9 +50,6 @@ describe("MatchingPanel", () => {
     getMock.mockReset();
     startMock.mockReset();
     streamMock.mockReset();
-    answerMock.mockReset();
-    skipMock.mockReset();
-    finishMock.mockReset();
     // Par défaut : un flux qui reste ouvert sans rien pousser.
     streamMock.mockImplementation(() => new Promise(() => {}));
   });
@@ -183,22 +167,14 @@ describe("MatchingPanel", () => {
     expect(await screen.findByText("This offer has no criterion to compare yet.")).toBeInTheDocument();
   });
 
-  it("keeps the previous scores on screen while the answer is taken into account", async () => {
-    const asked = { ...DONE, assessmentFinished: false, clarification: buildClarification() };
-    getMock.mockResolvedValue(asked);
-    answerMock.mockResolvedValue({ ...DONE, status: "pending", assessmentFinished: false, clarification: null });
+  it("keeps the previous scores on screen while a re-evaluation runs", async () => {
+    getMock.mockResolvedValue({ ...DONE, status: "pending", assessmentFinished: false, clarification: null });
 
     renderWithQueryClient(<MatchingPanel publicId={PUBLIC_ID} />);
-    fireEvent.change(await screen.findByRole("textbox", { name: "Your answer" }), {
-      target: { value: "Yes, two years on GKE." },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Answer" }));
 
     expect(await screen.findByText("Updating your match…")).toBeInTheDocument();
-    expect(answerMock).toHaveBeenCalledWith(PUBLIC_ID, asked.clarification.id, "Yes, two years on GKE.");
-    // Les scores précédents restent visibles ; la question fermée disparaît ; le flux SSE suit la fin.
+    // Les scores précédents restent visibles pendant la réévaluation, suivie par le flux SSE.
     expect(screen.getByRole("region", { name: "Required skills" })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "AI clarification" })).not.toBeInTheDocument();
     expect(screen.queryByText("Analysis in progress")).not.toBeInTheDocument();
     await waitFor(() => expect(streamMock).toHaveBeenCalledWith(PUBLIC_ID, expect.any(Function), expect.anything()));
   });
@@ -225,26 +201,15 @@ describe("MatchingPanel", () => {
     expect(screen.queryByText(/weight/i)).not.toBeInTheDocument();
   });
 
-  it("tells when the assessment is complete and asks nothing more", async () => {
-    getMock.mockResolvedValue(DONE);
+  it("leaves the questions and the closing action to the journey, showing only the scores", async () => {
+    getMock.mockResolvedValue({ ...DONE, assessmentFinished: false, clarification: buildClarification() });
 
     renderWithQueryClient(<MatchingPanel publicId={PUBLIC_ID} />);
 
-    expect(await screen.findByText("Assessment complete")).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Required skills" })).toBeInTheDocument();
+    // La clarification vit dans le contenu central du parcours depuis la refonte D6.
+    expect(screen.queryByRole("region", { name: "AI clarification" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Finish the assessment" })).not.toBeInTheDocument();
   });
-
-  it("never re-reads by itself a done match without open question on an open assessment", async () => {
-    getMock.mockResolvedValue({ ...DONE, assessmentFinished: false, clarification: null });
-
-    renderWithQueryClient(<MatchingPanel publicId={PUBLIC_ID} />);
-
-    expect(await screen.findByText("No AI question is waiting for you.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Finish the assessment" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Required skills" })).toBeInTheDocument();
-    // Ni relecture périodique ni flux SSE : l'état est stable (données antérieures à T-62).
-    await new Promise((resolve) => setTimeout(resolve, 2_500));
-    expect(getMock).toHaveBeenCalledTimes(1);
-    expect(streamMock).not.toHaveBeenCalled();
-  }, 10_000);
 });

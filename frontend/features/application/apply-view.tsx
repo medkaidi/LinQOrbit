@@ -24,6 +24,7 @@ import {
   appliedOnLabel,
 } from "@/features/application/application-shared";
 import { ApplicationSteps } from "@/features/application/application-steps";
+import { AssessmentFocus } from "@/features/application/assessment-focus";
 import { OfferBanner } from "@/features/application/offer-banner";
 import { RecruiterQuestionsStep } from "@/features/application/recruiter-questions-step";
 import { SubmitPanel } from "@/features/application/submit-panel";
@@ -154,12 +155,19 @@ function ApplicationJourney({ publicId, jobParam }: { publicId: string; jobParam
       {data.step === "matching" && !showQuestions ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <div className="lg:col-span-7 flex flex-col gap-6">
-            {/* Revue candidat (T-63) : visible seulement une fois l'évaluation close. */}
-            <AssessmentReview publicId={publicId} />
-            <SubmitPanel context={data} applicationId={draft?.id ?? null} ensureDraft={ensureDraft} />
-            {hasRecruiterQuestions ? (
-              <AnswersRecap context={data} onEdit={() => setEditingAnswers(true)} />
-            ) : null}
+            {data.assessment.assessmentOpen ? (
+              // Évaluation ouverte : chargement ou clarification au centre, transmission masquée (D6).
+              <AssessmentFocus publicId={publicId} />
+            ) : (
+              <>
+                {/* Revue candidat (T-63) : seulement une fois l'évaluation close. Sans matching, elle est sautée. */}
+                {data.assessment.matched ? <AssessmentReview publicId={publicId} /> : null}
+                <SubmitPanel context={data} applicationId={draft?.id ?? null} ensureDraft={ensureDraft} />
+                {hasRecruiterQuestions ? (
+                  <AnswersRecap context={data} onEdit={() => setEditingAnswers(true)} />
+                ) : null}
+              </>
+            )}
           </div>
           <div className="lg:col-span-5 lg:sticky lg:top-24">
             <MatchingPanel
