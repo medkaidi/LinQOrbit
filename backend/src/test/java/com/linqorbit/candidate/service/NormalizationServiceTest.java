@@ -47,7 +47,8 @@ class NormalizationServiceTest {
         normalizationJobRepository = mock(NormalizationJobRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         normalizationService = new NormalizationService(candidateRepository, normalizedProfileRepository,
-                normalizedProfileCandidateRepository, normalizationJobRepository, eventPublisher);
+                normalizedProfileCandidateRepository, normalizationJobRepository, eventPublisher,
+                mock(NormalizationStatusBroadcaster.class));
     }
 
     @Test

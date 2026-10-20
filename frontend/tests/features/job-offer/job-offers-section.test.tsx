@@ -11,6 +11,11 @@ const useDuplicateJobOfferMock = vi.hoisted(() => vi.fn());
 const useContractTypesMock = vi.hoisted(() => vi.fn());
 const useEmploymentTypesMock = vi.hoisted(() => vi.fn());
 const useWorkModesMock = vi.hoisted(() => vi.fn());
+const useOfferNormalizationStreamMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/hooks/use-normalization-stream", () => ({
+  useOfferNormalizationStream: useOfferNormalizationStreamMock,
+}));
 
 vi.mock("@/hooks/use-job-offers", () => ({
   useInfiniteJobOffers: useInfiniteJobOffersMock,
@@ -559,8 +564,76 @@ describe("JobOffersSection", () => {
   function renderOffers(offers: JobOfferListItem[]) {
     useInfiniteJobOffersMock.mockReturnValue(infiniteResult(offers));
 
-    render(<JobOffersSection companies={companies} />);
+    return render(<JobOffersSection companies={companies} />);
   }
+
+  // --- D64 : flux SSE de normalisation, un par offre (re)validée depuis la liste ---
+
+  it("opens no normalization stream for offers the user did not validate here", () => {
+    useOfferNormalizationStreamMock.mockClear();
+    renderOffers([
+      draftOffer({ id: "o1", status: "validated", normalizationInProgress: true }),
+      draftOffer({ id: "o2", status: "published", normalizationInProgress: true }),
+    ]);
+
+    expect(useOfferNormalizationStreamMock).not.toHaveBeenCalled();
+  });
+
+  it("follows the analysis of an offer once validated from the list, and only that one", () => {
+    useOfferNormalizationStreamMock.mockClear();
+    const transition = mutation({
+      mutate: vi.fn((_variables, options) => {
+        options?.onSuccess?.();
+        options?.onSettled?.();
+      }),
+    });
+    useJobOfferTransitionMock.mockReturnValue(transition);
+    const view = renderOffers([draftOffer({ id: "o1" }), draftOffer({ id: "o2", title: "Data Engineer" })]);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Validate" })[0]);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Validate" }));
+
+    // La liste relue montre l'analyse en cours : un flux pour o1, aucun pour o2.
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([
+        draftOffer({ id: "o1", status: "validated", normalizationInProgress: true }),
+        draftOffer({ id: "o2", title: "Data Engineer", normalizationInProgress: true }),
+      ]),
+    );
+    view.rerender(<JobOffersSection companies={companies} />);
+
+    expect(useOfferNormalizationStreamMock).toHaveBeenLastCalledWith("o1", true);
+    expect(useOfferNormalizationStreamMock.mock.calls.every(([offerId]) => offerId === "o1")).toBe(true);
+
+    // Analyse terminée : le flux de o1 est désactivé.
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer({ id: "o1", status: "validated" }), draftOffer({ id: "o2" })]),
+    );
+    view.rerender(<JobOffersSection companies={companies} />);
+    expect(useOfferNormalizationStreamMock).toHaveBeenLastCalledWith("o1", false);
+  });
+
+  it("follows the analysis of a published offer refreshed through revalidate", () => {
+    useOfferNormalizationStreamMock.mockClear();
+    useJobOfferTransitionMock.mockReturnValue(
+      mutation({
+        mutate: vi.fn((_variables, options) => {
+          options?.onSuccess?.();
+          options?.onSettled?.();
+        }),
+      }),
+    );
+    const view = renderOffers([draftOffer({ status: "published", analysisOutdated: true })]);
+
+    fireEvent.click(within(openActionsMenu()).getByRole("menuitem", { name: "Validate again" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Validate again" }));
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer({ status: "published", analysisOutdated: true, normalizationInProgress: true })]),
+    );
+    view.rerender(<JobOffersSection companies={companies} />);
+
+    expect(useOfferNormalizationStreamMock).toHaveBeenLastCalledWith("o1", true);
+  });
 
   it("shows Analyzing… while the normalization is in progress", () => {
     renderOffers([draftOffer({ status: "validated", normalizationInProgress: true })]);

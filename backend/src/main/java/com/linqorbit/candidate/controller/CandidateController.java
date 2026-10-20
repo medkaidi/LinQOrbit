@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.linqorbit.candidate.dto.AboutRequest;
@@ -96,6 +97,11 @@ public class CandidateController implements CandidateApi {
     public ResponseEntity<Void> validateProfile(Authentication authentication) {
         normalizationService.validateProfile(CurrentUserId.from(authentication));
         return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public SseEmitter normalizationEvents(Authentication authentication) {
+        return normalizationService.subscribe(CurrentUserId.from(authentication));
     }
 
     @Override

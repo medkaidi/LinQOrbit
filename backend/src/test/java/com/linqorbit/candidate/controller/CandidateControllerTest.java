@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
@@ -247,6 +248,28 @@ class CandidateControllerTest {
     void validateProfileRenvoie401SansJeton() throws Exception {
         mockMvc.perform(post(PROFILE_PATH + "/validate"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void fluxDeNormalisationOuvreUnSseDuCandidatCourant() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(normalizationService.subscribe(userId))
+                .thenReturn(new org.springframework.web.servlet.mvc.method.annotation.SseEmitter());
+
+        mockMvc.perform(get(PROFILE_PATH + "/normalization/events")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(request().asyncStarted());
+
+        verify(normalizationService).subscribe(userId);
+    }
+
+    @Test
+    void fluxDeNormalisationRenvoie401SansJeton() throws Exception {
+        mockMvc.perform(get(PROFILE_PATH + "/normalization/events").accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isUnauthorized());
+
+        org.mockito.Mockito.verifyNoInteractions(normalizationService);
     }
 
     @Test

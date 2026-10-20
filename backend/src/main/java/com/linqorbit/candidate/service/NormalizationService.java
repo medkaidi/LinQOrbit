@@ -8,6 +8,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.linqorbit.candidate.entity.Candidate;
 import com.linqorbit.candidate.entity.NormalizationJob;
@@ -51,6 +52,7 @@ public class NormalizationService {
     private final NormalizedProfileCandidateRepository normalizedProfileCandidateRepository;
     private final NormalizationJobRepository normalizationJobRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final NormalizationStatusBroadcaster statusBroadcaster;
 
     /**
      * Dirty-flag : aucune validation encore, ou la dernière écriture du profil
@@ -157,8 +159,23 @@ public class NormalizationService {
         return status == NormalizationJobStatus.PENDING || status == NormalizationJobStatus.RUNNING;
     }
 
-    /** État du job de la dernière version du candidat, ou {@code null} si aucune validation. */
-    private NormalizationJobStatus latestJobStatus(UUID candidateId) {
+    /**
+     * Flux SSE du statut de normalisation du candidat (D64) : inscription
+     * d'abord, puis relecture du statut du dernier job — {@code none} sans
+     * aucune validation (rien à suivre, flux aussitôt fermé).
+     */
+    public SseEmitter subscribe(UUID userId) {
+        log.info("Candidate normalization stream requested : userId={}", userId);
+        return statusBroadcaster.subscribe(NormalizationStatusBroadcaster.Stream.candidate(userId),
+                () -> latestJobStatus(userId));
+    }
+
+    /**
+     * État du job de la dernière version du candidat, ou {@code null} si
+     * aucune validation (jamais {@code SUPERSEDED} : seuls les PENDING
+     * antérieurs le deviennent).
+     */
+    public NormalizationJobStatus latestJobStatus(UUID candidateId) {
         List<NormalizedProfile> latest = normalizedProfileRepository
                 .findLatestByCandidateId(candidateId, PageRequest.of(0, 1));
         if (latest.isEmpty()) {

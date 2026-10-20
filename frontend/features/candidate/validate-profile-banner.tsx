@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { CtaButton } from "@/components/ui/button";
 import { useValidateProfile } from "@/hooks/use-candidate-profile";
+import { useCandidateNormalizationStream } from "@/hooks/use-normalization-stream";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import type { CandidateProfile } from "@/types/candidate";
 
@@ -63,11 +64,14 @@ function pendingState(profile: CandidateProfile): PendingState | null {
  * référence est sur une version de schéma périmée (D63, « Validate again »
  * même sans modification), ou si une analyse est en cours (signal GET,
  * survit à la navigation). Priorité : confirmation temporaire 4 s > analyse
- * en cours > échec > analyse obsolète > changements en attente.
+ * en cours > échec > analyse obsolète > changements en attente. Pendant
+ * l'analyse, le flux SSE de normalisation (D64) relit le profil à chaque
+ * transition : le bandeau passe seul d'« Analyzing… » à l'état suivant.
  */
 export function ValidateProfileBanner({ profile }: { profile: CandidateProfile }) {
   const validate = useValidateProfile();
   const [validated, setValidated] = useState(false);
+  useCandidateNormalizationStream(profile.normalizationInProgress);
   const dismissTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(dismissTimer.current), []);

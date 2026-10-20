@@ -78,6 +78,11 @@ import tools.jackson.databind.ObjectMapper;
  * sinon échec courant (retry puis {@code FAILED}), jamais une ligne
  * incohérente.</p>
  *
+ * <p>Push SSE (D64) : chaque transition (RUNNING au claim, DONE, retry
+ * PENDING, FAILED) est publiée <b>après</b> la fin de sa transaction courte
+ * via {@link NormalizationStatusPublisher}, qui ne fait jamais échouer le
+ * job.</p>
+ *
  * <p>Timeouts : le read timeout du client IA libère le thread de l'exécution ;
  * il n'annule pas le calcul côté FastAPI/LLM (réponse tardive perdue sur la
  * socket fermée, corrélation {@code X-Request-Id} = jobId) — voir
@@ -113,6 +118,7 @@ public class NormalizationWorker {
     private final JobOfferNormalizeSnapshotBuilder jobOfferNormalizeSnapshotBuilder;
     private final JobOfferNormalizeClient jobOfferNormalizeClient;
     private final ObjectMapper objectMapper;
+    private final NormalizationStatusPublisher statusPublisher;
     @Value("${app.normalization.retry-delay-seconds}")
     private final int retryDelaySeconds;
 
@@ -218,6 +224,7 @@ public class NormalizationWorker {
                 return;
             }
             MDC.put(RequestLoggingFilter.CORRELATION_ID, jobId.toString());
+            statusPublisher.publish(job.getId(), job.getSourceType());
             try {
                 if (job.getSourceType() == NormalizationSourceType.OFFER) {
                     executeOffer(job);
@@ -271,6 +278,7 @@ public class NormalizationWorker {
             normalizationJobRepository.casDone(job.getId(),
                     NormalizationJobStatus.RUNNING, NormalizationJobStatus.DONE, now);
         });
+        statusPublisher.publish(job.getId(), job.getSourceType());
         log.info("Profile normalization done : jobId={}, candidateId={}", job.getId(), candidateId);
     }
 
@@ -297,6 +305,7 @@ public class NormalizationWorker {
             normalizationJobRepository.casDone(job.getId(),
                     NormalizationJobStatus.RUNNING, NormalizationJobStatus.DONE, now);
         });
+        statusPublisher.publish(job.getId(), job.getSourceType());
         log.info("Offer normalization done : jobId={}, offerId={}", job.getId(), offerId);
     }
 
@@ -354,6 +363,7 @@ public class NormalizationWorker {
             transactionTemplate.executeWithoutResult(txStatus ->
                     normalizationJobRepository.casFail(job.getId(), NormalizationJobStatus.RUNNING,
                             NormalizationJobStatus.FAILED, attempts, now, error));
+            statusPublisher.publish(job.getId(), job.getSourceType());
             log.warn("Normalization abandoned after {} attempts : jobId={}, error={}",
                     attempts, job.getId(), error);
             return;
@@ -362,6 +372,7 @@ public class NormalizationWorker {
         transactionTemplate.executeWithoutResult(txStatus ->
                 normalizationJobRepository.casRetry(job.getId(), NormalizationJobStatus.RUNNING,
                         NormalizationJobStatus.PENDING, attempts, nextAttemptAt, error));
+        statusPublisher.publish(job.getId(), job.getSourceType());
         log.info("Normalization scheduled for retry : jobId={}, attempt={}, nextAttemptAt={}",
                 job.getId(), attempts, nextAttemptAt);
         scheduleAt(job.getId(), nextAttemptAt);

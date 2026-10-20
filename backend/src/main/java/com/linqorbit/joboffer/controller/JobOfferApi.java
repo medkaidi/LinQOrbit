@@ -3,6 +3,7 @@ package com.linqorbit.joboffer.controller;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -120,6 +122,17 @@ public interface JobOfferApi {
             @ApiResponse(responseCode = "409", description = "Statut PUBLISHED ou CLOSED")
     })
     ResponseEntity<Void> validate(@PathVariable UUID offerId, Authentication authentication);
+
+    @GetMapping(value = "/{offerId}/normalization/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Suivre l'analyse d'une offre (SSE)",
+            description = "Membre de la company de l'offre. Flux text/event-stream : un événement « status » {status} à l'abonnement (statut du dernier job : pending, running, done, failed, ou none sans validation) puis à chaque transition publiée après commit ; le flux se ferme sur tout statut hors pending/running et après 120 s (le client se reconnecte). Signal seulement — l'offre se relit par GET /job-offers/{offerId}. Jeton en en-tête Authorization (jamais dans l'URL).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Flux ouvert"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "404", description = "Offre inexistante ou hors des companies du recruteur")
+    })
+    SseEmitter normalizationEvents(@PathVariable UUID offerId, Authentication authentication);
 
     @PostMapping("/{offerId}/revalidate")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)

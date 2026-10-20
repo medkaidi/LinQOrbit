@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -141,13 +142,23 @@ public interface CandidateApi {
     @PostMapping("/me/profile/validate")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Valider le profil et lancer la normalisation",
-            description = "Clôture les modifications du profil : crée une nouvelle version normalisée (contenu à remplir) et déclenche le job d'analyse asynchrone auprès du service IA. Sans effet si le profil n'a pas changé depuis la dernière validation, sauf pour relancer une analyse en échec.")
+            description = "Clôture les modifications du profil : crée une nouvelle version normalisée (contenu à remplir) et déclenche le job d'analyse asynchrone auprès du service IA. Sans effet si le profil n'a pas changé, si `analysisOutdated` est faux et si la dernière analyse n'a pas échoué ; une analyse `PENDING`/`RUNNING` n'est relancée que si le profil a changé (une fiche obsolète n'interrompt jamais une analyse en cours).")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Validation enregistrée, analyse en file d'attente (ou profil déjà à jour)"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
             @ApiResponse(responseCode = "409", description = "Profil sans contenu à valider")
     })
     ResponseEntity<Void> validateProfile(Authentication authentication);
+
+    @GetMapping(value = "/me/profile/normalization/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Suivre l'analyse du profil (SSE)",
+            description = "Flux text/event-stream : un événement « status » {status} à l'abonnement (statut du dernier job : pending, running, done, failed, ou none sans validation) puis à chaque transition publiée après commit ; le flux se ferme sur tout statut hors pending/running et après 120 s (le client se reconnecte). Signal seulement — le profil se relit par GET /candidates/me/profile. Jeton en en-tête Authorization (jamais dans l'URL).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Flux ouvert"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
+    })
+    SseEmitter normalizationEvents(Authentication authentication);
 
     @PostMapping("/me/profile/skill-suggestions")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)

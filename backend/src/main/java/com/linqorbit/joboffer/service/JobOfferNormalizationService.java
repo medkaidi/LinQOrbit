@@ -10,6 +10,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.linqorbit.candidate.entity.NormalizationJob;
 import com.linqorbit.candidate.entity.NormalizationJobStatus;
@@ -18,6 +19,7 @@ import com.linqorbit.candidate.entity.NormalizedProfile;
 import com.linqorbit.candidate.entity.NormalizedProfileSchemaVersions;
 import com.linqorbit.candidate.repository.NormalizationJobRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
+import com.linqorbit.candidate.service.NormalizationStatusBroadcaster;
 import com.linqorbit.joboffer.entity.JobOffer;
 import com.linqorbit.joboffer.entity.JobOfferStatus;
 import com.linqorbit.joboffer.entity.NormalizedProfileJobOffer;
@@ -52,6 +54,7 @@ public class JobOfferNormalizationService {
     private final NormalizedProfileJobOfferRepository normalizedProfileJobOfferRepository;
     private final NormalizationJobRepository normalizationJobRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final NormalizationStatusBroadcaster statusBroadcaster;
 
     /**
      * Dirty-flag : aucune validation encore, ou la dernière écriture de
@@ -151,8 +154,21 @@ public class JobOfferNormalizationService {
         eventPublisher.publishEvent(new JobOfferValidatedEvent(profileId));
     }
 
-    /** État du job de la dernière version de l'offre, ou {@code null} si aucune validation. */
-    private NormalizationJobStatus latestJobStatus(UUID offerId) {
+    /**
+     * Flux SSE du statut de normalisation de l'offre (D64). L'accès (membre
+     * de la company) est contrôlé par l'appelant ({@code JobOfferService}) ;
+     * inscription d'abord, puis relecture du statut du dernier job.
+     */
+    public SseEmitter subscribe(UUID offerId) {
+        return statusBroadcaster.subscribe(NormalizationStatusBroadcaster.Stream.offer(offerId),
+                () -> latestJobStatus(offerId));
+    }
+
+    /**
+     * État du job de la dernière version de l'offre, ou {@code null} si
+     * aucune validation (jamais {@code SUPERSEDED}).
+     */
+    public NormalizationJobStatus latestJobStatus(UUID offerId) {
         List<NormalizedProfile> latest = normalizedProfileJobOfferRepository
                 .findLatestByOfferId(offerId, PageRequest.of(0, 1));
         if (latest.isEmpty()) {

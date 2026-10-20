@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
@@ -415,6 +416,36 @@ class JobOfferControllerTest {
                         .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
                 .andExpect(status().isNoContent());
         verify(jobOfferService).close(userId, OFFER_ID);
+    }
+
+    @Test
+    void fluxDeNormalisationOuvreUnSseDeLOffre() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(jobOfferService.subscribeNormalization(userId, OFFER_ID))
+                .thenReturn(new org.springframework.web.servlet.mvc.method.annotation.SseEmitter());
+
+        mockMvc.perform(get("/api/v1/job-offers/" + OFFER_ID + "/normalization/events")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(request().asyncStarted());
+
+        verify(jobOfferService).subscribeNormalization(userId, OFFER_ID);
+    }
+
+    @Test
+    void fluxDeNormalisationRenvoie404HorsCompanyEt401SansJeton() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(jobOfferService.subscribeNormalization(eq(userId), eq(OFFER_ID)))
+                .thenThrow(new JobOfferNotFoundException(OFFER_ID));
+
+        mockMvc.perform(get("/api/v1/job-offers/" + OFFER_ID + "/normalization/events")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(request().asyncNotStarted());
+        mockMvc.perform(get("/api/v1/job-offers/" + OFFER_ID + "/normalization/events")
+                        .accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import lombok.RequiredArgsConstructor;
 
@@ -61,6 +62,11 @@ public class JobOfferController implements JobOfferApi {
     public ResponseEntity<Void> validate(UUID offerId, Authentication authentication) {
         jobOfferService.validate(CurrentUserId.from(authentication), offerId);
         return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public SseEmitter normalizationEvents(UUID offerId, Authentication authentication) {
+        return jobOfferService.subscribeNormalization(CurrentUserId.from(authentication), offerId);
     }
 
     @Override

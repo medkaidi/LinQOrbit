@@ -7,6 +7,12 @@ vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
   return { ...actual, validateProfile: vi.fn() };
 });
 
+const useCandidateNormalizationStreamMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/hooks/use-normalization-stream", () => ({
+  useCandidateNormalizationStream: useCandidateNormalizationStreamMock,
+}));
+
 import { validateProfile } from "@/lib/api/candidate.api";
 import type { CandidateProfile } from "@/types/candidate";
 import { ValidateProfileBanner } from "@/features/candidate/validate-profile-banner";
@@ -164,6 +170,23 @@ describe("ValidateProfileBanner", () => {
 
     expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
     expect(screen.queryByText("Last validation attempt failed")).not.toBeInTheDocument();
+  });
+
+  // --- D64 : flux SSE de normalisation ----------------------------------------
+
+  it("follows the analysis through the normalization stream only while it is in progress", async () => {
+    useCandidateNormalizationStreamMock.mockClear();
+    renderBanner(buildProfile(false, false, true));
+
+    expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+    expect(useCandidateNormalizationStreamMock).toHaveBeenLastCalledWith(true);
+  });
+
+  it("keeps the normalization stream closed when no analysis is running", () => {
+    useCandidateNormalizationStreamMock.mockClear();
+    renderBanner(buildProfile(true));
+
+    expect(useCandidateNormalizationStreamMock).toHaveBeenLastCalledWith(false);
   });
 
   // --- D63 : analyse obsolète -------------------------------------------------

@@ -20,6 +20,7 @@ import {
   useJobOfferTransition,
   useWorkModes,
 } from "@/hooks/use-job-offers";
+import { useOfferNormalizationStream } from "@/hooks/use-normalization-stream";
 import { SECTION_HEADER_CLASS, SECTION_TITLE_CLASS } from "@/components/ui/section";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import type { Company, JobOfferListItem } from "@/types/recruiter";
@@ -327,6 +328,16 @@ function OfferRow({
   );
 }
 
+/**
+ * Suit en SSE (D64) l'analyse d'une offre que l'utilisateur vient de (re)valider :
+ * un flux par ressource, jamais un par carte — sans rendu, il relit la liste et
+ * le détail de l'offre à chaque transition tant que l'analyse est en cours.
+ */
+function OfferNormalizationWatcher({ offerId, active }: { offerId: string; active: boolean }) {
+  useOfferNormalizationStream(offerId, active);
+  return null;
+}
+
 /** Dialogue de confirmation ouvert au-dessus de la liste — un seul état pour les deux modales. */
 type OfferDialog =
   | { kind: "transition"; offer: JobOfferListItem; action: ConfirmedTransition }
@@ -345,6 +356,8 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
   const employmentTypes = useEmploymentTypes();
   const workModes = useWorkModes();
   const [dialog, setDialog] = useState<OfferDialog | null>(null);
+  // Offres (re)validées depuis cette liste : seules elles ouvrent un flux SSE pendant leur analyse.
+  const [watchedOfferIds, setWatchedOfferIds] = useState<readonly string[]>([]);
 
   const companyNames = new Map(companies.map((company) => [company.id, company.name]));
   const contractLabels = new Map(
@@ -397,6 +410,7 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
   }
 
   const list = offers.data?.pages.flatMap((page) => page.items) ?? [];
+  const watchedOffers = list.filter((offer) => watchedOfferIds.includes(offer.id));
 
   return (
     <section className="bg-canvas-white rounded-2xl shadow-sm">
@@ -456,6 +470,13 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
             </p>
           }
         />
+        {watchedOffers.map((offer) => (
+          <OfferNormalizationWatcher
+            key={offer.id}
+            offerId={offer.id}
+            active={offer.normalizationInProgress}
+          />
+        ))}
         {dialog?.kind === "transition" ? (
           <ConfirmDialog
             title={TRANSITION_CONFIRM[dialog.action].title}
@@ -468,9 +489,17 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
             icon={TRANSITION_CONFIRM[dialog.action].icon}
             busy={transition.isPending}
             onConfirm={() => {
+              const { offer, action } = dialog;
               transition.mutate(
-                { offerId: dialog.offer.id, action: dialog.action },
-                { onSettled: () => setDialog(null) },
+                { offerId: offer.id, action },
+                {
+                  onSuccess: () => {
+                    if (action !== "publish") {
+                      setWatchedOfferIds((ids) => (ids.includes(offer.id) ? ids : [...ids, offer.id]));
+                    }
+                  },
+                  onSettled: () => setDialog(null),
+                },
               );
             }}
             onCancel={() => setDialog(null)}

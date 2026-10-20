@@ -28,6 +28,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -489,6 +490,19 @@ public class JobOfferService {
                     offer.setValidatedAt(LocalDateTime.now());
                 });
         jobOfferNormalizationService.onValidated(offerId);
+    }
+
+    /**
+     * Flux SSE du statut de normalisation d'une offre (D64) : même accès que
+     * la lecture du détail ({@code get} — recruteur membre de la company,
+     * 404 sinon), quel que soit le statut de l'offre ; le flux lui-même est
+     * servi par la normalisation d'offre.
+     */
+    public SseEmitter subscribeNormalization(UUID userId, UUID offerId) {
+        log.info("Job offer normalization stream requested : offerId={}, recruiterId={}", offerId, userId);
+        requireRecruiter(userId);
+        loadForMember(offerId, userId);
+        return jobOfferNormalizationService.subscribe(offerId);
     }
 
     /**

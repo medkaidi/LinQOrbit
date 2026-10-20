@@ -24,6 +24,7 @@ import com.linqorbit.candidate.entity.NormalizationSourceType;
 import com.linqorbit.candidate.entity.NormalizedProfile;
 import com.linqorbit.candidate.repository.NormalizationJobRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
+import com.linqorbit.candidate.service.NormalizationStatusBroadcaster;
 import com.linqorbit.joboffer.entity.JobOffer;
 import com.linqorbit.joboffer.entity.JobOfferStatus;
 import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
@@ -54,7 +55,8 @@ class JobOfferNormalizationServiceTest {
         normalizationJobRepository = mock(NormalizationJobRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         service = new JobOfferNormalizationService(jobOfferRepository, normalizedProfileRepository,
-                normalizedProfileJobOfferRepository, normalizationJobRepository, eventPublisher);
+                normalizedProfileJobOfferRepository, normalizationJobRepository, eventPublisher,
+                mock(NormalizationStatusBroadcaster.class));
     }
 
     private JobOffer offer(LocalDateTime updatedAt) {

@@ -1,15 +1,24 @@
 package com.linqorbit.candidate.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+
+import javax.sql.DataSource;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -19,12 +28,16 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.linqorbit.candidate.entity.NormalizationJobStatus;
+import com.linqorbit.candidate.entity.NormalizationSourceType;
+import com.linqorbit.candidate.service.NormalizationStatusBroadcaster;
+import com.linqorbit.candidate.service.NormalizationStatusPublisher;
 import com.linqorbit.candidate.service.NormalizationWorker;
 
 /**
@@ -38,6 +51,7 @@ import com.linqorbit.candidate.service.NormalizationWorker;
 class NormalizationValidateIntegrationTest {
 
     private static final String PROFILE_PATH = "/api/v1/candidates/me/profile";
+    private static final String EVENTS_PATH = PROFILE_PATH + "/normalization/events";
 
     @Autowired
     private MockMvc mockMvc;
@@ -48,6 +62,12 @@ class NormalizationValidateIntegrationTest {
 
     @MockitoBean
     private NormalizationWorker normalizationWorker;
+    @MockitoSpyBean
+    private NormalizationStatusBroadcaster normalizationStatusBroadcaster;
+    @Autowired
+    private NormalizationStatusPublisher normalizationStatusPublisher;
+    @Autowired
+    private DataSource dataSource;
 
     private final List<UUID> createdUserIds = new ArrayList<>();
 
@@ -290,6 +310,109 @@ class NormalizationValidateIntegrationTest {
                 firstId);
         completeWithSchema(secondId, "3");
         expectSignals(token, false, false, false);
+    }
+
+    // --- D64 : flux SSE du statut de normalisation du candidat ----------------
+
+    @Test
+    void fluxSseRefuseSansJeton() throws Exception {
+        mockMvc.perform(get(EVENTS_PATH).accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isUnauthorized())
+                .andExpect(request().asyncNotStarted());
+    }
+
+    @Test
+    void fluxSseSansValidationEnvoieNonePuisSeFerme() throws Exception {
+        String token = signup();
+
+        MvcResult stream = openStream(token);
+        mockMvc.perform(asyncDispatch(stream)).andExpect(status().isOk());
+
+        assertThat(stream.getResponse().getContentType()).startsWith(MediaType.TEXT_EVENT_STREAM_VALUE);
+        assertThat(stream.getResponse().getContentAsString())
+                .contains("event:status", "\"status\":\"none\"");
+    }
+
+    @Test
+    void fluxSseEnvoieLeStatutCourantPuisChaqueValidationApresCommitEtSeFermeSurTerminal() throws Exception {
+        String token = signup();
+        UUID userId = createdUserIds.get(createdUserIds.size() - 1);
+        writeAboutAndValidate(token);
+        // À chaque publication, compter les jobs visibles depuis une AUTRE connexion : seul le commité y figure.
+        List<Integer> committedJobsAtPublish = new ArrayList<>();
+        doAnswer(invocation -> {
+            committedJobsAtPublish.add(committedJobCount(userId));
+            return invocation.callRealMethod();
+        }).when(normalizationStatusBroadcaster).publish(any(), any());
+
+        MvcResult stream = openStream(token);
+        assertThat(stream.getResponse().getContentAsString()).contains("\"status\":\"pending\"");
+
+        // Nouvelle validation (édition) : v2 PENDING, v1 supersédée — publiée après commit.
+        mockMvc.perform(put(PROFILE_PATH + "/about")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title": "Backend Developer", "bio": "Profil modifié",
+                                 "yearsOfExperience": 7, "searchStatus": "open_to_work"}"""))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(post(PROFILE_PATH + "/validate").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        assertThat(committedJobsAtPublish).containsExactly(2);
+        assertThat(stream.getRequest().isAsyncStarted()).isTrue();
+
+        // Fin d'analyse (worker simulé) : DONE publié, le flux se ferme.
+        UUID latest = latestProfileId(userId);
+        jdbcTemplate.update("UPDATE normalization_job SET status = 3, completed_at = now() WHERE job_id = ?", latest);
+        normalizationStatusPublisher.publish(latest, NormalizationSourceType.CANDIDATE);
+
+        mockMvc.perform(asyncDispatch(stream)).andExpect(status().isOk());
+        String body = stream.getResponse().getContentAsString();
+        assertThat(body.indexOf("\"status\":\"pending\"")).isLessThan(body.indexOf("\"status\":\"done\""));
+        // Statut courant, validation, fin : trois événements.
+        assertThat(body.split("event:status", -1)).hasSize(4);
+    }
+
+    @Test
+    void fluxSseDUnCandidatNeRecoitJamaisLesTransitionsDUnAutre() throws Exception {
+        String mine = signup();
+        UUID myId = createdUserIds.get(createdUserIds.size() - 1);
+        writeAboutAndValidate(mine);
+        String theirs = signup();
+        writeAboutAndValidate(theirs);
+
+        MvcResult theirStream = openStream(theirs);
+        UUID myJob = latestProfileId(myId);
+        jdbcTemplate.update("UPDATE normalization_job SET status = 3, completed_at = now() WHERE job_id = ?", myJob);
+        normalizationStatusPublisher.publish(myJob, NormalizationSourceType.CANDIDATE);
+
+        assertThat(theirStream.getResponse().getContentAsString())
+                .contains("\"status\":\"pending\"")
+                .doesNotContain("\"status\":\"done\"");
+        assertThat(theirStream.getRequest().isAsyncStarted()).isTrue();
+    }
+
+    private MvcResult openStream(String token) throws Exception {
+        return mockMvc.perform(get(EVENTS_PATH)
+                        .header("Authorization", "Bearer " + token)
+                        .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+    }
+
+    /** Jobs du candidat visibles depuis une connexion distincte (donc commités). */
+    private int committedJobCount(UUID userId) throws Exception {
+        try (Connection connection = dataSource.getConnection();
+                PreparedStatement statement = connection.prepareStatement("""
+                        SELECT count(*) FROM normalization_job j
+                            JOIN normalized_profile_candidate npc ON npc.normalized_profile_id = j.job_id
+                        WHERE npc.candidate_id = ?""")) {
+            statement.setObject(1, userId);
+            try (ResultSet rows = statement.executeQuery()) {
+                rows.next();
+                return rows.getInt(1);
+            }
+        }
     }
 
     /** Signaux du GET : normalizationFailed, normalizationInProgress, analysisOutdated. */

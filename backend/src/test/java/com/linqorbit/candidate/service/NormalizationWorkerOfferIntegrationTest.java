@@ -3,9 +3,11 @@ package com.linqorbit.candidate.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.ArrayList;
@@ -20,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.TaskScheduler;
@@ -29,6 +32,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.linqorbit.candidate.entity.NormalizationJobStatus;
+import com.linqorbit.candidate.exception.AiServiceException;
 import com.linqorbit.joboffer.client.JobOfferNormalizeClient;
 import com.linqorbit.joboffer.dto.OfferNormalizeRequest;
 
@@ -357,6 +361,112 @@ class NormalizationWorkerOfferIntegrationTest {
                 .andExpect(jsonPath("$.detail").value("This action is not allowed from the offer's current status."));
         assertThat(versionCount(offerId)).isEqualTo(2);
         assertThat(versionCount(validatedId)).isEqualTo(1);
+    }
+
+    // --- D64 : flux SSE du statut de normalisation de l'offre -----------------
+
+    @Test
+    void fluxSseDeLOffreSuitLaValidationPuisLeWorkerJusquAuTerminal() throws Exception {
+        String token = signup();
+        becomeRecruiter(token);
+        UUID offerId = createOffer(token, createCompany(token));
+        createdOfferIds.add(offerId);
+        when(jobOfferNormalizeClient.normalize(any())).thenReturn(CANONICAL_OFFER_JSON);
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/validate").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        MvcResult stream = openOfferStream(token, offerId);
+        assertThat(stream.getResponse().getContentAsString()).contains("\"status\":\"pending\"");
+
+        normalizationWorker.executeJob(latestOfferJobId(offerId));
+
+        mockMvc.perform(asyncDispatch(stream)).andExpect(status().isOk());
+        String body = stream.getResponse().getContentAsString();
+        assertThat(body).contains("event:status");
+        int pending = body.indexOf("\"status\":\"pending\"");
+        int running = body.indexOf("\"status\":\"running\"");
+        int done = body.indexOf("\"status\":\"done\"");
+        assertThat(pending).isNotNegative().isLessThan(running);
+        assertThat(running).isLessThan(done);
+        // Signal seulement : jamais le contenu de la fiche.
+        assertThat(body).doesNotContain("Backend Engineer");
+
+        // Analyse déjà terminée à l'abonnement : le statut final est envoyé puis le flux se ferme.
+        MvcResult replay = openOfferStream(token, offerId);
+        mockMvc.perform(asyncDispatch(replay)).andExpect(status().isOk());
+        assertThat(replay.getResponse().getContentAsString()).contains("\"status\":\"done\"")
+                .doesNotContain("\"status\":\"pending\"");
+    }
+
+    @Test
+    void unEchecIaRepasseEnAttenteSansFermerLeFluxEtSansFaireEchouerLeJob() throws Exception {
+        String token = signup();
+        becomeRecruiter(token);
+        UUID offerId = createOffer(token, createCompany(token));
+        createdOfferIds.add(offerId);
+        when(jobOfferNormalizeClient.normalize(any()))
+                .thenThrow(new AiServiceException(HttpStatus.BAD_GATEWAY, "The AI service call failed."));
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/validate").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        MvcResult stream = openOfferStream(token, offerId);
+
+        UUID jobId = latestOfferJobId(offerId);
+        normalizationWorker.executeJob(jobId);
+
+        String body = stream.getResponse().getContentAsString();
+        assertThat(body).contains("\"status\":\"running\"");
+        assertThat(body.lastIndexOf("\"status\":\"pending\"")).isGreaterThan(body.indexOf("\"status\":\"running\""));
+        assertThat(stream.getRequest().isAsyncStarted()).isTrue();
+        assertThat(((Number) jdbcTemplate.queryForObject(
+                "SELECT attempts FROM normalization_job WHERE job_id = ?", Integer.class, jobId)).intValue())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void fluxSseDeLOffreRefuseSansJetonHorsCompanyEtSansProfilRecruteur() throws Exception {
+        String token = signup();
+        becomeRecruiter(token);
+        UUID offerId = createOffer(token, createCompany(token));
+        createdOfferIds.add(offerId);
+        String eventsPath = "/api/v1/job-offers/" + offerId + "/normalization/events";
+
+        mockMvc.perform(get(eventsPath).accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isUnauthorized())
+                .andExpect(request().asyncNotStarted());
+
+        // Recruteur d'une autre company : même 404 qu'en lecture, aucune fuite d'existence.
+        String outsider = signup();
+        becomeRecruiter(outsider);
+        createCompany(outsider);
+        mockMvc.perform(get(eventsPath).header("Authorization", "Bearer " + outsider)
+                        .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(request().asyncNotStarted());
+        mockMvc.perform(get("/api/v1/job-offers/" + UUID.randomUUID() + "/normalization/events")
+                        .header("Authorization", "Bearer " + token)
+                        .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(request().asyncNotStarted());
+
+        // Compte sans profil recruteur : refusé avant toute ouverture de flux.
+        String candidateOnly = signup();
+        mockMvc.perform(get(eventsPath).header("Authorization", "Bearer " + candidateOnly)
+                        .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(request().asyncNotStarted());
+
+        // Offre jamais validée : « none », flux aussitôt fermé.
+        MvcResult stream = openOfferStream(token, offerId);
+        mockMvc.perform(asyncDispatch(stream)).andExpect(status().isOk());
+        assertThat(stream.getResponse().getContentAsString()).contains("\"status\":\"none\"");
+    }
+
+    private MvcResult openOfferStream(String token, UUID offerId) throws Exception {
+        return mockMvc.perform(get("/api/v1/job-offers/" + offerId + "/normalization/events")
+                        .header("Authorization", "Bearer " + token)
+                        .accept(MediaType.TEXT_EVENT_STREAM, MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(request().asyncStarted())
+                .andReturn();
     }
 
     /** Statut et dates de vie de l'offre, lus en base. */

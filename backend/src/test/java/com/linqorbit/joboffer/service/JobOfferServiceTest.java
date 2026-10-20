@@ -385,6 +385,33 @@ class JobOfferServiceTest {
         assertThat(offer.getUpdatedAt()).isNull();
     }
 
+    // --- D64 : flux SSE de normalisation d'une offre ---------------------------
+
+    @Test
+    void fluxDeNormalisationOuvertAToutMembreDeLaCompanyQuelQueSoitLeStatut() {
+        JobOffer offer = publishedOffer();
+        stubManagement(offer, OTHER_RECRUITER_ID, false);
+        org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter =
+                new org.springframework.web.servlet.mvc.method.annotation.SseEmitter();
+        when(jobOfferNormalizationService.subscribe(OFFER_ID)).thenReturn(emitter);
+
+        assertThat(jobOfferService.subscribeNormalization(OTHER_RECRUITER_ID, OFFER_ID)).isSameAs(emitter);
+    }
+
+    @Test
+    void fluxDeNormalisationRefuseHorsCompanyEtSansProfilRecruteur() {
+        stubRecruiter(true);
+        when(companyMemberRepository.findByRecruiterId(OTHER_RECRUITER_ID)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> jobOfferService.subscribeNormalization(OTHER_RECRUITER_ID, OFFER_ID))
+                .isInstanceOf(JobOfferNotFoundException.class);
+
+        stubRecruiter(false);
+        assertThatThrownBy(() -> jobOfferService.subscribeNormalization(RECRUITER_ID, OFFER_ID))
+                .isInstanceOf(com.linqorbit.recruiter.exception.RecruiterNotFoundException.class);
+        verify(jobOfferNormalizationService, never()).subscribe(any());
+    }
+
     // --- D63 : rafraîchissement de l'analyse d'une offre PUBLISHED -----------
 
     @Test

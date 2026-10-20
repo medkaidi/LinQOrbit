@@ -1,6 +1,8 @@
 package com.linqorbit.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -59,6 +61,12 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/links'].put").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/validate'].post.summary")
                         .value("Valider le profil et lancer la normalisation"))
+                // Prédicat T-84 : dirty || (analysisOutdated && latest ∉ {PENDING, RUNNING}) || failed.
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/validate'].post.description")
+                        .value(allOf(containsString("analysisOutdated"), containsString("PENDING"),
+                                containsString("RUNNING"))))
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/normalization/events'].get.summary")
+                        .value("Suivre l'analyse du profil (SSE)"))
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/me/profile/skill-suggestions'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/skills'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/candidates/reference/languages'].get").exists())
@@ -157,6 +165,8 @@ class OpenApiDocsTest {
                         .value("Dupliquer une offre"))
                 .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/validate'].post.summary")
                         .value("Valider une offre"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/normalization/events'].get.summary")
+                        .value("Suivre l'analyse d'une offre (SSE)"))
                 .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/revalidate'].post.summary")
                         .value("Rafraîchir l'analyse d'une offre publiée"))
                 .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/revalidate'].post.responses['409']")

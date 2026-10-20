@@ -877,7 +877,7 @@ Détail des colonnes, contraintes et index : §14.12 et §14.14.
 - ⬜ Analyse IA — 11 familles d'anomalies avant publication
 - ⬜ Matching — moteur critères pondérés (les embeddings ne servent qu'au retrieval amont, §8.4 / D31) — **conception validée 2026-10-16 (D46–D57), matching livré T-61, clarifications/contestation T-62/T-63 ; clôture recruteur T-84→T-86**
 - ✅ **T-84** — versions de schéma centralisées, `analysisOutdated` candidat/offre, bouton de revalidation, garde du `schemaVersion` IA (D63) ; complément : `POST …/revalidate` pour les offres `PUBLISHED` sans changement de cycle de vie — 594 backend / 900 frontend au vert (2026-10-19)
-- ⬜ **T-85** — SSE de normalisation candidat/offre, signal + GET, publication après commit (D64)
+- ✅ **T-85** — SSE de normalisation candidat/offre, signal + GET, publication après commit (D64) — 625 backend / 922 frontend au vert (2026-10-20)
 - ⬜ **T-66** — vue recruteur V24 : onglets de statut, tri section/contestations, score profile, détail par critère, CV, décisions (D65) — dépend de T-63, pas de T-65
 - ⬜ **T-86** — signalement IA par critère, V25, interne, sans recalcul (D66) — après T-66
 - ⬜ Transparence & clarification — vue d'évaluation, clarification, réévaluation — **conception validée 2026-10-16 (D52–D54)** ; contestation livrée T-63, vue recruteur T-66
