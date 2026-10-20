@@ -1,0 +1,190 @@
+{
+  "date": "2026-10-20T18:30:31+00:00",
+  "fixture": "education",
+  "model": "gemini-3.1-flash-lite",
+  "temperature": 0.0,
+  "policyVersion": "education-1",
+  "analysisPolicyVersions": [
+    "education-1",
+    "education-1",
+    "education-1",
+    "education-1",
+    "education-1",
+    "education-1",
+    "education-1",
+    "education-1",
+    "education-1",
+    "education-1"
+  ],
+  "passed": 7,
+  "total": 10,
+  "verdict": "FAIL",
+  "cases": [
+    {
+      "id": 1,
+      "name": "Exact degree and field",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 100,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 100,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "The candidate holds a Master's degree in Computer Science, which meets both the degree level and the field of study requirements.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 2,
+      "name": "Above the required level",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 100,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 100,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "The candidate holds a Doctorate in Computer Science, which exceeds the Master's degree requirement and matches the Computer Science field of study.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 3,
+      "name": "One level below",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 65,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 65,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "The candidate holds a Bachelor's degree in Computer Science; the offer requires a Master's degree, which is one level above the candidate's degree.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 4,
+      "name": "Two levels below",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 35,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 65,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "The candidate holds an Associate degree in Computer Science, which is one level below the required Master's degree; the field of study requirement is met.",
+      "passed": false,
+      "detail": "score 65 != 35"
+    },
+    {
+      "id": 5,
+      "name": "Distant field",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 25,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 65,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "The candidate holds a Master's degree, meeting the degree level requirement, but the field of study (Business Administration) is distant from the required Computer Science field.",
+      "passed": false,
+      "detail": "score 65 != 25"
+    },
+    {
+      "id": 6,
+      "name": "Close field",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 75,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 75,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "The candidate holds a Master's degree, meeting the degree level requirement, but in Software Engineering, which is a close discipline to the required Computer Science field.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 7,
+      "name": "Unknown field",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 50,
+        "evidenceSource": "diploma"
+      },
+      "obtained": 50,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "The candidate holds a Master's degree, meeting the degree level requirement, but the field of study is not specified.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 8,
+      "name": "No diploma",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 0,
+        "noEvidence": true
+      },
+      "obtained": 0,
+      "evidence": [],
+      "rationale": "The candidate sheet does not list any obtained diplomas, failing the requirement for a Master's degree in Computer Science.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 9,
+      "name": "Ongoing diploma",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 0,
+        "noEvidence": true
+      },
+      "obtained": 0,
+      "evidence": [],
+      "rationale": "The candidate's Master's degree in Computer Science is ongoing (endDate is null) and therefore not obtained; no other obtained diplomas are listed.",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "id": 10,
+      "name": "Professional certificate vs degree",
+      "key": "education:requirement",
+      "round": 1,
+      "expected": {
+        "exact": 0,
+        "noEvidence": true
+      },
+      "obtained": 25,
+      "evidence": [
+        "diploma[0]"
+      ],
+      "rationale": "The candidate holds a Professional certificate in Computer Science, which does not meet the Master's degree requirement; the field of study is a match.",
+      "passed": false,
+      "detail": "score 25 != 0"
+    }
+  ]
+}

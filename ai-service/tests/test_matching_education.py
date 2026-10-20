@@ -467,3 +467,30 @@ def test_an_education_requirement_needs_at_least_one_dimension():
 
     with pytest.raises(ValidationError, match="at least one dimension"):
         MatchingCriterion.model_validate(criterion)
+
+
+@pytest.mark.parametrize(
+    "education",
+    [
+        {"degreeLevels": [""]},
+        {"degreeLevels": [" "]},
+        {"credentials": [""]},
+        {"fields": [""]},
+    ],
+)
+def test_an_education_requirement_rejects_blank_values(education):
+    # The backend strips empty catalogue labels, so production never sends one;
+    # the contract refuses them instead of scoring a dimension that is not one.
+    criterion = _education_criterion()
+    criterion["education"] = education
+
+    with pytest.raises(ValidationError, match="must not be blank"):
+        MatchingCriterion.model_validate(criterion)
+
+
+def test_the_education_criterion_belongs_to_the_education_section():
+    criterion = _education_criterion()
+    criterion["section"] = "required_skills"
+
+    with pytest.raises(ValidationError, match="belongs to the education section"):
+        MatchingCriterion.model_validate(criterion)

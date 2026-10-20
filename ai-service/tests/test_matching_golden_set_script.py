@@ -208,6 +208,37 @@ def test_a_scenario_fixture_runs_one_analysis_per_scenario_without_round_2(monke
     assert len(list(results.glob("matching-golden-demo-*.json"))) == 1
 
 
+def test_a_scenario_passes_its_clarifications_to_the_analysis(monkeypatch, tmp_path):
+    script = _load_script()
+    fixture_path = _scenario_fixture(tmp_path)
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    fixture["scenarios"][0]["clarifications"] = [
+        {
+            "question": "Do you hold the certification?",
+            "rationale": "It is required.",
+            "answer": "Yes.",
+            "status": "answered",
+        }
+    ]
+    fixture_path.write_text(json.dumps(fixture), encoding="utf-8")
+    results = tmp_path / "results"
+    requests = []
+
+    def analyze(request):
+        requests.append(request)
+        return _scored(100 if len(requests) == 1 else 0)
+
+    monkeypatch.setattr(script, "analyze_matching", analyze)
+    monkeypatch.setattr(script, "RESULTS_DIR", results)
+
+    assert script.main(fixture_path) == 0
+
+    assert requests[0].clarifications[0].question == "Do you hold the certification?"
+    assert requests[0].clarifications[0].answer == "Yes."
+    assert requests[0].clarifications[0].status == "answered"
+    assert requests[1].clarifications == []
+
+
 def test_a_scenario_with_evidence_on_a_zero_score_fails(monkeypatch, tmp_path):
     script = _load_script()
     fixture_path = _scenario_fixture(tmp_path)
@@ -284,7 +315,7 @@ def test_the_cli_selects_a_fixture_by_name_and_refuses_an_unknown_one(monkeypatc
 
     assert calls == [(None, None), (script.FIXTURES["education"], "education")]
     assert set(script.FIXTURES) == {"skills", "education", "certifications"}
-    expected_sizes = {"education": 10, "certifications": 3}
+    expected_sizes = {"education": 10, "certifications": 4}
     for name, size in expected_sizes.items():
         fixture = json.loads(script.FIXTURES[name].read_text(encoding="utf-8"))
         assert fixture["policyVersion"] == "education-2"

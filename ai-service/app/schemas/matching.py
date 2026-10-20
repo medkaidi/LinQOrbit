@@ -86,6 +86,13 @@ class EducationRequirement(CvModel):
             raise ValueError("an education requirement needs at least one dimension")
         return self
 
+    @model_validator(mode="after")
+    def values_must_not_be_blank(self) -> "EducationRequirement":
+        for values in (self.degree_levels, self.credentials, self.fields):
+            if any(not value.strip() for value in values):
+                raise ValueError("education requirement values must not be blank")
+        return self
+
 
 class MatchingCriterion(CvModel):
     """One criterion extracted by the backend from the offer sheet."""
@@ -104,6 +111,8 @@ class MatchingCriterion(CvModel):
 
     @model_validator(mode="after")
     def education_only_on_the_education_criterion(self) -> "MatchingCriterion":
+        if self.key == EDUCATION_CRITERION_KEY and self.section != "education":
+            raise ValueError(f"the {EDUCATION_CRITERION_KEY} criterion belongs to the education section")
         if self.key == EDUCATION_CRITERION_KEY and self.education is None:
             raise ValueError(f"the {EDUCATION_CRITERION_KEY} criterion needs its structured education requirement")
         if self.key != EDUCATION_CRITERION_KEY and self.education is not None:

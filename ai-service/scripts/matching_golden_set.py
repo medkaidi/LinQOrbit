@@ -157,7 +157,7 @@ def _run_rounds(fixture: dict) -> tuple[list[dict], list[str], str, dict | None,
 
 
 def _run_scenarios(fixture: dict, fixture_label: str) -> tuple[list[dict], list[str], str, dict | None, int]:
-    """Scenario fixture: one analysis per scenario (own candidate, offer and criteria), no round 2."""
+    """Scenario fixture: one analysis per scenario (own candidate, offer, criteria and optional clarifications)."""
     cases: list[dict] = []
     versions: list[str] = []
     stage = ""
@@ -178,6 +178,8 @@ def _run_scenarios(fixture: dict, fixture_label: str) -> tuple[list[dict], list[
                     candidate=scenario["candidate"],
                     offer=scenario["offer"],
                     criteria=scenario["criteria"],
+                    previous_assessments=scenario.get("previousAssessments", []),
+                    clarifications=scenario.get("clarifications", []),
                 )
             )
             versions.append(analysis.policy_version)
