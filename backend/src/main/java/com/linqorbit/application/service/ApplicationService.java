@@ -272,8 +272,11 @@ public class ApplicationService {
                 ? Optional.ofNullable(application.getMatchingId())
                 : currentMatchingId(userId, offer.getId());
         return matchingId.flatMap(matchingRepository::findById)
-                .map(matching -> new ApplicationAssessmentView(true, matching.getAssessmentFinishedAt() != null,
-                        feedbackRepository.existsByMatchingId(matching.getId())))
+                .map(matching -> {
+                    boolean finished = matching.getAssessmentFinishedAt() != null;
+                    return new ApplicationAssessmentView(true, !finished, finished,
+                            feedbackRepository.existsByMatchingId(matching.getId()));
+                })
                 .orElse(ApplicationAssessmentView.NONE);
     }
 

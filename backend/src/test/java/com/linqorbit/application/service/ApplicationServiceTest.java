@@ -22,12 +22,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 
 import com.linqorbit.application.dto.ApplicationAnswerOptionView;
 import com.linqorbit.application.dto.ApplicationAnswerRequest;
 import com.linqorbit.application.dto.ApplicationAnswerView;
+import com.linqorbit.application.dto.ApplicationAssessmentView;
 import com.linqorbit.application.dto.ApplicationContextResponse;
 import com.linqorbit.application.dto.ApplicationResponse;
 import com.linqorbit.application.dto.SaveApplicationDraftRequest;
@@ -502,6 +504,87 @@ class ApplicationServiceTest {
         assertThat(withdrawn.canSubmit()).isFalse();
     }
 
+    // --- Contexte : évaluation IA ------------------------------------------
+
+    @Test
+    void contexteSansMatchingNeProposePasDUneEvaluationOuverte() {
+        stubOpenOffer();
+        stubQuestions(List.of(), List.of());
+        stubCurrentCv("cv.pdf");
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.empty());
+        when(normalizedProfileRepository.findLatestWithContentByCandidateId(USER_ID, PageRequest.of(0, 1)))
+                .thenReturn(List.of());
+
+        ApplicationContextResponse context = applicationService.getContext(USER_ID, PUBLIC_ID);
+
+        assertThat(context.assessment()).isEqualTo(ApplicationAssessmentView.NONE);
+        assertThat(context.assessment().assessmentOpen()).isFalse();
+    }
+
+    @Test
+    void brouillonAvecMatchingNonClosExposeUneEvaluationOuverte() {
+        Application draft = application(ApplicationStatus.DRAFT, null);
+        Matching matching = matching(null);
+        stubOpenOffer();
+        stubQuestions(List.of(), List.of());
+        stubCurrentCv("cv.pdf");
+        stubCurrentMatching(matching);
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.of(draft));
+
+        ApplicationContextResponse context = applicationService.getContext(USER_ID, PUBLIC_ID);
+
+        assertThat(context.step()).isEqualTo("matching");
+        assertThat(context.assessment()).isEqualTo(new ApplicationAssessmentView(true, true, false, false));
+    }
+
+    @Test
+    void matchingClosExposeLaRevueEtLaContestation() {
+        Application draft = application(ApplicationStatus.DRAFT, null);
+        Matching matching = matching(LocalDateTime.now());
+        stubOpenOffer();
+        stubQuestions(List.of(), List.of());
+        stubCurrentCv("cv.pdf");
+        stubCurrentMatching(matching);
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.of(draft));
+        when(feedbackRepository.existsByMatchingId(matching.getId())).thenReturn(true);
+
+        ApplicationContextResponse context = applicationService.getContext(USER_ID, PUBLIC_ID);
+
+        assertThat(context.assessment()).isEqualTo(new ApplicationAssessmentView(true, false, true, true));
+    }
+
+    @Test
+    void candidatureTransmiseSuitLeMatchingRattacheSansChercherLeMatchingCourant() {
+        Application submitted = application(ApplicationStatus.SUBMITTED, CV_ID);
+        Matching attached = matching(null);
+        submitted.setMatchingId(attached.getId());
+        stubOpenOffer();
+        stubQuestions(List.of(), List.of());
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID))
+                .thenReturn(Optional.of(submitted));
+        when(matchingRepository.findById(attached.getId())).thenReturn(Optional.of(attached));
+
+        ApplicationContextResponse context = applicationService.getContext(USER_ID, PUBLIC_ID);
+
+        assertThat(context.step()).isEqualTo("submitted");
+        assertThat(context.assessment()).isEqualTo(new ApplicationAssessmentView(true, true, false, false));
+        verifyNoInteractions(normalizedProfileRepository);
+    }
+
+    @Test
+    void candidatureTransmiseSansMatchingRattacheNaPasDEvaluation() {
+        Application submitted = application(ApplicationStatus.SUBMITTED, CV_ID);
+        stubOpenOffer();
+        stubQuestions(List.of(), List.of());
+        when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID))
+                .thenReturn(Optional.of(submitted));
+
+        ApplicationContextResponse context = applicationService.getContext(USER_ID, PUBLIC_ID);
+
+        assertThat(context.assessment()).isEqualTo(ApplicationAssessmentView.NONE);
+        verifyNoInteractions(normalizedProfileRepository, matchingRepository);
+    }
+
     @Test
     void candidatureDuCoupleExposeStatutEtCompletudePourLeMatching() {
         JobOfferQuestion required = question(1, QuestionType.TEXT, true, 0);
@@ -648,6 +731,31 @@ class ApplicationServiceTest {
                 .thenReturn(questions);
         when(jobOfferQuestionOptionRepository.findByQuestionIdInOrderBySortOrderAscIdAsc(anyList()))
                 .thenReturn(options);
+    }
+
+    private void stubCurrentMatching(Matching matching) {
+        NormalizedProfile profile = NormalizedProfile.builder()
+                .id(matching.getCandidateNormalizedProfileId())
+                .version(1)
+                .schemaVersion("3")
+                .content("{}")
+                .validatedAt(LocalDateTime.now())
+                .build();
+        when(normalizedProfileRepository.findLatestWithContentByCandidateId(USER_ID, PageRequest.of(0, 1)))
+                .thenReturn(List.of(profile));
+        when(matchingRepository.findByCandidateIdAndJobOfferIdAndCandidateNormalizedProfileId(
+                USER_ID, OFFER_ID, profile.getId())).thenReturn(Optional.of(matching));
+        when(matchingRepository.findById(matching.getId())).thenReturn(Optional.of(matching));
+    }
+
+    private static Matching matching(LocalDateTime assessmentFinishedAt) {
+        return Matching.builder()
+                .id(UUID.randomUUID())
+                .candidateId(USER_ID)
+                .jobOfferId(OFFER_ID)
+                .candidateNormalizedProfileId(UUID.randomUUID())
+                .assessmentFinishedAt(assessmentFinishedAt)
+                .build();
     }
 
     private void stubOwned(Application application) {

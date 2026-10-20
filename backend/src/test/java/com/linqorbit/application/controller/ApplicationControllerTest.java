@@ -159,7 +159,9 @@ class ApplicationControllerTest {
                 .andExpect(jsonPath("$.job.title").value("Backend Engineer"))
                 .andExpect(jsonPath("$.questions.length()").value(0))
                 .andExpect(jsonPath("$.step").value("recruiter_questions"))
-                .andExpect(jsonPath("$.canSubmit").value(false));
+                .andExpect(jsonPath("$.canSubmit").value(false))
+                .andExpect(jsonPath("$.assessment.matched").value(false))
+                .andExpect(jsonPath("$.assessment.assessmentOpen").value(false));
     }
 
     @Test
