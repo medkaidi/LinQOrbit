@@ -341,7 +341,7 @@ export function RecruiterApplicationsView({ offerId }: { offerId: string }) {
         </header>
 
         <div className="px-5 pt-4 pb-5 flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <SegmentedControl
               label="Application status"
               value={status}
