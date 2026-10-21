@@ -8,6 +8,7 @@ vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
     ...actual,
     getProfile: vi.fn(),
     parseCv: vi.fn(),
+    uploadCv: vi.fn(),
     getReferenceSkills: vi.fn(),
     getReferenceLanguages: vi.fn(),
     getReferenceDegrees: vi.fn(),
@@ -27,14 +28,16 @@ import {
   getReferenceSkills,
   getReferenceStudyFields,
   parseCv,
+  uploadCv,
 } from "@/lib/api/candidate.api";
 import { me } from "@/lib/api/auth.api";
-import type { CandidateProfile, ParsedCv } from "@/types/candidate";
+import type { CandidateProfile, CvAttachment, ParsedCv } from "@/types/candidate";
 import type { AuthUser } from "@/types/auth";
 import { ProfileEdit } from "@/features/candidate/profile-edit";
 
 const mockedGetProfile = vi.mocked(getProfile);
 const mockedParseCv = vi.mocked(parseCv);
+const mockedUploadCv = vi.mocked(uploadCv);
 const mockedMe = vi.mocked(me);
 const mockedReferenceQueries = [
   vi.mocked(getReferenceSkills),
@@ -87,6 +90,16 @@ const accountUser: AuthUser = {
   roles: [],
 };
 
+const cvAttachment: CvAttachment = {
+  id: "cv-1",
+  originalName: "cv.pdf",
+  mimeType: "application/pdf",
+  sizeBytes: 8,
+  sha256: "0".repeat(64),
+  createdAt: "2026-10-21T10:00:00Z",
+  current: true,
+};
+
 function renderProfile(options?: { retry?: boolean }) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: options?.retry ?? false } },
@@ -104,6 +117,9 @@ describe("ProfileEdit", () => {
     mockedGetProfile.mockResolvedValue(profile);
     mockedMe.mockReset();
     mockedMe.mockRejectedValue(new Error("no account in this test"));
+    mockedParseCv.mockReset();
+    mockedUploadCv.mockReset();
+    mockedUploadCv.mockResolvedValue(cvAttachment);
     mockedReferenceQueries.forEach((query) => {
       query.mockReset();
       query.mockResolvedValue([]);
@@ -205,7 +221,12 @@ describe("ProfileEdit", () => {
       target: { files: [new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" })] },
     });
 
+    fireEvent.click(await screen.findByRole("button", { name: "Analyze and update" }));
+
     expect(await screen.findByText("Review your CV import")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockedUploadCv).toHaveBeenCalledTimes(1);
+    });
     fireEvent.click(screen.getByRole("button", { name: "Apply to my profile" }));
 
     expect(await screen.findByLabelText("Current position")).toHaveValue("Staff Engineer");
@@ -223,6 +244,8 @@ describe("ProfileEdit", () => {
     fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
       target: { files: [new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" })] },
     });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Analyze and update" }));
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("status")).toHaveTextContent("Parsing in progress…");
@@ -246,6 +269,8 @@ describe("ProfileEdit", () => {
       target: { files: [new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" })] },
     });
 
+    fireEvent.click(await screen.findByRole("button", { name: "Analyze and update" }));
+
     const dialog = await screen.findByRole("dialog");
     const alert = within(dialog).getByRole("alert");
     expect(alert).toHaveTextContent("The AI service is unreachable.");
@@ -254,6 +279,98 @@ describe("ProfileEdit", () => {
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
+  });
+
+  it("lets the candidate save the CV without running the analysis", async () => {
+    const { container } = renderProfile();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Upload CV" }));
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" })] },
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save the file only" }));
+
+    const confirmation = await screen.findByRole("status");
+    expect(confirmation).toHaveTextContent("CV saved");
+    expect(confirmation).toHaveTextContent("cv.pdf is now your current CV");
+    expect(mockedParseCv).not.toHaveBeenCalled();
+    expect(mockedUploadCv).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps the choice open and reports a failed file save", async () => {
+    mockedUploadCv.mockRejectedValue(
+      Object.assign(new Error("request failed"), {
+        isAxiosError: true,
+        response: { data: { detail: "The file is too large." } },
+      }),
+    );
+    const { container } = renderProfile();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Upload CV" }));
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" })] },
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save the file only" }));
+
+    expect(await within(dialog).findByRole("status")).toHaveTextContent("The file is too large.");
+    expect(mockedParseCv).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("cancels the upload choice without saving or analyzing", async () => {
+    const { container } = renderProfile();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Upload CV" }));
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" })] },
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(mockedUploadCv).not.toHaveBeenCalled();
+    expect(mockedParseCv).not.toHaveBeenCalled();
+  });
+
+  it("still imports the profile when the PDF could not be saved", async () => {
+    const parsedCv: ParsedCv = {
+      title: "Staff Engineer",
+      summary: "I design platforms.",
+      experiences: [],
+      diplomas: [],
+      skills: [],
+      languages: [],
+      links: [],
+    };
+    mockedParseCv.mockResolvedValue(parsedCv);
+    mockedUploadCv.mockRejectedValue(
+      Object.assign(new Error("request failed"), {
+        isAxiosError: true,
+        response: { data: { detail: "The file is too large." } },
+      }),
+    );
+    const { container } = renderProfile();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Upload CV" }));
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [new File(["%PDF-1.4"], "cv.pdf", { type: "application/pdf" })] },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Analyze and update" }));
+
+    expect(await screen.findByText("Review your CV import")).toBeInTheDocument();
+    const importDialog = screen.getByRole("dialog");
+    fireEvent.click(within(importDialog).getByRole("button", { name: "Discard" }));
+
+    expect(await screen.findByText("This CV could not be saved")).toBeInTheDocument();
+    expect(screen.getByText(/The file is too large/)).toBeInTheDocument();
   });
 
   it("links back to the display page", async () => {

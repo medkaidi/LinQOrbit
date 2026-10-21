@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 
 import { AboutSection } from "@/features/candidate/about-section";
 import { CvImportDialog, type CvImportDialogStatus } from "@/features/candidate/cv-import-dialog";
+import { CvUploadChoiceDialog } from "@/features/candidate/cv-upload-choice-dialog";
 import { planCvImport } from "@/features/candidate/cv-parsing";
 import { DiplomasSection } from "@/features/candidate/diplomas-section";
 import { ExperiencesSection } from "@/features/candidate/experiences-section";
@@ -26,8 +27,10 @@ import {
   useReferenceSkills,
   useReferenceStudyFields,
 } from "@/hooks/use-candidate-profile";
+import { useUploadCv } from "@/hooks/use-candidate-cvs";
 import type { ParsedCv } from "@/types/candidate";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { UploadButton } from "@/components/ui/upload-button";
@@ -64,6 +67,7 @@ function Header({ uploadAction }: { uploadAction: React.ReactNode }) {
 export function ProfileEdit() {
   const { data, isLoading, isError, refetch } = useCandidateProfile();
   const parseCv = useParseCv();
+  const uploadCv = useUploadCv();
   const referenceSkills = useReferenceSkills();
   const referenceLanguages = useReferenceLanguages();
   const referenceDegrees = useReferenceDegrees();
@@ -71,6 +75,10 @@ export function ProfileEdit() {
 
   const [preview, setPreview] = useState<ParsedCv | null>(null);
   const [cvImport, setCvImport] = useState<ParsedCv | null>(null);
+  /** PDF sélectionné, en attente du choix « déposer ou analyser » (D73). */
+  const [pendingCv, setPendingCv] = useState<File | null>(null);
+  /** Dernier PDF déposé sans analyse, pour confirmer sur place. */
+  const [savedCvName, setSavedCvName] = useState<string | null>(null);
 
   const refsReady =
     !referenceSkills.isLoading &&
@@ -91,9 +99,40 @@ export function ProfileEdit() {
   }, [preview, refsReady, referenceSkills.data, referenceLanguages.data, referenceDegrees.data, referenceStudyFields.data]);
 
   const onSelectFile = (file: File) => {
+    parseCv.reset();
+    uploadCv.reset();
+    setSavedCvName(null);
+    setPendingCv(file);
+  };
+
+  const onSaveOnly = () => {
+    if (!pendingCv) {
+      return;
+    }
+    uploadCv.mutate(pendingCv, {
+      onSuccess: (attachment) => {
+        setSavedCvName(attachment.originalName);
+        setPendingCv(null);
+      },
+    });
+  };
+
+  const onAnalyze = () => {
+    if (!pendingCv) {
+      return;
+    }
+    const file = pendingCv;
+    setPendingCv(null);
+    // Le PDF devient le CV courant même si l'analyse échoue (D73).
+    uploadCv.mutate(file);
     parseCv.mutate(file, {
       onSuccess: (parsed) => setPreview(parsed),
     });
+  };
+
+  const onCancelChoice = () => {
+    uploadCv.reset();
+    setPendingCv(null);
   };
 
   const onApply = (imported: ParsedCv) => {
@@ -121,9 +160,7 @@ export function ProfileEdit() {
   const uploadAction = (
     <UploadButton
       label="Upload CV"
-      busyLabel="Analyzing…"
       accept=".pdf,application/pdf"
-      busy={parseCv.isPending}
       onSelect={onSelectFile}
     />
   );
@@ -144,11 +181,56 @@ export function ProfileEdit() {
     />
   ) : null;
 
+  const choiceDialog = pendingCv ? (
+    <CvUploadChoiceDialog
+      fileName={pendingCv.name}
+      busy={uploadCv.isPending}
+      error={uploadCv.isError ? getApiErrorMessage(uploadCv.error) : null}
+      onSaveOnly={onSaveOnly}
+      onAnalyze={onAnalyze}
+      onCancel={onCancelChoice}
+    />
+  ) : null;
+
+  const savedCvAlert = savedCvName ? (
+    <Alert
+      variant="success"
+      title="CV saved"
+      action={
+        <Button variant="outline-sm" type="button" onClick={() => setSavedCvName(null)}>
+          Dismiss
+        </Button>
+      }
+    >
+      {savedCvName} is now your current CV.{" "}
+      <Link href="/profile#cv" className="font-semibold text-orange-deep hover:underline">
+        View your CVs
+      </Link>
+    </Alert>
+  ) : null;
+
+  // Un échec du dépôt pendant l'analyse ne bloque pas l'import du profil.
+  const saveErrorAlert =
+    uploadCv.isError && !pendingCv ? (
+      <Alert variant="error" title="This CV could not be saved">
+        {getApiErrorMessage(uploadCv.error)} Your profile import can still continue.
+      </Alert>
+    ) : null;
+
+  const uploadOverlays = (
+    <>
+      {choiceDialog}
+      {savedCvAlert}
+      {saveErrorAlert}
+    </>
+  );
+
   if (isError && !data) {
     return (
       <div className="w-full flex flex-col gap-6">
         <Header uploadAction={uploadAction} />
         {importDialog}
+        {uploadOverlays}
         <ProfileError onRetry={() => void refetch()} />
       </div>
     );
@@ -159,6 +241,7 @@ export function ProfileEdit() {
       <div className="w-full flex flex-col gap-6">
         <Header uploadAction={uploadAction} />
         {importDialog}
+        {uploadOverlays}
         {isLoading ? <ProfileSkeleton /> : null}
       </div>
     );
@@ -169,6 +252,7 @@ export function ProfileEdit() {
       <Header uploadAction={uploadAction} />
 
       {importDialog}
+      {uploadOverlays}
 
       <ValidateProfileBanner profile={data} />
 
