@@ -111,7 +111,7 @@ export function buildRecruiterApplicationDetail(
               label: "Java",
               requirement: "Strong Java",
               weight: 4,
-              score: 60,
+              score: 55,
               rationale: "Solid Java experience, but the depth is partial.",
             },
           ],

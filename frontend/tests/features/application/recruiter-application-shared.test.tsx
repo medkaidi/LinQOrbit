@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
 
 import {
   averageGapValue,
+  candidateInitials,
   contestCountLabel,
   contestSummary,
+  displayScore,
   scoreBand,
+  ScorePercentChip,
+  ScorePercentValue,
 } from "@/features/application/recruiter-application-shared";
 
 describe("averageGapValue", () => {
@@ -49,5 +54,48 @@ describe("contestSummary", () => {
   it("falls back to the count alone without a gap", () => {
     expect(contestSummary(1, null)).toBe("1 contested");
     expect(contestSummary(0, null)).toBe("No contests");
+  });
+});
+
+describe("displayScore", () => {
+  it("rounds the displayed value and clamps it to the 0-100 scale", () => {
+    expect(displayScore(null)).toBeNull();
+    expect(displayScore(69.5)).toBe(70);
+    expect(displayScore(69.4)).toBe(69);
+    expect(displayScore(-5)).toBe(0);
+    expect(displayScore(120)).toBe(100);
+  });
+});
+
+describe("ScorePercentValue", () => {
+  it("colors the rounded value with its band and keeps the unit neutral", () => {
+    render(<ScorePercentValue score={70} />);
+    const value = screen.getByText("70");
+    expect(value.parentElement).toHaveClass("text-success-text");
+    expect(value.parentElement).toHaveTextContent("70%");
+    expect(screen.getByText("%")).toHaveClass("text-text-tertiary");
+  });
+
+  it("renders nothing without a score — an absent section is never a zero", () => {
+    const { container } = render(<ScorePercentValue score={null} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("ScorePercentChip", () => {
+  it("tints the chip with the band surface and colors the value", () => {
+    render(<ScorePercentChip score={55} />);
+    const chip = screen.getByText("55").parentElement;
+    expect(chip).toHaveClass("bg-orange-subtle");
+    expect(chip).toHaveClass("text-orange-deep");
+    expect(chip).toHaveTextContent("55%");
+  });
+});
+
+describe("candidateInitials", () => {
+  it("keeps the two first letters of the name, uppercased", () => {
+    expect(candidateInitials("Grace Hopper")).toBe("GH");
+    expect(candidateInitials("Ada")).toBe("A");
+    expect(candidateInitials("Alan Mathison Turing")).toBe("AM");
   });
 });

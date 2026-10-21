@@ -27,13 +27,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { ApplicationStatusPill } from "@/features/application/application-shared";
 import {
   averageGapValue,
+  candidateInitials,
   contestCountLabel,
   contestSummary,
+  displayScore,
   RECRUITER_SECTION_LABELS,
   recruiterCandidateName,
-  scoreBand,
+  ScorePercentValue,
   submittedOnLabel,
-  type ScoreBand,
 } from "@/features/application/recruiter-application-shared";
 import { useRecruiterApplications } from "@/hooks/use-recruiter-applications";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
@@ -69,14 +70,6 @@ const EMPTY_MESSAGES: Record<RecruiterApplicationStatusValue, string> = {
   rejected: "No rejected applications yet.",
 };
 
-/** La barre reste bleue ; seule la valeur porte le code de lecture vert/orange/gris. */
-const SCORE_VALUE_CLASSES: Record<ScoreBand, string> = {
-  strong: "text-success-text",
-  partial: "text-orange-deep",
-  weak: "text-slate-muted",
-  none: "text-text-tertiary",
-};
-
 /**
  * Ligne de score compacte : label, barre courte bleue, valeur colorée par bande.
  * Le chiffre reste la source de vérité ; aucune note globale.
@@ -88,10 +81,7 @@ function SectionScoreRow({
   section: RecruiterSectionScore;
   highlighted: boolean;
 }) {
-  const score = section.score === null ? null : Math.max(0, Math.min(100, section.score));
-  // La couleur suit la valeur arrondie affichée : un « 70 » n'est jamais orange.
-  const displayScore = score === null ? null : Math.round(score);
-  const band = scoreBand(displayScore);
+  const score = displayScore(section.score);
   const label = RECRUITER_SECTION_LABELS[section.section];
   return (
     <div
@@ -127,19 +117,11 @@ function SectionScoreRow({
           />
         </div>
       )}
-      <span
-        className={cn(
-          "w-9 shrink-0 text-right leading-tight tabular-nums",
-          SCORE_VALUE_CLASSES[band],
-        )}
-      >
-        {displayScore === null ? (
-          "—"
+      <span className="w-9 shrink-0 text-right leading-tight">
+        {score === null ? (
+          <span className="text-text-tertiary">—</span>
         ) : (
-          <>
-            <span className="text-[11px] font-bold">{displayScore}</span>
-            <span className="ml-0.5 text-[9px] font-semibold text-text-tertiary">%</span>
-          </>
+          <ScorePercentValue score={score} size="sm" />
         )}
       </span>
     </div>
@@ -215,12 +197,7 @@ function CandidateCard({
   const candidateTitle = application.candidate?.title?.trim() || null;
   const submittedOn = submittedOnLabel(application.submittedAt);
   const detailHref = `/recruiter/offers/${offerId}/applications/${application.id}`;
-  const initials = name
-    .split(" ")
-    .map((part) => part.charAt(0))
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const initials = candidateInitials(name);
 
   return (
     <li className="@container min-w-0 rounded-3xl border border-slate-border bg-canvas-white p-4 shadow-sm transition-colors hover:border-slate-border-strong">
