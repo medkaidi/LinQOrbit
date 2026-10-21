@@ -72,6 +72,11 @@ describe("RecruiterApplicationsView", () => {
     expect(screen.getByRole("link", { name: "Alan Turing" })).toBeInTheDocument();
     expect(screen.getByText("Senior Backend Engineer")).toBeInTheDocument();
     expect(screen.getAllByText("View application")).toHaveLength(2);
+    // L'action est un lien de navigation interne vers le détail de la candidature.
+    expect(screen.getAllByRole("link", { name: "View application" })[0]).toHaveAttribute(
+      "href",
+      `/recruiter/offers/${RECRUITER_OFFER_ID}/applications/${RECRUITER_APPLICATION_ID}`,
+    );
 
     // Cinq barres, valeurs affichées, section de tri par défaut = date : aucune mise en avant.
     for (const label of [

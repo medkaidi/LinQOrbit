@@ -12,7 +12,7 @@ import {
   PageHeader,
 } from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink, CtaLink } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { InfiniteList } from "@/components/ui/infinite-list";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -96,11 +96,11 @@ function SectionScoreRow({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-1.5 rounded-lg px-1.5 py-0.5 @5xl:gap-2",
+        "flex items-center gap-2 rounded-lg px-1.5 py-0.5",
         highlighted && "bg-blue-surface",
       )}
     >
-      <div className="min-w-0 flex-1 @4xl:w-20 @4xl:flex-none @5xl:w-24">
+      <div className="w-24 shrink-0">
         <span
           title={label}
           className={cn(
@@ -115,11 +115,11 @@ function SectionScoreRow({
         ) : null}
       </div>
       {score === null ? (
-        <span aria-hidden="true" className="h-[3px] w-9 shrink-0 @5xl:w-10" />
+        <span aria-hidden="true" className="h-[3px] w-9 shrink-0" />
       ) : (
         <div
           aria-hidden="true"
-          className="h-[3px] w-9 shrink-0 overflow-hidden rounded-full bg-slate-border @5xl:w-10"
+          className="h-[3px] w-9 shrink-0 overflow-hidden rounded-full bg-slate-border"
         >
           <div
             className="h-full rounded-full bg-blue-deep transition-[width] duration-500 ease-out"
@@ -149,7 +149,7 @@ function ContestPanel({ application }: { application: RecruiterApplicationCard }
       role="group"
       aria-label={`Contests: ${summary}`}
       className={cn(
-        "flex h-full min-w-0 flex-col justify-between gap-2 rounded-2xl border p-3",
+        "flex h-full min-w-0 flex-col justify-between gap-2 rounded-2xl border p-2",
         contested
           ? "border-orange-border/70 bg-orange-subtle/60"
           : "border-slate-border bg-item-surface/60",
@@ -167,7 +167,7 @@ function ContestPanel({ application }: { application: RecruiterApplicationCard }
       </span>
       {contested ? (
         <>
-          <div className="rounded-lg border border-orange-border/60 bg-canvas-white/80 px-2 py-1.5">
+          <div className="rounded-lg border border-orange-border/60 bg-canvas-white/80 px-2 py-1">
             <div className="flex items-baseline justify-between gap-2">
               <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-text-tertiary">
                 <Icon name="compare_arrows" className="text-[12px] text-orange-deep/70" />
@@ -216,8 +216,8 @@ function CandidateCard({
     .toUpperCase();
 
   return (
-    <li className="@container min-w-0 rounded-3xl border border-slate-border bg-canvas-white p-6 shadow-sm transition-colors hover:border-slate-border-strong">
-      <div className="grid grid-cols-1 gap-4 @xl:grid-cols-[13rem_minmax(0,1fr)] @4xl:grid-cols-[15rem_minmax(0,1fr)_14rem_10rem] @4xl:items-stretch">
+    <li className="@container min-w-0 rounded-3xl border border-slate-border bg-canvas-white p-4 shadow-sm transition-colors hover:border-slate-border-strong">
+      <div className="grid grid-cols-1 gap-4 @xl:grid-cols-[15rem_auto] @4xl:grid-cols-[15rem_auto_14rem_1fr] @4xl:items-stretch">
         <div className="flex min-w-0 items-start gap-4 @xl:self-center">
           <span
             aria-hidden="true"
@@ -255,10 +255,10 @@ function CandidateCard({
 
         <div
           className={cn(
-            "flex min-w-0 flex-col rounded-2xl border border-slate-border bg-item-surface p-2.5",
+            "flex min-w-0 flex-col rounded-2xl border border-slate-border bg-item-surface p-2",
             application.assessmentAvailable
-              ? "h-full justify-center"
-              : "min-h-32 items-center justify-center @4xl:col-span-2",
+              ? "h-full w-fit justify-center"
+              : "min-h-32 w-full items-center justify-center @4xl:col-span-2",
           )}
         >
           {application.assessmentAvailable ? (
@@ -278,15 +278,10 @@ function CandidateCard({
 
         {application.assessmentAvailable ? <ContestPanel application={application} /> : null}
 
-        <div className="flex items-center @xl:col-start-2 @xl:justify-end @4xl:col-start-4 @4xl:justify-center @4xl:self-center">
-          <ButtonLink
-            href={detailHref}
-            variant="outline-sm"
-            className="w-full whitespace-nowrap @xl:w-40 @4xl:w-full"
-          >
+        <div className="flex items-center @xl:col-start-2 @xl:justify-end @4xl:col-start-4 @4xl:justify-end @4xl:self-center">
+          <CtaLink href={detailHref} icon="arrow_forward" className="whitespace-nowrap">
             View application
-            <Icon name="arrow_forward" className="text-[14px]" />
-          </ButtonLink>
+          </CtaLink>
         </div>
       </div>
     </li>
@@ -344,7 +339,7 @@ export function RecruiterApplicationsView({ offerId }: { offerId: string }) {
           ) : null}
         </header>
 
-        <div className="px-6 pt-5 pb-6 flex flex-col gap-4">
+        <div className="px-5 pt-4 pb-5 flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-4">
             <SegmentedControl
               label="Application status"
