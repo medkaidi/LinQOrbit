@@ -39,6 +39,10 @@ type SelectProps = {
    * au fil de la frappe (listes longues : compétences, langues, pays…).
    */
   searchable?: boolean;
+  /** Déclencheur compact (h-9, texte xs) aligné sur les contrôles segmentés. */
+  compact?: boolean;
+  /** Libellé à gauche du déclencheur, sur la même ligne, au lieu d'au-dessus. */
+  inlineLabel?: boolean;
 };
 
 export function Select({
@@ -52,6 +56,8 @@ export function Select({
   id,
   disabled,
   searchable = false,
+  compact = false,
+  inlineLabel = false,
 }: SelectProps) {
   const generatedId = useId();
   const triggerId = id ?? generatedId;
@@ -273,7 +279,9 @@ export function Select({
   };
 
   const controlClasses = cn(
-    "relative w-full h-11 rounded-full pl-4 pr-10 font-body-md text-body-md transition-all focus:outline-none",
+    compact
+      ? "relative w-full h-9 rounded-full pl-3 pr-8 font-semibold text-xs transition-all focus:outline-none"
+      : "relative w-full h-11 rounded-full pl-4 pr-10 font-body-md text-body-md transition-all focus:outline-none",
     disabled && "opacity-50 cursor-not-allowed",
     error
       ? "bg-error-container ring-1 ring-error"
@@ -318,11 +326,22 @@ export function Select({
   );
 
   return (
-    <div ref={rootRef} className="flex flex-col gap-1.5">
-      <label htmlFor={triggerId} className="font-label-md text-label-md text-text-secondary">
+    <div
+      ref={rootRef}
+      className={cn("flex", inlineLabel ? "flex-row items-center gap-2" : "flex-col gap-1.5")}
+    >
+      <label
+        htmlFor={triggerId}
+        className={cn(
+          inlineLabel && "shrink-0 whitespace-nowrap",
+          compact
+            ? "text-xs font-semibold text-text-secondary"
+            : "font-label-md text-label-md text-text-secondary",
+        )}
+      >
         {label}
       </label>
-      <div className="relative">
+      <div className={cn("relative", inlineLabel && "min-w-0 flex-1")}>
         {searchable ? (
           <input
             ref={inputRef}
@@ -386,7 +405,8 @@ export function Select({
         <Icon
           name="expand_more"
           className={cn(
-            "absolute right-4 top-1/2 -translate-y-1/2 text-[20px] text-text-tertiary pointer-events-none transition-transform",
+            "absolute top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none transition-transform",
+            compact ? "right-2.5 text-[16px]" : "right-4 text-[20px]",
             open && "rotate-180",
           )}
         />

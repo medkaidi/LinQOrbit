@@ -51,6 +51,8 @@ import com.linqorbit.attachment.entity.Attachment;
 import com.linqorbit.attachment.exception.AttachmentNotFoundException;
 import com.linqorbit.attachment.repository.AttachmentRepository;
 import com.linqorbit.attachment.service.AttachmentService;
+import com.linqorbit.candidate.entity.Candidate;
+import com.linqorbit.candidate.repository.CandidateRepository;
 import com.linqorbit.common.pagination.PageSizes;
 import com.linqorbit.company.entity.Company;
 import com.linqorbit.company.repository.CompanyRepository;
@@ -105,6 +107,7 @@ public class RecruiterApplicationService {
     private final AttachmentRepository attachmentRepository;
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
+    private final CandidateRepository candidateRepository;
     private final MatchingResultRepository matchingResultRepository;
     private final MatchingCriterionFeedbackRepository feedbackRepository;
     private final ClarificationRepository clarificationRepository;
@@ -182,12 +185,13 @@ public class RecruiterApplicationService {
         RecruiterCvSummary cv = attachment == null ? null
                 : new RecruiterCvSummary(attachment.getId(), attachment.getOriginalName(), attachment.getSizeBytes());
         User candidate = userRepository.findById(application.getCandidateId()).orElse(null);
+        Candidate candidateProfile = candidateRepository.findById(application.getCandidateId()).orElse(null);
         boolean canDecide = application.getStatus() == ApplicationStatus.SUBMITTED
                 && jobOfferService.canManage(userId, offer);
 
         log.info("Recruiter application detail served : userId={}, applicationId={}, status={}, assessment={}",
                 userId, applicationId, application.getStatus().getApiValue(), assessment.available());
-        return new RecruiterApplicationDetail(application.getId(), candidate(candidate), 
+        return new RecruiterApplicationDetail(application.getId(), candidate(candidate, candidateProfile),
                 application.getStatus().getApiValue(), application.getSubmittedAt(), canDecide,
                 jobSummary(offer), answers, assessment, clarifications, contests, cv);
     }
@@ -253,7 +257,8 @@ public class RecruiterApplicationService {
                 .map(section -> new RecruiterSectionScore(section.apiValue(), sectionScore(root, section.storageValue())))
                 .toList();
         return new RecruiterApplicationCard(application.getId(),
-                candidate(context.users().get(application.getCandidateId())),
+                candidate(context.users().get(application.getCandidateId()),
+                        context.candidates().get(application.getCandidateId())),
                 application.getStatus().getApiValue(), application.getSubmittedAt(), root != null,
                 sections, feedback.size(), gap.averageGap());
     }
@@ -262,6 +267,9 @@ public class RecruiterApplicationService {
         List<UUID> candidateIds = applications.stream().map(Application::getCandidateId).distinct().toList();
         Map<UUID, User> users = new HashMap<>();
         userRepository.findAllById(candidateIds).forEach(user -> users.put(user.getId(), user));
+        Map<UUID, Candidate> candidates = new HashMap<>();
+        candidateRepository.findAllById(candidateIds)
+                .forEach(candidate -> candidates.put(candidate.getId(), candidate));
 
         List<UUID> matchingIds = applications.stream().map(Application::getMatchingId)
                 .filter(Objects::nonNull).distinct().toList();
@@ -276,7 +284,7 @@ public class RecruiterApplicationService {
                             .add(item));
         }
         List<MatchingCriterionFeedback> allFeedback = feedback.values().stream().flatMap(List::stream).toList();
-        return new PageContext(users, latestResults, feedback, feedbackResults(allFeedback));
+        return new PageContext(users, candidates, latestResults, feedback, feedbackResults(allFeedback));
     }
 
     private Map<UUID, MatchingResult> feedbackResults(List<MatchingCriterionFeedback> feedback) {
@@ -484,8 +492,13 @@ public class RecruiterApplicationService {
                 offer.getStatus().getApiValue(), companyName);
     }
 
-    private static RecruiterCandidateSummary candidate(User user) {
-        return user == null ? null : new RecruiterCandidateSummary(user.getFirstName(), user.getLastName());
+    private static RecruiterCandidateSummary candidate(User user, Candidate candidate) {
+        if (user == null) {
+            return null;
+        }
+        String title = candidate == null ? null : candidate.getTitle();
+        return new RecruiterCandidateSummary(user.getFirstName(), user.getLastName(),
+                title == null || title.isBlank() ? null : title.trim());
     }
 
     private static ApplicationStatus parseStatus(String status) {
@@ -550,7 +563,8 @@ public class RecruiterApplicationService {
         private static final GapStats NONE = new GapStats(0, null);
     }
 
-    private record PageContext(Map<UUID, User> users, Map<UUID, MatchingResult> latestResults,
+    private record PageContext(Map<UUID, User> users, Map<UUID, Candidate> candidates,
+            Map<UUID, MatchingResult> latestResults,
             Map<UUID, List<MatchingCriterionFeedback>> feedback,
             Map<UUID, MatchingResult> feedbackResults) {
     }

@@ -151,6 +151,8 @@ export type RecruiterSectionKey =
 export type RecruiterCandidateSummary = {
   firstName: string;
   lastName: string;
+  /** Intitulé du poste actuel du candidat ; absent tant que le profil ne le renseigne pas. */
+  title: string | null;
 };
 
 /** Offre contexte de la vue recruteur (titre, statut et lien public). */

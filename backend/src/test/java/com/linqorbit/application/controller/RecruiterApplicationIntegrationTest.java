@@ -250,8 +250,11 @@ class RecruiterApplicationIntegrationTest extends ApplicationStorageTestSupport 
         UUID graceApp = draftAndMatch(grace, graceCv, publicId, resultJson(60, 70, 80, 90, 95),
                 List.of(feedback("skill:java", 90, "I built several JVMs"),
                         feedback("language:english", 70, "I write English docs")), "Why did you choose Java?");
+        jdbcTemplate.update("UPDATE candidates SET title = ? WHERE id = ?",
+                "Senior Backend Engineer", grace.userId());
         UUID alanApp = draftAndMatch(alan, alanCv, publicId, resultJson(80, 75, 70, 65, 60),
                 List.of(feedback("skill:java", 85, null)), "How do you test?");
+        jdbcTemplate.update("UPDATE candidates SET title = ? WHERE id = ?", "   ", alan.userId());
         UUID edsgerApp = submitDirect(edsger, edsgerCv, publicId);
         UUID barbaraApp = draftAndMatch(barbara, barbaraCv, publicId, resultJson(90, 75, 70, 65, 60),
                 List.of(feedback("skill:java", 70, "The AI underestimated my Java depth")), null);
@@ -268,6 +271,8 @@ class RecruiterApplicationIntegrationTest extends ApplicationStorageTestSupport 
                         contains(graceApp.toString(), alanApp.toString(), edsgerApp.toString(),
                                 barbaraApp.toString())))
                 .andExpect(jsonPath("$.items[0].candidate.firstName").value("Grace"))
+                .andExpect(jsonPath("$.items[0].candidate.title").value("Senior Backend Engineer"))
+                .andExpect(jsonPath("$.items[1].candidate.title").value(nullValue()))
                 .andExpect(jsonPath("$.items[0].assessmentAvailable").value(true))
                 .andExpect(jsonPath("$.items[0].sections.length()").value(5))
                 .andExpect(jsonPath("$.items[0].sections[0].section").value("requiredSkills"))
@@ -433,6 +438,8 @@ class RecruiterApplicationIntegrationTest extends ApplicationStorageTestSupport 
                 List.of(feedback("skill:java", 90, "I built several JVMs"),
                         feedback("language:english", 70, "I write English docs")), "Why did you choose Java?");
         submit(candidate.token(), applicationId, null).andExpect(status().isOk());
+        jdbcTemplate.update("UPDATE candidates SET title = ? WHERE id = ?",
+                "Senior Backend Engineer", candidate.userId());
 
         MvcResult detail = mockMvc.perform(get(detailPath + "/" + applicationId)
                         .header("Authorization", "Bearer " + owner.token()))
@@ -440,6 +447,7 @@ class RecruiterApplicationIntegrationTest extends ApplicationStorageTestSupport 
                 .andExpect(jsonPath("$.id").value(applicationId.toString()))
                 .andExpect(jsonPath("$.candidate.firstName").value("Grace"))
                 .andExpect(jsonPath("$.candidate.lastName").value("Hopper"))
+                .andExpect(jsonPath("$.candidate.title").value("Senior Backend Engineer"))
                 .andExpect(jsonPath("$.status").value("submitted"))
                 .andExpect(jsonPath("$.submittedAt").isNotEmpty())
                 .andExpect(jsonPath("$.canDecide").value(true))

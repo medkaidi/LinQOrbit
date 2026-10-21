@@ -13,6 +13,7 @@ import {
 } from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { InfiniteList } from "@/components/ui/infinite-list";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Select } from "@/components/ui/select";
@@ -25,10 +26,14 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { ApplicationStatusPill } from "@/features/application/application-shared";
 import {
+  averageGapValue,
+  contestCountLabel,
   contestSummary,
   RECRUITER_SECTION_LABELS,
   recruiterCandidateName,
+  scoreBand,
   submittedOnLabel,
+  type ScoreBand,
 } from "@/features/application/recruiter-application-shared";
 import { useRecruiterApplications } from "@/hooks/use-recruiter-applications";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
@@ -38,6 +43,7 @@ import type {
   RecruiterApplicationDirection,
   RecruiterApplicationSortValue,
   RecruiterApplicationStatusValue,
+  RecruiterSectionKey,
   RecruiterSectionScore,
 } from "@/types/application";
 
@@ -63,8 +69,19 @@ const EMPTY_MESSAGES: Record<RecruiterApplicationStatusValue, string> = {
   rejected: "No rejected applications yet.",
 };
 
-/** Barre « tube » bleue d'une section, valeur à droite — jamais de note globale. */
-function SectionScoreBar({
+/** La barre reste bleue ; seule la valeur porte le code de lecture vert/orange/gris. */
+const SCORE_VALUE_CLASSES: Record<ScoreBand, string> = {
+  strong: "text-success-text",
+  partial: "text-orange-deep",
+  weak: "text-slate-muted",
+  none: "text-text-tertiary",
+};
+
+/**
+ * Ligne de score compacte : label, barre courte bleue, valeur colorée par bande.
+ * Le chiffre reste la source de vérité ; aucune note globale.
+ */
+function SectionScoreRow({
   section,
   highlighted,
 }: {
@@ -72,29 +89,108 @@ function SectionScoreBar({
   highlighted: boolean;
 }) {
   const score = section.score === null ? null : Math.max(0, Math.min(100, section.score));
+  // La couleur suit la valeur arrondie affichée : un « 70 » n'est jamais orange.
+  const displayScore = score === null ? null : Math.round(score);
+  const band = scoreBand(displayScore);
+  const label = RECRUITER_SECTION_LABELS[section.section];
   return (
-    <div className={cn("rounded-xl px-2 py-1.5", highlighted && "bg-blue-surface")}>
-      <div className="flex items-center justify-between gap-3">
+    <div
+      className={cn(
+        "flex items-center justify-between gap-1.5 rounded-lg px-1.5 py-0.5 @5xl:gap-2",
+        highlighted && "bg-blue-surface",
+      )}
+    >
+      <div className="min-w-0 flex-1 @4xl:w-20 @4xl:flex-none @5xl:w-24">
         <span
+          title={label}
           className={cn(
-            "font-label-md text-label-md",
-            highlighted ? "text-blue-deep font-bold" : "text-text-secondary",
+            "block truncate text-[11px] font-semibold leading-tight",
+            highlighted ? "font-bold text-blue-deep" : "text-text-secondary",
           )}
         >
-          {RECRUITER_SECTION_LABELS[section.section]}
+          {label}
         </span>
-        <span className="font-label-md text-label-md text-text-primary tabular-nums">
-          {score === null ? "Not evaluated" : Math.round(score)}
-        </span>
+        {score === null ? (
+          <span className="block text-[10px] leading-tight text-text-tertiary">Not evaluated</span>
+        ) : null}
       </div>
-      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full border border-slate-border bg-slate-surface">
-        {score === null ? null : (
+      {score === null ? (
+        <span aria-hidden="true" className="h-[3px] w-9 shrink-0 @5xl:w-10" />
+      ) : (
+        <div
+          aria-hidden="true"
+          className="h-[3px] w-9 shrink-0 overflow-hidden rounded-full bg-slate-border @5xl:w-10"
+        >
           <div
             className="h-full rounded-full bg-blue-deep transition-[width] duration-500 ease-out"
             style={{ width: `${score}%` }}
           />
+        </div>
+      )}
+      <span
+        className={cn(
+          "w-7 shrink-0 text-right text-[11px] font-bold leading-tight tabular-nums",
+          SCORE_VALUE_CLASSES[band],
         )}
-      </div>
+      >
+        {displayScore === null ? "—" : displayScore}
+      </span>
+    </div>
+  );
+}
+
+/** Panneau de contestations de la maquette : compteur réel + écart moyen réel, rien d'inventé. */
+function ContestPanel({ application }: { application: RecruiterApplicationCard }) {
+  const contested = application.contestedCount > 0;
+  const gap = averageGapValue(application.averageGap);
+  const summary = contestSummary(application.contestedCount, application.averageGap);
+  return (
+    <div
+      role="group"
+      aria-label={`Contests: ${summary}`}
+      className={cn(
+        "flex h-full min-w-0 flex-col justify-between gap-2 rounded-2xl border p-3",
+        contested
+          ? "border-orange-border/70 bg-orange-subtle/60"
+          : "border-slate-border bg-item-surface/60",
+      )}
+    >
+      <span
+        className={cn(
+          "w-fit rounded-full border px-2 py-0.5 text-[10px] font-bold",
+          contested
+            ? "border-orange-border bg-orange-subtle text-orange-deep"
+            : "border-slate-border bg-canvas-white text-slate-muted",
+        )}
+      >
+        {contestCountLabel(application.contestedCount)}
+      </span>
+      {contested ? (
+        <>
+          <div className="rounded-lg border border-orange-border/60 bg-canvas-white/80 px-2 py-1.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-text-tertiary">
+                <Icon name="compare_arrows" className="text-[12px] text-orange-deep/70" />
+                Average gap
+              </span>
+              <span className="text-sm font-bold text-orange-deep tabular-nums">
+                {gap === null ? "Not available" : `${gap} pts`}
+              </span>
+            </div>
+          </div>
+          <p className="flex items-start gap-1 text-[10px] font-semibold leading-snug text-orange-deep/80">
+            <Icon name="info" className="mt-px text-[12px]" />
+            Disagreement signal, not a quality score
+          </p>
+        </>
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center gap-1.5 rounded-lg border border-slate-border bg-canvas-white/80 p-2 text-center">
+          <Icon name="check_circle" className="text-[18px] text-text-tertiary" />
+          <span className="text-[10px] font-semibold leading-snug text-text-secondary">
+            All scores uncontested
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -106,9 +202,10 @@ function CandidateCard({
 }: {
   offerId: string;
   application: RecruiterApplicationCard;
-  sortedSection: RecruiterApplicationSortValue;
+  sortedSection: RecruiterSectionKey | null;
 }) {
   const name = recruiterCandidateName(application.candidate);
+  const candidateTitle = application.candidate?.title?.trim() || null;
   const submittedOn = submittedOnLabel(application.submittedAt);
   const detailHref = `/recruiter/offers/${offerId}/applications/${application.id}`;
   const initials = name
@@ -119,56 +216,78 @@ function CandidateCard({
     .toUpperCase();
 
   return (
-    <li className="rounded-2xl border border-slate-border bg-canvas-white p-5">
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-surface text-body-md font-bold text-blue-deep"
-        >
-          {initials}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <Link
-                href={detailHref}
-                className={cn(
-                  LINK_ACCENT_CLASS,
-                  "font-headline-md text-headline-md text-text-primary font-bold tracking-tight",
-                )}
+    <li className="@container min-w-0 rounded-3xl border border-slate-border bg-canvas-white p-6 shadow-sm transition-colors hover:border-slate-border-strong">
+      <div className="grid grid-cols-1 gap-4 @xl:grid-cols-[13rem_minmax(0,1fr)] @4xl:grid-cols-[15rem_minmax(0,1fr)_14rem_10rem] @4xl:items-stretch">
+        <div className="flex min-w-0 items-start gap-4 @xl:self-center">
+          <span
+            aria-hidden="true"
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-blue-border bg-blue-surface font-headline-sm text-headline-sm font-bold text-blue-deep"
+          >
+            {initials}
+          </span>
+          <div className="min-w-0">
+            <Link
+              href={detailHref}
+              title={name}
+              className={cn(
+                LINK_ACCENT_CLASS,
+                "block truncate font-headline-sm text-headline-sm font-bold tracking-tight",
+              )}
+            >
+              {name}
+            </Link>
+            {candidateTitle ? (
+              <p
+                title={candidateTitle}
+                className="mt-0.5 truncate text-[11px] font-semibold text-text-secondary"
               >
-                {name}
-              </Link>
-              <p className={MUTED_TEXT_CLASS}>
-                {submittedOn ? `Applied ${submittedOn}` : "Submission date unavailable"}
+                {candidateTitle}
               </p>
+            ) : null}
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <ApplicationStatusPill status={application.status} />
+              <span className="text-[11px] font-medium text-text-tertiary">
+                {submittedOn ? `Applied ${submittedOn}` : "Submission date unavailable"}
+              </span>
             </div>
-            <ApplicationStatusPill status={application.status} />
           </div>
         </div>
-      </div>
 
-      <div className="mt-4 flex flex-col gap-1.5">
-        {application.assessmentAvailable ? (
-          application.sections.map((section) => (
-            <SectionScoreBar
-              key={section.section}
-              section={section}
-              highlighted={section.section === sortedSection}
-            />
-          ))
-        ) : (
-          <p className={MUTED_TEXT_CLASS}>No AI assessment</p>
-        )}
-      </div>
+        <div
+          className={cn(
+            "flex min-w-0 flex-col rounded-2xl border border-slate-border bg-item-surface p-2.5",
+            application.assessmentAvailable
+              ? "h-full justify-center"
+              : "min-h-32 items-center justify-center @4xl:col-span-2",
+          )}
+        >
+          {application.assessmentAvailable ? (
+            <div className="flex flex-col">
+              {application.sections.map((section) => (
+                <SectionScoreRow
+                  key={section.section}
+                  section={section}
+                  highlighted={section.section === sortedSection}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className={cn(MUTED_TEXT_CLASS, "px-2 py-1 text-center")}>No AI assessment</p>
+          )}
+        </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-border pt-4">
-        <span className={MUTED_TEXT_CLASS}>
-          {contestSummary(application.contestedCount, application.averageGap)}
-        </span>
-        <ButtonLink href={detailHref} variant="outline-sm">
-          View application
-        </ButtonLink>
+        {application.assessmentAvailable ? <ContestPanel application={application} /> : null}
+
+        <div className="flex items-center @xl:col-start-2 @xl:justify-end @4xl:col-start-4 @4xl:justify-center @4xl:self-center">
+          <ButtonLink
+            href={detailHref}
+            variant="outline-sm"
+            className="w-full whitespace-nowrap @xl:w-40 @4xl:w-full"
+          >
+            View application
+            <Icon name="arrow_forward" className="text-[14px]" />
+          </ButtonLink>
+        </div>
       </div>
     </li>
   );
@@ -176,8 +295,9 @@ function CandidateCard({
 
 /**
  * Vue recruteur des candidatures d'une offre (T-66, D65) : onglets de statut,
- * tri par date, section (nulls last) ou contestations, cartes à cinq barres
- * bleues et détail lié. Aucun brouillon ni retrait, aucune note globale.
+ * tri par date, section (nulls last) ou contestations, cartes `rounded-3xl`
+ * à quatre zones (identité / cinq lignes de score / contestations / action) et
+ * détail lié. Aucun brouillon ni retrait, aucune note globale.
  */
 export function RecruiterApplicationsView({ offerId }: { offerId: string }) {
   const [status, setStatus] = useState<RecruiterApplicationStatusValue>("submitted");
@@ -225,20 +345,21 @@ export function RecruiterApplicationsView({ offerId }: { offerId: string }) {
         </header>
 
         <div className="px-6 pt-5 pb-6 flex flex-col gap-4">
-          <div className="flex flex-wrap items-end justify-between gap-4">
- 
+          <div className="flex flex-wrap items-center gap-4">
             <SegmentedControl
               label="Application status"
               value={status}
               options={STATUS_TABS}
               onChange={setStatus}
             />
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="min-w-44">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="w-52">
                 <Select
                   label="Sort by"
                   value={sort}
                   options={SORT_OPTIONS}
+                  inlineLabel
+                  compact
                   onValueChange={(value) => {
                     const next = value as RecruiterApplicationSortValue;
                     setSort(next);
@@ -249,7 +370,7 @@ export function RecruiterApplicationsView({ offerId }: { offerId: string }) {
                 />
               </div>
               {sort === "contests" ? (
-                <span className={cn(MUTED_TEXT_CLASS, "pb-2.5")}>Fixed order</span>
+                <span className="text-xs font-semibold text-text-secondary">Fixed order</span>
               ) : (
                 <SegmentedControl
                   label="Sort direction"
@@ -289,7 +410,7 @@ export function RecruiterApplicationsView({ offerId }: { offerId: string }) {
               <CandidateCard
                 offerId={offerId}
                 application={application}
-                sortedSection={sortedSection ?? "submittedAt"}
+                sortedSection={sortedSection}
               />
             )}
             hasNextPage={applications.hasNextPage}

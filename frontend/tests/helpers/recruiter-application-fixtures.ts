@@ -30,7 +30,7 @@ export function buildRecruiterApplicationCard(
 ): RecruiterApplicationCard {
   return {
     id: RECRUITER_APPLICATION_ID,
-    candidate: { firstName: "Grace", lastName: "Hopper" },
+    candidate: { firstName: "Grace", lastName: "Hopper", title: "Senior Backend Engineer" },
     status: "submitted",
     submittedAt: "2026-10-15T09:30:00",
     assessmentAvailable: true,
@@ -59,7 +59,7 @@ export function buildRecruiterApplicationDetail(
 ): RecruiterApplicationDetail {
   return {
     id: RECRUITER_APPLICATION_ID,
-    candidate: { firstName: "Grace", lastName: "Hopper" },
+    candidate: { firstName: "Grace", lastName: "Hopper", title: "Senior Backend Engineer" },
     status: "submitted",
     submittedAt: "2026-10-15T09:30:00",
     canDecide: true,

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import { RecruiterApplicationsView } from "@/features/application/recruiter-applications-view";
 import {
@@ -37,14 +37,14 @@ describe("RecruiterApplicationsView", () => {
     vi.mocked(getRecruiterApplication).mockReset();
   });
 
-  it("renders five blue section bars, contests and links to the application detail", async () => {
+  it("renders five section scores, contests and links to the application detail", async () => {
     listMock.mockResolvedValue(
       buildRecruiterApplicationPage({
         items: [
           buildRecruiterApplicationCard(),
           buildRecruiterApplicationCard({
             id: "application-2",
-            candidate: { firstName: "Alan", lastName: "Turing" },
+            candidate: { firstName: "Alan", lastName: "Turing", title: null },
             assessmentAvailable: false,
             sections: [
               { section: "requiredSkills", score: null },
@@ -70,6 +70,7 @@ describe("RecruiterApplicationsView", () => {
       `/recruiter/offers/${RECRUITER_OFFER_ID}/applications/${RECRUITER_APPLICATION_ID}`,
     );
     expect(screen.getByRole("link", { name: "Alan Turing" })).toBeInTheDocument();
+    expect(screen.getByText("Senior Backend Engineer")).toBeInTheDocument();
     expect(screen.getAllByText("View application")).toHaveLength(2);
 
     // Cinq barres, valeurs affichées, section de tri par défaut = date : aucune mise en avant.
@@ -85,9 +86,15 @@ describe("RecruiterApplicationsView", () => {
     for (const score of ["60", "75", "80", "85", "90"]) {
       expect(screen.getByText(score)).toBeInTheDocument();
     }
-    expect(screen.getByText("2 contested · avg gap 20 pts")).toBeInTheDocument();
+    const contestedPanel = screen.getByRole("group", {
+      name: "Contests: 2 contested · avg gap 20 pts",
+    });
+    expect(within(contestedPanel).getByText("2 contested")).toBeInTheDocument();
+    expect(within(contestedPanel).getByText("Average gap")).toBeInTheDocument();
+    expect(within(contestedPanel).getByText("20 pts")).toBeInTheDocument();
     expect(screen.getByText("No AI assessment")).toBeInTheDocument();
-    expect(screen.getByText("No contests")).toBeInTheDocument();
+    // Sans évaluation, le bloc contestations n'a pas de sens : « No AI assessment » suffit.
+    expect(screen.queryByText("No contests")).not.toBeInTheDocument();
 
     expect(listMock).toHaveBeenCalledWith(
       RECRUITER_OFFER_ID,
@@ -98,6 +105,95 @@ describe("RecruiterApplicationsView", () => {
       "aria-pressed",
       "true",
     );
+  });
+
+  it("omits a missing or blank candidate title instead of rendering a placeholder", async () => {
+    listMock.mockResolvedValue(
+      buildRecruiterApplicationPage({
+        items: [
+          buildRecruiterApplicationCard({
+            candidate: { firstName: "Alan", lastName: "Turing", title: "   " },
+          }),
+        ],
+      }),
+    );
+
+    renderView();
+
+    expect(await screen.findByRole("link", { name: "Alan Turing" })).toBeInTheDocument();
+    expect(screen.queryByText("Senior Backend Engineer")).not.toBeInTheDocument();
+    expect(screen.queryByText("Not provided")).not.toBeInTheDocument();
+  });
+
+  it("colors the rounded score with the band of the displayed value", async () => {
+    listMock.mockResolvedValue(
+      buildRecruiterApplicationPage({
+        items: [
+          buildRecruiterApplicationCard({
+            contestedCount: 0,
+            averageGap: null,
+            sections: [
+              { section: "requiredSkills", score: 69.5 },
+              { section: "preferredSkills", score: null },
+              { section: "languages", score: null },
+              { section: "experience", score: null },
+              { section: "education", score: null },
+            ],
+          }),
+        ],
+        total: 1,
+      }),
+    );
+
+    renderView();
+
+    expect(await screen.findByText("70")).toHaveClass("text-success-text");
+  });
+
+  it("renders No contests and Not evaluated for an assessed application without gaps", async () => {
+    listMock.mockResolvedValue(
+      buildRecruiterApplicationPage({
+        items: [
+          buildRecruiterApplicationCard({
+            contestedCount: 0,
+            averageGap: null,
+            sections: [
+              { section: "requiredSkills", score: 60 },
+              { section: "preferredSkills", score: null },
+              { section: "languages", score: 80 },
+              { section: "experience", score: 85 },
+              { section: "education", score: 90 },
+            ],
+          }),
+        ],
+        total: 1,
+      }),
+    );
+
+    renderView();
+
+    expect(await screen.findByText("1 application")).toBeInTheDocument();
+    const noContestsPanel = screen.getByRole("group", { name: "Contests: No contests" });
+    expect(within(noContestsPanel).getByText("No contests")).toBeInTheDocument();
+    expect(within(noContestsPanel).getByText("All scores uncontested")).toBeInTheDocument();
+    expect(screen.getByText("Not evaluated")).toBeInTheDocument();
+    expect(screen.queryByText("No AI assessment")).not.toBeInTheDocument();
+  });
+
+  it("keeps the contest count and reports an unavailable gap when no average exists", async () => {
+    listMock.mockResolvedValue(
+      buildRecruiterApplicationPage({
+        items: [buildRecruiterApplicationCard({ contestedCount: 3, averageGap: null })],
+        total: 1,
+      }),
+    );
+
+    renderView();
+
+    expect(await screen.findByText("1 application")).toBeInTheDocument();
+    const contestedPanel = screen.getByRole("group", { name: "Contests: 3 contested" });
+    expect(within(contestedPanel).getByText("3 contested")).toBeInTheDocument();
+    expect(within(contestedPanel).getByText("Not available")).toBeInTheDocument();
   });
 
   it("filters by tab, sorts by section and contests, and starts from the empty state", async () => {
