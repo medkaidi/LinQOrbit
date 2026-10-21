@@ -12,7 +12,7 @@ import {
   PageHeader,
 } from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
-import { Button, ButtonLink, CtaLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { InfiniteList } from "@/components/ui/infinite-list";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -217,7 +217,7 @@ function CandidateCard({
 
   return (
     <li className="@container min-w-0 rounded-3xl border border-slate-border bg-canvas-white p-4 shadow-sm transition-colors hover:border-slate-border-strong">
-      <div className="grid grid-cols-1 gap-4 @xl:grid-cols-[15rem_auto] @4xl:grid-cols-[15rem_auto_14rem_1fr] @4xl:items-stretch">
+      <div className="grid grid-cols-1 gap-4 @xl:grid-cols-[15rem_auto] @4xl:grid-cols-[15rem_auto_14rem_auto] @4xl:justify-between @4xl:items-stretch">
         <div className="flex min-w-0 items-start gap-4 @xl:self-center">
           <span
             aria-hidden="true"
@@ -279,9 +279,10 @@ function CandidateCard({
         {application.assessmentAvailable ? <ContestPanel application={application} /> : null}
 
         <div className="flex items-center @xl:col-start-2 @xl:justify-end @4xl:col-start-4 @4xl:justify-end @4xl:self-center">
-          <CtaLink href={detailHref} icon="arrow_forward" className="whitespace-nowrap">
+          <ButtonLink href={detailHref} variant="outline-sm" className="whitespace-nowrap">
             View application
-          </CtaLink>
+            <Icon name="arrow_forward" className="text-[14px]" />
+          </ButtonLink>
         </div>
       </div>
     </li>

@@ -288,12 +288,17 @@ export function Select({
       : "bg-white border border-slate-border-strong focus:border-primary-container",
   );
 
+  const listItemClass = compact ? "text-xs" : "font-body-md text-body-md";
+
   const listContent = visibleOptions.length === 0 ? (
     <li
       role="option"
       aria-disabled="true"
       aria-selected="false"
-      className="mx-1 rounded-xl px-3.5 py-2 font-body-md text-body-md text-text-tertiary cursor-default"
+      className={cn(
+        "mx-1 rounded-xl px-3.5 py-2 text-text-tertiary cursor-default",
+        listItemClass,
+      )}
     >
       No match
     </li>
@@ -310,7 +315,8 @@ export function Select({
           onClick={() => selectOption(option)}
           onMouseEnter={() => setHighlight(index)}
           className={cn(
-            "mx-1 flex cursor-pointer items-center justify-between gap-2 rounded-xl px-3.5 py-2 font-body-md text-body-md",
+            "mx-1 flex cursor-pointer items-center justify-between gap-2 rounded-xl px-3.5 py-2",
+            listItemClass,
             isSelected
               ? "bg-orange-subtle text-orange-deep font-semibold"
               : index === highlight
@@ -319,7 +325,12 @@ export function Select({
           )}
         >
           <span className="truncate">{option.label}</span>
-          {isSelected ? <Icon name="check" className="shrink-0 text-[18px]" /> : null}
+          {isSelected ? (
+            <Icon
+              name="check"
+              className={cn("shrink-0", compact ? "text-[14px]" : "text-[18px]")}
+            />
+          ) : null}
         </li>
       );
     })

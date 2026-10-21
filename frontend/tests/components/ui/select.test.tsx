@@ -40,6 +40,16 @@ describe("Select", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
+  it("aligns the option labels with the compact trigger", () => {
+    render(<Select label="Sort by" options={options} value="female" compact />);
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Sort by" }));
+
+    // Le menu compact garde la taille du titre (text-xs), pas celle du sélecteur standard.
+    expect(screen.getByRole("option", { name: "Female" })).toHaveClass("text-xs");
+    expect(screen.getByRole("option", { name: "Female" })).not.toHaveClass("text-body-md");
+  });
+
   it("closes on Escape without changing the value", () => {
     const onValueChange = vi.fn();
     render(<Select label="Sex" options={options} value="" onValueChange={onValueChange} />);
