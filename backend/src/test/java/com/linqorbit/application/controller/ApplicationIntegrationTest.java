@@ -10,11 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -34,8 +30,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -60,7 +54,7 @@ import com.linqorbit.candidate.service.NormalizationWorker;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-class ApplicationIntegrationTest {
+class ApplicationIntegrationTest extends ApplicationStorageTestSupport {
 
     private static final String APPLICATIONS_PATH = "/api/v1/applications";
     private static final String ATTACHMENTS_PATH = "/api/v1/candidates/me/attachments";
@@ -86,21 +80,6 @@ class ApplicationIntegrationTest {
               {"label": "Open to travel?", "type": "yes_no", "isRequired": false, "sortOrder": 3},
               {"label": "Years of experience?", "type": "number", "isRequired": false, "sortOrder": 4}
             ]""";
-
-    private static final Path STORAGE_ROOT = createStorageRoot();
-
-    @DynamicPropertySource
-    static void storageRoot(DynamicPropertyRegistry registry) {
-        registry.add("app.attachments.storage-root", () -> STORAGE_ROOT.toString());
-    }
-
-    private static Path createStorageRoot() {
-        try {
-            return Files.createTempDirectory("linqorbit-applications-it");
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-    }
 
     @Autowired
     private MockMvc mockMvc;

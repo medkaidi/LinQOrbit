@@ -85,6 +85,10 @@ class NormalizationWorkerIntegrationTest {
 
     @BeforeEach
     void succeedByDefault() {
+        // Le recovery au démarrage peut avoir consommé un job PENDING laissé par
+        // une exécution précédente : ces appels ne doivent pas polluer les
+        // vérifications du test courant.
+        clearInvocations(normalizationExecutor, normalizationTaskScheduler, profileNormalizeClient);
         when(profileNormalizeClient.normalize(any())).thenReturn(CANONICAL_JSON);
     }
 

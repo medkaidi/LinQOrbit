@@ -488,6 +488,23 @@ describe("JobOffersSection", () => {
     expect(screen.queryByRole("link", { name: /view public page/i })).not.toBeInTheDocument();
   });
 
+  it("links the applications of published and closed offers", () => {
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([
+        draftOffer({ id: "o1", status: "published" }),
+        draftOffer({ id: "o2", title: "Data Engineer", status: "closed" }),
+      ]),
+    );
+
+    render(<JobOffersSection companies={companies} />);
+
+    const links = screen.getAllByRole("link", { name: /Applications/ });
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/recruiter/offers/o1/applications",
+      "/recruiter/offers/o2/applications",
+    ]);
+  });
+
   it("deletes a draft only after confirmation", () => {
     const remove = mutation();
     useDeleteJobOfferMock.mockReturnValue(remove);

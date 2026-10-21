@@ -387,7 +387,7 @@ class ApplicationServiceTest {
         assertStatus(() -> applicationService.submit(USER_ID, submitted.getId(), null), HttpStatus.CONFLICT);
 
         UUID unknown = UUID.randomUUID();
-        when(applicationRepository.findByIdAndCandidateId(unknown, USER_ID)).thenReturn(Optional.empty());
+        when(applicationRepository.findByIdAndCandidateIdForUpdate(unknown, USER_ID)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> applicationService.submit(USER_ID, unknown, null))
                 .isInstanceOf(ApplicationNotFoundException.class);
     }
@@ -677,7 +677,7 @@ class ApplicationServiceTest {
         }
 
         UUID unknownId = UUID.randomUUID();
-        when(applicationRepository.findByIdAndCandidateId(unknownId, USER_ID)).thenReturn(Optional.empty());
+        when(applicationRepository.findByIdAndCandidateIdForUpdate(unknownId, USER_ID)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> applicationService.withdraw(USER_ID, unknownId))
                 .isInstanceOf(ApplicationNotFoundException.class);
     }
@@ -760,6 +760,8 @@ class ApplicationServiceTest {
 
     private void stubOwned(Application application) {
         when(applicationRepository.findByIdAndCandidateId(application.getId(), USER_ID))
+                .thenReturn(Optional.of(application));
+        when(applicationRepository.findByIdAndCandidateIdForUpdate(application.getId(), USER_ID))
                 .thenReturn(Optional.of(application));
     }
 

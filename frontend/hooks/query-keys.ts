@@ -10,6 +10,11 @@
  *   (`queryKeys.candidate.reference` rafraîchit les 4 listes de référence).
  */
 import type { AdminUserFilters } from "@/types/admin";
+import type {
+  RecruiterApplicationDirection,
+  RecruiterApplicationSortValue,
+  RecruiterApplicationStatusValue,
+} from "@/types/application";
 
 export const queryKeys = {
   auth: {
@@ -64,6 +69,19 @@ export const queryKeys = {
   applications: {
     mine: ["applications", "mine"] as const,
     context: (publicId: string) => ["applications", "context", publicId] as const,
+  },
+  recruiterApplications: {
+    /** Liste d'une offre, filtrée et triée ; le préfixe permet d'invalider toutes les vues. */
+    list: (
+      offerId: string,
+      status: RecruiterApplicationStatusValue,
+      sort: RecruiterApplicationSortValue,
+      direction: RecruiterApplicationDirection,
+    ) => ["recruiter-applications", "list", offerId, status, sort, direction] as const,
+    /** Toutes les listes d'une offre (après une décision). */
+    offer: (offerId: string) => ["recruiter-applications", "list", offerId] as const,
+    detail: (offerId: string, applicationId: string) =>
+      ["recruiter-applications", "detail", offerId, applicationId] as const,
   },
   matching: {
     /** Matching courant du couple pour la fiche courante du candidat (D58). */

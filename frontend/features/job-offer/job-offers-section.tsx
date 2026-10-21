@@ -233,6 +233,13 @@ function OfferActions({
       )}
       {offer.status === "published" && (
         <>
+          <ButtonLink
+            href={`/recruiter/offers/${offer.id}/applications`}
+            variant="outline-sm"
+          >
+            <Icon name="inbox" className="text-[14px]" />
+            Applications
+          </ButtonLink>
           <CopyPublicLinkButton publicId={offer.publicId} slug={offer.slug} />
           <ButtonLink
             href={publicJobPath(offer.publicId, offer.slug)}
@@ -244,6 +251,12 @@ function OfferActions({
             View public page
           </ButtonLink>
         </>
+      )}
+      {offer.status === "closed" && (
+        <ButtonLink href={`/recruiter/offers/${offer.id}/applications`} variant="outline-sm">
+          <Icon name="inbox" className="text-[14px]" />
+          Applications
+        </ButtonLink>
       )}
       {menuItems.length > 0 ? (
         <>

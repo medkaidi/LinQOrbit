@@ -1,5 +1,6 @@
 package com.linqorbit.matching.repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,6 +21,10 @@ public interface MatchingResultRepository extends JpaRepository<MatchingResult, 
 
     /** Dernier résultat terminé (avec contenu) : scores affichés, cible des contestations (T-63). */
     Optional<MatchingResult> findFirstByMatchingIdAndResultIsNotNullOrderByVersionDesc(UUID matchingId);
+
+    /** Derniers résultats d'un lot de matchings, pour la liste recruteur (T-66) sans N+1. */
+    List<MatchingResult> findByMatchingIdInAndResultIsNotNullOrderByMatchingIdAscVersionDesc(
+            List<UUID> matchingIds);
 
     /** Résultat terminé qui précède une version : évaluations précédentes rejouées à l'agent (T-62). */
     Optional<MatchingResult> findFirstByMatchingIdAndResultIsNotNullAndVersionLessThanOrderByVersionDesc(

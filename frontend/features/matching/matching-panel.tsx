@@ -5,7 +5,9 @@ import { isAxiosError } from "axios";
 import { Alert } from "@/components/ui/alert";
 import { CtaButton } from "@/components/ui/button";
 import { IconBadge } from "@/components/ui/icon-badge";
+import { IndexBadge } from "@/components/ui/index-badge";
 import { Spinner } from "@/components/ui/spinner";
+import { StatusPill, type StatusPillTone } from "@/components/ui/status-pill";
 import {
   MUTED_TEXT_CLASS,
   SECTION_CARD_CLASS,
@@ -20,7 +22,17 @@ import {
   useStartMatching,
 } from "@/hooks/use-matching";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
+import { cn } from "@/lib/utils/cn";
 import type { MatchingCriterion, MatchingSection } from "@/types/matching";
+
+/**
+ * Statut « analyse en cours » de l'en-tête (T-89) : l'orange reste le signal
+ * d'activité — les données, elles, sont bleues (accent secondaire).
+ */
+const ANALYZING_TONE: StatusPillTone = {
+  pill: "bg-orange-subtle text-orange-deep",
+  dot: "bg-orange-deep animate-pulse motion-reduce:animate-none",
+};
 
 function CriterionScore({ criterion }: { criterion: MatchingCriterion }) {
   return (
@@ -29,7 +41,9 @@ function CriterionScore({ criterion }: { criterion: MatchingCriterion }) {
         <span className="text-body-sm font-body-sm font-semibold text-text-primary min-w-0 break-words">
           {criterion.label}
         </span>
-        <span className="font-mono text-body-sm text-text-primary shrink-0">{criterion.score}%</span>
+        <span className="font-mono text-body-sm text-text-primary shrink-0 tabular-nums">
+          {criterion.score}%
+        </span>
       </div>
       <div
         role="meter"
@@ -37,20 +51,35 @@ function CriterionScore({ criterion }: { criterion: MatchingCriterion }) {
         aria-valuenow={criterion.score}
         aria-valuemin={0}
         aria-valuemax={100}
-        className="h-2 rounded-full bg-slate-surface overflow-hidden"
+        className="h-2.5 rounded-full bg-slate-surface border border-slate-border p-0.5"
       >
-        <div className="h-full rounded-full bg-primary-container" style={{ width: `${criterion.score}%` }} />
+        <div
+          className="h-full rounded-full bg-blue-deep transition-[width] duration-500 ease-out"
+          style={{ width: `${criterion.score}%` }}
+        />
       </div>
     </li>
   );
 }
 
-function SectionScores({ section }: { section: MatchingSection }) {
+/** Section de scores : même anatomie d'en-tête que la revue candidat (T-63). */
+function SectionScores({ section, index }: { section: MatchingSection; index: number }) {
   return (
-    <section aria-label={MATCHING_SECTION_LABELS[section.section]} className="flex flex-col gap-3">
-      <h3 className="font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
-        {MATCHING_SECTION_LABELS[section.section]}
-      </h3>
+    <section
+      aria-label={MATCHING_SECTION_LABELS[section.section]}
+      className={cn("flex flex-col gap-3", index > 0 && "border-t border-slate-border pt-6")}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <IndexBadge>{index + 1}</IndexBadge>
+          <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary min-w-0 break-words">
+            {MATCHING_SECTION_LABELS[section.section]}
+          </h3>
+        </div>
+        <span className={MUTED_TEXT_CLASS}>
+          {section.criteria.length} {section.criteria.length === 1 ? "criterion" : "criteria"}
+        </span>
+      </div>
       <ul className="flex flex-col gap-3">
         {section.criteria.map((criterion) => (
           <CriterionScore key={criterion.key} criterion={criterion} />
@@ -72,7 +101,9 @@ function isNotStarted(error: unknown): boolean {
  * une réévaluation garde les scores précédents à l'écran. Les clarifications
  * IA sont rendues par le parcours (contenu central, refonte D6), jamais ici.
  * Le candidat ne voit ni poids, ni score de section, ni justification
- * (réservés au recruteur).
+ * (réservés au recruteur). Rendu (T-89) : en-têtes de section numérotés avec
+ * compteur, barres « tube » bleues, statut d'analyse en pastille d'en-tête —
+ * l'orange est réservé au signal d'activité, jamais aux données.
  */
 export function MatchingPanel({
   publicId,
@@ -103,6 +134,11 @@ export function MatchingPanel({
           <IconBadge icon="insights" />
           <h2 className={SECTION_TITLE_CLASS}>Your match</h2>
         </div>
+        {inProgress ? (
+          <span role="status">
+            <StatusPill tone={ANALYZING_TONE}>Analyzing…</StatusPill>
+          </span>
+        ) : null}
       </header>
       <div className="px-6 pt-5 pb-6 flex flex-col gap-5">
         {matching.isLoading ? (
@@ -136,17 +172,17 @@ export function MatchingPanel({
           </Alert>
         ) : null}
 
-        {inProgress && sections.length > 0 ? (
-          <Alert variant="info" title="Updating your match…">
-            Your input is being taken into account. Your scores below are the previous ones until the
-            new analysis ends — this panel updates automatically.
-          </Alert>
-        ) : null}
         {inProgress && sections.length === 0 ? (
-          <Alert variant="info" title="Analysis in progress">
-            Your profile is being compared with this offer. It usually takes less than a minute — this
-            panel updates automatically.
-          </Alert>
+          <p className={MUTED_TEXT_CLASS}>
+            Your profile is being compared with this offer. It usually takes less than a minute —
+            this panel updates automatically.
+          </p>
+        ) : null}
+        {inProgress && sections.length > 0 ? (
+          <p className={MUTED_TEXT_CLASS}>
+            Your input is being taken into account. Your scores below are the previous ones until
+            the new analysis ends — this panel updates automatically.
+          </p>
         ) : null}
 
         {status === "failed" ? (
@@ -168,8 +204,8 @@ export function MatchingPanel({
 
         {sections.length > 0 ? (
           <div className="flex flex-col gap-6">
-            {sections.map((section) => (
-              <SectionScores key={section.section} section={section} />
+            {sections.map((section, index) => (
+              <SectionScores key={section.section} section={section} index={index} />
             ))}
           </div>
         ) : null}

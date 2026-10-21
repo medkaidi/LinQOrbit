@@ -122,3 +122,153 @@ export type SaveApplicationDraftRequest = {
 export type SubmitApplicationRequest = {
   cvAttachmentId?: string;
 };
+
+/* ------------------------------------------------------------------------- */
+/* Vue recruteur (T-66, D65) — types miroirs des DTOs backend, camelCase.     */
+/* ------------------------------------------------------------------------- */
+
+/** Statuts visibles côté recruteur : brouillons et retraits n'existent pas dans cette vue. */
+export type RecruiterApplicationStatusValue = "submitted" | "accepted" | "rejected";
+
+export type RecruiterApplicationSortValue =
+  | "submittedAt"
+  | "requiredSkills"
+  | "preferredSkills"
+  | "languages"
+  | "experience"
+  | "education"
+  | "contests";
+
+export type RecruiterApplicationDirection = "asc" | "desc";
+
+export type RecruiterSectionKey =
+  | "requiredSkills"
+  | "preferredSkills"
+  | "languages"
+  | "experience"
+  | "education";
+
+export type RecruiterCandidateSummary = {
+  firstName: string;
+  lastName: string;
+};
+
+/** Offre contexte de la vue recruteur (titre, statut et lien public). */
+export type RecruiterJobSummary = {
+  id: string;
+  publicId: string;
+  slug: string;
+  title: string;
+  status: string;
+  companyName: string | null;
+};
+
+/** Score d'une section ; `null` quand la section manque dans le résultat — jamais 0 par défaut. */
+export type RecruiterSectionScore = {
+  section: RecruiterSectionKey;
+  score: number | null;
+};
+
+/** Carte de liste : aucune note globale, seulement les cinq sections et le signal de contestation. */
+export type RecruiterApplicationCard = {
+  id: string;
+  candidate: RecruiterCandidateSummary | null;
+  status: RecruiterApplicationStatusValue;
+  submittedAt: string;
+  assessmentAvailable: boolean;
+  sections: RecruiterSectionScore[];
+  contestedCount: number;
+  averageGap: number | null;
+};
+
+export type RecruiterApplicationPage = {
+  job: RecruiterJobSummary;
+  items: RecruiterApplicationCard[];
+  page: number;
+  size: number;
+  total: number;
+};
+
+/** Option choisie dans une réponse recruteur ; `preferred` reste une information recruteur. */
+export type RecruiterAnswerOptionView = {
+  id: string;
+  label: string;
+  preferred: boolean;
+};
+
+/** Réponse recruteur : valeur typée unique selon `type`, options avec `preferred` pour les choix. */
+export type RecruiterAnswerView = {
+  questionId: string;
+  label: string;
+  type: QuestionTypeValue;
+  required: boolean;
+  text: string | null;
+  number: number | null;
+  booleanValue: boolean | null;
+  options: RecruiterAnswerOptionView[];
+};
+
+/** Critère du matching côté recruteur : justification IA par critère, jamais de preuve interne. */
+export type RecruiterCriterionView = {
+  key: string;
+  label: string;
+  requirement: string | null;
+  weight: number;
+  score: number;
+  rationale: string;
+};
+
+export type RecruiterAssessmentSectionView = {
+  section: RecruiterSectionKey;
+  score: number | null;
+  criteria: RecruiterCriterionView[];
+};
+
+/** Évaluation épinglée à la transmission ; `available=false` sans résultat terminé. */
+export type RecruiterAssessmentView = {
+  available: boolean;
+  sections: RecruiterAssessmentSectionView[];
+};
+
+export type RecruiterClarificationStatusValue = "open" | "answered" | "skipped";
+
+export type RecruiterClarificationView = {
+  id: string;
+  question: string;
+  rationale: string | null;
+  answer: string | null;
+  status: RecruiterClarificationStatusValue;
+};
+
+/** Contestation candidate d'un critère : signal de désaccord, jamais un score de qualité. */
+export type RecruiterContestationView = {
+  criterionKey: string;
+  label: string;
+  aiScore: number;
+  selfValue: number;
+  gap: number;
+  comment: string | null;
+};
+
+export type RecruiterCvSummary = {
+  attachmentId: string;
+  originalName: string;
+  sizeBytes: number | null;
+};
+
+export type RecruiterApplicationDetail = {
+  id: string;
+  candidate: RecruiterCandidateSummary | null;
+  status: RecruiterApplicationStatusValue;
+  submittedAt: string;
+  /** Calculé par le serveur : transmise + droit de gestion D12 (owner ou créateur). */
+  canDecide: boolean;
+  job: RecruiterJobSummary;
+  answers: RecruiterAnswerView[];
+  assessment: RecruiterAssessmentView;
+  clarifications: RecruiterClarificationView[];
+  contests: RecruiterContestationView[];
+  cv: RecruiterCvSummary | null;
+};
+
+export type RecruiterApplicationDecision = "accepted" | "rejected";

@@ -1,7 +1,14 @@
 import { api } from "@/lib/api/axios";
+import { saveBlob } from "@/lib/utils/download";
 import type {
   ApplicationContext,
   ApplicationResponse,
+  RecruiterApplicationDecision,
+  RecruiterApplicationDetail,
+  RecruiterApplicationDirection,
+  RecruiterApplicationPage,
+  RecruiterApplicationSortValue,
+  RecruiterApplicationStatusValue,
   SaveApplicationDraftRequest,
   SubmitApplicationRequest,
 } from "@/types/application";
@@ -50,4 +57,73 @@ export async function listMyApplications(): Promise<ApplicationResponse[]> {
 /** Retrait terminal (MVP, D49) : une candidature retirée ne peut plus l'être à nouveau. */
 export async function withdrawApplication(applicationId: string): Promise<void> {
   await api.post(`/api/v1/applications/${applicationId}/withdraw`);
+}
+
+/** Paramètres de la liste recruteur ; `size` reste décidé par le backend. */
+export type RecruiterApplicationListParams = {
+  status?: RecruiterApplicationStatusValue;
+  sort?: RecruiterApplicationSortValue;
+  direction?: RecruiterApplicationDirection;
+  page?: number;
+};
+
+/** Liste paginée des candidatures d'une offre (défaut backend : SUBMITTED, date croissante). */
+export async function listRecruiterApplications(
+  offerId: string,
+  params: RecruiterApplicationListParams = {},
+  options: { signal?: AbortSignal } = {},
+): Promise<RecruiterApplicationPage> {
+  const query: Record<string, string | number> = {};
+  if (params.status) {
+    query.status = params.status;
+  }
+  if (params.sort) {
+    query.sort = params.sort;
+  }
+  if (params.direction) {
+    query.direction = params.direction;
+  }
+  if (params.page !== undefined) {
+    query.page = params.page;
+  }
+  const { data } = await api.get<RecruiterApplicationPage>(
+    `/api/v1/job-offers/${offerId}/applications`,
+    { params: query, signal: options.signal },
+  );
+  return data;
+}
+
+/** Détail complet d'une candidature visible (transmise ou décidée) pour un membre de la company. */
+export async function getRecruiterApplication(
+  offerId: string,
+  applicationId: string,
+): Promise<RecruiterApplicationDetail> {
+  const { data } = await api.get<RecruiterApplicationDetail>(
+    `/api/v1/job-offers/${offerId}/applications/${applicationId}`,
+  );
+  return data;
+}
+
+/** Télécharge le CV épinglé (flux binaire) et déclenche l'enregistrement navigateur. */
+export async function downloadRecruiterApplicationCv(
+  offerId: string,
+  applicationId: string,
+  fileName: string,
+): Promise<void> {
+  const response = await api.get<Blob>(
+    `/api/v1/job-offers/${offerId}/applications/${applicationId}/cv`,
+    { responseType: "blob" },
+  );
+  saveBlob(response.data, fileName);
+}
+
+/** Décision manuelle et terminale : le backend répond 204, 409 si déjà décidée. */
+export async function decideRecruiterApplication(
+  offerId: string,
+  applicationId: string,
+  decision: RecruiterApplicationDecision,
+): Promise<void> {
+  await api.post(`/api/v1/job-offers/${offerId}/applications/${applicationId}/decision`, {
+    decision,
+  });
 }

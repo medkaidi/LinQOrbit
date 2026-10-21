@@ -17,5 +17,7 @@ public interface MatchingCriterionFeedbackRepository extends JpaRepository<Match
 
     List<MatchingCriterionFeedback> findByMatchingIdOrderByCriterionKeyAsc(UUID matchingId);
 
+    List<MatchingCriterionFeedback> findByMatchingIdInOrderByMatchingIdAscCriterionKeyAsc(List<UUID> matchingIds);
+
     boolean existsByMatchingId(UUID matchingId);
 }

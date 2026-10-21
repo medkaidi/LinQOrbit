@@ -65,7 +65,8 @@ describe("MatchingPanel", () => {
     fireEvent.click(runButton);
 
     await waitFor(() => expect(startMock).toHaveBeenCalledWith(PUBLIC_ID));
-    expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+    expect(await screen.findByText("Analyzing…")).toBeInTheDocument();
+    expect(screen.getByText(/being compared with this offer/)).toBeInTheDocument();
     expect(screen.queryByText("Could not load your match")).not.toBeInTheDocument();
   });
 
@@ -79,7 +80,7 @@ describe("MatchingPanel", () => {
 
     renderWithQueryClient(<MatchingPanel publicId={PUBLIC_ID} />);
 
-    expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+    expect(await screen.findByText("Analyzing…")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
     await waitFor(() => expect(streamMock).toHaveBeenCalledWith(PUBLIC_ID, expect.any(Function), expect.anything()));
     push?.({ matchingId: "m-1", status: "done" });
@@ -106,7 +107,14 @@ describe("MatchingPanel", () => {
     expect(within(required).getByText("Java")).toBeInTheDocument();
     expect(within(required).getByText("90%")).toBeInTheDocument();
     expect(within(required).getByRole("meter", { name: "Kubernetes" })).toHaveAttribute("aria-valuenow", "0");
-    expect(within(screen.getByRole("region", { name: "Languages" })).getByText("100%")).toBeInTheDocument();
+    // Barre « tube » bleue (T-89) : l'orange n'est plus la couleur des données.
+    const javaMeter = within(required).getByRole("meter", { name: "Java" });
+    expect(javaMeter.firstElementChild?.className).toContain("bg-blue-deep");
+    // En-têtes de section : rang + compteur de critères, même anatomie que la revue (T-89).
+    expect(within(required).getByText("2 criteria")).toBeInTheDocument();
+    const languages = screen.getByRole("region", { name: "Languages" });
+    expect(within(languages).getByText("100%")).toBeInTheDocument();
+    expect(within(languages).getByText("1 criterion")).toBeInTheDocument();
     // Aucune section vide n'est rendue, aucun score de section n'est montré au candidat.
     expect(screen.queryByRole("region", { name: "Education" })).not.toBeInTheDocument();
     expect(screen.queryByText(/weight/i)).not.toBeInTheDocument();
@@ -124,7 +132,7 @@ describe("MatchingPanel", () => {
     fireEvent.click(retryButton);
 
     await waitFor(() => expect(startMock).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+    expect(await screen.findByText("Analyzing…")).toBeInTheDocument();
   });
 
   it("runs the preparation first, and never starts the match when it fails", async () => {
@@ -176,10 +184,13 @@ describe("MatchingPanel", () => {
 
     renderWithQueryClient(<MatchingPanel publicId={PUBLIC_ID} />);
 
-    expect(await screen.findByText("Updating your match…")).toBeInTheDocument();
+    // Statut d'analyse en pastille d'en-tête (T-89) + message en texte muet.
+    expect(await screen.findByText("Analyzing…")).toBeInTheDocument();
+    expect(screen.getByText(/previous ones until the new analysis ends/)).toBeInTheDocument();
     // Les scores précédents restent visibles pendant la réévaluation, suivie par le flux SSE.
     expect(screen.getByRole("region", { name: "Required skills" })).toBeInTheDocument();
-    expect(screen.queryByText("Analysis in progress")).not.toBeInTheDocument();
+    // Le message de première analyse (sans scores) ne double pas celui de la réévaluation.
+    expect(screen.queryByText(/being compared with this offer/)).not.toBeInTheDocument();
     await waitFor(() => expect(streamMock).toHaveBeenCalledWith(PUBLIC_ID, expect.any(Function), expect.anything()));
   });
 

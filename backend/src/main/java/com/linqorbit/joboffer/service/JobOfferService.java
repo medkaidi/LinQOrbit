@@ -209,6 +209,34 @@ public class JobOfferService {
     }
 
     /**
+     * Accès membre (D12) pour les lectures recruteur d'un autre domaine : même
+     * 404 sûr que le détail de l'offre, aucune fuite hors company.
+     */
+    @Transactional(readOnly = true)
+    public JobOffer getForMember(UUID userId, UUID offerId) {
+        requireRecruiter(userId);
+        return loadForMember(offerId, userId);
+    }
+
+    /**
+     * Accès gestion (D12) : owner de la company ou recruteur créateur de
+     * l'offre. Utilisé par les décisions de candidature (T-66), qui sont un
+     * acte de gestion et non une simple lecture.
+     */
+    @Transactional(readOnly = true)
+    public JobOffer getForManagement(UUID userId, UUID offerId) {
+        return loadForManagement(offerId, userId);
+    }
+
+    /** D12 sans exception : l'appelant a déjà vérifié l'appartenance à la company. */
+    public boolean canManage(UUID userId, JobOffer offer) {
+        return companyMemberRepository.findByCompanyIdAndRecruiterId(offer.getCompanyId(), userId)
+                .map(membership -> Boolean.TRUE.equals(membership.getIsOwner())
+                        || offer.getRecruiterId().equals(userId))
+                .orElse(false);
+    }
+
+    /**
      * Lecture publique (V15) : une seule fuite possible = existence. Le même
      * 404 (détail fixe du handler) couvre inconnu, non publié, clôturé et
      * expiré — aucune distinction côté client.

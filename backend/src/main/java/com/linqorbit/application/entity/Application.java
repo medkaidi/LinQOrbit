@@ -61,6 +61,14 @@ public class Application {
     @Column(name = "status", nullable = false)
     private ApplicationStatus status;
 
+    /**
+     * Date de transmission (V24, D65) : posée une seule fois au passage
+     * DRAFT → SUBMITTED, immuable ensuite (trigger + CHECK en base). Jamais
+     * updated_at, qui bouge encore sur les décisions et retraits.
+     */
+    @Column(name = "submitted_at")
+    private LocalDateTime submittedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

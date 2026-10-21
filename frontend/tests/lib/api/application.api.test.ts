@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  decideRecruiterApplication,
   discardApplication,
+  downloadRecruiterApplicationCv,
   getApplicationContext,
+  getRecruiterApplication,
   listMyApplications,
+  listRecruiterApplications,
   saveApplicationDraft,
   submitApplication,
   withdrawApplication,
@@ -13,7 +17,12 @@ vi.mock("@/lib/api/axios", () => ({
   api: { get: vi.fn(), put: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }));
 
+vi.mock("@/lib/utils/download", () => ({
+  saveBlob: vi.fn(),
+}));
+
 import { api } from "@/lib/api/axios";
+import { saveBlob } from "@/lib/utils/download";
 
 const getMock = vi.mocked(api.get);
 const putMock = vi.mocked(api.put);
@@ -26,6 +35,7 @@ describe("application.api", () => {
     putMock.mockReset();
     postMock.mockReset();
     deleteMock.mockReset();
+    vi.mocked(saveBlob).mockReset();
   });
 
   it("reads the journey context of an offer", async () => {
@@ -67,5 +77,49 @@ describe("application.api", () => {
     expect(getMock).toHaveBeenCalledWith("/api/v1/applications/mine");
     await withdrawApplication("app-1");
     expect(postMock).toHaveBeenCalledWith("/api/v1/applications/app-1/withdraw");
+  });
+
+  it("lists recruiter applications with optional filters and never sends a page size", async () => {
+    getMock.mockResolvedValue({ data: { items: [], total: 0 } });
+
+    await listRecruiterApplications("offer-1");
+    expect(getMock).toHaveBeenLastCalledWith("/api/v1/job-offers/offer-1/applications", {
+      params: {},
+      signal: undefined,
+    });
+
+    await listRecruiterApplications("offer-1", {
+      status: "accepted",
+      sort: "requiredSkills",
+      direction: "desc",
+      page: 2,
+    });
+    expect(getMock).toHaveBeenLastCalledWith("/api/v1/job-offers/offer-1/applications", {
+      params: { status: "accepted", sort: "requiredSkills", direction: "desc", page: 2 },
+      signal: undefined,
+    });
+  });
+
+  it("reads recruiter detail, downloads the pinned CV and records a decision", async () => {
+    const blob = new Blob(["pdf"], { type: "application/pdf" });
+    getMock.mockResolvedValue({ data: { id: "app-1" } });
+    postMock.mockResolvedValue({ data: undefined });
+
+    expect(await getRecruiterApplication("offer-1", "app-1")).toEqual({ id: "app-1" });
+    expect(getMock).toHaveBeenLastCalledWith("/api/v1/job-offers/offer-1/applications/app-1");
+
+    getMock.mockResolvedValue({ data: blob });
+    await downloadRecruiterApplicationCv("offer-1", "app-1", "grace-cv.pdf");
+    expect(getMock).toHaveBeenLastCalledWith(
+      "/api/v1/job-offers/offer-1/applications/app-1/cv",
+      { responseType: "blob" },
+    );
+    expect(saveBlob).toHaveBeenCalledWith(blob, "grace-cv.pdf");
+
+    await decideRecruiterApplication("offer-1", "app-1", "rejected");
+    expect(postMock).toHaveBeenCalledWith(
+      "/api/v1/job-offers/offer-1/applications/app-1/decision",
+      { decision: "rejected" },
+    );
   });
 });

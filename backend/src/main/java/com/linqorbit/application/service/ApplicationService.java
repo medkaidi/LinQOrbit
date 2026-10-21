@@ -2,6 +2,7 @@ package com.linqorbit.application.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -167,7 +168,7 @@ public class ApplicationService {
     @Transactional
     public ApplicationResponse submit(UUID userId, UUID applicationId, SubmitApplicationRequest request) {
         log.info("Application submit requested : userId={}, applicationId={}", userId, applicationId);
-        Application application = ownedApplication(userId, applicationId, "submit");
+        Application application = ownedApplicationForUpdate(userId, applicationId, "submit");
         if (application.getStatus() != ApplicationStatus.DRAFT) {
             log.warn("Application submit rejected : already submitted, applicationId={}, status={}",
                     applicationId, application.getStatus().getApiValue());
@@ -191,6 +192,7 @@ public class ApplicationService {
         application.setCvAttachmentId(cv.getId());
         application.setMatchingId(currentMatchingId(userId, offer.getId()).orElse(null));
         application.setStatus(ApplicationStatus.SUBMITTED);
+        application.setSubmittedAt(LocalDateTime.now());
         applicationRepository.saveAndFlush(application);
         log.info("Application submitted : userId={}, applicationId={}, offerId={}, withMatching={}",
                 userId, applicationId, offer.getId(), application.getMatchingId() != null);
@@ -337,7 +339,7 @@ public class ApplicationService {
     @Transactional
     public void withdraw(UUID userId, UUID applicationId) {
         log.info("Application withdraw requested : userId={}, applicationId={}", userId, applicationId);
-        Application application = ownedApplication(userId, applicationId, "withdraw");
+        Application application = ownedApplicationForUpdate(userId, applicationId, "withdraw");
         if (application.getStatus() != ApplicationStatus.SUBMITTED) {
             log.warn("Application withdraw rejected : applicationId={}, status={}",
                     applicationId, application.getStatus().getApiValue());
@@ -398,12 +400,24 @@ public class ApplicationService {
 
     private Application ownedApplication(UUID userId, UUID applicationId, String action) {
         return applicationRepository.findByIdAndCandidateId(applicationId, userId)
-                .orElseThrow(() -> {
-                    log.warn("Application {} rejected : unknown application or not owner, userId={},"
-                            + " applicationId={}", action, userId, applicationId);
-                    return new ApplicationNotFoundException(
-                            "application " + applicationId + " not found for candidate " + userId);
-                });
+                .orElseThrow(() -> applicationNotFound(userId, applicationId, action));
+    }
+
+    /**
+     * Variante verrouillée de {@link #ownedApplication} : submit et withdraw
+     * sérialisent leurs transitions pour qu'une candidature ne puisse jamais
+     * être transmise deux fois ni retirée après une décision.
+     */
+    private Application ownedApplicationForUpdate(UUID userId, UUID applicationId, String action) {
+        return applicationRepository.findByIdAndCandidateIdForUpdate(applicationId, userId)
+                .orElseThrow(() -> applicationNotFound(userId, applicationId, action));
+    }
+
+    private ApplicationNotFoundException applicationNotFound(UUID userId, UUID applicationId, String action) {
+        log.warn("Application {} rejected : unknown application or not owner, userId={}, applicationId={}",
+                action, userId, applicationId);
+        return new ApplicationNotFoundException(
+                "application " + applicationId + " not found for candidate " + userId);
     }
 
     private Optional<UUID> currentCvId(UUID userId) {

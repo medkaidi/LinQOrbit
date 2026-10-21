@@ -110,6 +110,31 @@ public class AttachmentService {
         return new AttachmentContent(toResponse(attachment, attachmentId.equals(currentId)), resource);
     }
 
+    /**
+     * Téléchargement d'un CV épinglé par une candidature (T-66). Le contrôle
+     * d'accès à l'offre et à la candidature est fait par l'appelant ; cette
+     * méthode ne vérifie que l'appartenance du fichier au candidat de la
+     * candidature (la FK composite la garantit déjà en base).
+     */
+    @Transactional(readOnly = true)
+    public AttachmentContent downloadPinned(UUID candidateId, UUID attachmentId) {
+        log.info("Pinned CV download requested : candidateId={}, attachmentId={}", candidateId, attachmentId);
+        Attachment attachment = attachmentRepository.findByIdAndCandidateId(attachmentId, candidateId)
+                .orElseThrow(() -> {
+                    log.warn("Pinned CV download rejected : unknown attachment for candidate, candidateId={},"
+                            + " attachmentId={}", candidateId, attachmentId);
+                    return new AttachmentNotFoundException(
+                            "attachment " + attachmentId + " not found for candidate " + candidateId);
+                });
+        Resource resource = attachmentStorage.load(attachment.getStoragePath());
+        if (!resource.exists()) {
+            log.warn("Pinned CV download rejected : file missing on disk, attachmentId={}, path={}",
+                    attachmentId, attachment.getStoragePath());
+            throw new AttachmentNotFoundException("file missing on disk for attachment " + attachmentId);
+        }
+        return new AttachmentContent(toResponse(attachment, false), resource);
+    }
+
     @Transactional
     public void setCurrent(UUID userId, UUID attachmentId) {
         log.info("CV switch requested : userId={}, attachmentId={}", userId, attachmentId);
