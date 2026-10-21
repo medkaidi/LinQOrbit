@@ -129,11 +129,18 @@ function SectionScoreRow({
       )}
       <span
         className={cn(
-          "w-7 shrink-0 text-right text-[11px] font-bold leading-tight tabular-nums",
+          "w-9 shrink-0 text-right leading-tight tabular-nums",
           SCORE_VALUE_CLASSES[band],
         )}
       >
-        {displayScore === null ? "—" : displayScore}
+        {displayScore === null ? (
+          "—"
+        ) : (
+          <>
+            <span className="text-[11px] font-bold">{displayScore}</span>
+            <span className="ml-0.5 text-[9px] font-semibold text-text-tertiary">%</span>
+          </>
+        )}
       </span>
     </div>
   );

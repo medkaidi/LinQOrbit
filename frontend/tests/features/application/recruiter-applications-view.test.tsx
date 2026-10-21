@@ -91,6 +91,9 @@ describe("RecruiterApplicationsView", () => {
     for (const score of ["60", "75", "80", "85", "90"]) {
       expect(screen.getByText(score)).toBeInTheDocument();
     }
+    // L'unité est rappelée sur chaque valeur : « 60 % ».
+    expect(screen.getAllByText("%")).toHaveLength(5);
+    expect(screen.getByText("60").parentElement).toHaveTextContent("60%");
     const contestedPanel = screen.getByRole("group", {
       name: "Contests: 2 contested · avg gap 20 pts",
     });
@@ -152,7 +155,8 @@ describe("RecruiterApplicationsView", () => {
 
     renderView();
 
-    expect(await screen.findByText("70")).toHaveClass("text-success-text");
+    // La valeur arrondie affichée porte la couleur de sa bande (« 70 » → vert).
+    expect((await screen.findByText("70")).parentElement).toHaveClass("text-success-text");
   });
 
   it("renders No contests and Not evaluated for an assessed application without gaps", async () => {
