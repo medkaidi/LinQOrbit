@@ -52,9 +52,9 @@ describe("ApplicationSteps", () => {
       expect.stringContaining("Step 2Candidate review"),
       expect.stringContaining("Step 3Summary & apply"),
     ]);
-    // Sans matching, l'évaluation est sautée et la transmission est l'étape courante (D7).
-    expect(items[0]).toHaveTextContent("Skipped");
-    expect(items[1]).toHaveTextContent("Skipped");
+    // Sans matching, les étapes facultatives ne sont pas requises et la transmission est courante (D7).
+    expect(items[0]).toHaveTextContent("Not required");
+    expect(items[1]).toHaveTextContent("Not required");
     expect(items[2]).toHaveAttribute("aria-current", "step");
     expect(items[2]).toHaveTextContent("In progress");
   });
@@ -103,11 +103,11 @@ describe("ApplicationSteps", () => {
     expect(items[3]).toHaveTextContent("Final step");
   });
 
-  it("skips both AI steps and opens the summary when no match exists", () => {
+  it("marks both AI steps as not required and opens the summary when no match exists", () => {
     const items = itemsFor("matching", true, NOT_ASSESSED);
 
-    expect(items[1]).toHaveTextContent("Skipped");
-    expect(items[2]).toHaveTextContent("Skipped");
+    expect(items[1]).toHaveTextContent("Not required");
+    expect(items[2]).toHaveTextContent("Not required");
     expect(items[3]).toHaveAttribute("aria-current", "step");
     expect(items[3]).toHaveTextContent("In progress");
   });

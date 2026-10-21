@@ -18,6 +18,7 @@ export function buildClarification(overrides: Partial<MatchingClarification> = {
     id: "c1c1c1c1-1111-4111-8111-111111111111",
     question: "Have you used Kubernetes in production?",
     rationale: "Your profile does not mention Kubernetes, which this offer requires.",
+    questionNumber: 1,
     remainingQuestions: 2,
     ...overrides,
   };

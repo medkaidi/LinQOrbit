@@ -41,13 +41,20 @@ const FINISHED: Matching = buildMatching({
   feedback: [{ criterionKey: "language:english", selfValue: 90, comment: "C1 certificate in 2024" }],
 });
 
-function renderWith(matching: Matching) {
+function renderWith(matching: Matching, onDirtyChange?: (dirty: boolean) => void) {
   getMock.mockResolvedValue({ data: matching });
-  return renderWithQueryClient(<AssessmentReview publicId={PUBLIC_ID} />);
+  return renderWithQueryClient(
+    <AssessmentReview publicId={PUBLIC_ID} onDirtyChange={onDirtyChange} />,
+  );
 }
 
 const score = (label: string) => screen.getByRole("spinbutton", { name: `Your score for ${label}` });
 const comment = (label: string) => screen.getByRole("textbox", { name: `Comment on ${label}` });
+const addScore = (label: string) =>
+  fireEvent.click(screen.getByRole("button", { name: `Add your score for ${label}` }));
+const clearScore = (label: string) =>
+  fireEvent.click(screen.getByRole("button", { name: `Clear your score for ${label}` }));
+const saveButton = () => screen.getByRole("button", { name: "Save your view" });
 
 describe("AssessmentReview", () => {
   beforeEach(() => {
@@ -76,20 +83,40 @@ describe("AssessmentReview", () => {
     expect(screen.queryByRole("region", { name: "Your assessment" })).not.toBeInTheDocument();
   });
 
-  it("lists every criterion with its AI score and fields named after it, prefilled from the saved view", async () => {
+  it("lists every criterion with its AI score, keeps saved rows open and uncontested rows compact", async () => {
     renderWith(FINISHED);
 
     const review = await screen.findByRole("region", { name: "Your assessment" });
     const skills = within(review).getByRole("region", { name: "Your view on Required skills" });
     expect(within(skills).getByText("Java")).toBeInTheDocument();
-    expect(within(skills).getByText("80%")).toBeInTheDocument();
-    expect(score("Java")).toHaveValue(null);
-    expect(comment("Java")).toHaveValue("");
+    expect(within(skills).getByText("AI 80%")).toBeInTheDocument();
+    expect(within(skills).getByText("Kubernetes")).toBeInTheDocument();
+    expect(within(skills).getByText("AI 10%")).toBeInTheDocument();
+    expect(within(skills).getByText("2 criteria")).toBeInTheDocument();
+    expect(within(skills).getByRole("button", { name: "Add your score for Java" })).toBeInTheDocument();
+    expect(within(skills).queryByRole("spinbutton", { name: "Your score for Java" })).not.toBeInTheDocument();
+
+    // Les contestations enregistrées s'ouvrent préremplies.
     expect(score("English")).toHaveValue(90);
     expect(comment("English")).toHaveValue("C1 certificate in 2024");
     expect(comment("English")).toHaveAttribute("maxLength", "2000");
+    expect(within(review).getByText("You 90%")).toBeInTheDocument();
+
     // Ni poids, ni score de section, ni moyenne, ni justification.
     expect(screen.queryByText(/weight|average|rationale/i)).not.toBeInTheDocument();
+  });
+
+  it("offers a comment only after a score is set", async () => {
+    renderWith(FINISHED);
+    await screen.findByRole("region", { name: "Your assessment" });
+
+    addScore("Java");
+    expect(screen.queryByRole("textbox", { name: "Comment on Java" })).not.toBeInTheDocument();
+
+    fireEvent.change(score("Java"), { target: { value: "95" } });
+
+    expect(comment("Java")).toBeInTheDocument();
+    expect(screen.getByText("You 95%")).toBeInTheDocument();
   });
 
   it("sends the full list: new scores, kept ones, a cleared score removed, a blank comment as null", async () => {
@@ -105,11 +132,11 @@ describe("AssessmentReview", () => {
     });
     await screen.findByRole("region", { name: "Your assessment" });
 
+    addScore("Java");
     fireEvent.change(score("Java"), { target: { value: "95" } });
     fireEvent.change(comment("Java"), { target: { value: "  Java 21 daily  " } });
-    fireEvent.change(score("English"), { target: { value: "" } });
-    fireEvent.change(comment("English"), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    clearScore("English");
+    fireEvent.click(saveButton());
 
     await waitFor(() =>
       expect(putMock).toHaveBeenCalledWith(FEEDBACK_URL, {
@@ -126,9 +153,8 @@ describe("AssessmentReview", () => {
     renderWith(FINISHED);
     await screen.findByRole("region", { name: "Your assessment" });
 
-    fireEvent.change(score("English"), { target: { value: "" } });
-    fireEvent.change(comment("English"), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    clearScore("English");
+    fireEvent.click(saveButton());
 
     await waitFor(() => expect(putMock).toHaveBeenCalledWith(FEEDBACK_URL, { items: [] }));
   });
@@ -141,8 +167,9 @@ describe("AssessmentReview", () => {
     renderWith(FINISHED);
     await screen.findByRole("region", { name: "Your assessment" });
 
+    addScore("Java");
     fireEvent.change(score("Java"), { target: { value } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(saveButton());
 
     expect(await screen.findByText("Enter a whole number between 0 and 100")).toBeInTheDocument();
     expect(score("Java")).toHaveAttribute("aria-invalid", "true");
@@ -154,9 +181,11 @@ describe("AssessmentReview", () => {
     renderWith(FINISHED);
     await screen.findByRole("region", { name: "Your assessment" });
 
+    addScore("Java");
     fireEvent.change(score("Java"), { target: { value: "0" } });
+    addScore("Kubernetes");
     fireEvent.change(score("Kubernetes"), { target: { value: "100" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(saveButton());
 
     await waitFor(() => expect(putMock).toHaveBeenCalled());
     const body = putMock.mock.calls[0][1] as { items: { criterionKey: string; selfValue: number }[] };
@@ -167,18 +196,58 @@ describe("AssessmentReview", () => {
     ]);
   });
 
-  it("rejects a comment over 2000 characters and a comment without a score", async () => {
+  it("rejects a comment over 2000 characters", async () => {
     renderWith(FINISHED);
     await screen.findByRole("region", { name: "Your assessment" });
 
     fireEvent.change(score("English"), { target: { value: "85" } });
     fireEvent.change(comment("English"), { target: { value: "a".repeat(2001) } });
-    fireEvent.change(comment("Java"), { target: { value: "I use it daily" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(saveButton());
 
     expect(await screen.findByText("Comment must be 2000 characters or fewer")).toBeInTheDocument();
-    expect(screen.getByText("Enter your score to keep this comment")).toBeInTheDocument();
     expect(putMock).not.toHaveBeenCalled();
+  });
+
+  it("reports the dirty state, discards changes and collapses the row again", async () => {
+    const onDirtyChange = vi.fn();
+    renderWith(FINISHED, onDirtyChange);
+    await screen.findByRole("region", { name: "Your assessment" });
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+
+    addScore("Java");
+    fireEvent.change(score("Java"), { target: { value: "70" } });
+
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true));
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+    expect(screen.queryByRole("spinbutton", { name: "Your score for Java" })).not.toBeInTheDocument();
+    expect(saveButton()).toBeDisabled();
+  });
+
+  it("restores the saved score when the empty editor is cancelled", async () => {
+    const onDirtyChange = vi.fn();
+    renderWith(FINISHED, onDirtyChange);
+    await screen.findByRole("region", { name: "Your assessment" });
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+
+    fireEvent.change(score("English"), { target: { value: "" } });
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel editing your score for English" }),
+    );
+
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+    expect(screen.queryByRole("spinbutton", { name: "Your score for English" })).not.toBeInTheDocument();
+    expect(screen.getByText("You 90%")).toBeInTheDocument();
+    expect(saveButton()).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit your score for English" }));
+    expect(score("English")).toHaveValue(90);
+    expect(comment("English")).toHaveValue("C1 certificate in 2024");
   });
 
   it("keeps Save disabled until something changes, busy while saving, then confirms", async () => {
@@ -187,15 +256,16 @@ describe("AssessmentReview", () => {
     renderWith(FINISHED);
     await screen.findByRole("region", { name: "Your assessment" });
 
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(saveButton()).toBeDisabled();
+    addScore("Java");
     fireEvent.change(score("Java"), { target: { value: "70" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(saveButton());
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toHaveAttribute("aria-busy", "true"));
+    await waitFor(() => expect(saveButton()).toHaveAttribute("aria-busy", "true"));
     resolve({ data: { items: [{ criterionKey: "skill:java", selfValue: 70, comment: null }] } });
 
     expect(await screen.findByText("Assessment saved")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(saveButton()).toBeDisabled();
     expect(score("Java")).toHaveValue(70);
   });
 
@@ -204,8 +274,9 @@ describe("AssessmentReview", () => {
     renderWith(FINISHED);
     await screen.findByRole("region", { name: "Your assessment" });
 
+    addScore("Java");
     fireEvent.change(score("Java"), { target: { value: "70" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(saveButton());
 
     expect(await screen.findByText("Could not save your assessment")).toBeInTheDocument();
     expect(screen.getByText("Your application has already been submitted.")).toBeInTheDocument();

@@ -53,8 +53,24 @@ describe("ClarificationPanel", () => {
 
     const panel = screen.getByRole("region", { name: "AI clarification" });
     expect(within(panel).getByText(CLARIFICATION.question)).toBeInTheDocument();
-    expect(within(panel).getByText(CLARIFICATION.rationale)).toBeInTheDocument();
+    expect(within(panel).getByText(CLARIFICATION.rationale!)).toBeInTheDocument();
+    expect(within(panel).getByText("Question 1")).toBeInTheDocument();
     expect(within(panel).getByText("Up to 2 more questions")).toBeInTheDocument();
+  });
+
+  it("shows the question rank and omits the rationale callout when the AI supplied none", () => {
+    renderWithQueryClient(
+      <ClarificationPanel
+        publicId={PUBLIC_ID}
+        matching={buildMatching({
+          status: "done",
+          clarification: buildClarification({ questionNumber: 3, rationale: null }),
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Question 3")).toBeInTheDocument();
+    expect(screen.queryByText("Why this question")).not.toBeInTheDocument();
   });
 
   it("words the counter for the last and the penultimate question", () => {
@@ -72,26 +88,26 @@ describe("ClarificationPanel", () => {
     renderAsked();
 
     typeAnswer("  Yes, two years on GKE.  ");
-    fireEvent.click(screen.getByRole("button", { name: "Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send answer" }));
 
     await waitFor(() =>
       expect(answerMock).toHaveBeenCalledWith(PUBLIC_ID, CLARIFICATION.id, "Yes, two years on GKE."),
     );
-    expect(screen.getByRole("button", { name: "Answer" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("button", { name: "Send answer" })).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("button", { name: "Pass this question" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Finish the assessment" })).toBeDisabled();
     resolve(buildMatching());
-    await waitFor(() => expect(screen.getByRole("button", { name: "Answer" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send answer" })).toBeEnabled());
   });
 
   it("blocks an empty or blank answer without calling the server", () => {
     renderAsked();
 
-    fireEvent.click(screen.getByRole("button", { name: "Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send answer" }));
     expect(screen.getByText("Write an answer, or pass this question.")).toBeInTheDocument();
 
     typeAnswer("    ");
-    fireEvent.click(screen.getByRole("button", { name: "Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send answer" }));
 
     expect(screen.getByRole("textbox", { name: "Your answer" })).toHaveAttribute("aria-invalid", "true");
     expect(answerMock).not.toHaveBeenCalled();
@@ -138,7 +154,7 @@ describe("ClarificationPanel", () => {
     renderAsked();
 
     typeAnswer("Yes");
-    fireEvent.click(screen.getByRole("button", { name: "Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send answer" }));
 
     expect(await screen.findByText("Could not send your answer")).toBeInTheDocument();
     expect(screen.getByText("This question is already closed.")).toBeInTheDocument();
@@ -166,7 +182,7 @@ describe("ClarificationPanel", () => {
     );
 
     expect(screen.getByText("Assessment complete")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Answer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send answer" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Finish the assessment" })).not.toBeInTheDocument();
   });
 
@@ -177,7 +193,7 @@ describe("ClarificationPanel", () => {
     expect(screen.getByText("No AI question is waiting for you.")).toBeInTheDocument();
     expect(screen.queryByText(/Preparing/)).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Answer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send answer" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Finish the assessment" }));
     fireEvent.click(within(screen.getByRole("dialog", { name: "Finish the assessment?" })).getByRole("button", { name: "Cancel" }));

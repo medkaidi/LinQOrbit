@@ -1,15 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
 import { Alert } from "@/components/ui/alert";
 import { CtaButton } from "@/components/ui/button";
 import { useValidateProfile } from "@/hooks/use-candidate-profile";
 import { useCandidateNormalizationStream } from "@/hooks/use-normalization-stream";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import type { CandidateProfile } from "@/types/candidate";
-
-const SUCCESS_DISMISS_MS = 4_000;
 
 const DIRTY_MESSAGE =
   "You've made changes to your professional profile. Validate your profile to refresh its analysis and improve job match results.";
@@ -63,35 +59,19 @@ function pendingState(profile: CandidateProfile): PendingState | null {
  * générique — le détail reste dans les logs backend/IA), si la fiche de
  * référence est sur une version de schéma périmée (D63, « Validate again »
  * même sans modification), ou si une analyse est en cours (signal GET,
- * survit à la navigation). Priorité : confirmation temporaire 4 s > analyse
- * en cours > échec > analyse obsolète > changements en attente. Pendant
- * l'analyse, le flux SSE de normalisation (D64) relit le profil à chaque
- * transition : le bandeau passe seul d'« Analyzing… » à l'état suivant.
+ * survit à la navigation). Priorité : analyse en cours > échec > analyse
+ * obsolète > changements en attente. La validation n'affiche pas de
+ * confirmation verte : elle ne fait que lancer l'analyse, dont l'état est
+ * déjà porté par « Analysis in progress ». Pendant l'analyse, le flux SSE de
+ * normalisation (D64) relit le profil à chaque transition : le bandeau passe
+ * seul d'« Analyzing… » à l'état suivant.
  */
 export function ValidateProfileBanner({ profile }: { profile: CandidateProfile }) {
   const validate = useValidateProfile();
-  const [validated, setValidated] = useState(false);
   useCandidateNormalizationStream(profile.normalizationInProgress);
-  const dismissTimer = useRef<number | undefined>(undefined);
-
-  useEffect(() => () => window.clearTimeout(dismissTimer.current), []);
 
   function onValidate() {
-    validate.mutate(undefined, {
-      onSuccess: () => {
-        setValidated(true);
-        window.clearTimeout(dismissTimer.current);
-        dismissTimer.current = window.setTimeout(() => setValidated(false), SUCCESS_DISMISS_MS);
-      },
-    });
-  }
-
-  if (validated) {
-    return (
-      <Alert variant="success" title="Profile validated">
-        Your analysis is being refreshed in the background.
-      </Alert>
-    );
+    validate.mutate();
   }
 
   if (profile.normalizationInProgress) {

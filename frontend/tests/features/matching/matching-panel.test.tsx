@@ -60,7 +60,9 @@ describe("MatchingPanel", () => {
 
     renderWithQueryClient(<MatchingPanel publicId={PUBLIC_ID} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Run the match" }));
+    const runButton = await screen.findByRole("button", { name: "Run the match" });
+    expect(runButton).toHaveClass("text-blue-deep");
+    fireEvent.click(runButton);
 
     await waitFor(() => expect(startMock).toHaveBeenCalledWith(PUBLIC_ID));
     expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
@@ -117,7 +119,9 @@ describe("MatchingPanel", () => {
     renderWithQueryClient(<MatchingPanel publicId={PUBLIC_ID} />);
 
     expect(await screen.findByText("The analysis failed")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Run the match again" }));
+    const retryButton = screen.getByRole("button", { name: "Run the match again" });
+    expect(retryButton).toHaveClass("text-blue-deep");
+    fireEvent.click(retryButton);
 
     await waitFor(() => expect(startMock).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();

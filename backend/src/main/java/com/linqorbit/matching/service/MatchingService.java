@@ -81,7 +81,7 @@ public class MatchingService {
     static final String CLOSED = "The match is closed once your application is submitted.";
     static final String PROFILE_MISSING = "Validate your profile before running the match.";
     static final String PROFILE_OUTDATED = "Your profile analysis is outdated. Validate your profile again.";
-    static final String OFFER_NOT_READY = "This offer cannot be evaluated yet.";
+    static final String OFFER_NOT_READY = "This offer isn't ready for matching yet. Please try again later.";
     static final String QUESTION_NOT_FOUND = "This question does not exist.";
     static final String QUESTION_CLOSED = "This question has already been closed.";
     static final String ANALYSIS_RUNNING = "Your match is being updated. Try again once the analysis is over.";
@@ -495,9 +495,12 @@ public class MatchingService {
         });
         MatchingClarificationView clarification = clarificationRepository
                 .findByMatchingIdAndStatus(matching.getId(), ClarificationStatus.OPEN)
-                .map(open -> new MatchingClarificationView(open.getId(), open.getQuestion(), open.getRationale(),
-                        Math.max(offer.getMaxClarificationQuestions()
-                                - (int) clarificationRepository.countByMatchingId(matching.getId()), 0)))
+                .map(open -> {
+                    // La question ouverte est déjà en base : le compte l'inclut, donc son rang est ce compte.
+                    int asked = (int) clarificationRepository.countByMatchingId(matching.getId());
+                    return new MatchingClarificationView(open.getId(), open.getQuestion(), open.getRationale(),
+                            asked, Math.max(offer.getMaxClarificationQuestions() - asked, 0));
+                })
                 .orElse(null);
         List<MatchingFeedbackView> feedback = finished.map(result -> feedbackViews(result.getId())).orElse(List.of());
         return new MatchingResponse(matching.getId(), job.getStatus().getApiValue(), sections,

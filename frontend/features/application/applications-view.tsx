@@ -133,7 +133,7 @@ function ApplicationCard({
           {showAnswers ? (
             <dl
               id={answersPanelId}
-              className="mt-3 flex flex-col gap-2 rounded-lg border border-slate-border bg-item-surface/50 p-4"
+              className="mt-3 flex flex-col gap-2 rounded-2xl border border-slate-border bg-item-surface/50 p-4"
             >
               {application.answers.map((answer) => (
                 <div key={answer.questionId}>

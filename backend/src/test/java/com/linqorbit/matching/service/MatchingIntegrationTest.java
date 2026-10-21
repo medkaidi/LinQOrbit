@@ -358,6 +358,7 @@ class MatchingIntegrationTest {
                 .andExpect(jsonPath("$.assessmentFinished").value(false))
                 .andExpect(jsonPath("$.clarification.question").value("Which Kubernetes version?"))
                 .andExpect(jsonPath("$.clarification.rationale").value("The offer needs Kubernetes."))
+                .andExpect(jsonPath("$.clarification.questionNumber").value(1))
                 .andExpect(jsonPath("$.clarification.remainingQuestions").value(2))
                 .andExpect(jsonPath("$.sections[0].score").doesNotExist())
                 .andExpect(jsonPath("$.sections[0].criteria[0].weight").doesNotExist())
@@ -443,6 +444,8 @@ class MatchingIntegrationTest {
         });
         current(scenario.candidateJwt(), scenario.publicId())
                 .andExpect(jsonPath("$.clarification.question").value("Q2?"))
+                // Les passages comptent : la question ouverte est la 2e déjà posée.
+                .andExpect(jsonPath("$.clarification.questionNumber").value(2))
                 .andExpect(jsonPath("$.clarification.remainingQuestions").value(0));
 
         // Plafond atteint (2 questions posées) : la réévaluation clôt sans appeler l'agent clarify.

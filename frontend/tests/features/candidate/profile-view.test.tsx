@@ -21,6 +21,10 @@ vi.mock("@/lib/api/auth.api", async (importOriginal) => {
   return { ...actual, me: vi.fn() };
 });
 
+vi.mock("@/hooks/use-normalization-stream", () => ({
+  useCandidateNormalizationStream: vi.fn(),
+}));
+
 import {
   getProfile,
   getReferenceDegrees,
@@ -283,16 +287,19 @@ describe("ProfileView", () => {
     expect(screen.getByRole("link", { name: "Add skills" })).toHaveAttribute("href", "/profile/edit");
   });
 
-  it("validates the profile from the banner, then refreshes it", async () => {
-    mockedGetProfile.mockResolvedValueOnce({ ...filledProfile, hasUnvalidatedChanges: true });
+  it("validates the profile from the banner, then shows the analysis directly", async () => {
+    mockedGetProfile
+      .mockResolvedValueOnce({ ...filledProfile, hasUnvalidatedChanges: true })
+      .mockResolvedValueOnce({ ...filledProfile, normalizationInProgress: true });
     renderProfile();
 
     fireEvent.click(await screen.findByRole("button", { name: /validate profile/i }));
 
     await waitFor(() => expect(mockedValidateProfile).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText("Profile validated")).toBeInTheDocument();
-    // L'invalidation re-fetch le profil : le drapeau retombe à false.
+    // L'invalidation re-fetch le profil : l'analyse en cours remplace le bandeau de changements.
     await waitFor(() => expect(mockedGetProfile).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+    expect(screen.queryByText("Profile validated")).not.toBeInTheDocument();
     expect(screen.queryByText("Profile changes pending")).not.toBeInTheDocument();
   });
 

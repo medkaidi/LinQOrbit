@@ -51,11 +51,16 @@ function renderBanner(profile: CandidateProfile) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const tree = (nextProfile: CandidateProfile) => (
     <QueryClientProvider client={queryClient}>
-      <ValidateProfileBanner profile={profile} />
-    </QueryClientProvider>,
+      <ValidateProfileBanner profile={nextProfile} />
+    </QueryClientProvider>
   );
+  const view = render(tree(profile));
+  return {
+    ...view,
+    rerenderProfile: (nextProfile: CandidateProfile) => view.rerender(tree(nextProfile)),
+  };
 }
 
 describe("ValidateProfileBanner", () => {
@@ -95,16 +100,20 @@ describe("ValidateProfileBanner", () => {
     expect(button).toBeDisabled();
 
     resolveValidation();
-    expect(await screen.findByText("Profile validated")).toBeInTheDocument();
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(screen.queryByText("Profile validated")).not.toBeInTheDocument();
   });
 
-  it("posts the validation and confirms once it succeeds", async () => {
-    renderBanner(buildProfile(true));
+  it("posts the validation and switches to the analyzing state without a green confirmation", async () => {
+    const view = renderBanner(buildProfile(true));
 
     fireEvent.click(await screen.findByRole("button", { name: /validate profile/i }));
 
     await waitFor(() => expect(mockedValidateProfile).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText("Profile validated")).toBeInTheDocument();
+    view.rerenderProfile(buildProfile(false, false, true));
+
+    expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+    expect(screen.queryByText("Profile validated")).not.toBeInTheDocument();
     expect(screen.queryByText("Profile changes pending")).not.toBeInTheDocument();
   });
 
@@ -131,12 +140,16 @@ describe("ValidateProfileBanner", () => {
   });
 
   it("retries the validation straight from the failure banner", async () => {
-    renderBanner(buildProfile(false, true));
+    const view = renderBanner(buildProfile(false, true));
 
     fireEvent.click(await screen.findByRole("button", { name: /validate again/i }));
 
     await waitFor(() => expect(mockedValidateProfile).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText("Profile validated")).toBeInTheDocument();
+    view.rerenderProfile(buildProfile(false, false, true));
+
+    expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+    expect(screen.queryByText("Profile validated")).not.toBeInTheDocument();
+    expect(screen.queryByText("Last validation attempt failed")).not.toBeInTheDocument();
   });
 
   it("prefers the failure notice over the pending-changes notice when both apply", async () => {
@@ -205,12 +218,15 @@ describe("ValidateProfileBanner", () => {
   });
 
   it("revalidates an outdated analysis straight from the banner", async () => {
-    renderBanner(buildProfile(false, false, false, true));
+    const view = renderBanner(buildProfile(false, false, false, true));
 
     fireEvent.click(await screen.findByRole("button", { name: /validate again/i }));
 
     await waitFor(() => expect(mockedValidateProfile).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText("Profile validated")).toBeInTheDocument();
+    view.rerenderProfile(buildProfile(false, false, true));
+
+    expect(await screen.findByText("Analysis in progress")).toBeInTheDocument();
+    expect(screen.queryByText("Profile validated")).not.toBeInTheDocument();
     expect(screen.queryByText("Profile analysis outdated")).not.toBeInTheDocument();
   });
 

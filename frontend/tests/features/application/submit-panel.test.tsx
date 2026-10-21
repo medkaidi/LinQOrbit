@@ -101,6 +101,23 @@ describe("SubmitPanel", () => {
     expect(screen.getByRole("button", { name: "Submit application" })).toBeDisabled();
   });
 
+  it("blocks submission while the assessment review has unsaved changes", async () => {
+    renderWithQueryClient(
+      <SubmitPanel
+        context={draftContext()}
+        applicationId={APPLICATION_ID}
+        ensureDraft={ensureDraftMock}
+        assessmentDirty
+      />,
+    );
+
+    expect(await screen.findByText("Unsaved assessment changes")).toBeInTheDocument();
+    expect(screen.getByText(/Save or discard your changes/)).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Submit application" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-describedby", "assessment-dirty-message");
+  });
+
   it("shows the server detail when the submission is rejected", async () => {
     submitMock.mockRejectedValue(
       Object.assign(new Error("closed"), {

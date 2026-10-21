@@ -6,7 +6,14 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, CtaButton } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ITEM_CARD_CLASS, MUTED_TEXT_CLASS } from "@/components/ui/section";
+import { Icon } from "@/components/ui/icon";
+import { IconBadge } from "@/components/ui/icon-badge";
+import {
+  MUTED_TEXT_CLASS,
+  SECTION_CARD_CLASS,
+  SECTION_HEADER_CLASS,
+  SECTION_TITLE_CLASS,
+} from "@/components/ui/section";
 import { Textarea } from "@/components/ui/textarea";
 import { useAnswerClarification, useFinishAssessment, useSkipClarification } from "@/hooks/use-matching";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
@@ -56,88 +63,113 @@ function ClarificationQuestion({
   };
 
   const handleSkip = () => {
+    setEmptyError(false);
     resetErrors();
     skip.mutate(clarification.id);
   };
 
   return (
-    <section aria-label="AI clarification" className={`${ITEM_CARD_CLASS} flex flex-col gap-4`}>
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
-          AI clarification
-        </h3>
-        <Badge tone="accent">{remainingLabel(clarification.remainingQuestions)}</Badge>
-      </div>
-      <p className="text-body-md font-body-md font-semibold text-text-primary break-words">
-        {clarification.question}
-      </p>
-      <p className={`${MUTED_TEXT_CLASS} break-words`}>
-        <span className="font-semibold">Why we ask: </span>
-        {clarification.rationale}
-      </p>
-
-      <form onSubmit={handleAnswer} noValidate className="flex flex-col gap-4">
-        <Textarea
-          label="Your answer"
-          aria-required
-          maxLength={CLARIFICATION_ANSWER_MAX}
-          readOnly={busy}
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value);
-            setEmptyError(false);
-          }}
-          error={emptyError ? "Write an answer, or pass this question." : undefined}
-          labelAction={
-            <span className={MUTED_TEXT_CLASS}>
-              {text.length} / {CLARIFICATION_ANSWER_MAX}
-            </span>
-          }
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <CtaButton type="submit" icon="send" busy={answer.isPending} disabled={busy}>
-            Answer
-          </CtaButton>
-          <Button variant="outline-sm" type="button" busy={skip.isPending} disabled={busy} onClick={handleSkip}>
-            Pass this question
-          </Button>
-          <Button
-            variant="outline-sm"
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              resetErrors();
-              setConfirmFinish(true);
-            }}
-          >
-            Finish the assessment
-          </Button>
+    <section aria-label="AI clarification" className={SECTION_CARD_CLASS}>
+      <header className={SECTION_HEADER_CLASS}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <IconBadge icon="psychology" />
+          <h2 className={SECTION_TITLE_CLASS}>AI clarification</h2>
         </div>
-      </form>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Badge tone="accent">Question {clarification.questionNumber}</Badge>
+          <Badge tone="outline">{remainingLabel(clarification.remainingQuestions)}</Badge>
+        </div>
+      </header>
 
-      {answer.error ? (
-        <Alert variant="error" title="Could not send your answer">
-          {getApiErrorMessage(answer.error)}
-        </Alert>
-      ) : null}
-      {skip.error ? (
-        <Alert variant="error" title="Could not pass this question">
-          {getApiErrorMessage(skip.error)}
-        </Alert>
-      ) : null}
-      {finish.error ? (
-        <Alert variant="error" title="Could not finish the assessment">
-          {getApiErrorMessage(finish.error)}
-        </Alert>
-      ) : null}
+      <div className="px-6 pt-5 pb-6 flex flex-col gap-5">
+        <div className="rounded-2xl border border-orange-border bg-orange-subtle/60 p-5 flex flex-col gap-2">
+          <p className="font-label-caps text-label-caps uppercase tracking-wider text-orange-deep">
+            Question from the AI
+          </p>
+          <p className="text-body-lg font-body-lg font-semibold text-text-primary leading-snug break-words">
+            {clarification.question}
+          </p>
+        </div>
 
-      {confirmFinish ? (
-        <FinishAssessmentDialog
-          busy={finish.isPending}
-          onCancel={() => setConfirmFinish(false)}
-          onConfirm={() => finish.mutate(undefined, { onSettled: () => setConfirmFinish(false) })}
-        />
-      ) : null}
+        {clarification.rationale ? (
+          <div className="rounded-2xl border border-blue-border bg-blue-surface/60 p-4 flex items-start gap-3">
+            <Icon name="info" className="text-blue-deep text-[20px] shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="font-label-caps text-label-caps uppercase tracking-wider text-blue-deep">
+                Why this question
+              </p>
+              <p className={`${MUTED_TEXT_CLASS} break-words mt-1`}>{clarification.rationale}</p>
+            </div>
+          </div>
+        ) : null}
+
+        <form onSubmit={handleAnswer} noValidate className="flex flex-col gap-3">
+          <Textarea
+            label="Your answer"
+            aria-required
+            maxLength={CLARIFICATION_ANSWER_MAX}
+            readOnly={busy}
+            value={text}
+            onChange={(event) => {
+              setText(event.target.value);
+              setEmptyError(false);
+            }}
+            error={emptyError ? "Write an answer, or pass this question." : undefined}
+            labelAction={
+              <span className={MUTED_TEXT_CLASS}>
+                {text.length} / {CLARIFICATION_ANSWER_MAX}
+              </span>
+            }
+          />
+          <p className={MUTED_TEXT_CLASS}>
+            Passing a question skips it but still counts toward the AI question limit.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <CtaButton type="submit" icon="send" busy={answer.isPending} disabled={busy}>
+              Send answer
+            </CtaButton>
+            <Button variant="outline-sm" type="button" busy={skip.isPending} disabled={busy} onClick={handleSkip}>
+              Pass this question
+            </Button>
+            <Button
+              variant="outline-sm"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setEmptyError(false);
+                resetErrors();
+                setConfirmFinish(true);
+              }}
+            >
+              Finish the assessment
+            </Button>
+          </div>
+        </form>
+
+        {answer.error ? (
+          <Alert variant="error" title="Could not send your answer">
+            {getApiErrorMessage(answer.error)}
+          </Alert>
+        ) : null}
+        {skip.error ? (
+          <Alert variant="error" title="Could not pass this question">
+            {getApiErrorMessage(skip.error)}
+          </Alert>
+        ) : null}
+        {finish.error ? (
+          <Alert variant="error" title="Could not finish the assessment">
+            {getApiErrorMessage(finish.error)}
+          </Alert>
+        ) : null}
+
+        {confirmFinish ? (
+          <FinishAssessmentDialog
+            busy={finish.isPending}
+            onCancel={() => setConfirmFinish(false)}
+            onConfirm={() => finish.mutate(undefined, { onSettled: () => setConfirmFinish(false) })}
+          />
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -177,41 +209,49 @@ function NoOpenQuestion({ publicId }: { publicId: string }) {
   const [confirmFinish, setConfirmFinish] = useState(false);
 
   return (
-    <div className="flex flex-col items-start gap-3">
-      <p className={MUTED_TEXT_CLASS}>No AI question is waiting for you.</p>
-      <Button
-        variant="outline-sm"
-        type="button"
-        disabled={finish.isPending}
-        onClick={() => {
-          finish.reset();
-          setConfirmFinish(true);
-        }}
-      >
-        Finish the assessment
-      </Button>
-      {finish.error ? (
-        <Alert variant="error" title="Could not finish the assessment">
-          {getApiErrorMessage(finish.error)}
-        </Alert>
-      ) : null}
-      {confirmFinish ? (
-        <FinishAssessmentDialog
-          busy={finish.isPending}
-          onCancel={() => setConfirmFinish(false)}
-          onConfirm={() => finish.mutate(undefined, { onSettled: () => setConfirmFinish(false) })}
-        />
-      ) : null}
-    </div>
+    <section aria-label="AI clarification" className={SECTION_CARD_CLASS}>
+      <header className={SECTION_HEADER_CLASS}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <IconBadge icon="psychology" />
+          <h2 className={SECTION_TITLE_CLASS}>AI clarification</h2>
+        </div>
+      </header>
+      <div className="px-6 pt-5 pb-6 flex flex-col items-start gap-3">
+        <p className={MUTED_TEXT_CLASS}>No AI question is waiting for you.</p>
+        <Button
+          variant="outline-sm"
+          type="button"
+          disabled={finish.isPending}
+          onClick={() => {
+            finish.reset();
+            setConfirmFinish(true);
+          }}
+        >
+          Finish the assessment
+        </Button>
+        {finish.error ? (
+          <Alert variant="error" title="Could not finish the assessment">
+            {getApiErrorMessage(finish.error)}
+          </Alert>
+        ) : null}
+        {confirmFinish ? (
+          <FinishAssessmentDialog
+            busy={finish.isPending}
+            onCancel={() => setConfirmFinish(false)}
+            onConfirm={() => finish.mutate(undefined, { onSettled: () => setConfirmFinish(false) })}
+          />
+        ) : null}
+      </div>
+    </section>
   );
 }
 
 /**
  * Clarifications IA d'un matching terminé (T-62) : la question ouverte et la
- * raison pour laquelle elle est posée, le plafond restant, puis Answer / Pass /
- * Finish (confirmé — l'évaluation se clôt pour de bon). Une réponse ou un
- * passage relance l'analyse, suivie par le panneau du matching (SSE). Jamais
- * la justification de l'évaluation.
+ * raison pour laquelle elle est posée, le rang et le plafond restant, puis
+ * Answer / Pass / Finish (confirmé — l'évaluation se clôt pour de bon). Une
+ * réponse ou un passage relance l'analyse, suivie par le panneau du matching
+ * (SSE). Jamais la justification de l'évaluation.
  */
 export function ClarificationPanel({ publicId, matching }: { publicId: string; matching: Matching }) {
   if (matching.assessmentFinished) {

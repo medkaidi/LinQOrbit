@@ -140,14 +140,29 @@ describe("ApplyView", () => {
 
     expect(await screen.findByRole("region", { name: "Your match" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Submit your application" })).toBeInTheDocument();
-    // Sans matching, l'évaluation est sautée et le résumé est l'étape courante (D7).
+    // Sans matching, les étapes facultatives ne sont pas requises et le résumé est courant (D7).
     expect(currentStep()).toHaveTextContent("Summary & apply");
     const steps = within(screen.getByRole("region", { name: "Application progress" })).getAllByRole("listitem");
-    expect(steps[1]).toHaveTextContent("Skipped");
-    expect(steps[2]).toHaveTextContent("Skipped");
+    expect(steps[1]).toHaveTextContent("Not required");
+    expect(steps[2]).toHaveTextContent("Not required");
     const recap = screen.getByRole("region", { name: "Your answers" });
     expect(within(recap).getByText("I love APIs")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Recruiter questions" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the 7/5 desktop grid but puts the match before the content on mobile", async () => {
+    getContextMock.mockResolvedValue(matchingContext());
+
+    renderWithQueryClient(<ApplyView jobParam={JOB_PARAM} />);
+
+    const match = await screen.findByRole("region", { name: "Your match" });
+    const matchColumn = match.parentElement;
+    const grid = matchColumn?.parentElement;
+    const submit = screen.getByRole("region", { name: "Submit your application" });
+
+    expect(grid).toHaveClass("lg:grid-cols-12");
+    expect(matchColumn).toHaveClass("order-1", "lg:order-2", "lg:col-span-5");
+    expect(submit.parentElement).toHaveClass("order-2", "lg:order-1", "lg:col-span-7");
   });
 
   it("opens on the summary with three steps when the offer has no question and no match", async () => {
@@ -287,7 +302,8 @@ describe("ApplyView", () => {
     renderWithQueryClient(<ApplyView jobParam={JOB_PARAM} />);
 
     const review = await screen.findByRole("region", { name: "Your assessment" });
-    expect(within(review).getByRole("spinbutton", { name: "Your score for Java" })).toBeInTheDocument();
+    expect(within(review).getByRole("button", { name: "Add your score for Java" })).toBeInTheDocument();
+    expect(within(review).queryByRole("spinbutton", { name: "Your score for Java" })).not.toBeInTheDocument();
     expect(currentStep()).toHaveTextContent("Candidate review");
     // Revue avant transmission : la carte précède le panneau d'envoi.
     expect(
@@ -296,13 +312,50 @@ describe("ApplyView", () => {
     ).toBeTruthy();
   });
 
+  it("blocks submission while the assessment has unsaved changes and unlocks after discard", async () => {
+    getContextMock.mockResolvedValue(matchingContext(FINISHED));
+    getMatchingMock.mockResolvedValue(
+      buildMatching({
+        status: "done",
+        assessmentFinished: true,
+        sections: [{ section: "required_skills", criteria: [{ key: "skill:java", label: "Java", score: 80 }] }],
+      }),
+    );
+
+    renderWithQueryClient(<ApplyView jobParam={JOB_PARAM} />);
+
+    const review = await screen.findByRole("region", { name: "Your assessment" });
+    const submit = screen.getByRole("button", { name: "Submit application" });
+    await waitFor(() => expect(submit).toBeEnabled());
+
+    fireEvent.click(within(review).getByRole("button", { name: "Add your score for Java" }));
+    fireEvent.change(within(review).getByRole("spinbutton", { name: "Your score for Java" }), {
+      target: { value: "70" },
+    });
+
+    expect(await screen.findByText("Unsaved assessment changes")).toBeInTheDocument();
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-describedby", "assessment-dirty-message");
+
+    fireEvent.click(within(review).getByRole("button", { name: "Discard changes" }));
+
+    await waitFor(() => expect(screen.queryByText("Unsaved assessment changes")).not.toBeInTheDocument());
+    expect(submit).toBeEnabled();
+  });
+
   it("hides the candidate review and the submission while the assessment is still open", async () => {
     getContextMock.mockResolvedValue(matchingContext(OPEN));
     getMatchingMock.mockResolvedValue(
       buildMatching({
         status: "done",
         sections: [{ section: "required_skills", criteria: [{ key: "skill:java", label: "Java", score: 80 }] }],
-        clarification: { id: "c-1", question: "Used Java 21?", rationale: "Recent versions matter.", remainingQuestions: 1 },
+        clarification: buildClarification({
+          id: "c-1",
+          question: "Used Java 21?",
+          rationale: "Recent versions matter.",
+          questionNumber: 2,
+          remainingQuestions: 1,
+        }),
       }),
     );
 

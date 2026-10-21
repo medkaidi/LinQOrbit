@@ -106,6 +106,8 @@ function ApplicationJourney({ publicId, jobParam }: { publicId: string; jobParam
   const saveDraft = useSaveApplicationDraft();
   // Retour volontaire à l'étape des questions depuis l'étape matching (état d'affichage seul).
   const [editingAnswers, setEditingAnswers] = useState(false);
+  // Revue candidat modifiée non sauvegardée : garde-fou de la transmission (jamais un état serveur).
+  const [reviewDirty, setReviewDirty] = useState(false);
   // Création du brouillon en vol : « Run the match » puis « Submit » enchaînés n'en créent qu'un.
   const pendingDraft = useRef<Promise<string> | null>(null);
 
@@ -154,22 +156,30 @@ function ApplicationJourney({ publicId, jobParam }: { publicId: string; jobParam
 
       {data.step === "matching" && !showQuestions ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-7 flex flex-col gap-6">
+          {/* Mobile : le matching passe avant le contenu principal ; desktop : rail 7/5. */}
+          <div className="order-2 lg:order-1 lg:col-span-7 min-w-0 flex flex-col gap-6">
             {data.assessment.assessmentOpen ? (
               // Évaluation ouverte : chargement ou clarification au centre, transmission masquée (D6).
               <AssessmentFocus publicId={publicId} />
             ) : (
               <>
                 {/* Revue candidat (T-63) : seulement une fois l'évaluation close. Sans matching, elle est sautée. */}
-                {data.assessment.matched ? <AssessmentReview publicId={publicId} /> : null}
-                <SubmitPanel context={data} applicationId={draft?.id ?? null} ensureDraft={ensureDraft} />
+                {data.assessment.matched ? (
+                  <AssessmentReview publicId={publicId} onDirtyChange={setReviewDirty} />
+                ) : null}
+                <SubmitPanel
+                  context={data}
+                  applicationId={draft?.id ?? null}
+                  ensureDraft={ensureDraft}
+                  assessmentDirty={reviewDirty}
+                />
                 {hasRecruiterQuestions ? (
                   <AnswersRecap context={data} onEdit={() => setEditingAnswers(true)} />
                 ) : null}
               </>
             )}
           </div>
-          <div className="lg:col-span-5 lg:sticky lg:top-24">
+          <div className="order-1 lg:order-2 lg:col-span-5 lg:sticky lg:top-24 min-w-0">
             <MatchingPanel
               publicId={publicId}
               prepare={draft ? undefined : ensureDraft}

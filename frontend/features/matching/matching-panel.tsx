@@ -118,7 +118,13 @@ export function MatchingPanel({
               Compare your professional profile with this offer, criterion by criterion. This step is
               optional and does not send your application.
             </p>
-            <CtaButton type="button" icon="insights" busy={start.isPending} onClick={run}>
+            <CtaButton
+              type="button"
+              icon="insights"
+              tone="secondary"
+              busy={start.isPending}
+              onClick={run}
+            >
               Run the match
             </CtaButton>
           </div>
@@ -148,7 +154,13 @@ export function MatchingPanel({
             <Alert variant="error" title="The analysis failed">
               Your match could not be computed. You can run it again.
             </Alert>
-            <CtaButton type="button" icon="refresh" busy={start.isPending} onClick={run}>
+            <CtaButton
+              type="button"
+              icon="refresh"
+              tone="secondary"
+              busy={start.isPending}
+              onClick={run}
+            >
               Run the match again
             </CtaButton>
           </div>

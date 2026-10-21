@@ -30,13 +30,15 @@ export type MatchingStatusEvent = {
 /**
  * Question de clarification IA **ouverte** (T-62) : une seule à la fois.
  * `rationale` dit au candidat pourquoi la question est posée (texte candidat,
- * jamais la justification de l'évaluation) ; `remainingQuestions` = questions
- * qui pourront encore être posées **après** celle-ci (0 = dernière).
+ * jamais la justification de l'évaluation) ; `questionNumber` est le rang
+ * 1-based des questions déjà posées (passages inclus) ; `remainingQuestions`
+ * = questions qui pourront encore être posées **après** celle-ci (0 = dernière).
  */
 export type MatchingClarification = {
   id: string;
   question: string;
-  rationale: string;
+  rationale: string | null;
+  questionNumber: number;
   remainingQuestions: number;
 };
 

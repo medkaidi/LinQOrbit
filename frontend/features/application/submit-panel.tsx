@@ -30,12 +30,15 @@ export function SubmitPanel({
   context,
   applicationId,
   ensureDraft,
+  assessmentDirty = false,
 }: {
   context: ApplicationContext;
   /** Brouillon du couple ; null pour une offre sans question tant qu'aucun geste ne l'a créé. */
   applicationId: string | null;
   /** Crée le brouillon au besoin et renvoie son id. */
   ensureDraft: () => Promise<string>;
+  /** Revue candidat modifiée mais non sauvegardée : la transmission reste bloquée. */
+  assessmentDirty?: boolean;
 }) {
   const router = useRouter();
   const publicId = context.job.publicId;
@@ -115,12 +118,21 @@ export function SubmitPanel({
           </div>
         ) : null}
 
+        {assessmentDirty ? (
+          <div id="assessment-dirty-message">
+            <Alert variant="info" title="Unsaved assessment changes">
+              Save or discard your changes in “Your assessment” before submitting.
+            </Alert>
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center gap-3">
           <CtaButton
             type="button"
             icon="send"
             busy={submit.isPending}
-            disabled={cvs.isLoading || !hasCvs || discard.isPending}
+            disabled={cvs.isLoading || !hasCvs || discard.isPending || assessmentDirty}
+            aria-describedby={assessmentDirty ? "assessment-dirty-message" : undefined}
             onClick={handleSubmit}
           >
             Submit application

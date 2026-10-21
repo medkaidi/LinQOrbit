@@ -3,7 +3,7 @@ import { SECTION_CARD_CLASS } from "@/components/ui/section";
 import { cn } from "@/lib/utils/cn";
 import type { ApplicationAssessment, ApplicationStep } from "@/types/application";
 
-type StepState = "complete" | "current" | "upcoming" | "skipped";
+type StepState = "complete" | "current" | "upcoming" | "not_required" | "skipped";
 
 type StepKey = "questions" | "clarifications" | "review" | "summary";
 
@@ -16,7 +16,8 @@ type StepDefinition = {
  * Étapes du parcours (D59, maquette `matching_screen_upper_drawer_*`). Le
  * matching ouvre l'étape « AI clarifications » (T-62), juste après les
  * questions du recruteur ; l'évaluation close ouvre la « Candidate review »
- * (T-63). Une étape que le candidat n'a pas faite avant de transmettre est
+ * (T-63). Sans matching, les deux étapes facultatives sont « Not required » ;
+ * une étape que le candidat n'a pas faite avant de transmettre est
  * « Skipped », jamais « Done ».
  */
 const STEPS: StepDefinition[] = [
@@ -53,7 +54,7 @@ function stateOf(step: StepKey, current: ApplicationStep, assessment: Applicatio
         return "complete";
       case "clarifications":
       case "review":
-        return "skipped";
+        return "not_required";
       default:
         return "current";
     }
@@ -74,6 +75,7 @@ const CARD_CLASSES: Record<StepState, string> = {
   complete: "bg-item-surface border-slate-border",
   current: "bg-orange-subtle/60 border-orange-border",
   upcoming: "bg-canvas-white border-slate-border opacity-60",
+  not_required: "bg-item-surface border-slate-border",
   skipped: "bg-item-surface border-slate-border",
 };
 
@@ -81,6 +83,7 @@ const HEADER_CLASSES: Record<StepState, string> = {
   complete: "text-success-text",
   current: "text-orange-deep",
   upcoming: "text-text-tertiary",
+  not_required: "text-text-tertiary",
   skipped: "text-text-tertiary",
 };
 
@@ -88,6 +91,7 @@ const ICONS: Record<StepState, string> = {
   complete: "check_circle",
   current: "play_circle",
   upcoming: "radio_button_unchecked",
+  not_required: "info",
   skipped: "do_not_disturb_on",
 };
 
@@ -95,6 +99,7 @@ const HINT_CLASSES: Record<StepState, string> = {
   complete: "text-success-text font-semibold",
   current: "text-orange-deep font-semibold",
   upcoming: "text-text-tertiary",
+  not_required: "text-text-tertiary",
   skipped: "text-text-tertiary",
 };
 
@@ -104,6 +109,8 @@ function hintOf(state: StepState, isLast: boolean): string {
       return "Done";
     case "current":
       return "In progress";
+    case "not_required":
+      return "Not required";
     case "skipped":
       return "Skipped";
     default:
