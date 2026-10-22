@@ -22,7 +22,7 @@ import {
   SECTION_CARD_CLASS,
   SECTION_HEADER_CLASS,
   SECTION_TITLE_CLASS,
-  ITEM_CARD_CLASS,
+  ITEM_CARD_FLAT_CLASS,
 } from "@/components/ui/section";
 import { ApplicationStatusPill } from "@/features/application/application-shared";
 import {
@@ -144,8 +144,12 @@ function DecisionBar({
   );
 }
 
-/** CV épinglé à la transmission : nom, taille réelle et téléchargement streamé. */
-function CvAttachment({
+/**
+ * CV épinglé à la transmission : document de la candidature, téléchargement
+ * streamé. L'action est un CTA **bleu** (secondaire) : l'orange reste réservé
+ * à la décision terminale (Accept / Reject).
+ */
+function CvCard({
   cv,
   busy,
   onDownload,
@@ -155,18 +159,27 @@ function CvAttachment({
   onDownload: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-border bg-item-surface/50 px-3 py-1.5 text-body-sm font-body-sm text-text-primary">
-        <Icon name="description" className="text-[16px] text-text-tertiary" />
-        <span className="truncate">{cv ? cv.originalName : "No CV pinned"}</span>
-        {cv && cv.sizeBytes !== null ? (
-          <span className="text-text-tertiary">{formatFileSize(cv.sizeBytes)}</span>
-        ) : null}
-      </span>
-      <Button variant="outline-sm" busy={busy} disabled={!cv} onClick={onDownload}>
-        Download CV
-      </Button>
-    </div>
+    <section className={SECTION_CARD_CLASS} aria-label="CV">
+      <SectionHeader
+        title="CV"
+        icon="description"
+        aside={cv && cv.sizeBytes !== null ? formatFileSize(cv.sizeBytes) : undefined}
+      />
+      <div className="px-5 pt-4 pb-5 flex flex-col items-start gap-3">
+        <p className="text-body-md font-body-md font-semibold text-text-primary break-words">
+          {cv ? cv.originalName : "No CV pinned"}
+        </p>
+        <CtaButton
+          icon="download"
+          tone="secondary"
+          busy={busy}
+          disabled={!cv}
+          onClick={onDownload}
+        >
+          Download CV
+        </CtaButton>
+      </div>
+    </section>
   );
 }
 
@@ -174,7 +187,7 @@ function RecruiterAnswer({ answer }: { answer: RecruiterAnswerView }) {
   const value = recruiterAnswerValue(answer);
   const hasOptions = answer.options.length > 0;
   return (
-    <li className={ITEM_CARD_CLASS}>
+    <li className={ITEM_CARD_FLAT_CLASS}>
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="font-label-md text-label-md text-text-primary font-bold">{answer.label}</h3>
         <Badge tone={answer.required ? "accent" : "outline"}>
@@ -216,7 +229,7 @@ function CriterionRow({
 }) {
   const score = displayScore(criterion.score);
   return (
-    <li className={ITEM_CARD_CLASS}>
+    <li className={ITEM_CARD_FLAT_CLASS}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-label-md text-label-md text-text-primary font-bold">
@@ -305,9 +318,9 @@ function AssessmentSection({
  */
 function Contest({ contest }: { contest: RecruiterContestationView }) {
   return (
-    <li className="flex flex-col gap-2 rounded-xl border border-slate-border bg-canvas-white/80 p-3">
+    <li className="flex flex-col gap-2 rounded-lg border border-slate-border bg-canvas-white/80 p-3">
       <p className="font-label-md text-label-md text-text-primary font-bold">{contest.label}</p>
-      <div className="grid grid-cols-3 gap-2 rounded-lg border border-slate-border bg-item-surface/60 p-2 text-center">
+      <div className="grid grid-cols-3 gap-2 rounded-md border border-slate-border bg-item-surface/60 p-2 text-center">
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">
             AI
@@ -355,7 +368,7 @@ function ContestsCard({ contests }: { contests: RecruiterContestationView[] }) {
       <SectionHeader title="Contests" icon="compare_arrows" aside={contestCountLabel(contests.length)} />
       <div className="px-5 pt-4 pb-5">
         {contested ? (
-          <div className="flex flex-col gap-3 rounded-2xl border border-orange-border/70 bg-orange-subtle/60 p-3">
+          <div className="flex flex-col gap-3 rounded-lg border border-orange-border/70 bg-orange-subtle/60 p-3">
             <p className="flex items-start gap-1.5 text-body-sm font-body-sm font-semibold leading-snug text-orange-deep">
               <Icon name="info" className="mt-px text-[14px]" />
               Disagreement signal, not a quality score
@@ -367,7 +380,7 @@ function ContestsCard({ contests }: { contests: RecruiterContestationView[] }) {
             </ul>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-1.5 rounded-2xl border border-slate-border bg-item-surface/60 p-4 text-center">
+          <div className="flex flex-col items-center gap-1.5 rounded-lg border border-slate-border bg-item-surface/60 p-4 text-center">
             <Icon name="check_circle" className="text-[18px] text-text-tertiary" />
             <span className="text-body-sm font-body-sm text-text-secondary">
               All scores uncontested
@@ -454,17 +467,12 @@ function ClarificationsCard({ clarifications }: { clarifications: RecruiterClari
         ) : (
           <ul className="flex flex-col gap-3">
             {clarifications.map((clarification) => (
-              <li key={clarification.id} className={ITEM_CARD_CLASS}>
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <h3 className="font-label-md text-label-md text-text-primary font-bold min-w-0 break-words">
-                    {clarification.question}
-                  </h3>
-                  <Badge tone="outline">
-                    {CLARIFICATION_STATUS_LABELS[clarification.status]}
-                  </Badge>
-                </div>
+              <li key={clarification.id} className={ITEM_CARD_FLAT_CLASS}>
+                <h3 className="font-label-md text-label-md text-text-primary font-bold min-w-0 break-words">
+                  {clarification.question}
+                </h3>
                 {clarification.rationale ? (
-                  <div className="mt-2 rounded-xl border border-blue-border bg-blue-surface/60 px-3 py-2">
+                  <div className="mt-2 rounded-lg border border-blue-border bg-blue-surface/60 px-3 py-2">
                     <span className="flex items-center gap-1.5 font-label-md text-label-md font-bold text-blue-deep">
                       <Icon name="help_outline" className="text-[14px]" />
                       Why the AI asked this
@@ -474,6 +482,14 @@ function ClarificationsCard({ clarifications }: { clarifications: RecruiterClari
                     </p>
                   </div>
                 ) : null}
+                {/* La mention d'état décrit la réponse : elle vit à côté du libellé
+                    « Answer », plus à côté de la question. */}
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-border pt-3">
+                  <span className="font-label-md text-label-md text-text-secondary">Answer</span>
+                  <Badge tone="outline">
+                    {CLARIFICATION_STATUS_LABELS[clarification.status]}
+                  </Badge>
+                </div>
                 <p className="mt-2 text-body-md font-body-md text-text-primary whitespace-pre-wrap break-words">
                   {clarification.answer?.trim() || "No answer yet."}
                 </p>
@@ -526,6 +542,8 @@ export function RecruiterApplicationDetailView({
           </Breadcrumb>
         }
         title={
+          // Monogramme + [nom / poste actuel] : le bloc de texte est aligné sur
+          // le conteneur des initiales (motif avatar + identité).
           <span className="flex items-center gap-3">
             <span
               aria-hidden="true"
@@ -533,7 +551,14 @@ export function RecruiterApplicationDetailView({
             >
               {candidateInitials(name)}
             </span>
-            <span className="min-w-0">{name}</span>
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate">{name}</span>{" "}
+              {candidateTitle ? (
+                <span className="mt-0.5 truncate text-body-sm font-body-sm font-semibold text-text-secondary">
+                  {candidateTitle}
+                </span>
+              ) : null}
+            </span>
           </span>
         }
         subtitle={
@@ -547,26 +572,7 @@ export function RecruiterApplicationDetailView({
             <Icon name="arrow_back" className="text-[14px]" />
           </ButtonLink>
         }
-      >
-        {data ? (
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-            {candidateTitle ? (
-              <span className="text-body-sm font-body-sm font-semibold text-text-secondary">
-                {candidateTitle}
-              </span>
-            ) : null}
-            <CvAttachment
-              cv={data.cv}
-              busy={download.isPending}
-              onDownload={() => {
-                if (data.cv) {
-                  download.mutate(data.cv.originalName);
-                }
-              }}
-            />
-          </div>
-        ) : null}
-      </PageHeader>
+      />
 
       {application.isLoading ? (
         <section className={SECTION_CARD_CLASS}>
@@ -619,6 +625,15 @@ export function RecruiterApplicationDetailView({
               <ClarificationsCard clarifications={data.clarifications} />
             </div>
             <div className="flex flex-col gap-6 xl:col-span-4">
+              <CvCard
+                cv={data.cv}
+                busy={download.isPending}
+                onDownload={() => {
+                  if (data.cv) {
+                    download.mutate(data.cv.originalName);
+                  }
+                }}
+              />
               {data.assessment.available ? <ContestsCard contests={data.contests} /> : null}
             </div>
           </div>

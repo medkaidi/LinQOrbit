@@ -48,15 +48,19 @@ describe("RecruiterApplicationDetailView", () => {
 
     renderDetail();
 
-    // Le monogramme est décoratif : le nom reste le seul nom accessible du titre.
-    expect(await screen.findByRole("heading", { name: "Grace Hopper" })).toBeInTheDocument();
+    // Le monogramme est décoratif ; le titre porte le nom puis le poste actuel.
+    expect(
+      await screen.findByRole("heading", { name: "Grace Hopper Senior Backend Engineer" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("GH")).toBeInTheDocument();
     expect(screen.getByText("Application for Backend Engineer · Acme Labs")).toBeInTheDocument();
     expect(screen.getByText("Senior Backend Engineer")).toBeInTheDocument();
     expect(screen.getByText("Submitted")).toBeInTheDocument();
     expect(screen.getByText(/Applied Oct 15, 2026/)).toBeInTheDocument();
-    expect(screen.getByText("grace-hopper-cv.pdf")).toBeInTheDocument();
-    expect(screen.getByText("24 KB")).toBeInTheDocument();
+
+    const cv = within(screen.getByRole("region", { name: "CV" }));
+    expect(cv.getByText("grace-hopper-cv.pdf")).toBeInTheDocument();
+    expect(cv.getByText("24 KB")).toBeInTheDocument();
   });
 
   it("downloads the pinned CV and links back to the application list", async () => {
@@ -144,9 +148,12 @@ describe("RecruiterApplicationDetailView", () => {
     const clarifications = within(screen.getByRole("region", { name: "AI clarifications" }));
     expect(clarifications.getByText("1 exchange")).toBeInTheDocument();
     expect(clarifications.getByText("Why did you choose Java?")).toBeInTheDocument();
+    expect(clarifications.getByText("Why the AI asked this")).toBeInTheDocument();
     expect(clarifications.getByText("To refine the skill assessment.")).toBeInTheDocument();
-    expect(clarifications.getByText("Because I use it daily.")).toBeInTheDocument();
+    // La mention d'état décrit la réponse : elle est junto à son libellé.
+    expect(clarifications.getByText("Answer")).toBeInTheDocument();
     expect(clarifications.getByText("Answered")).toBeInTheDocument();
+    expect(clarifications.getByText("Because I use it daily.")).toBeInTheDocument();
   });
 
   it("confirms an accept decision before recording it", async () => {
@@ -201,7 +208,7 @@ describe("RecruiterApplicationDetailView", () => {
 
     renderDetail();
 
-    await screen.findByRole("heading", { name: "Grace Hopper" });
+    await screen.findByRole("heading", { name: /Grace Hopper/ });
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
     expect(
@@ -218,7 +225,7 @@ describe("RecruiterApplicationDetailView", () => {
 
     renderDetail();
 
-    await screen.findByRole("heading", { name: "Grace Hopper" });
+    await screen.findByRole("heading", { name: /Grace Hopper/ });
     expect(screen.getByText("Accepted")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
     expect(
@@ -290,9 +297,10 @@ describe("RecruiterApplicationDetailView", () => {
 
     renderDetail();
 
-    await screen.findByRole("heading", { name: "Grace Hopper" });
-    expect(screen.getByText("No CV pinned")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Download CV" })).toBeDisabled();
+    await screen.findByRole("heading", { name: /Grace Hopper/ });
+    const cv = within(screen.getByRole("region", { name: "CV" }));
+    expect(cv.getByText("No CV pinned")).toBeInTheDocument();
+    expect(cv.getByRole("button", { name: "Download CV" })).toBeDisabled();
   });
 
   it("omits a missing candidate title and falls back to a generic name", async () => {
@@ -320,7 +328,7 @@ describe("RecruiterApplicationDetailView", () => {
 
     renderDetail();
 
-    await screen.findByRole("heading", { name: "Grace Hopper" });
+    await screen.findByRole("heading", { name: /Grace Hopper/ });
     expect(screen.getByText("Submission date unavailable")).toBeInTheDocument();
   });
 
