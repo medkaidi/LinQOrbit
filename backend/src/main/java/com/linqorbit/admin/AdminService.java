@@ -523,9 +523,9 @@ public class AdminService {
      * plus ancien. La page est lue par lots (matchings, résultats, offres,
      * companies, comptes) : jamais une requête par signalement.
      *
-     * <p>Le libellé du critère et sa section sont relus dans le JSON du
-     * résultat épinglé — la console lit exactement l'évaluation vue par le
-     * recruteur, rien n'est dénormalisé.</p>
+     * <p>Le libellé du critère, sa section et ses scores sont relus dans le
+     * JSON du résultat épinglé — la console lit exactement l'évaluation vue
+     * par le recruteur, rien n'est dénormalisé.</p>
      */
     @Transactional(readOnly = true)
     public AdminCriterionReportPageResponse listCriterionReports(int page, Integer size) {
@@ -626,6 +626,8 @@ public class AdminService {
                 criterion == null ? report.getCriterionKey() : criterion.label(),
                 criterion == null || criterion.section() == null
                         ? null : criterion.section().getSectionKey(),
+                criterion == null ? null : criterion.score(),
+                criterion == null ? null : criterion.sectionScore(),
                 report.getReason().getApiValue(),
                 report.getComment(),
                 report.getCreatedAt(),

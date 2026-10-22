@@ -233,8 +233,9 @@ public interface AdminApi {
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Lister les signalements internes d'évaluations IA",
             description = "Signalements posés par les recruteurs sur un critère d'une évaluation IA (D66), du plus "
-                    + "récent au plus ancien : critère (libellé et section relus dans le résultat épinglé), offre, "
-                    + "company, candidat, auteur, motif, commentaire et date. Pagination (défaut 20, max 50).")
+                    + "récent au plus ancien : critère (libellé, section, score et score de section relus dans le "
+                    + "résultat épinglé), offre, company, candidat, auteur, motif, commentaire et date. Pagination "
+                    + "(défaut 20, max 50).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Page de signalements renvoyée"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),

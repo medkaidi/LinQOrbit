@@ -275,6 +275,8 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
         assertThat(first.get("criterionKey").asText()).isEqualTo("skill:java");
         assertThat(first.get("criterionLabel").asText()).isEqualTo("Java");
         assertThat(first.get("section").asText()).isEqualTo("requiredSkills");
+        assertThat(first.get("score").asInt()).isEqualTo(60);
+        assertThat(first.get("sectionScore").asDouble()).isEqualTo(60.0);
         assertThat(first.get("reason").asText()).isEqualTo("scoreIncorrect");
         assertThat(first.get("comment").asText()).isEqualTo("The CV shows 8 years");
         assertThat(first.get("authorFirstName").asText()).isEqualTo("Ada");
@@ -288,6 +290,8 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
         assertThat(first.get("createdAt").asText()).isNotEmpty();
         JsonNode second = findReport(page.get("items"), secondReportId);
         assertThat(second).isNotNull();
+        assertThat(second.get("score").asInt()).isEqualTo(80);
+        assertThat(second.get("sectionScore").asDouble()).isEqualTo(80.0);
         assertThat(second.get("reason").asText()).isEqualTo("other");
         assertThat(second.get("comment").asText()).isEqualTo("The requirement is ambiguous");
 
@@ -385,6 +389,20 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
                 .andExpect(jsonPath("$.criterion.label").value("skill:java"))
                 .andExpect(jsonPath("$.criterion.score")
                         .value(org.hamcrest.Matchers.nullValue()));
+
+        // Même résultat corrompu dans la liste : aucun score inventé, les deux
+        // champs restent nuls et le libellé retombe sur la clé du critère.
+        MvcResult listResult = mockMvc.perform(get(REPORTS_PATH)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode page = objectMapper.readTree(listResult.getResponse().getContentAsString());
+        JsonNode item = findReport(page.get("items"), reportId);
+        assertThat(item).isNotNull();
+        assertThat(item.get("criterionLabel").asText()).isEqualTo("skill:java");
+        assertThat(item.get("section").isNull()).isTrue();
+        assertThat(item.get("score").isNull()).isTrue();
+        assertThat(item.get("sectionScore").isNull()).isTrue();
     }
 
     @Test

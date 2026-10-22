@@ -22,6 +22,8 @@ function makeReport(overrides: Partial<AdminCriterionReport> = {}): AdminCriteri
     criterionKey: "skill:java",
     criterionLabel: "Java",
     section: "requiredSkills",
+    score: 60,
+    sectionScore: 60,
     reason: "scoreIncorrect",
     comment: "The CV shows eight years of Java.",
     createdAt: "2026-10-20T10:00:00",
@@ -69,6 +71,8 @@ describe("AdminReportsSection", () => {
           criterionKey: "language:english",
           criterionLabel: "English",
           section: "languages",
+          score: 80,
+          sectionScore: 80,
           reason: "other",
           comment: "The offer is ambiguous.",
           candidateFirstName: "Alan",
@@ -80,17 +84,34 @@ describe("AdminReportsSection", () => {
     renderSection();
 
     expect(await screen.findByText("Java")).toBeInTheDocument();
-    // Le libellé du critère est relu par le serveur dans le résultat épinglé.
-    expect(screen.getByText("Required skills · skill:java")).toBeInTheDocument();
+    // Le libellé, la section et la clé sont relus par le serveur.
+    expect(screen.getByText("Required skills")).toBeInTheDocument();
+    expect(screen.getByText("skill:java")).toBeInTheDocument();
     expect(screen.getByText("The score is wrong")).toBeInTheDocument();
     expect(screen.getByText("The CV shows eight years of Java.")).toBeInTheDocument();
-    expect(screen.getAllByText("Backend Engineer · Acme")).toHaveLength(2);
+    expect(screen.getAllByText("Backend Engineer")).toHaveLength(2);
+    expect(screen.getAllByText("Acme")).toHaveLength(2);
     expect(screen.getAllByText("Ada Owner")).toHaveLength(2);
     expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
     expect(screen.getAllByText("Oct 20, 2026")).toHaveLength(2);
 
+    // Les deux scores réels du résultat épinglé sont affichés sur chaque carte.
+    expect(
+      screen.getByRole("group", { name: "Criterion score: 60%" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Section score: 60%" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Criterion score: 80%" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Section score: 80%" }),
+    ).toBeInTheDocument();
+
     // Deuxième signalement : motif « other » et section différente.
-    expect(screen.getByText("Languages · language:english")).toBeInTheDocument();
+    expect(screen.getByText("Languages")).toBeInTheDocument();
+    expect(screen.getByText("language:english")).toBeInTheDocument();
     expect(screen.getByText("Other")).toBeInTheDocument();
     expect(screen.getByText("Alan Turing")).toBeInTheDocument();
 
@@ -103,6 +124,31 @@ describe("AdminReportsSection", () => {
       "href",
       "/admin/reports/report-2",
     );
+  });
+
+  it("shows unresolved scores and an explicit empty comment", async () => {
+    mockedListCriterionReports.mockResolvedValue(
+      makePage([
+        makeReport({
+          score: null,
+          sectionScore: null,
+          comment: null,
+        }),
+      ]),
+    );
+
+    renderSection();
+
+    expect(await screen.findByText("Java")).toBeInTheDocument();
+    expect(screen.getAllByText("Not resolved")).toHaveLength(2);
+    expect(
+      screen.getByRole("group", { name: "Criterion score: Not resolved" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Section score: Not resolved" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("No comment.")).toBeInTheDocument();
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
   });
 
   it("requests the first page without a size and follows the backend decision", async () => {
@@ -167,6 +213,9 @@ describe("AdminReportsSection", () => {
     renderSection();
 
     expect(await screen.findByText("Unable to load the AI reports.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("No AI assessment has been reported yet."),
+    ).not.toBeInTheDocument();
 
     mockedListCriterionReports.mockResolvedValue(makePage([makeReport()]));
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));

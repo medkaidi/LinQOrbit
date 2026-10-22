@@ -9,9 +9,9 @@ import java.util.UUID;
  * l'offre et la company concernées, le candidat, l'auteur, le motif et le
  * commentaire.
  *
- * <p>Le libellé du critère et sa section sont relus dans le JSON du résultat
- * épinglé : rien n'est dénormalisé, la lecture suit l'évaluation affichée au
- * recruteur.</p>
+ * <p>Le libellé du critère, sa section et ses scores sont relus dans le JSON
+ * du résultat épinglé : rien n'est dénormalisé, la lecture suit l'évaluation
+ * affichée au recruteur.</p>
  */
 public record AdminCriterionReportResponse(
         UUID id,
@@ -19,6 +19,10 @@ public record AdminCriterionReportResponse(
         String criterionLabel,
         /** Clé de section (camelCase) ; absente si la section n'est pas résolue. */
         String section,
+        /** Score du critère ; {@code null} si le critère n'est pas résolu. */
+        Integer score,
+        /** Score de la section ; {@code null} si absent ou critère non résolu. */
+        Double sectionScore,
         String reason,
         String comment,
         LocalDateTime createdAt,

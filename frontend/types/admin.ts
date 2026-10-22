@@ -138,6 +138,10 @@ export type AdminCriterionReport = {
   criterionLabel: string;
   /** Clé de section (camelCase) ; absente si la section n'est pas résolue. */
   section: string | null;
+  /** Score du critère relu dans le résultat épinglé ; null si non résolu. */
+  score: number | null;
+  /** Score de la section relu dans le résultat épinglé ; null si absent. */
+  sectionScore: number | null;
   reason: CriterionReportReason;
   comment: string | null;
   createdAt: string;

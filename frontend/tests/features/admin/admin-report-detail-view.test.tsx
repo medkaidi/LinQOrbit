@@ -25,6 +25,8 @@ function makeDetail(
       criterionKey: "skill:java",
       criterionLabel: "Java",
       section: "requiredSkills",
+      score: 60,
+      sectionScore: 60,
       reason: "scoreIncorrect",
       comment: "The CV shows eight years of Java.",
       createdAt: "2026-10-20T10:00:00",
