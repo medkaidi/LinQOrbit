@@ -6,6 +6,7 @@ import {
   candidateInitials,
   contestCountLabel,
   contestSummary,
+  ContestGapBlock,
   displayScore,
   scoreBand,
   ScorePercentChip,
@@ -97,5 +98,18 @@ describe("candidateInitials", () => {
     expect(candidateInitials("Grace Hopper")).toBe("GH");
     expect(candidateInitials("Ada")).toBe("A");
     expect(candidateInitials("Alan Mathison Turing")).toBe("AM");
+  });
+});
+
+describe("ContestGapBlock", () => {
+  it("shows the server-computed average gap with its unit", () => {
+    render(<ContestGapBlock averageGap={20} />);
+    expect(screen.getByText("Average gap")).toBeInTheDocument();
+    expect(screen.getByText("20 pts")).toBeInTheDocument();
+  });
+
+  it("reports an unavailable gap instead of inventing one", () => {
+    render(<ContestGapBlock averageGap={null} />);
+    expect(screen.getByText("Not available")).toBeInTheDocument();
   });
 });

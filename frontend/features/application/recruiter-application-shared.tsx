@@ -1,3 +1,4 @@
+import { Icon } from "@/components/ui/icon";
 import { appliedOnLabel } from "@/features/application/application-shared";
 import { cn } from "@/lib/utils/cn";
 import type {
@@ -183,4 +184,50 @@ export function contestSummary(count: number, averageGap: number | null): string
     return contestLabel;
   }
   return `${contestLabel} · avg gap ${gap} pts`;
+}
+
+/** Densités du bloc « Average gap » : `sm` sur la carte, `md` sur le détail. */
+const CONTEST_GAP_SIZE_CLASSES = {
+  sm: {
+    container: "rounded-lg border border-orange-border/60 bg-canvas-white/80 px-2 py-1",
+    label: "flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-text-tertiary",
+    icon: "text-[12px] text-orange-deep/70",
+    value: "text-sm font-bold text-orange-deep tabular-nums",
+  },
+  md: {
+    container: "rounded-2xl border border-orange-border/60 bg-canvas-white/80 px-3 py-2",
+    label: "flex items-center gap-1.5 font-label-md text-label-md font-bold text-text-secondary",
+    icon: "text-[14px] text-orange-deep/70",
+    value: "text-body-md font-body-md font-bold text-orange-deep tabular-nums",
+  },
+} as const;
+
+export type ContestGapSize = keyof typeof CONTEST_GAP_SIZE_CLASSES;
+
+/**
+ * Bloc « Average gap » — source unique carte ↔ détail : même libellé, même
+ * code couleur, deux densités. L'écart moyen vient du serveur.
+ */
+export function ContestGapBlock({
+  averageGap,
+  size = "sm",
+}: {
+  averageGap: number | null;
+  size?: ContestGapSize;
+}) {
+  const gap = averageGapValue(averageGap);
+  const classes = CONTEST_GAP_SIZE_CLASSES[size];
+  return (
+    <div className={classes.container}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className={classes.label}>
+          <Icon name="compare_arrows" className={classes.icon} />
+          Average gap
+        </span>
+        <span className={classes.value}>
+          {gap === null ? "Not available" : `${gap} pts`}
+        </span>
+      </div>
+    </div>
+  );
 }

@@ -49,7 +49,8 @@ export function AdminSidebar() {
               collapsed ? "p-1.5" : "gap-2.5 px-3 py-2",
             )}
           >
-            <Logo className="h-5 w-auto" strokeScale={2} />
+            {/* Un cran plus fin que le trait du wordmark (Q / O) posé à droite. */}
+            <Logo className="h-5 w-auto" strokeScale={1.75} />
             {!collapsed && <Wordmark className="h-5 w-auto" />}
           </Link>
           <button

@@ -19,6 +19,9 @@ export const INLINE_PILL_CLASS = `flex items-center gap-2 ${NEUTRAL_PILL_CLASS}`
 /** Chip méta compacte (icône + libellé) des cartes et de la fiche d'offre. */
 export const META_CHIP_CLASS = `inline-flex items-center gap-1 ${PILL_SURFACE} px-2.5 text-text-secondary`;
 
-/** Chip méta signalée (échéance urgente). */
-export const META_CHIP_URGENT_CLASS =
+/**
+ * Chip méta en **thème accent (orange)** : même outline que le chip neutre,
+ * seule la couleur change (échéance urgente, nombre de candidats…).
+ */
+export const META_CHIP_ACCENT_CLASS =
   "inline-flex items-center gap-1 rounded-full border border-orange-border bg-orange-subtle px-2.5 py-1 font-body-sm text-body-sm font-semibold text-orange-deep";

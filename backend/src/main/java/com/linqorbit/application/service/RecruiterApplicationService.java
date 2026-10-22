@@ -178,6 +178,9 @@ public class RecruiterApplicationService {
                 : feedbackRepository.findByMatchingIdOrderByCriterionKeyAsc(application.getMatchingId());
         Map<UUID, MatchingResult> feedbackResults = feedbackResults(feedback);
         List<RecruiterContestationView> contests = contests(feedback, feedbackResults, assessmentRoot);
+        // Même mesure que la carte de liste : l'écart moyen est calculé par le
+        // serveur, jamais déduit côté client.
+        GapStats gap = gapStats(feedback, feedbackResults, assessmentRoot);
 
         Attachment attachment = application.getCvAttachmentId() == null ? null
                 : attachmentRepository.findByIdAndCandidateId(application.getCvAttachmentId(),
@@ -193,7 +196,7 @@ public class RecruiterApplicationService {
                 userId, applicationId, application.getStatus().getApiValue(), assessment.available());
         return new RecruiterApplicationDetail(application.getId(), candidate(candidate, candidateProfile),
                 application.getStatus().getApiValue(), application.getSubmittedAt(), canDecide,
-                jobSummary(offer), answers, assessment, clarifications, contests, cv);
+                jobSummary(offer), answers, assessment, clarifications, contests, gap.averageGap(), cv);
     }
 
     @Transactional(readOnly = true)

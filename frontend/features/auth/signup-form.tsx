@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { signupSchema, type SignupValues } from "@/lib/validations/auth.schemas";
+import {
+  signupSchema,
+  type SignupValues
+} from "@/lib/validations/auth.schemas";
 import { countryOptions } from "@/config/countries";
 import { useAuth } from "@/hooks/use-auth";
 import { Logo } from "@/components/brand/logo";
@@ -20,7 +23,7 @@ import { TextField } from "@/components/ui/text-field";
 const sexOptions = [
   { value: "male", label: "Male" },
   { value: "female", label: "Female" },
-  { value: "other", label: "Other" },
+  { value: "other", label: "Other" }
 ];
 
 /**
@@ -35,7 +38,7 @@ export function SignUpForm({ returnTo }: { returnTo?: string | null }) {
     handleSubmit,
     control,
     setValue,
-    formState: { errors },
+    formState: { errors }
   } = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
@@ -48,8 +51,8 @@ export function SignUpForm({ returnTo }: { returnTo?: string | null }) {
       homeCountry: "",
       currentCity: "",
       currentCountry: "",
-      terms: false,
-    },
+      terms: false
+    }
   });
   const terms = useWatch({ control, name: "terms" });
   const sex = useWatch({ control, name: "sex" });
@@ -59,7 +62,7 @@ export function SignUpForm({ returnTo }: { returnTo?: string | null }) {
   return (
     <AuthCard>
       <div className="flex flex-col items-center gap-4 pb-6 mb-6">
-        <Logo className="h-[100px] w-auto" />
+        <Logo className="h-[100px] w-auto" strokeScale={0.75} />
         <Wordmark className="h-9 w-auto" />
       </div>
       <div className="flex flex-col gap-1.5 mb-7">
@@ -121,7 +124,9 @@ export function SignUpForm({ returnTo }: { returnTo?: string | null }) {
             options={sexOptions}
             placeholder="Select one"
             value={sex}
-            onValueChange={(optionValue) => setValue("sex", optionValue as SignupValues["sex"])}
+            onValueChange={(optionValue) =>
+              setValue("sex", optionValue as SignupValues["sex"])
+            }
             error={errors.sex?.message}
           />
           <TextField
@@ -155,7 +160,9 @@ export function SignUpForm({ returnTo }: { returnTo?: string | null }) {
             options={countryOptions}
             placeholder="Select a country"
             value={currentCountry}
-            onValueChange={(optionValue) => setValue("currentCountry", optionValue)}
+            onValueChange={(optionValue) =>
+              setValue("currentCountry", optionValue)
+            }
             error={errors.currentCountry?.message}
           />
         </div>
@@ -166,12 +173,17 @@ export function SignUpForm({ returnTo }: { returnTo?: string | null }) {
             {...register("terms")}
           />
           {errors.terms ? (
-            <p className="font-body-sm text-body-sm text-error">{errors.terms.message}</p>
+            <p className="font-body-sm text-body-sm text-error">
+              {errors.terms.message}
+            </p>
           ) : null}
         </div>
         <Button type="submit" busy={isPending}>
           <span>Create your account</span>
-          <Icon name="arrow_forward" className="text-[20px] transition-transform group-hover:translate-x-1" />
+          <Icon
+            name="arrow_forward"
+            className="text-[20px] transition-transform group-hover:translate-x-1"
+          />
         </Button>
       </form>
 
@@ -184,7 +196,9 @@ export function SignUpForm({ returnTo }: { returnTo?: string | null }) {
       <p className="mt-6 text-center font-body-md text-body-md text-text-secondary">
         Already have an account?{" "}
         <Link
-          href={returnTo ? `/login?next=${encodeURIComponent(returnTo)}` : "/login"}
+          href={
+            returnTo ? `/login?next=${encodeURIComponent(returnTo)}` : "/login"
+          }
           className="font-label-md text-label-md text-primary-container hover:text-orange-deep transition-colors"
         >
           Sign in

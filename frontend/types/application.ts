@@ -270,6 +270,12 @@ export type RecruiterApplicationDetail = {
   assessment: RecruiterAssessmentView;
   clarifications: RecruiterClarificationView[];
   contests: RecruiterContestationView[];
+  /**
+   * Écart moyen absolu entre la note IA et la note propre du candidat,
+   * calculé par le serveur comme sur la carte de liste (`null` sans
+   * contestation exploitable) — jamais déduit côté client.
+   */
+  averageGap: number | null;
   cv: RecruiterCvSummary | null;
 };
 

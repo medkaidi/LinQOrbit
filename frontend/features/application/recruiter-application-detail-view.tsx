@@ -28,6 +28,7 @@ import { ApplicationStatusPill } from "@/features/application/application-shared
 import {
   candidateInitials,
   contestCountLabel,
+  ContestGapBlock,
   displayScore,
   RECRUITER_SECTION_LABELS,
   recruiterAnswerValue,
@@ -112,7 +113,7 @@ function DecisionBar({
 }) {
   const submittedOn = submittedOnLabel(detail.submittedAt);
   return (
-    <div className="sticky top-16 z-30 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-border bg-canvas-white px-4 py-3 shadow-sm">
+    <div className="sticky top-16 z-30 mt-px flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-border bg-canvas-white px-4 py-3 shadow-sm">
       <div className="flex flex-wrap items-center gap-3">
         <ApplicationStatusPill status={detail.status} />
         <span className="text-body-sm font-body-sm text-text-secondary">
@@ -366,7 +367,13 @@ function Contest({ contest }: { contest: RecruiterContestationView }) {
  * Panneau des contestations : orange quand le candidat conteste, gris sinon
  * (même code couleur que la carte de liste). Masqué sans évaluation IA.
  */
-function ContestsCard({ contests }: { contests: RecruiterContestationView[] }) {
+function ContestsCard({
+  contests,
+  averageGap,
+}: {
+  contests: RecruiterContestationView[];
+  averageGap: number | null;
+}) {
   const contested = contests.length > 0;
   return (
     <section className={SECTION_CARD_CLASS} aria-label="Contests">
@@ -374,6 +381,7 @@ function ContestsCard({ contests }: { contests: RecruiterContestationView[] }) {
       <div className="px-5 pt-4 pb-5">
         {contested ? (
           <div className="flex flex-col gap-3 rounded-2xl border border-orange-border/70 bg-orange-subtle/60 p-3">
+            <ContestGapBlock averageGap={averageGap} size="md" />
             <p className="flex items-start gap-1.5 text-body-sm font-body-sm font-semibold leading-snug text-orange-deep">
               <Icon name="info" className="mt-px text-[14px]" />
               Disagreement signal, not a quality score
@@ -639,7 +647,9 @@ export function RecruiterApplicationDetailView({
                   }
                 }}
               />
-              {data.assessment.available ? <ContestsCard contests={data.contests} /> : null}
+              {data.assessment.available ? (
+                <ContestsCard contests={data.contests} averageGap={data.averageGap} />
+              ) : null}
             </div>
           </div>
         </>

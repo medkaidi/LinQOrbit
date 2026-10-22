@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { META_CHIP_CLASS, META_CHIP_URGENT_CLASS } from "@/components/ui/pill";
+import { META_CHIP_ACCENT_CLASS, META_CHIP_CLASS } from "@/components/ui/pill";
 import { MetaChip } from "@/features/job-offer/job-offer-card";
 
 function classesOf(value: string) {
@@ -17,15 +17,15 @@ describe("MetaChip", () => {
     expect(chip.querySelector("span")).toHaveClass("text-text-tertiary");
   });
 
-  it("renders the urgent chip with an icon inheriting the text colour", () => {
+  it("renders the accent chip in the same outline with the icon inheriting the text colour", () => {
     render(
-      <MetaChip icon="event" urgent>
+      <MetaChip icon="event" tone="accent">
         Expires tomorrow
       </MetaChip>,
     );
 
     const chip = screen.getByText("Expires tomorrow");
-    expect(chip).toHaveClass(...classesOf(META_CHIP_URGENT_CLASS));
+    expect(chip).toHaveClass(...classesOf(META_CHIP_ACCENT_CLASS));
     expect(chip).not.toHaveClass("bg-item-surface/50");
     expect(chip.querySelector("span")).not.toHaveClass("text-text-tertiary");
   });

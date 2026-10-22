@@ -26,17 +26,17 @@ export function LoginForm({ returnTo }: { returnTo?: string | null }) {
     register,
     handleSubmit,
     control,
-    formState: { errors },
+    formState: { errors }
   } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "", remember: true },
+    defaultValues: { email: "", password: "", remember: true }
   });
   const remember = useWatch({ control, name: "remember" });
 
   return (
     <AuthCard>
       <div className="flex flex-col items-center gap-4 pb-6 mb-6">
-        <Logo className="h-[100px] w-auto" />
+        <Logo className="h-[100px] w-auto" strokeScale={0.75} />
         <Wordmark className="h-9 w-auto" />
       </div>
       <div className="flex flex-col gap-1.5 mb-7">
@@ -84,7 +84,10 @@ export function LoginForm({ returnTo }: { returnTo?: string | null }) {
         </div>
         <Button type="submit" busy={isPending}>
           <span>Sign in to your workspace</span>
-          <Icon name="arrow_forward" className="text-[20px] transition-transform group-hover:translate-x-1" />
+          <Icon
+            name="arrow_forward"
+            className="text-[20px] transition-transform group-hover:translate-x-1"
+          />
         </Button>
       </form>
 
@@ -97,7 +100,11 @@ export function LoginForm({ returnTo }: { returnTo?: string | null }) {
       <p className="mt-6 text-center font-body-md text-body-md text-text-secondary">
         Don&apos;t have an account?{" "}
         <Link
-          href={returnTo ? `/signup?next=${encodeURIComponent(returnTo)}` : "/signup"}
+          href={
+            returnTo
+              ? `/signup?next=${encodeURIComponent(returnTo)}`
+              : "/signup"
+          }
           className="font-label-md text-label-md text-primary-container hover:text-orange-deep transition-colors"
         >
           Sign up

@@ -26,10 +26,10 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { ApplicationStatusPill } from "@/features/application/application-shared";
 import {
-  averageGapValue,
   candidateInitials,
   contestCountLabel,
   contestSummary,
+  ContestGapBlock,
   displayScore,
   RECRUITER_SECTION_LABELS,
   recruiterCandidateName,
@@ -131,7 +131,6 @@ function SectionScoreRow({
 /** Panneau de contestations de la maquette : compteur réel + écart moyen réel, rien d'inventé. */
 function ContestPanel({ application }: { application: RecruiterApplicationCard }) {
   const contested = application.contestedCount > 0;
-  const gap = averageGapValue(application.averageGap);
   const summary = contestSummary(application.contestedCount, application.averageGap);
   return (
     <div
@@ -156,17 +155,7 @@ function ContestPanel({ application }: { application: RecruiterApplicationCard }
       </span>
       {contested ? (
         <>
-          <div className="rounded-lg border border-orange-border/60 bg-canvas-white/80 px-2 py-1">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-text-tertiary">
-                <Icon name="compare_arrows" className="text-[12px] text-orange-deep/70" />
-                Average gap
-              </span>
-              <span className="text-sm font-bold text-orange-deep tabular-nums">
-                {gap === null ? "Not available" : `${gap} pts`}
-              </span>
-            </div>
-          </div>
+          <ContestGapBlock averageGap={application.averageGap} />
           <p className="flex items-start gap-1 text-[10px] font-semibold leading-snug text-orange-deep/80">
             <Icon name="info" className="mt-px text-[12px]" />
             Disagreement signal, not a quality score

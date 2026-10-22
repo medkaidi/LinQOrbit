@@ -12,7 +12,7 @@ import {
   SidebarLink,
   SIDEBAR_ICON_IDLE_CLASS,
   SIDEBAR_ITEM_IDLE_CLASS,
-  SIDEBAR_LABEL_CLASS,
+  SIDEBAR_LABEL_CLASS
 } from "@/components/layout/sidebar-link";
 import { Icon } from "@/components/ui/icon";
 import { useViewMode } from "@/hooks/use-view-mode";
@@ -25,14 +25,14 @@ const NAV_ITEMS = [
   { icon: "group", label: "Candidate Pool" },
   { icon: "smart_toy", label: "AI Agents Studio", badge: "3 AI" },
   { icon: "assignment_turned_in", label: "Interviews & Evaluations" },
-  { icon: "tune", label: "Settings & Integrations" },
+  { icon: "tune", label: "Settings & Integrations" }
 ] as const;
 
 const SIDEBAR_ITEM_BUTTON_CLASS = `${SIDEBAR_ITEM_IDLE_CLASS} cursor-pointer text-left`;
 
 function SidebarPlaceholderButton({
   item,
-  collapsed,
+  collapsed
 }: {
   item: (typeof NAV_ITEMS)[number];
   collapsed: boolean;
@@ -46,7 +46,7 @@ function SidebarPlaceholderButton({
       className={cn(
         SIDEBAR_ITEM_BUTTON_CLASS,
         hasBadge && !collapsed && "justify-between",
-        collapsed ? "justify-center px-0" : "px-3",
+        collapsed ? "justify-center px-0" : "px-3"
       )}
     >
       {hasBadge ? (
@@ -55,7 +55,9 @@ function SidebarPlaceholderButton({
             <span className={SIDEBAR_ICON_IDLE_CLASS}>
               <Icon name={item.icon} className="text-[16px]" />
             </span>
-            {!collapsed && <span className={SIDEBAR_LABEL_CLASS}>{item.label}</span>}
+            {!collapsed && (
+              <span className={SIDEBAR_LABEL_CLASS}>{item.label}</span>
+            )}
           </span>
           {!collapsed && (
             <span className="px-2 py-0.5 text-[9px] font-bold font-mono rounded-full bg-orange-subtle text-orange-deep border border-orange-border">
@@ -68,7 +70,9 @@ function SidebarPlaceholderButton({
           <span className={SIDEBAR_ICON_IDLE_CLASS}>
             <Icon name={item.icon} className="text-[16px]" />
           </span>
-          {!collapsed && <span className={SIDEBAR_LABEL_CLASS}>{item.label}</span>}
+          {!collapsed && (
+            <span className={SIDEBAR_LABEL_CLASS}>{item.label}</span>
+          )}
         </>
       )}
     </button>
@@ -95,14 +99,14 @@ export function DashboardSidebar() {
     <aside
       className={cn(
         "hidden lg:flex fixed left-0 top-0 h-full bg-canvas-white border-r border-slate-border z-50 flex-col justify-between pb-5",
-        collapsed ? "lg:w-20" : "lg:w-64",
+        collapsed ? "lg:w-20" : "lg:w-64"
       )}
     >
       <div className="flex flex-col">
         <div
           className={cn(
             "relative h-16 flex items-center gap-1",
-            collapsed ? "mx-2 justify-center" : "mx-3",
+            collapsed ? "mx-2 justify-center" : "mx-3"
           )}
         >
           <Link
@@ -110,10 +114,11 @@ export function DashboardSidebar() {
             aria-label="Dashboard home"
             className={cn(
               "flex items-center rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep",
-              collapsed ? "p-1.5" : "gap-2.5 px-3 py-2",
+              collapsed ? "p-1.5" : "gap-2.5 px-3 py-2"
             )}
           >
-            <Logo className="h-5 w-auto" strokeScale={2} />
+            {/* Un cran plus fin que le trait du wordmark (Q / O) posé à droite. */}
+            <Logo className="h-5 w-auto" strokeScale={1.75} />
             {!collapsed && <Wordmark className="h-5 w-auto" />}
           </Link>
           <button
@@ -124,10 +129,15 @@ export function DashboardSidebar() {
             aria-expanded={!collapsed}
             className={cn(
               "flex items-center justify-center shrink-0 rounded-full text-text-secondary hover:text-text-primary hover:bg-slate-surface transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep",
-              collapsed ? "absolute -right-1.5 top-1/2 -translate-y-1/2 w-6 h-6" : "ml-auto w-7 h-7",
+              collapsed
+                ? "absolute -right-1.5 top-1/2 -translate-y-1/2 w-6 h-6"
+                : "ml-auto w-7 h-7"
             )}
           >
-            <Icon name={collapsed ? "chevron_right" : "chevron_left"} className="text-[16px]" />
+            <Icon
+              name={collapsed ? "chevron_right" : "chevron_left"}
+              className="text-[16px]"
+            />
           </button>
         </div>
 
@@ -184,7 +194,11 @@ export function DashboardSidebar() {
                 collapsed={collapsed}
               />
               {NAV_ITEMS.map((item) => (
-                <SidebarPlaceholderButton key={item.label} item={item} collapsed={collapsed} />
+                <SidebarPlaceholderButton
+                  key={item.label}
+                  item={item}
+                  collapsed={collapsed}
+                />
               ))}
             </>
           )}
@@ -207,7 +221,10 @@ export function DashboardSidebar() {
         {!collapsed && (
           <div className="rounded-xl bg-canvas-subtle border border-slate-border p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Icon name="monitoring" className="text-[16px] text-orange-deep" />
+              <Icon
+                name="monitoring"
+                className="text-[16px] text-orange-deep"
+              />
               <span className="font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
                 AI Telemetry
               </span>
@@ -216,7 +233,9 @@ export function DashboardSidebar() {
               <span className="font-headline-lg text-headline-lg font-bold text-orange-deep">
                 98%
               </span>
-              <span className="text-body-sm font-body-sm text-text-secondary">live</span>
+              <span className="text-body-sm font-body-sm text-text-secondary">
+                live
+              </span>
             </div>
             <p className="mt-1 text-body-sm font-body-sm text-text-secondary">
               3 agents actively sourcing and ranking in real time.
@@ -230,10 +249,13 @@ export function DashboardSidebar() {
           title={collapsed ? "API Help & Documentation" : undefined}
           className={cn(
             "flex items-center gap-2 py-1.5 text-slate-muted hover:text-text-primary text-xs font-medium transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep",
-            collapsed ? "justify-center px-0" : "px-2 text-left",
+            collapsed ? "justify-center px-0" : "px-2 text-left"
           )}
         >
-          <Icon name="help_outline" className="text-[16px] text-text-tertiary" />
+          <Icon
+            name="help_outline"
+            className="text-[16px] text-text-tertiary"
+          />
           {!collapsed && <span>API Help &amp; Documentation</span>}
         </button>
       </div>
@@ -255,7 +277,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       <DashboardSidebar />
       <DashboardHeader collapsed={collapsed} />
       <main className={cn("pt-16", collapsed ? "lg:pl-20" : "lg:pl-64")}>
-        <div className="w-full px-gutter py-7 flex flex-col gap-6">{children}</div>
+        <div className="w-full px-gutter py-7 flex flex-col gap-6">
+          {children}
+        </div>
       </main>
     </div>
   );

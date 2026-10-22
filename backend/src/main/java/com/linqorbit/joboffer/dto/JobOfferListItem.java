@@ -37,6 +37,12 @@ public record JobOfferListItem(
         boolean normalizationFailed,
         boolean analysisOutdated,
         boolean readyToPublish,
+        /**
+         * Nombre de candidatures visibles de l'offre (transmises, acceptées,
+         * rejetées — brouillons et retraits exclus), calculé par le serveur
+         * comme le tri par contestations : jamais un COUNT par offre.
+         */
+        int applicationCount,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 }

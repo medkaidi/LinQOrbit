@@ -3,6 +3,7 @@ package com.linqorbit.application.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -168,6 +169,36 @@ class RecruiterApplicationIntegrationTest extends ApplicationStorageTestSupport 
         createdOfferIds.clear();
         createdUserIds.clear();
         createdCompanyIds.clear();
+    }
+
+    @Test
+    void offerListCountsOnlyVisibleApplications() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", null);
+        publish(owner.token(), offerId);
+        String publicId = publicIdOf(offerId);
+
+        Account grace = signup("Grace", "Hopper");
+        Account alan = signup("Alan", "Turing");
+        Account edsger = signup("Edsger", "Dijkstra");
+        Account barbara = signup("Barbara", "Liskov");
+
+        // Deux candidatures transmises : elles comptent.
+        submitDirect(grace, uploadCv(grace.token()), publicId);
+        submitDirect(alan, uploadCv(alan.token()), publicId);
+        // Un brouillon ne compte pas.
+        uploadCv(edsger.token());
+        saveDraft(edsger.token(), publicId, "[]").andExpect(status().isOk());
+        // Un retrait ne compte pas.
+        UUID withdrawn = submitDirect(barbara, uploadCv(barbara.token()), publicId);
+        mockMvc.perform(post("/api/v1/applications/" + withdrawn + "/withdraw")
+                        .header("Authorization", "Bearer " + barbara.token()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get(OFFERS_PATH).header("Authorization", "Bearer " + owner.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == '" + offerId + "')].applicationCount",
+                        hasItem(2)));
     }
 
     @Test
@@ -380,6 +411,7 @@ class RecruiterApplicationIntegrationTest extends ApplicationStorageTestSupport 
                 .andExpect(jsonPath("$.answers.length()").value(0))
                 .andExpect(jsonPath("$.clarifications.length()").value(0))
                 .andExpect(jsonPath("$.contests.length()").value(0))
+                .andExpect(jsonPath("$.averageGap").value(nullValue()))
                 .andExpect(jsonPath("$.cv.originalName").value("candidate-cv.pdf"))
                 .andExpect(jsonPath("$.canDecide").value(true));
 
@@ -475,6 +507,8 @@ class RecruiterApplicationIntegrationTest extends ApplicationStorageTestSupport 
                 .andExpect(jsonPath("$.contests[0].gap").value(10.0))
                 .andExpect(jsonPath("$.contests[1].criterionKey").value("skill:java"))
                 .andExpect(jsonPath("$.contests[1].gap").value(30.0))
+                // Écart moyen calculé par le serveur, identique à celui de la carte de liste.
+                .andExpect(jsonPath("$.averageGap").value(20.0))
                 .andExpect(jsonPath("$.cv.attachmentId").value(cvId.toString()))
                 .andExpect(jsonPath("$.cv.originalName").value("candidate-cv.pdf"))
                 .andReturn();

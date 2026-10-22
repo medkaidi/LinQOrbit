@@ -35,6 +35,17 @@ function renderDetail() {
   );
 }
 
+/**
+ * Titre de la page (h1) — on attend la donnée via le sous-titre de l'offre
+ * (élément peu coûteux), puis on lit le h1 par niveau : la requête par nom
+ * accessible sur l'en-tête (monogramme + nom + poste actuel) est coûteuse et
+ * peut dépasser le délai d'attente sous charge.
+ */
+async function findPageTitle() {
+  await screen.findByText("Application for Backend Engineer · Acme Labs");
+  return screen.getByRole("heading", { level: 1 });
+}
+
 describe("RecruiterApplicationDetailView", () => {
   beforeEach(() => {
     detailMock.mockReset();
@@ -49,9 +60,9 @@ describe("RecruiterApplicationDetailView", () => {
     renderDetail();
 
     // Le monogramme est décoratif ; le titre porte le nom puis le poste actuel.
-    expect(
-      await screen.findByRole("heading", { name: "Grace Hopper Senior Backend Engineer" }),
-    ).toBeInTheDocument();
+    const heading = await findPageTitle();
+    expect(heading).toHaveTextContent("Grace Hopper");
+    expect(heading).toHaveTextContent("Senior Backend Engineer");
     expect(screen.getByText("GH")).toBeInTheDocument();
     expect(screen.getByText("Application for Backend Engineer · Acme Labs")).toBeInTheDocument();
     expect(screen.getByText("Senior Backend Engineer")).toBeInTheDocument();
@@ -124,6 +135,9 @@ describe("RecruiterApplicationDetailView", () => {
 
     const contests = within(screen.getByRole("region", { name: "Contests" }));
     expect(contests.getByText("2 contested")).toBeInTheDocument();
+    // L'écart moyen vient du serveur, comme sur la carte de liste.
+    expect(contests.getByText("Average gap")).toBeInTheDocument();
+    expect(contests.getByText("20 pts")).toBeInTheDocument();
     expect(contests.getByText("Disagreement signal, not a quality score")).toBeInTheDocument();
     expect(contests.getByText("80")).toBeInTheDocument();
     expect(contests.getByText("70")).toBeInTheDocument();
@@ -209,7 +223,7 @@ describe("RecruiterApplicationDetailView", () => {
 
     renderDetail();
 
-    await screen.findByRole("heading", { name: /Grace Hopper/ });
+    expect(await findPageTitle()).toHaveTextContent("Grace Hopper");
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
     expect(
@@ -226,7 +240,7 @@ describe("RecruiterApplicationDetailView", () => {
 
     renderDetail();
 
-    await screen.findByRole("heading", { name: /Grace Hopper/ });
+    expect(await findPageTitle()).toHaveTextContent("Grace Hopper");
     expect(screen.getByText("Accepted")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
     expect(
@@ -298,13 +312,13 @@ describe("RecruiterApplicationDetailView", () => {
 
     renderDetail();
 
-    await screen.findByRole("heading", { name: /Grace Hopper/ });
+    expect(await findPageTitle()).toHaveTextContent("Grace Hopper");
     const cv = within(screen.getByRole("region", { name: "CV" }));
     expect(cv.getByText("No CV pinned")).toBeInTheDocument();
     expect(cv.getByRole("button", { name: "Download CV" })).toBeDisabled();
   });
 
-  it("omits a missing candidate title and falls back to a generic name", async () => {
+  it("omits a missing candidate title", async () => {
     detailMock.mockResolvedValue(
       buildRecruiterApplicationDetail({
         candidate: { firstName: "Alan", lastName: "Turing", title: "   " },
@@ -313,13 +327,16 @@ describe("RecruiterApplicationDetailView", () => {
 
     renderDetail();
 
-    expect(await screen.findByRole("heading", { name: "Alan Turing" })).toBeInTheDocument();
+    expect(await findPageTitle()).toHaveTextContent("Alan Turing");
     expect(screen.queryByText("Senior Backend Engineer")).not.toBeInTheDocument();
+  });
 
+  it("falls back to a generic name when the candidate is unknown", async () => {
     detailMock.mockResolvedValue(buildRecruiterApplicationDetail({ candidate: null }));
+
     renderDetail();
 
-    expect(await screen.findByRole("heading", { name: "Candidate" })).toBeInTheDocument();
+    expect(await findPageTitle()).toHaveTextContent("Candidate");
   });
 
   it("reports an unreadable submission date instead of inventing one", async () => {
@@ -329,7 +346,7 @@ describe("RecruiterApplicationDetailView", () => {
 
     renderDetail();
 
-    await screen.findByRole("heading", { name: /Grace Hopper/ });
+    expect(await findPageTitle()).toHaveTextContent("Grace Hopper");
     expect(screen.getByText("Submission date unavailable")).toBeInTheDocument();
   });
 

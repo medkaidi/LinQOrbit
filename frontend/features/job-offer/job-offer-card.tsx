@@ -7,7 +7,7 @@ import { LINK_ACCENT_CLASS } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { StatusPill, type StatusPillTone } from "@/components/ui/status-pill";
-import { META_CHIP_CLASS, META_CHIP_URGENT_CLASS } from "@/components/ui/pill";
+import { META_CHIP_ACCENT_CLASS, META_CHIP_CLASS } from "@/components/ui/pill";
 import {
   companyInitials,
   expiryCountdown,
@@ -29,6 +29,9 @@ const OFFER_ROW_CARD = "bg-canvas-white rounded-2xl border border-slate-border p
 const META_CHIP_ICON = "text-[14px] text-text-tertiary";
 export const OFFER_SALARY_CHIP =
   "inline-flex items-center gap-1 rounded-full bg-orange-subtle px-2.5 py-1 font-body-sm text-body-sm font-semibold text-orange-deep";
+
+/** Thèmes du chip méta : neutre (gris) ou accent (outline orange). */
+export type MetaChipTone = "neutral" | "accent";
 
 const STATUS_PILL_TONES: Record<JobOfferStatusValue, StatusPillTone> = {
   draft: { pill: "bg-canvas-subtle text-text-secondary", dot: "bg-text-tertiary" },
@@ -53,21 +56,23 @@ export function OfferStatusPill({ status }: { status: JobOfferStatusValue }) {
 
 /**
  * Chip méta d'une carte d'offre (icône + libellé) — langage visuel partagé
- * carte recruteur / fiche publique. `urgent` = échéance proche : surface
- * orange, l'icône hérite de la couleur du texte.
+ * carte recruteur / fiche publique. `tone="accent"` = même outline que le chip
+ * neutre, en orange (échéance urgente, nombre de candidats…) : l'icône hérite
+ * alors de la couleur du texte.
  */
 export function MetaChip({
   icon,
-  urgent = false,
+  tone = "neutral",
   children,
 }: {
   icon: string;
-  urgent?: boolean;
+  tone?: MetaChipTone;
   children: ReactNode;
 }) {
+  const accent = tone === "accent";
   return (
-    <span className={urgent ? META_CHIP_URGENT_CLASS : META_CHIP_CLASS}>
-      <Icon name={icon} className={urgent ? "text-[14px]" : META_CHIP_ICON} />
+    <span className={accent ? META_CHIP_ACCENT_CLASS : META_CHIP_CLASS}>
+      <Icon name={icon} className={accent ? "text-[14px]" : META_CHIP_ICON} />
       {children}
     </span>
   );
@@ -100,6 +105,11 @@ type JobOfferCardProps = {
   analysisOutdated?: boolean;
   /** Draft incomplet (gate de complétude serveur) : chip « Not ready to publish ». */
   readyToPublish?: boolean;
+  /**
+   * Candidatures visibles de l'offre (serveur) — signal propre à la vue
+   * recruteur : absent en console admin, aucun chip à 0.
+   */
+  applicationCount?: number | null;
   createdAt?: string | null;
   updatedAt?: string | null;
   expiresAt?: string | null;
@@ -134,6 +144,7 @@ export function JobOfferCard({
   unvalidatedChanges = false,
   analysisOutdated = false,
   readyToPublish = true,
+  applicationCount = null,
   createdAt,
   updatedAt,
   expiresAt,
@@ -149,6 +160,15 @@ export function JobOfferCard({
     status === "published" && expiresAt && !expired ? expiryCountdown(expiresAt) : null;
 
   const metaChips: ReactNode[] = [];
+  // Le nombre de candidats s'ouvre la rangée de méta : c'est le premier signal
+  // que le recruteur cherche en parcourant ses offres.
+  if (applicationCount && applicationCount > 0) {
+    metaChips.push(
+      <MetaChip key="candidates" icon="group" tone="accent">
+        {applicationCount === 1 ? "1 candidate" : `${applicationCount} candidates`}
+      </MetaChip>,
+    );
+  }
   if (seniorityLabel) {
     metaChips.push(
       <MetaChip key="seniority" icon="signal_cellular_alt">

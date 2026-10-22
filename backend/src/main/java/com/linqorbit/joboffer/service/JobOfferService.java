@@ -33,6 +33,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import com.linqorbit.application.entity.ApplicationStatus;
+import com.linqorbit.application.repository.ApplicationRepository;
 import com.linqorbit.candidate.entity.Degree;
 import com.linqorbit.common.pagination.PageSizes;
 import com.linqorbit.candidate.entity.Language;
@@ -133,6 +135,7 @@ public class JobOfferService {
     private final WorkModeRepository workModeRepository;
     private final NormalizedProfileJobOfferRepository normalizedProfileJobOfferRepository;
     private final JobOfferNormalizationService jobOfferNormalizationService;
+    private final ApplicationRepository applicationRepository;
 
     @Transactional
     public JobOfferResponse create(UUID userId, CreateJobOfferRequest request) {
@@ -955,6 +958,7 @@ public class JobOfferService {
         Set<UUID> withSkills = new LinkedHashSet<>(jobOfferSkillRepository.findOfferIdsWithSkills(offerIds));
         Map<UUID, NormalizationJobStatus> latestStatuses = latestJobStatuses(offerIds);
         Set<UUID> outdated = jobOfferNormalizationService.findOutdatedOfferIds(offerIds);
+        Map<UUID, Integer> applicationCounts = applicationCounts(offerIds);
 
         return offers.stream()
                 .map(offer -> new JobOfferListItem(
@@ -987,9 +991,30 @@ public class JobOfferService {
                                 && offer.getCountry() != null
                                 && offer.getEmploymentTypeId() != null
                                 && withSkills.contains(offer.getId()),
+                        applicationCounts.getOrDefault(offer.getId(), 0),
                         offer.getCreatedAt(),
                         offer.getUpdatedAt()))
                 .toList();
+    }
+
+    /**
+     * Nombre de candidatures visibles par offre — un seul GROUP BY pour toute
+     * la page (jamais un COUNT par offre). Les brouillons et les retraits sont
+     * exclus : le compteur annonce les candidatures que le recruteur voit
+     * dans la liste de l'offre.
+     */
+    private Map<UUID, Integer> applicationCounts(List<UUID> offerIds) {
+        if (offerIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Short> excluded = List.of(
+                (short) ApplicationStatus.DRAFT.getCode(),
+                (short) ApplicationStatus.WITHDRAWN.getCode());
+        Map<UUID, Integer> counts = new HashMap<>();
+        for (Object[] row : applicationRepository.countVisibleApplicationsByOfferIds(offerIds, excluded)) {
+            counts.put((UUID) row[0], ((Number) row[1]).intValue());
+        }
+        return counts;
     }
 
     private JobOfferResponse buildResponse(JobOffer offer) {

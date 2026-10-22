@@ -597,6 +597,6 @@ class JobOfferControllerTest {
                 "abcdefghijkl", "backend-engineer",
                 null, null, null, null, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
-                false, false, false, false, false, null, null);
+                false, false, false, false, false, 0, null, null);
     }
 }

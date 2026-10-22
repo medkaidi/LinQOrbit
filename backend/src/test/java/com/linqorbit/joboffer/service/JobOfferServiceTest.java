@@ -30,6 +30,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
+import com.linqorbit.application.repository.ApplicationRepository;
 import com.linqorbit.candidate.entity.Skill;
 import com.linqorbit.candidate.repository.DegreeRepository;
 import com.linqorbit.candidate.repository.LanguageRepository;
@@ -151,7 +152,8 @@ class JobOfferServiceTest {
                 companyRepository, recruiterRepository, skillRepository, languageRepository, degreeRepository,
                 studyFieldRepository, contractTypeRepository, employmentTypeRepository, workModeRepository,
                 mock(NormalizedProfileJobOfferRepository.class),
-                jobOfferNormalizationService);
+                jobOfferNormalizationService,
+                mock(ApplicationRepository.class));
 
         lenient().when(jobOfferSkillRepository.findByJobOfferIdIn(any())).thenReturn(List.of());
         lenient().when(jobOfferLanguageRepository.findByJobOfferIdIn(any())).thenReturn(List.of());

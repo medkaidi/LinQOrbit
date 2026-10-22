@@ -124,4 +124,19 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
               AND a.status = :status
             """, nativeQuery = true)
     long countRecruiterApplications(@Param("offerId") UUID offerId, @Param("status") short status);
+
+    /**
+     * Nombre de candidatures visibles par offre (brouillons et retraits exclus
+     * — exactement ce que le recruteur voit dans la liste des candidatures) :
+     * un seul GROUP BY pour toute la page, jamais un COUNT par offre (N+1).
+     */
+    @Query(value = """
+            SELECT a.job_offer_id, COUNT(*)::int
+            FROM application a
+            WHERE a.job_offer_id IN (:offerIds)
+              AND a.status NOT IN (:excluded)
+            GROUP BY a.job_offer_id
+            """, nativeQuery = true)
+    List<Object[]> countVisibleApplicationsByOfferIds(@Param("offerIds") List<UUID> offerIds,
+            @Param("excluded") List<Short> excluded);
 }

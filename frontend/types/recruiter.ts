@@ -138,6 +138,11 @@ export type JobOfferListItem = {
   analysisOutdated: boolean;
   /** Gate de complétude calculé serveur (description, pays, type d'emploi, ≥ 1 skill). */
   readyToPublish: boolean;
+  /**
+   * Candidatures visibles de l'offre (transmises, acceptées, rejetées —
+   * brouillons et retraits exclus), calculé par le serveur.
+   */
+  applicationCount: number;
   createdAt: string;
   updatedAt: string;
 };

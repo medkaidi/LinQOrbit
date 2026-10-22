@@ -180,7 +180,7 @@ export function PublicJobArticle({
   }
   if (expiry) {
     heroChips.push(
-      <MetaChip key="expiry" icon="event" urgent={expiry.urgent}>
+      <MetaChip key="expiry" icon="event" tone={expiry.urgent ? "accent" : "neutral"}>
         {expiry.label}
       </MetaChip>,
     );

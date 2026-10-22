@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
+import { META_CHIP_ACCENT_CLASS } from "@/components/ui/pill";
 import { JobOffersSection } from "@/features/job-offer/job-offers-section";
 import type { Company, JobOfferListItem } from "@/types/recruiter";
+
+function classesOf(value: string) {
+  return value.split(" ");
+}
 
 const useInfiniteJobOffersMock = vi.hoisted(() => vi.fn());
 const useJobOfferTransitionMock = vi.hoisted(() => vi.fn());
@@ -55,6 +60,7 @@ function draftOffer(overrides: Partial<JobOfferListItem> = {}): JobOfferListItem
     normalizationFailed: false,
     analysisOutdated: false,
     readyToPublish: true,
+    applicationCount: 0,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
@@ -222,6 +228,26 @@ describe("JobOffersSection", () => {
     expect(screen.getByText("Lyon, FR")).toBeInTheDocument();
     expect(screen.getByText("Hybrid")).toBeInTheDocument();
     expect(screen.getByText("Remote")).toBeInTheDocument();
+  });
+
+  it("shows the number of candidates and omits the chip when there is none", () => {
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([
+        draftOffer({ id: "o1", applicationCount: 3 }),
+        draftOffer({ id: "o2", applicationCount: 1 }),
+        draftOffer({ id: "o3", applicationCount: 0 }),
+      ]),
+    );
+
+    render(<JobOffersSection companies={companies} />);
+
+    const candidates = screen.getByText("3 candidates");
+    expect(candidates).toBeInTheDocument();
+    // Même outline que les autres chips méta, thème orange.
+    expect(candidates).toHaveClass(...classesOf(META_CHIP_ACCENT_CLASS));
+    expect(screen.getByText("1 candidate")).toBeInTheDocument();
+    // Sans candidature visible, aucun chip : l'absence porte déjà l'information.
+    expect(screen.queryByText("0 candidates")).not.toBeInTheDocument();
   });
 
   it("flags a draft that cannot be published yet", () => {

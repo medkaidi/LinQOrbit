@@ -325,6 +325,7 @@ function OfferRow({
       unvalidatedChanges={offer.hasUnvalidatedChanges}
       analysisOutdated={offer.analysisOutdated}
       readyToPublish={offer.readyToPublish}
+      applicationCount={offer.applicationCount}
       createdAt={offer.createdAt}
       updatedAt={offer.updatedAt}
       expiresAt={offer.expiresAt}

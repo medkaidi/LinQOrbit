@@ -25,7 +25,7 @@ export function DashboardHeader({ collapsed }: { collapsed?: boolean }) {
           className="lg:hidden flex items-center gap-2 shrink-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
           aria-label="Back to dashboard overview"
         >
-          <Logo className="h-7 w-auto" strokeScale={2} />
+          <Logo className="h-7 w-auto" strokeScale={1.75} />
         </Link>
         <div className="relative w-full hidden md:block group">
           <Icon
