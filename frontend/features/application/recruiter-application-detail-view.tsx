@@ -22,7 +22,7 @@ import {
   SECTION_CARD_CLASS,
   SECTION_HEADER_CLASS,
   SECTION_TITLE_CLASS,
-  ITEM_CARD_FLAT_CLASS,
+  ITEM_CARD_CLASS,
 } from "@/components/ui/section";
 import { ApplicationStatusPill } from "@/features/application/application-shared";
 import {
@@ -187,7 +187,7 @@ function RecruiterAnswer({ answer }: { answer: RecruiterAnswerView }) {
   const value = recruiterAnswerValue(answer);
   const hasOptions = answer.options.length > 0;
   return (
-    <li className={ITEM_CARD_FLAT_CLASS}>
+    <li className={ITEM_CARD_CLASS}>
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="font-label-md text-label-md text-text-primary font-bold">{answer.label}</h3>
         <Badge tone={answer.required ? "accent" : "outline"}>
@@ -229,7 +229,7 @@ function CriterionRow({
 }) {
   const score = displayScore(criterion.score);
   return (
-    <li className={ITEM_CARD_FLAT_CLASS}>
+    <li className={ITEM_CARD_CLASS}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-label-md text-label-md text-text-primary font-bold">
@@ -318,9 +318,9 @@ function AssessmentSection({
  */
 function Contest({ contest }: { contest: RecruiterContestationView }) {
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-slate-border bg-canvas-white/80 p-3">
+    <li className="flex flex-col gap-2 rounded-2xl border border-slate-border bg-canvas-white/80 p-3">
       <p className="font-label-md text-label-md text-text-primary font-bold">{contest.label}</p>
-      <div className="grid grid-cols-3 gap-2 rounded-md border border-slate-border bg-item-surface/60 p-2 text-center">
+      <div className="grid grid-cols-3 gap-2 rounded-2xl border border-slate-border bg-item-surface/60 p-2 text-center">
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary">
             AI
@@ -349,7 +349,7 @@ function Contest({ contest }: { contest: RecruiterContestationView }) {
         </div>
       </div>
       {contest.comment ? (
-        <blockquote className="border-l-2 border-orange-border pl-3 text-body-sm font-body-sm text-text-secondary italic whitespace-pre-wrap break-words">
+        <blockquote className="text-body-sm font-body-sm text-text-secondary italic whitespace-pre-wrap break-words">
           {contest.comment}
         </blockquote>
       ) : null}
@@ -368,7 +368,7 @@ function ContestsCard({ contests }: { contests: RecruiterContestationView[] }) {
       <SectionHeader title="Contests" icon="compare_arrows" aside={contestCountLabel(contests.length)} />
       <div className="px-5 pt-4 pb-5">
         {contested ? (
-          <div className="flex flex-col gap-3 rounded-lg border border-orange-border/70 bg-orange-subtle/60 p-3">
+          <div className="flex flex-col gap-3 rounded-2xl border border-orange-border/70 bg-orange-subtle/60 p-3">
             <p className="flex items-start gap-1.5 text-body-sm font-body-sm font-semibold leading-snug text-orange-deep">
               <Icon name="info" className="mt-px text-[14px]" />
               Disagreement signal, not a quality score
@@ -380,7 +380,7 @@ function ContestsCard({ contests }: { contests: RecruiterContestationView[] }) {
             </ul>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-1.5 rounded-lg border border-slate-border bg-item-surface/60 p-4 text-center">
+          <div className="flex flex-col items-center gap-1.5 rounded-2xl border border-slate-border bg-item-surface/60 p-4 text-center">
             <Icon name="check_circle" className="text-[18px] text-text-tertiary" />
             <span className="text-body-sm font-body-sm text-text-secondary">
               All scores uncontested
@@ -467,12 +467,12 @@ function ClarificationsCard({ clarifications }: { clarifications: RecruiterClari
         ) : (
           <ul className="flex flex-col gap-3">
             {clarifications.map((clarification) => (
-              <li key={clarification.id} className={ITEM_CARD_FLAT_CLASS}>
+              <li key={clarification.id} className={ITEM_CARD_CLASS}>
                 <h3 className="font-label-md text-label-md text-text-primary font-bold min-w-0 break-words">
                   {clarification.question}
                 </h3>
                 {clarification.rationale ? (
-                  <div className="mt-2 rounded-lg border border-blue-border bg-blue-surface/60 px-3 py-2">
+                  <div className="mt-2 rounded-lg border border-blue-border bg-blue-surface/60 px-4 py-3">
                     <span className="flex items-center gap-1.5 font-label-md text-label-md font-bold text-blue-deep">
                       <Icon name="help_outline" className="text-[14px]" />
                       Why the AI asked this
