@@ -252,6 +252,28 @@ export type RecruiterContestationView = {
   comment: string | null;
 };
 
+/**
+ * Motif d'un signalement interne d'une évaluation IA (D66) — valeurs de
+ * l'API. `other` est le seul motif qui exige un commentaire.
+ */
+export type CriterionReportReason =
+  | "scoreIncorrect"
+  | "evidenceWrong"
+  | "profileMisunderstood"
+  | "requirementMisunderstood"
+  | "other";
+
+/**
+ * Signalement interne d'une évaluation IA posé par le lecteur courant (D66) :
+ * retour qualité privé, jamais visible du candidat, sans effet sur le score.
+ */
+export type RecruiterCriterionReportView = {
+  criterionKey: string;
+  reason: CriterionReportReason;
+  comment: string | null;
+  createdAt: string;
+};
+
 export type RecruiterCvSummary = {
   attachmentId: string;
   originalName: string;
@@ -276,6 +298,11 @@ export type RecruiterApplicationDetail = {
    * contestation exploitable) — jamais déduit côté client.
    */
   averageGap: number | null;
+  /**
+   * Signalements internes de l'évaluation IA posés par le lecteur courant
+   * (D66) — jamais ceux des autres auteurs.
+   */
+  criterionReports: RecruiterCriterionReportView[];
   cv: RecruiterCvSummary | null;
 };
 

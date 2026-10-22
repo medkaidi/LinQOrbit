@@ -22,6 +22,7 @@ import com.linqorbit.admin.exception.InvalidUserCapabilityFilterException;
 import com.linqorbit.admin.exception.InvalidUserStatusException;
 import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
+import com.linqorbit.admin.exception.CriterionReportNotFoundException;
 import com.linqorbit.admin.exception.SuggestionNotFoundException;
 import com.linqorbit.admin.exception.UserNotFoundException;
 import com.linqorbit.application.exception.ApplicationNotFoundException;
@@ -272,6 +273,15 @@ public class GlobalExceptionHandler {
         problem.setTitle("Skill suggestion not found");
         problem.setDetail("No suggestion matches this identifier.");
         log.warn("Admin suggestion review rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(CriterionReportNotFoundException.class)
+    public ProblemDetail handleCriterionReportNotFound(CriterionReportNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Criterion report not found");
+        problem.setDetail("No AI report matches this identifier.");
+        log.warn("Admin criterion report lookup rejected : {}", ex.getMessage());
         return problem;
     }
 

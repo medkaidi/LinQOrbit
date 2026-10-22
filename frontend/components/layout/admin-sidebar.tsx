@@ -83,6 +83,13 @@ export function AdminSidebar() {
             active={pathname.startsWith("/admin/offers")}
             collapsed={collapsed}
           />
+          <SidebarLink
+            href="/admin/reports"
+            icon="flag"
+            label="AI reports"
+            active={pathname.startsWith("/admin/reports")}
+            collapsed={collapsed}
+          />
         </nav>
 
         <div className="mx-3 mt-4 pt-4 border-t border-slate-border">

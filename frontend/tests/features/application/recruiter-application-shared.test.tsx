@@ -7,7 +7,9 @@ import {
   contestCountLabel,
   contestSummary,
   ContestGapBlock,
+  criterionReasonRequiresComment,
   displayScore,
+  recruiterSectionLabel,
   scoreBand,
   ScorePercentChip,
   ScorePercentValue,
@@ -111,5 +113,23 @@ describe("ContestGapBlock", () => {
   it("reports an unavailable gap instead of inventing one", () => {
     render(<ContestGapBlock averageGap={null} />);
     expect(screen.getByText("Not available")).toBeInTheDocument();
+  });
+});
+
+describe("recruiterSectionLabel", () => {
+  it("labels a known section and keeps an unknown one as it is", () => {
+    expect(recruiterSectionLabel("requiredSkills")).toBe("Required skills");
+    expect(recruiterSectionLabel("unknownSection")).toBe("unknownSection");
+    expect(recruiterSectionLabel(null)).toBeNull();
+  });
+});
+
+describe("criterionReasonRequiresComment", () => {
+  it("requires a comment for the reason other only", () => {
+    expect(criterionReasonRequiresComment("other")).toBe(true);
+    expect(criterionReasonRequiresComment("scoreIncorrect")).toBe(false);
+    expect(criterionReasonRequiresComment("evidenceWrong")).toBe(false);
+    expect(criterionReasonRequiresComment("profileMisunderstood")).toBe(false);
+    expect(criterionReasonRequiresComment("requirementMisunderstood")).toBe(false);
   });
 });

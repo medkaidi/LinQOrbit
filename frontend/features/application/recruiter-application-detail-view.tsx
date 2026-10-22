@@ -25,11 +25,14 @@ import {
   ITEM_CARD_CLASS,
 } from "@/components/ui/section";
 import { ApplicationStatusPill } from "@/features/application/application-shared";
+import { CriterionReportDialog } from "@/features/application/criterion-report-dialog";
 import {
   candidateInitials,
   contestCountLabel,
   ContestGapBlock,
+  CRITERION_REASON_LABELS,
   displayScore,
+  gapLabel,
   RECRUITER_SECTION_LABELS,
   recruiterAnswerValue,
   recruiterCandidateName,
@@ -42,9 +45,10 @@ import {
   useDecideRecruiterApplication,
   useDownloadRecruiterApplicationCv,
   useRecruiterApplication,
+  useReportCriterion,
 } from "@/hooks/use-recruiter-applications";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
-import { formatFileSize } from "@/lib/utils/format";
+import { formatFileSize, formatShortDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
 import type {
   RecruiterAnswerView,
@@ -55,6 +59,7 @@ import type {
   RecruiterClarificationStatusValue,
   RecruiterClarificationView,
   RecruiterContestationView,
+  RecruiterCriterionReportView,
   RecruiterCriterionView,
   RecruiterCvSummary,
 } from "@/types/application";
@@ -64,10 +69,6 @@ const CLARIFICATION_STATUS_LABELS: Record<RecruiterClarificationStatusValue, str
   answered: "Answered",
   skipped: "Skipped",
 };
-
-function gapLabel(gap: number): string {
-  return Number.isInteger(gap) ? String(gap) : gap.toFixed(1);
-}
 
 /**
  * Pourquoi les boutons de décision sont absents — deux cas distincts, jamais
@@ -217,16 +218,24 @@ function RecruiterAnswer({ answer }: { answer: RecruiterAnswerView }) {
 }
 
 /**
- * Critère evalué : exigence, score en pourcentage, barre bleue et justification
+ * Critère évalué : exigence, score en pourcentage, barre bleue et justification
  * IA. Le critère contesté par le candidat est signalé — le désaccord se lit
- * sans croiser avec le panneau des contestations.
+ * sans croiser avec le panneau des contestations. Un critère déjà signalé par
+ * le lecteur (D66) garde **exactement la même carte** : le signalement est un
+ * retour qualité marginal, il ne transforme pas l'item en objet orange. Seul
+ * un encart de relecture très discret, en pied, porte la couleur (motif, date,
+ * commentaire) ; l'action disparaît : un signalement est immuable.
  */
 function CriterionRow({
   criterion,
   contested,
+  report,
+  onReport,
 }: {
   criterion: RecruiterCriterionView;
   contested: boolean;
+  report: RecruiterCriterionReportView | undefined;
+  onReport: (criterion: RecruiterCriterionView) => void;
 }) {
   const score = displayScore(criterion.score);
   return (
@@ -263,6 +272,32 @@ function CriterionRow({
       <p className="mt-2 text-body-sm font-body-sm text-text-secondary whitespace-pre-wrap break-words">
         {criterion.rationale.trim() ? criterion.rationale : "No AI rationale."}
       </p>
+      <div className="mt-3 border-t border-slate-border pt-3">
+        {report ? (
+          <div className="rounded border border-orange-border/60 bg-orange-subtle px-2.5 py-1.5">
+            <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-snug text-orange-deep">
+              <Icon name="flag" className="text-[11px]" />
+              <span className="font-semibold">Reported</span>
+              <span aria-hidden="true">·</span>
+              <span>{CRITERION_REASON_LABELS[report.reason]}</span>
+              <span aria-hidden="true">·</span>
+              <span>{formatShortDate(report.createdAt)}</span>
+            </p>
+            {report.comment ? (
+              <p className="mt-1 text-[11px] leading-snug text-text-secondary whitespace-pre-wrap break-words">
+                {report.comment}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <div className="flex items-center justify-end">
+            <Button variant="outline-sm" onClick={() => onReport(criterion)}>
+              <Icon name="flag" className="text-[14px]" />
+              Report
+            </Button>
+          </div>
+        )}
+      </div>
     </li>
   );
 }
@@ -272,22 +307,38 @@ function AssessmentSection({
   section,
   index,
   contestedKeys,
+  reportsByKey,
+  onReport,
 }: {
   section: RecruiterAssessmentSectionView;
   index: number;
   contestedKeys: Set<string>;
+  reportsByKey: Map<string, RecruiterCriterionReportView>;
+  onReport: (criterion: RecruiterCriterionView) => void;
 }) {
   const score = displayScore(section.score);
+  const reportedCount = section.criteria.reduce(
+    (count, criterion) => (reportsByKey.has(criterion.key) ? count + 1 : count),
+    0,
+  );
   return (
     <section
       className={cn(index > 0 && "border-t border-slate-border pt-5", "flex flex-col gap-3")}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <IndexBadge>{index + 1}</IndexBadge>
-          <h3 className="font-headline-sm text-headline-sm text-text-primary font-semibold min-w-0 break-words">
-            {RECRUITER_SECTION_LABELS[section.section]}
-          </h3>
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <IndexBadge>{index + 1}</IndexBadge>
+            <h3 className="font-headline-sm text-headline-sm text-text-primary font-semibold min-w-0 break-words">
+              {RECRUITER_SECTION_LABELS[section.section]}
+            </h3>
+          </div>
+          {reportedCount > 0 ? (
+            <p className="flex items-center gap-1 pl-[38px] font-label-md text-label-md font-bold text-orange-deep">
+              <Icon name="flag" className="text-[13px]" />
+              {reportedCount === 1 ? "1 reported" : `${reportedCount} reported`}
+            </p>
+          ) : null}
         </div>
         {score === null ? (
           <span className={MUTED_TEXT_CLASS}>Not evaluated</span>
@@ -304,6 +355,8 @@ function AssessmentSection({
               key={criterion.key}
               criterion={criterion}
               contested={contestedKeys.has(criterion.key)}
+              report={reportsByKey.get(criterion.key)}
+              onReport={onReport}
             />
           ))}
         </ul>
@@ -409,9 +462,13 @@ function ContestsCard({
 function AssessmentCard({
   assessment,
   contestedKeys,
+  reportsByKey,
+  onReport,
 }: {
   assessment: RecruiterAssessmentView;
   contestedKeys: Set<string>;
+  reportsByKey: Map<string, RecruiterCriterionReportView>;
+  onReport: (criterion: RecruiterCriterionView) => void;
 }) {
   const sections = assessment.sections.filter(
     (section) => section.score !== null || section.criteria.length > 0,
@@ -435,6 +492,8 @@ function AssessmentCard({
               section={section}
               index={index}
               contestedKeys={contestedKeys}
+              reportsByKey={reportsByKey}
+              onReport={onReport}
             />
           ))
         )}
@@ -531,14 +590,20 @@ export function RecruiterApplicationDetailView({
   const application = useRecruiterApplication(offerId, applicationId);
   const download = useDownloadRecruiterApplicationCv(offerId, applicationId);
   const decide = useDecideRecruiterApplication(offerId, applicationId);
+  const report = useReportCriterion(offerId, applicationId);
   const [pendingDecision, setPendingDecision] = useState<RecruiterApplicationDecision | null>(null);
+  const [reportingCriterion, setReportingCriterion] = useState<RecruiterCriterionView | null>(null);
 
   const data = application.data;
   const name = data ? recruiterCandidateName(data.candidate) : "Application";
   const candidateTitle = data?.candidate?.title?.trim() || null;
   const errorMessage = application.isError ? getApiErrorMessage(application.error) : null;
   const decideError = decide.error ? getApiErrorMessage(decide.error) : null;
+  const reportError = report.error ? getApiErrorMessage(report.error) : null;
   const contestedKeys = new Set((data?.contests ?? []).map((contest) => contest.criterionKey));
+  const reportsByKey = new Map(
+    (data?.criterionReports ?? []).map((item) => [item.criterionKey, item] as const),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -633,7 +698,12 @@ export function RecruiterApplicationDetailView({
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
             <div className="flex flex-col gap-6 xl:col-span-8">
-              <AssessmentCard assessment={data.assessment} contestedKeys={contestedKeys} />
+              <AssessmentCard
+                assessment={data.assessment}
+                contestedKeys={contestedKeys}
+                reportsByKey={reportsByKey}
+                onReport={setReportingCriterion}
+              />
               <RecruiterQuestionsCard answers={data.answers} />
               <ClarificationsCard clarifications={data.clarifications} />
             </div>
@@ -675,6 +745,23 @@ export function RecruiterApplicationDetailView({
             });
           }}
           onCancel={() => setPendingDecision(null)}
+        />
+      ) : null}
+
+      {reportingCriterion ? (
+        <CriterionReportDialog
+          criterion={reportingCriterion}
+          busy={report.isPending}
+          error={reportError}
+          onSubmit={(body) => {
+            report.mutate(body, {
+              onSuccess: () => setReportingCriterion(null),
+            });
+          }}
+          onClose={() => {
+            setReportingCriterion(null);
+            report.reset();
+          }}
         />
       ) : null}
     </div>

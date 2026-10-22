@@ -13,6 +13,7 @@ import {
   approveSkillSuggestion,
   getAdminJobOffer,
   getAdminUserProfile,
+  getCriterionReport,
   getOfferNormalizedProfile,
   getOfferNormalizedProfileVersions,
   getUserDetail,
@@ -20,6 +21,7 @@ import {
   getUserNormalizedProfileVersions,
   linkSkillSuggestion,
   listAllJobOffers,
+  listCriterionReports,
   listSkillSuggestions,
   listUsers,
   rejectSkillSuggestion,
@@ -139,6 +141,33 @@ export function useAdminOfferNormalizedVersions(
 
 export function useSkillSuggestions() {
   return useQuery({ queryKey: queryKeys.admin.skillSuggestions, queryFn: listSkillSuggestions });
+}
+
+/**
+ * Signalements internes d'évaluations IA (D66) en infinite scroll : la taille
+ * de page reste décidée par le backend (jamais envoyée).
+ */
+export function useInfiniteAdminCriterionReports() {
+  return useInfiniteQuery({
+    queryKey: queryKeys.admin.criterionReportsPage,
+    queryFn: ({ pageParam, signal }) => listCriterionReports({ page: pageParam }, { signal }),
+    initialPageParam: 0,
+    getNextPageParam: nextPageParam,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Dossier d'un signalement (T-86, D66) — requête inactive sans identifiant.
+ * Les données sont immuables : le cache n'a pas besoin d'être rafraîchi.
+ */
+export function useAdminCriterionReport(reportId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.admin.criterionReport(reportId ?? ""),
+    queryFn: ({ signal }) => getCriterionReport(reportId as string, { signal }),
+    enabled: Boolean(reportId),
+    staleTime: 60_000,
+  });
 }
 
 /** Active / désactive un compte, puis rafraîchit la liste des comptes. */

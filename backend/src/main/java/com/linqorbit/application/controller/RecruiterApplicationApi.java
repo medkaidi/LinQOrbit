@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 
+import com.linqorbit.application.dto.CriterionReportRequest;
 import com.linqorbit.application.dto.RecruiterApplicationDetail;
 import com.linqorbit.application.dto.RecruiterApplicationPageResponse;
 import com.linqorbit.application.dto.RecruiterDecisionRequest;
@@ -94,4 +95,23 @@ public interface RecruiterApplicationApi {
     })
     ResponseEntity<Void> decide(@PathVariable UUID offerId, @PathVariable UUID applicationId,
             @Valid @RequestBody RecruiterDecisionRequest request, Authentication authentication);
+
+    @PostMapping("/{applicationId}/criterion-reports")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Signaler une évaluation IA par critère",
+            description = "Retour qualité interne sur un critère de l'évaluation affichée (D66) : motif "
+                    + "(scoreIncorrect, evidenceWrong, profileMisunderstood, requirementMisunderstood, other) et "
+                    + "commentaire facultatif — obligatoire pour le motif « other ». Le critère est désigné par sa "
+                    + "clé dans le résultat affiché, résolu par le serveur. Aucun effet sur le score, aucune "
+                    + "réévaluation, aucune visibilité côté candidat. 409 si le même auteur a déjà signalé ce "
+                    + "critère.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Signalement enregistré"),
+            @ApiResponse(responseCode = "400", description = "Critère inconnu, motif invalide ou commentaire exigé"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "404", description = "Offre, candidature ou évaluation introuvable"),
+            @ApiResponse(responseCode = "409", description = "Critère déjà signalé ou évaluation absente")
+    })
+    ResponseEntity<Void> reportCriterion(@PathVariable UUID offerId, @PathVariable UUID applicationId,
+            @Valid @RequestBody CriterionReportRequest request, Authentication authentication);
 }

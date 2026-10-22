@@ -106,7 +106,9 @@ class OpenApiDocsTest {
                 .andExpect(jsonPath("$.paths['/api/v1/admin/skill-suggestions/{id}/link'].post.summary")
                         .value("Relier une suggestion à une compétence existante"))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/skill-suggestions/{id}/reject'].post.summary")
-                        .value("Rejeter une suggestion de compétence"));
+                        .value("Rejeter une suggestion de compétence"))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/criterion-reports'].get.summary")
+                        .value("Lister les signalements internes d'évaluations IA"));
     }
 
     @Test
@@ -122,8 +124,19 @@ class OpenApiDocsTest {
     }
 
     @Test
-    void exposeLeDocumentOpenApiAvecLesEndpointsCompany() throws Exception {
+    void exposeLeDocumentOpenApiAvecLeSignalementIA() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/applications/{applicationId}"
+                        + "/criterion-reports'].post.summary")
+                        .value("Signaler une évaluation IA par critère"))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/criterion-reports'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/admin/criterion-reports/{id}'].get.summary")
+                        .value("Consulter le dossier d'un signalement interne d'évaluation IA"));
+    }
+
+    @Test
+    void exposeLeDocumentOpenApiAvecLesEndpointsCompany() throws Exception {        mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/companies'].post.summary")
                         .value("Créer une company"))

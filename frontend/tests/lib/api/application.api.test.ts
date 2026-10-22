@@ -8,6 +8,7 @@ import {
   getRecruiterApplication,
   listMyApplications,
   listRecruiterApplications,
+  reportCriterion,
   saveApplicationDraft,
   submitApplication,
   withdrawApplication,
@@ -120,6 +121,21 @@ describe("application.api", () => {
     expect(postMock).toHaveBeenCalledWith(
       "/api/v1/job-offers/offer-1/applications/app-1/decision",
       { decision: "rejected" },
+    );
+  });
+
+  it("reports an AI assessment criterion with the key of the displayed result", async () => {
+    postMock.mockResolvedValue({ data: undefined });
+
+    await reportCriterion("offer-1", "app-1", {
+      criterionKey: "skill:java",
+      reason: "scoreIncorrect",
+      comment: null,
+    });
+
+    expect(postMock).toHaveBeenCalledWith(
+      "/api/v1/job-offers/offer-1/applications/app-1/criterion-reports",
+      { criterionKey: "skill:java", reason: "scoreIncorrect", comment: null },
     );
   });
 });

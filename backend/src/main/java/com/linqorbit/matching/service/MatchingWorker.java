@@ -250,7 +250,7 @@ public class MatchingWorker {
             throw new InvalidMatchingAnalysisException("The offer sheet has no criterion to score");
         }
         List<MatchingCriterionPayload> payload = criteria.stream()
-                .map(criterion -> new MatchingCriterionPayload(criterion.key(), criterion.section().getApiValue(),
+                .map(criterion -> new MatchingCriterionPayload(criterion.key(), criterion.section().getStorageValue(),
                         criterion.label(), criterion.requirement(), educationPayload(criterion.education())))
                 .toList();
         List<ClarificationHistoryPayload> history = closedClarifications(matching.getId());

@@ -8,6 +8,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.linqorbit.admin.dto.AdminCriterionReportDetailResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportPageResponse;
 import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
 import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
 import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
@@ -109,5 +111,15 @@ public class AdminController implements AdminApi {
     public ResponseEntity<Void> rejectSkillSuggestion(UUID id, Authentication authentication) {
         adminService.rejectSuggestion(id, CurrentUserId.from(authentication));
         return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<AdminCriterionReportPageResponse> listCriterionReports(int page, Integer size) {
+        return ResponseEntity.ok(adminService.listCriterionReports(page, size));
+    }
+
+    @Override
+    public ResponseEntity<AdminCriterionReportDetailResponse> getCriterionReport(UUID id) {
+        return ResponseEntity.ok(adminService.getCriterionReport(id));
     }
 }

@@ -3,6 +3,7 @@ import { saveBlob } from "@/lib/utils/download";
 import type {
   ApplicationContext,
   ApplicationResponse,
+  CriterionReportReason,
   RecruiterApplicationDecision,
   RecruiterApplicationDetail,
   RecruiterApplicationDirection,
@@ -126,4 +127,29 @@ export async function decideRecruiterApplication(
   await api.post(`/api/v1/job-offers/${offerId}/applications/${applicationId}/decision`, {
     decision,
   });
+}
+
+/**
+ * Signalement interne d'une évaluation IA (D66) : la clé du critère dans le
+ * résultat affiché, le motif et le commentaire (obligatoire pour « other »).
+ */
+export type CriterionReportRequest = {
+  criterionKey: string;
+  reason: CriterionReportReason;
+  comment: string | null;
+};
+
+/** Signalement interne d'une évaluation IA par critère (D66) : le backend
+ * répond 201. Le critère est désigné par sa clé dans le résultat affiché —
+ * le client ne la recalcule jamais.
+ */
+export async function reportCriterion(
+  offerId: string,
+  applicationId: string,
+  body: CriterionReportRequest,
+): Promise<void> {
+  await api.post(
+    `/api/v1/job-offers/${offerId}/applications/${applicationId}/criterion-reports`,
+    body,
+  );
 }

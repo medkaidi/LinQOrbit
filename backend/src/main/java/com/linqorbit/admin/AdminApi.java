@@ -21,6 +21,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 
+import com.linqorbit.admin.dto.AdminCriterionReportDetailResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportPageResponse;
 import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
 import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
 import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
@@ -226,4 +228,34 @@ public interface AdminApi {
             @ApiResponse(responseCode = "404", description = "Suggestion introuvable")
     })
     ResponseEntity<Void> rejectSkillSuggestion(@PathVariable("id") UUID id, Authentication authentication);
+
+    @GetMapping("/criterion-reports")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Lister les signalements internes d'évaluations IA",
+            description = "Signalements posés par les recruteurs sur un critère d'une évaluation IA (D66), du plus "
+                    + "récent au plus ancien : critère (libellé et section relus dans le résultat épinglé), offre, "
+                    + "company, candidat, auteur, motif, commentaire et date. Pagination (défaut 20, max 50).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Page de signalements renvoyée"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN")
+    })
+    ResponseEntity<AdminCriterionReportPageResponse> listCriterionReports(
+            @Parameter(description = "Index de page (0-based)") @RequestParam(name = "page", defaultValue = "0") int page,
+            @Parameter(description = "Taille de page (défaut 20, max 50) — valeur effective renvoyée dans la réponse") @RequestParam(name = "size", required = false) Integer size);
+
+    @GetMapping("/criterion-reports/{id}")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Consulter le dossier d'un signalement interne d'évaluation IA",
+            description = "Signalement (motif, commentaire, auteur, date), critère relu dans le résultat épinglé "
+                    + "(score, score de section, exigence, justification IA), évaluation complète en lecture seule, "
+                    + "contestations du candidat et écart moyen (D66). Aucun effet sur le score.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Dossier du signalement renvoyé"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Signalement introuvable")
+    })
+    ResponseEntity<AdminCriterionReportDetailResponse> getCriterionReport(
+            @Parameter(description = "Identifiant du signalement") @PathVariable("id") UUID id);
 }

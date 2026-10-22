@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { listAllJobOffers, listUsers } from "@/lib/api/admin.api";
+import { getCriterionReport, listAllJobOffers, listCriterionReports, listUsers } from "@/lib/api/admin.api";
 
 vi.mock("@/lib/api/axios", () => ({
   api: { get: vi.fn() },
@@ -60,6 +60,25 @@ describe("admin.api", () => {
     expect(mockedGet).toHaveBeenCalledWith("/api/v1/admin/job-offers", {
       params: { status: "draft", page: 1 },
       signal: undefined,
+    });
+  });
+
+  it("lists the AI reports with the page only, never a size", async () => {
+    await listCriterionReports({ page: 2 });
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/admin/criterion-reports", {
+      params: { page: 2 },
+      signal: undefined,
+    });
+  });
+
+  it("reads a single AI report by id, with the abort signal", async () => {
+    const signal = new AbortController().signal;
+
+    await getCriterionReport("report-1", { signal });
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/admin/criterion-reports/report-1", {
+      signal,
     });
   });
 });

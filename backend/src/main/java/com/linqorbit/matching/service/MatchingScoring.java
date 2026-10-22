@@ -99,7 +99,7 @@ public class MatchingScoring {
             }
             long[] sums = totals.get(section);
             ObjectNode node = sections.addObject();
-            node.put("section", section.getApiValue());
+            node.put("section", section.getStorageValue());
             node.put("score", weightedAverage(sums[0], sums[1]));
             node.set("criteria", items);
         }

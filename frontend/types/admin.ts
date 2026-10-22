@@ -1,5 +1,10 @@
 import type { PublicJob } from "@/types/public-job";
 import type {
+  CriterionReportReason,
+  RecruiterAssessmentView,
+  RecruiterContestationView,
+} from "@/types/application";
+import type {
   JobOfferStatusValue,
   SalaryPeriodValue,
   SeniorityValue,
@@ -120,4 +125,66 @@ export type AdminSkillSuggestion = {
   candidateLastName: string | null;
   candidateEmail: string | null;
   createdAt: string;
+};
+
+/**
+ * Signalement interne d'une évaluation IA (D66) — lu par la console
+ * d'administration. Le libellé du critère et sa section sont relus dans le
+ * résultat épinglé par le serveur.
+ */
+export type AdminCriterionReport = {
+  id: string;
+  criterionKey: string;
+  criterionLabel: string;
+  /** Clé de section (camelCase) ; absente si la section n'est pas résolue. */
+  section: string | null;
+  reason: CriterionReportReason;
+  comment: string | null;
+  createdAt: string;
+  authorFirstName: string | null;
+  authorLastName: string | null;
+  authorEmail: string | null;
+  candidateFirstName: string | null;
+  candidateLastName: string | null;
+  offerId: string | null;
+  offerTitle: string | null;
+  companyName: string | null;
+};
+
+/** Page de signalements (page 0-based — enveloppe backend). */
+export type AdminCriterionReportPage = {
+  items: AdminCriterionReport[];
+  page: number;
+  size: number;
+  total: number;
+};
+
+/**
+ * Critère signalé relu dans **le résultat épinglé** (D66) : score et score de
+ * section, exigence et justification IA. `resolved=false` quand la clé a
+ * disparu du résultat — la page affiche alors le signalement sans note.
+ */
+export type AdminCriterionContext = {
+  key: string;
+  label: string;
+  section: string | null;
+  score: number | null;
+  sectionScore: number | null;
+  requirement: string | null;
+  rationale: string | null;
+  resolved: boolean;
+};
+
+/**
+ * Dossier complet d'un signalement IA (T-86, D66) : contexte de notation,
+ * évaluation complète en lecture seule et contestations du candidat. Aucune
+ * de ces données n'est modifiable — un signalement ne rejoue pas l'évaluation.
+ */
+export type AdminCriterionReportDetail = {
+  report: AdminCriterionReport;
+  candidateUserId: string | null;
+  criterion: AdminCriterionContext;
+  assessment: RecruiterAssessmentView;
+  contests: RecruiterContestationView[];
+  averageGap: number | null;
 };

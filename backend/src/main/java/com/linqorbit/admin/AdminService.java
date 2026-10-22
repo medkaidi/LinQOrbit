@@ -7,15 +7,22 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.linqorbit.admin.dto.AdminCriterionContextResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportDetailResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportPageResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportResponse;
 import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
 import com.linqorbit.admin.dto.AdminJobOfferListItem;
 import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
@@ -29,10 +36,15 @@ import com.linqorbit.admin.exception.InvalidSkillCategoryException;
 import com.linqorbit.admin.exception.InvalidSkillTypeException;
 import com.linqorbit.admin.exception.InvalidUserCapabilityFilterException;
 import com.linqorbit.admin.exception.InvalidUserStatusException;
+import com.linqorbit.admin.exception.CriterionReportNotFoundException;
 import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
 import com.linqorbit.admin.exception.SuggestionNotFoundException;
 import com.linqorbit.admin.exception.UserNotFoundException;
+import com.linqorbit.application.dto.RecruiterAssessmentView;
+import com.linqorbit.application.dto.RecruiterContestationView;
+import com.linqorbit.application.service.ApplicationAssessmentReader;
+import com.linqorbit.application.service.ApplicationAssessmentReader.CriterionDetail;
 import com.linqorbit.candidate.entity.Candidate;
 import com.linqorbit.candidate.entity.NormalizationJobStatus;
 import com.linqorbit.candidate.entity.NormalizedProfile;
@@ -59,6 +71,16 @@ import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.service.JobOfferService;
+import com.linqorbit.matching.entity.Matching;
+import com.linqorbit.matching.entity.MatchingCriterionFeedback;
+import com.linqorbit.matching.entity.MatchingCriterionReport;
+import com.linqorbit.matching.entity.MatchingResult;
+import com.linqorbit.matching.repository.MatchingCriterionFeedbackRepository;
+import com.linqorbit.matching.repository.MatchingCriterionReportRepository;
+import com.linqorbit.matching.repository.MatchingRepository;
+import com.linqorbit.matching.repository.MatchingResultRepository;
+import com.linqorbit.matching.service.MatchingResultReader;
+import com.linqorbit.matching.service.MatchingResultReader.CriterionScore;
 import com.linqorbit.recruiter.entity.Recruiter;
 import com.linqorbit.recruiter.repository.RecruiterRepository;
 import com.linqorbit.user.User;
@@ -101,6 +123,12 @@ public class AdminService {
     private final JobOfferService jobOfferService;
     private final CandidateService candidateService;
     private final CompanyRepository companyRepository;
+    private final MatchingCriterionReportRepository criterionReportRepository;
+    private final MatchingCriterionFeedbackRepository feedbackRepository;
+    private final MatchingRepository matchingRepository;
+    private final MatchingResultRepository matchingResultRepository;
+    private final MatchingResultReader matchingResultReader;
+    private final ApplicationAssessmentReader assessmentReader;
     private final ObjectMapper objectMapper;
 
     /**
@@ -488,6 +516,138 @@ public class AdminService {
                 .toList();
         return new AdminJobOfferPageResponse(
                 items, result.getNumber(), result.getSize(), result.getTotalElements());
+    }
+
+    /**
+     * Signalements internes d'évaluations IA (T-86, D66), du plus récent au
+     * plus ancien. La page est lue par lots (matchings, résultats, offres,
+     * companies, comptes) : jamais une requête par signalement.
+     *
+     * <p>Le libellé du critère et sa section sont relus dans le JSON du
+     * résultat épinglé — la console lit exactement l'évaluation vue par le
+     * recruteur, rien n'est dénormalisé.</p>
+     */
+    @Transactional(readOnly = true)
+    public AdminCriterionReportPageResponse listCriterionReports(int page, Integer size) {
+        int safePage = PageSizes.page(page);
+        int safeSize = PageSizes.clamp(size);
+        Page<MatchingCriterionReport> result = criterionReportRepository
+                .findAllByOrderByCreatedAtDescIdDesc(PageRequest.of(safePage, safeSize));
+        List<MatchingCriterionReport> reports = result.getContent();
+        if (reports.isEmpty()) {
+            return new AdminCriterionReportPageResponse(List.of(), safePage, safeSize,
+                    result.getTotalElements());
+        }
+
+        Map<UUID, Matching> matchings = byId(matchingRepository,
+                reports.stream().map(MatchingCriterionReport::getMatchingId).toList(), Matching::getId);
+        Map<UUID, MatchingResult> results = byId(matchingResultRepository,
+                reports.stream().map(MatchingCriterionReport::getMatchingResultId).toList(),
+                MatchingResult::getId);
+        Map<UUID, JobOffer> offers = byId(jobOfferRepository,
+                matchings.values().stream().map(Matching::getJobOfferId).distinct().toList(), JobOffer::getId);
+        Map<UUID, Company> companies = byId(companyRepository,
+                offers.values().stream().map(JobOffer::getCompanyId).distinct().toList(), Company::getId);
+        Map<UUID, User> users = byId(userRepository, Stream.concat(
+                        reports.stream().map(MatchingCriterionReport::getAuthorUserId),
+                        matchings.values().stream().map(Matching::getCandidateId))
+                .distinct().toList(), User::getId);
+
+        List<AdminCriterionReportResponse> items = reports.stream()
+                .map(report -> {
+                    Matching matching = matchings.get(report.getMatchingId());
+                    MatchingResult matchingResult = results.get(report.getMatchingResultId());
+                    JobOffer offer = matching == null ? null
+                            : offers.get(matching.getJobOfferId());
+                    Company company = offer == null ? null : companies.get(offer.getCompanyId());
+                    User author = users.get(report.getAuthorUserId());
+                    User candidate = matching == null ? null : users.get(matching.getCandidateId());
+                    return reportResponse(report, matchingResultReader.tree(matchingResult), matching, offer,
+                            company, author, candidate);
+                })
+                .toList();
+        log.info("Admin criterion reports served : page={}, size={}, count={}, total={}",
+                safePage, safeSize, items.size(), result.getTotalElements());
+        return new AdminCriterionReportPageResponse(
+                items, result.getNumber(), result.getSize(), result.getTotalElements());
+    }
+
+    /**
+     * Dossier d'un signalement (T-86, D66) : le signalement, le critère relu
+     * dans <b>le résultat épinglé</b> (celui qui a été signalé, pas le dernier),
+     * l'évaluation complète et les contestations du candidat.
+     */
+    @Transactional(readOnly = true)
+    public AdminCriterionReportDetailResponse getCriterionReport(UUID reportId) {
+        MatchingCriterionReport report = criterionReportRepository.findById(reportId)
+                .orElseThrow(() -> new CriterionReportNotFoundException(reportId));
+        Matching matching = matchingRepository.findById(report.getMatchingId()).orElse(null);
+        MatchingResult pinned = matchingResultRepository.findById(report.getMatchingResultId()).orElse(null);
+        JobOffer offer = matching == null ? null
+                : jobOfferRepository.findById(matching.getJobOfferId()).orElse(null);
+        Company company = offer == null ? null
+                : companyRepository.findById(offer.getCompanyId()).orElse(null);
+        User author = userRepository.findById(report.getAuthorUserId()).orElse(null);
+        User candidate = matching == null ? null
+                : userRepository.findById(matching.getCandidateId()).orElse(null);
+
+        JsonNode root = assessmentReader.tree(pinned);
+        AdminCriterionReportResponse item = reportResponse(report, root, matching, offer, company,
+                author, candidate);
+        CriterionDetail detail = assessmentReader.criterionDetail(root, report.getCriterionKey());
+        AdminCriterionContextResponse criterion = detail == null
+                ? new AdminCriterionContextResponse(report.getCriterionKey(), report.getCriterionKey(),
+                        null, null, null, null, null, false)
+                : new AdminCriterionContextResponse(detail.criterion().key(), detail.criterion().label(),
+                        detail.section(), detail.criterion().score(), detail.sectionScore(),
+                        detail.criterion().requirement(), detail.criterion().rationale(), true);
+
+        List<MatchingCriterionFeedback> feedback = matching == null ? List.of()
+                : feedbackRepository.findByMatchingIdOrderByCriterionKeyAsc(matching.getId());
+        Map<UUID, MatchingResult> feedbackResults = assessmentReader.feedbackResults(feedback);
+        List<RecruiterContestationView> contests = assessmentReader.contests(feedback, feedbackResults, root);
+        ApplicationAssessmentReader.GapStats gap = assessmentReader.gapStats(feedback, feedbackResults, root);
+        RecruiterAssessmentView assessment = assessmentReader.assessment(root);
+
+        log.info("Admin criterion report served : reportId={}, matchingId={}, resolved={}",
+                reportId, report.getMatchingId(), criterion.resolved());
+        return new AdminCriterionReportDetailResponse(item,
+                matching == null ? null : matching.getCandidateId(), criterion, assessment, contests,
+                gap.averageGap());
+    }
+
+    /** Ligne de signalement, partagée par la liste et le dossier (même contrat). */
+    private AdminCriterionReportResponse reportResponse(MatchingCriterionReport report, JsonNode root,
+            Matching matching, JobOffer offer, Company company, User author, User candidate) {
+        CriterionScore criterion = matchingResultReader.criterion(root, report.getCriterionKey());
+        return new AdminCriterionReportResponse(
+                report.getId(),
+                report.getCriterionKey(),
+                criterion == null ? report.getCriterionKey() : criterion.label(),
+                criterion == null || criterion.section() == null
+                        ? null : criterion.section().getSectionKey(),
+                report.getReason().getApiValue(),
+                report.getComment(),
+                report.getCreatedAt(),
+                author == null ? null : author.getFirstName(),
+                author == null ? null : author.getLastName(),
+                author == null ? null : author.getEmail(),
+                candidate == null ? null : candidate.getFirstName(),
+                candidate == null ? null : candidate.getLastName(),
+                offer == null ? null : offer.getId(),
+                offer == null ? null : offer.getTitle(),
+                company == null ? null : company.getName());
+    }
+
+    /** Lecture par lots : une requête par type, jamais une requête par ligne. */
+    private static <T> Map<UUID, T> byId(JpaRepository<T, UUID> repository, List<UUID> ids,
+            Function<T, UUID> idOf) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, T> entities = new HashMap<>();
+        repository.findAllById(ids).forEach(entity -> entities.put(idOf.apply(entity), entity));
+        return entities;
     }
 
     /**

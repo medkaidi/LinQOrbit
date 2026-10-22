@@ -166,6 +166,7 @@ export function buildRecruiterApplicationDetail(
       },
     ],
     averageGap: 20,
+    criterionReports: [],
     cv: {
       attachmentId: RECRUITER_CV_ID,
       originalName: "grace-hopper-cv.pdf",

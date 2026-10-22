@@ -11,6 +11,8 @@ import java.util.UUID;
  *                   candidat, calculé par le serveur comme sur la carte de
  *                   liste (`null` sans contestation exploitable) — jamais
  *                   déduit côté client.
+ * @param criterionReports signalements internes de l'évaluation IA posés par
+ *                   le lecteur courant (T-86, D66) — jamais ceux des autres.
  */
 public record RecruiterApplicationDetail(
         UUID id,
@@ -24,5 +26,6 @@ public record RecruiterApplicationDetail(
         List<RecruiterClarificationView> clarifications,
         List<RecruiterContestationView> contests,
         Double averageGap,
+        List<RecruiterCriterionReportView> criterionReports,
         RecruiterCvSummary cv) {
 }

@@ -1,0 +1,29 @@
+package com.linqorbit.admin.dto;
+
+import java.util.List;
+import java.util.UUID;
+
+import com.linqorbit.application.dto.RecruiterAssessmentView;
+import com.linqorbit.application.dto.RecruiterContestationView;
+
+/**
+ * Dossier d'un signalement interne d'évaluation IA (T-86, D66) : le
+ * signalement, le critère tel qu'il a été noté (résultat épinglé), l'évaluation
+ * complète en lecture seule et les contestations du candidat, avec l'écart
+ * moyen calculé par le serveur.
+ *
+ * @param report         signalement (offre, candidate, auteur, motif, date)
+ * @param candidateUserId compte du candidat, pour ouvrir son profil dans la console
+ * @param criterion      critère signalé relu dans le résultat épinglé
+ * @param assessment     évaluation complète, même forme que la vue recruteur
+ * @param contests       contestations du candidat (critère signalé compris)
+ * @param averageGap     écart moyen absolu, même mesure que la vue recruteur
+ */
+public record AdminCriterionReportDetailResponse(
+        AdminCriterionReportResponse report,
+        UUID candidateUserId,
+        AdminCriterionContextResponse criterion,
+        RecruiterAssessmentView assessment,
+        List<RecruiterContestationView> contests,
+        Double averageGap) {
+}

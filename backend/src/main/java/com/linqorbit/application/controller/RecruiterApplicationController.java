@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import lombok.RequiredArgsConstructor;
 
+import com.linqorbit.application.dto.CriterionReportRequest;
 import com.linqorbit.application.dto.RecruiterApplicationDetail;
 import com.linqorbit.application.dto.RecruiterApplicationPageResponse;
 import com.linqorbit.application.dto.RecruiterDecisionRequest;
@@ -61,5 +63,13 @@ public class RecruiterApplicationController implements RecruiterApplicationApi {
             Authentication authentication) {
         recruiterApplicationService.decide(CurrentUserId.from(authentication), offerId, applicationId, request);
         return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> reportCriterion(UUID offerId, UUID applicationId, CriterionReportRequest request,
+            Authentication authentication) {
+        recruiterApplicationService.reportCriterion(CurrentUserId.from(authentication), offerId, applicationId,
+                request);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 }

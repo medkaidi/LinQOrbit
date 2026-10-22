@@ -75,7 +75,8 @@ com.linqorbit/
 │   ├── entity/        Application, ApplicationAnswer, ApplicationAnswerOption (+IdClass),
 │   │                  ApplicationStatus DRAFT(1)…REJECTED(5) (+converter) — ids pré-assignés
 │   └── exception/     InvalidApplicationException (400/404/409), ApplicationNotFoundException (404)
-├── matching/          moteur de matching (implémenté, T-61, D58 ; clarifications T-62, contestation T-63) :
+├── matching/          moteur de matching (implémenté, T-61, D58 ; clarifications T-62, contestation T-63 ;
+│   │                  signalement IA T-86) :
 │   │                  MatchingApi/Controller,
 │   ├── service/       MatchingService (préconditions D59, identité D50, versions sous verrou ;
 │   │                  réponse/skip → réévaluation versionnée, fin d'évaluation, contestation en
@@ -88,17 +89,22 @@ com.linqorbit/
 │   │                  stables ; formation = un critère `education:requirement` portant son
 │   │                  exigence structurée `MatchingEducation`, envoyée à l'IA qui la note en
 │   │                  code — D67/D68), MatchingScoring (barème provisoire `weighted-1`, couverture
-│   │                  exacte des clés), MatchingSection, MatchingRequestedEvent,
+│   │                  exacte des clés), MatchingSection (**deux valeurs par section** : stockage
+│   │                  `required_skills` et clé API `requiredSkills` — source unique du
+│   │                  vocabulaire, plus aucune table de correspondance dupliquée dans les vues),
+│   │                  MatchingResultReader (lecture du JSON d'un résultat épinglé + résolution
+│   │                  d'un critère — partagé par la vue recruteur et la console admin),
 │   │                  MatchingStatusBroadcaster (push SSE du statut, D60)
 │   ├── client/        MatchingAnalyzeClient (POST /matching/analyze — contexte rejoué),
 │   │                  MatchingClarifyClient (POST /matching/clarify, T-62)
 │   ├── entity/        Matching, MatchingResult (result JSONB), MatchingJob (+ status/converter),
 │   │                  Clarification + ClarificationStatus OPEN(1)/ANSWERED(2)/SKIPPED(3) (+converter),
-│   │                  MatchingCriterionFeedback (V22/V23)
+│   │                  MatchingCriterionFeedback (V22/V23), MatchingCriterionReport (V25) +
+│   │                  CriterionReportReason (5 motifs, SMALLINT + converter — jamais ORDINAL)
 │   ├── repository/    MatchingRepository (verrou pessimiste, finishAssessment), MatchingResultRepository
 │   │                  (dernier résultat avec contenu), MatchingJobRepository (CAS),
 │   │                  ClarificationRepository (OPEN, historique ordonné, compte du plafond),
-│   │                  MatchingCriterionFeedbackRepository
+│   │                  MatchingCriterionFeedbackRepository, MatchingCriterionReportRepository
 │   ├── dto/           StartMatchingRequest, MatchingResponse (score par critère seul côté
 │   │                  candidat + question ouverte + fin d'évaluation + contestations du candidat),
 │   │                  MatchingAnalyzeRequest/MatchingCriterionPayload (sans poids ; évaluations
@@ -185,6 +191,7 @@ Profil candidat → objet canonique JSON, en **async durable** (11 décisions ac
 - **Résumé candidat** : `RecruiterCandidateSummary` expose prénom, nom et **`title`** (intitulé du poste actuel, pas la cible ni le titre de l'offre). La liste charge les `Candidate` en **batch** (`CandidateRepository.findAllById`), le détail par id ; le titre est trimé et devient `null` s'il est absent, `null` ou blanc. Jamais d'email ni de téléphone dans le résumé. Tests IT liste/détail + titre absent/blanc.
 - **Écart moyen des contestations** : `RecruiterApplicationDetail` expose **`averageGap`** (écart moyen absolu entre la note IA et la note propre du candidat), calculé par le serveur avec **le même `gapStats`** que la carte de liste — le détail et la carte affichent donc exactement la même valeur, et le frontend ne la déduit jamais. `null` sans contestation exploitable ; le compteur et la moyenne portent sur le **même** ensemble de critères (un feedback dont le critère n'est plus résolvable est exclu des deux). Tests IT détail (écart moyen + application directe sans contestation).
 - **Compteur de candidatures sur la ligne d'offre** : `JobOfferListItem.applicationCount` porte le nombre de candidatures **visibles** de l'offre (transmises, acceptées, rejetées — brouillons et retraits exclus, donc exactement les onglets de la liste des candidatures). Calculé par **un seul GROUP BY pour toute la page** (`ApplicationRepository.countVisibleApplicationsByOfferIds`) — jamais un COUNT par offre (N+1) ; le frontend ne le déduit jamais. La console admin n'expose pas ce signal (elle ne porte pas les candidatures d'une company). Test IT : deux candidatures transmises comptées, un brouillon et un retrait exclus.
+- **Signalement interne d'une évaluation IA (T-86, D66)** : `POST /api/v1/job-offers/{offerId}/applications/{applicationId}/criterion-reports` — corps `{criterionKey, reason, comment}`, réponse **201**. Le **résultat affiché est résolu par le serveur** (le dernier résultat terminé du matching, même requête que le détail) : le client n'envoie que la **clé** du critère, relue dans le JSON de ce résultat (clé inconnue → **400**). Le signalement est **immuable** (table V25 sans `updated_at`, unicité (résultat, critère, auteur) → doublon **409**, y compris en course : `DataIntegrityViolationException` traduite en 409, jamais une 500). Motifs : `scoreIncorrect`, `evidenceWrong`, `profileMisunderstood`, `requirementMisunderstood`, `other` (valeurs API de `CriterionReportReason`, SMALLINT + converter) — motif inconnu → **400**. Le **commentaire est obligatoire pour le seul motif « other »** (400 `COMMENT_REQUIRED`) et facultatif ailleurs ; cleansé (trim), vide → `null` ; > 2 000 → 400. Règle garantie **aussi par la base** (`CHECK` motif 1–5, `CHECK` « autre ⇒ commentaire non blanc »). `RecruiterApplicationDetail.criterionReports` expose **les signalements de son auteur seul** (jamais ceux des autres). `GET /api/v1/admin/criterion-reports` (rôle ADMIN) liste tous les signalements — libellé et section du critère relus dans le résultat épinglé via `MatchingResultReader`, lectures **par lots** (jamais une requête par ligne). Le **dossier** `GET /api/v1/admin/criterion-reports/{id}` (rôle ADMIN, signalement inconnu → `CriterionReportNotFoundException` → **404**) relit le résultat **épinglé par le signalement** (`matching_result_id`, jamais « le dernier ») et expose le signalement, `candidateUserId`, le critère (clé, libellé, section, score, score de section, exigence, justification, `resolved`), l'évaluation complète (`RecruiterAssessmentView`), les contestations du candidat et `averageGap` — une clé absente du JSON donne `resolved=false` sans note inventée, la page reste lisible. L'assemblage évaluation / contestations / écart moyen est partagé avec le détail recruteur par `ApplicationAssessmentReader` (une seule formule, jamais recopiée). **Aucun effet sur le score, aucune réévaluation, aucune visibilité candidat.**
 - **Décisions** `ACCEPTED`/`REJECTED` : manuelles, terminales, sans recalcul IA ; 409 sinon. **D12** : tout membre de la company lit liste/détail/CV, seuls l'owner ou le recruteur créateur de l'offre décident (403 sinon) ; `canDecide` est calculé serveur. L'application référence le matching et le CV **épinglés** à la transmission (`matching_id` peut être NULL pour une candidature directe).
 - **Sécurité** : les nouvelles routes restent sous les racines `candidates` / `job-offers` déjà `authenticated` (matchers explicites) ; le contrôle recruteur/company se fait en service, avec tests 401/403.
 
@@ -223,6 +230,7 @@ Pièges déjà rencontrés :
 - **Unit tests** (priorité) : la logique métier des Services, avec Mockito pour Repository / API externes / dépendances. Rapides et isolés — aucun PostgreSQL requis.
 - **Tests d'intégration** : `@WebMvcTest` / `@DataJpaTest` / `@SpringBootTest` au cas par cas quand les fonctionnalités existent (nécessitent PostgreSQL, voir `.env.example`).
 - `@SpringBootTest` contexte = requis PostgreSQL actif (`docker start linqorbit-pg`).
+- **IT sur base de dev partagée** : les `@SpringBootTest` utilisent la même base PostgreSQL que le dev. Toute vérification SQL se scope par les identifiants créés par le test (offre, candidature, matching, résultat) et le nettoyage ne supprime que ces données. Ne jamais supposer une liste globale vide ou de taille 1 — un signalement manuel doit survivre à la suite — et ne jamais supprimer une ligne qu'on n'a pas créée.
 - Si le contexte échoue avec `No qualifying bean of type 'long'` (ou un `@Value` ignoré côté `AuthService`) : compilation incrémentale ayant sauté l'annotation processing Lombok → `./mvnw clean test`.
 - Sécurité : `spring-security-test` est prêt (MockMvc + `SecurityMockMvcRequestPostProcessors`) — l'utiliser dès que l'auth arrivera, sans créer de faux système d'auth pour un test. Tout endpoint sous `.authenticated()` doit recevoir `jwt()` dans ses tests : sans jeton, le test échoue en 403 et non par la validation métier attendue.
 - MapStruct : ne tester que les mappings avec logique/transformations réelles, jamais les getters/setters générés.

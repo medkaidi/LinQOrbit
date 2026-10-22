@@ -2,6 +2,8 @@ import { api } from "@/lib/api/axios";
 import type { CandidateProfile } from "@/types/candidate";
 import type {
   AdminCandidateNormalizedProfile,
+  AdminCriterionReportDetail,
+  AdminCriterionReportPage,
   AdminJobOfferDetail,
   AdminJobOfferPage,
   AdminJobOfferStatus,
@@ -129,4 +131,35 @@ export async function linkSkillSuggestion(id: string, skillId: string): Promise<
 
 export async function rejectSkillSuggestion(id: string): Promise<void> {
   await api.post(`${BASE}/skill-suggestions/${id}/reject`);
+}
+
+/**
+ * Signalements internes d'évaluations IA (D66), du plus récent au plus
+ * ancien. La taille de page n'est jamais envoyée : le backend décide (D34).
+ */
+export async function listCriterionReports(
+  params: { page?: number } = {},
+  options: { signal?: AbortSignal } = {},
+): Promise<AdminCriterionReportPage> {
+  const response = await api.get<AdminCriterionReportPage>(`${BASE}/criterion-reports`, {
+    params: {
+      ...(params.page !== undefined ? { page: params.page } : {}),
+    },
+    signal: options.signal,
+  });
+  return response.data;
+}
+
+/**
+ * Dossier d'un signalement (T-86, D66) : critère relu dans le résultat
+ * épinglé, évaluation complète, contestations du candidat. Lecture seule.
+ */
+export async function getCriterionReport(
+  id: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<AdminCriterionReportDetail> {
+  const response = await api.get<AdminCriterionReportDetail>(`${BASE}/criterion-reports/${id}`, {
+    signal: options.signal,
+  });
+  return response.data;
 }

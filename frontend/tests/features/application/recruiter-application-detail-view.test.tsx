@@ -7,6 +7,7 @@ import {
   downloadRecruiterApplicationCv,
   getRecruiterApplication,
   listRecruiterApplications,
+  reportCriterion,
 } from "@/lib/api/application.api";
 import {
   buildRecruiterApplicationDetail,
@@ -20,11 +21,13 @@ vi.mock("@/lib/api/application.api", () => ({
   downloadRecruiterApplicationCv: vi.fn(),
   getRecruiterApplication: vi.fn(),
   listRecruiterApplications: vi.fn(),
+  reportCriterion: vi.fn(),
 }));
 
 const detailMock = vi.mocked(getRecruiterApplication);
 const decideMock = vi.mocked(decideRecruiterApplication);
 const downloadMock = vi.mocked(downloadRecruiterApplicationCv);
+const reportMock = vi.mocked(reportCriterion);
 
 function renderDetail() {
   return renderWithQueryClient(
@@ -51,6 +54,7 @@ describe("RecruiterApplicationDetailView", () => {
     detailMock.mockReset();
     decideMock.mockReset();
     downloadMock.mockReset();
+    reportMock.mockReset();
     vi.mocked(listRecruiterApplications).mockReset();
   });
 
@@ -378,5 +382,94 @@ describe("RecruiterApplicationDetailView", () => {
 
     expect(await screen.findByText("Decision failed")).toBeInTheDocument();
     expect(screen.getByText("This application has already been decided.")).toBeInTheDocument();
+  });
+
+  it("offers a report action on each criterion of the pinned assessment", async () => {
+    detailMock.mockResolvedValue(buildRecruiterApplicationDetail());
+    reportMock.mockResolvedValue(undefined);
+
+    renderDetail();
+
+    const assessment = within(await screen.findByRole("region", { name: "AI assessment" }));
+    const reportButton = assessment.getByRole("button", { name: "Report" });
+    expect(assessment.queryByText("1 reported")).not.toBeInTheDocument();
+    fireEvent.click(reportButton);
+
+    const dialog = screen.getByRole("dialog", { name: "Report this assessment" });
+    expect(dialog).toBeInTheDocument();
+    // Le motif est obligatoire ; « other » exige un commentaire.
+    expect(screen.getByRole("button", { name: /Send report/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("combobox", { name: "Reason" }));
+    fireEvent.click(screen.getByRole("option", { name: "The score is wrong" }));
+    fireEvent.click(screen.getByRole("button", { name: /Send report/ }));
+
+    await waitFor(() =>
+      expect(reportMock).toHaveBeenCalledWith(RECRUITER_OFFER_ID, RECRUITER_APPLICATION_ID, {
+        criterionKey: "skill:java",
+        reason: "scoreIncorrect",
+        comment: null,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Report this assessment" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("marks a criterion already reported, reads the report back and drops its report action", async () => {
+    detailMock.mockResolvedValue(
+      buildRecruiterApplicationDetail({
+        criterionReports: [
+          {
+            criterionKey: "skill:java",
+            reason: "scoreIncorrect",
+            comment: "The candidate has eight years of Java, not three.",
+            createdAt: "2026-10-20T10:00:00",
+          },
+        ],
+      }),
+    );
+
+    renderDetail();
+
+    const assessment = within(await screen.findByRole("region", { name: "AI assessment" }));
+    const reported = assessment.getByText("Reported");
+    expect(reported).toBeInTheDocument();
+    // Le signalement ne transforme pas la carte du critère : conteneur standard.
+    const card = assessment.getByRole("meter", { name: "Java" }).closest("li");
+    expect(card).toHaveClass("bg-item-surface/50");
+    expect(card).not.toHaveClass("bg-orange-subtle");
+    // Le compteur de section évite de dérouler tous les critères pour trouver le signalement.
+    expect(assessment.getByText("1 reported")).toBeInTheDocument();
+    // L'auteur relit son signalement : motif, commentaire et date, sur une ligne orange discrète.
+    expect(reported.parentElement).toHaveClass("text-orange-deep");
+    expect(assessment.getByText("The score is wrong")).toBeInTheDocument();
+    expect(
+      assessment.getByText("The candidate has eight years of Java, not three."),
+    ).toBeInTheDocument();
+    expect(assessment.getByText("Oct 20, 2026")).toBeInTheDocument();
+    // Un signalement est immuable : on ne peut pas le refaire.
+    expect(assessment.queryByRole("button", { name: "Report" })).not.toBeInTheDocument();
+  });
+
+  it("shows the error when the criterion was already reported", async () => {
+    detailMock.mockResolvedValue(buildRecruiterApplicationDetail());
+    reportMock.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 409,
+        data: { detail: "You have already reported this criterion." },
+      },
+    });
+
+    renderDetail();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Report" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Reason" }));
+    fireEvent.click(screen.getByRole("option", { name: "The score is wrong" }));
+    fireEvent.click(screen.getByRole("button", { name: /Send report/ }));
+
+    expect(
+      await screen.findByText("You have already reported this criterion."),
+    ).toBeInTheDocument();
   });
 });

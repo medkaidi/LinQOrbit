@@ -75,6 +75,12 @@ import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.service.JobOfferService;
 import com.linqorbit.recruiter.entity.Recruiter;
+import com.linqorbit.application.service.ApplicationAssessmentReader;
+import com.linqorbit.matching.repository.MatchingCriterionFeedbackRepository;
+import com.linqorbit.matching.repository.MatchingCriterionReportRepository;
+import com.linqorbit.matching.repository.MatchingRepository;
+import com.linqorbit.matching.repository.MatchingResultRepository;
+import com.linqorbit.matching.service.MatchingResultReader;
 import com.linqorbit.recruiter.repository.RecruiterRepository;
 import com.linqorbit.user.Role;
 import com.linqorbit.user.User;
@@ -120,11 +126,16 @@ class AdminServiceTest {
         jobOfferService = mock(JobOfferService.class);
         candidateService = mock(CandidateService.class);
         companyRepository = mock(CompanyRepository.class);
+        MatchingResultReader matchingResultReader = new MatchingResultReader(new ObjectMapper());
         adminService = new AdminService(userRepository, userRoleRepository, skillSuggestionRepository,
                 skillRepository, candidateRepository, candidateSkillRepository, recruiterRepository,
                 normalizedProfileRepository, normalizedProfileJobOfferRepository,
                 normalizationJobRepository, jobOfferRepository, jobOfferService, candidateService,
-                companyRepository, new ObjectMapper());
+                companyRepository, mock(MatchingCriterionReportRepository.class),
+                mock(MatchingCriterionFeedbackRepository.class), mock(MatchingRepository.class),
+                mock(MatchingResultRepository.class), matchingResultReader,
+                new ApplicationAssessmentReader(matchingResultReader, mock(MatchingResultRepository.class)),
+                new ObjectMapper());
     }
 
     @Test

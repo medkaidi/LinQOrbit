@@ -2,6 +2,7 @@ import { Icon } from "@/components/ui/icon";
 import { appliedOnLabel } from "@/features/application/application-shared";
 import { cn } from "@/lib/utils/cn";
 import type {
+  CriterionReportReason,
   RecruiterAnswerView,
   RecruiterCandidateSummary,
   RecruiterSectionKey,
@@ -16,12 +17,59 @@ export const RECRUITER_SECTION_LABELS: Record<RecruiterSectionKey, string> = {
   education: "Education",
 };
 
+/**
+ * Libellé d'une section venue du serveur (console admin) : la section inconnue
+ * est rendue telle quelle plutôt que masquée.
+ */
+export function recruiterSectionLabel(section: string | null): string | null {
+  if (!section) {
+    return null;
+  }
+  return RECRUITER_SECTION_LABELS[section as RecruiterSectionKey] ?? section;
+}
+
+/** Motifs d'un signalement interne d'une évaluation IA (D66) — libellés et ordre d'affichage. */
+export const CRITERION_REASON_LABELS: Record<CriterionReportReason, string> = {
+  scoreIncorrect: "The score is wrong",
+  evidenceWrong: "The evidence is wrong",
+  profileMisunderstood: "The profile was misunderstood",
+  requirementMisunderstood: "The requirement was misunderstood",
+  other: "Other",
+};
+
+/** Options du sélecteur de motif (valeurs API). */
+export const CRITERION_REASON_OPTIONS: { value: CriterionReportReason; label: string }[] = (
+  Object.keys(CRITERION_REASON_LABELS) as CriterionReportReason[]
+).map((value) => ({ value, label: CRITERION_REASON_LABELS[value] }));
+
+/**
+ * Aide de saisie par motif : le commentaire est facultatif partout, mais le
+ * motif « other » ne dit rien par lui-même — le commentaire y est obligatoire.
+ */
+export const CRITERION_REASON_PLACEHOLDERS: Record<CriterionReportReason, string> = {
+  scoreIncorrect: "Which score is off, and what should it be?",
+  evidenceWrong: "Which piece of evidence is wrong?",
+  profileMisunderstood: "What did the AI misread in the profile?",
+  requirementMisunderstood: "Which requirement was misread?",
+  other: "What should the internal team know?",
+};
+
+/** Le motif « other » porte l'information dans le commentaire : il l'exige. */
+export function criterionReasonRequiresComment(reason: CriterionReportReason): boolean {
+  return reason === "other";
+}
+
 /** Nom d'affichage du candidat, sans email ni autre donnée de profil. */
 export function recruiterCandidateName(candidate: RecruiterCandidateSummary | null): string {
   if (!candidate) {
     return "Candidate";
   }
   return `${candidate.firstName} ${candidate.lastName}`.trim() || "Candidate";
+}
+
+/** Écart affiché : entier tel quel, sinon une décimale (valeur serveur). */
+export function gapLabel(gap: number): string {
+  return Number.isInteger(gap) ? String(gap) : gap.toFixed(1);
 }
 
 /** Bande de lecture d'un score : vert ≥ 70, orange 40–69, gris < 40, absent. */

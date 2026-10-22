@@ -13,6 +13,8 @@ import {
   downloadRecruiterApplicationCv,
   getRecruiterApplication,
   listRecruiterApplications,
+  reportCriterion,
+  type CriterionReportRequest,
 } from "@/lib/api/application.api";
 import { queryKeys } from "@/hooks/query-keys";
 import { nextPageParam } from "@/lib/utils/pagination";
@@ -90,5 +92,29 @@ export function useDownloadRecruiterApplicationCv(offerId: string, applicationId
   return useMutation({
     mutationFn: (fileName: string) =>
       downloadRecruiterApplicationCv(offerId, applicationId, fileName),
+  });
+}
+
+/**
+ * Signalement interne d'une évaluation IA par critère (D66) : le signalement
+ * est immuable, le détail est relu pour afficher l'état « Reported ». Un 409
+ * (doublon) relit aussi le détail : l'état réel prime sur l'erreur.
+ */
+export function useReportCriterion(offerId: string, applicationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CriterionReportRequest) =>
+      reportCriterion(offerId, applicationId, body),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.recruiterApplications.detail(offerId, applicationId),
+      }),
+    onError: (error) => {
+      if (isAxiosError(error) && error.response?.status === 409) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.recruiterApplications.detail(offerId, applicationId),
+        });
+      }
+    },
   });
 }

@@ -60,6 +60,11 @@ export const queryKeys = {
     jobOfferNormalizedVersions: (offerId: string) =>
       ["admin", "job-offers", offerId, "normalized-profile", "versions"] as const,
     skillSuggestions: ["admin", "skill-suggestions"] as const,
+    /** Signalements internes d'évaluations IA (D66) — liste infinie. */
+    criterionReportsPage: ["admin", "criterion-reports"] as const,
+    /** Dossier d'un signalement (T-86) : détail d'une ligne de la liste. */
+    criterionReport: (reportId: string) =>
+      ["admin", "criterion-reports", reportId] as const,
   },
   publicJobs: {
     list: ["public-jobs", "list"] as const,
