@@ -349,9 +349,14 @@ function Contest({ contest }: { contest: RecruiterContestationView }) {
         </div>
       </div>
       {contest.comment ? (
-        <blockquote className="text-body-sm font-body-sm text-text-secondary italic whitespace-pre-wrap break-words">
-          {contest.comment}
-        </blockquote>
+        <div className="flex flex-col gap-1">
+          <span className="font-label-md text-label-md text-text-secondary">
+            Candidate&apos;s argument
+          </span>
+          <blockquote className="text-body-sm font-body-sm text-text-secondary italic whitespace-pre-wrap break-words">
+            {contest.comment}
+          </blockquote>
+        </div>
       ) : null}
     </li>
   );
@@ -472,7 +477,7 @@ function ClarificationsCard({ clarifications }: { clarifications: RecruiterClari
                   {clarification.question}
                 </h3>
                 {clarification.rationale ? (
-                  <div className="mt-2 rounded-lg border border-blue-border bg-blue-surface/60 px-4 py-3">
+                  <div className="mt-2 rounded-lg border border-blue-border bg-blue-surface/60 px-5 py-4">
                     <span className="flex items-center gap-1.5 font-label-md text-label-md font-bold text-blue-deep">
                       <Icon name="help_outline" className="text-[14px]" />
                       Why the AI asked this

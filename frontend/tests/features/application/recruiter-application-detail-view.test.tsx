@@ -130,6 +130,7 @@ describe("RecruiterApplicationDetailView", () => {
     expect(contests.getByText("10 pts")).toBeInTheDocument();
     expect(contests.getByText("30 pts")).toBeInTheDocument();
     // L'argumentaire n'existe que là où le candidat a écrit quelque chose.
+    expect(contests.getByText("Candidate's argument")).toBeInTheDocument();
     expect(contests.getByText("I write English docs every day.")).toBeInTheDocument();
   });
 
