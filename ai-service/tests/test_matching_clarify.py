@@ -4,10 +4,13 @@ import json
 import logging
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain.agents.structured_output import StructuredOutputValidationError
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.errors import GraphRecursionError
+from pydantic import ValidationError
 
 from app.agents.matching_clarify import (
+    NO_OUTPUT_MESSAGE,
     RECURSION_LIMIT,
     RUN_NAME,
     MatchingClarifyError,
@@ -165,6 +168,92 @@ def test_a_null_question_on_the_repair_turn_is_a_valid_answer(monkeypatch):
     _install(monkeypatch, stub)
 
     assert clarify_matching(_request()).question is None
+
+
+def _schema_rejection(rationale: str = "SECRET-RATIONALE") -> StructuredOutputValidationError:
+    """The real agent error when Pydantic rejects the clarification output."""
+    payload = {"question": {"question": "", "rationale": rationale}}
+    with pytest.raises(ValidationError) as rejected:
+        ClarificationSuggestion.model_validate(payload)
+    source = ValueError(f"Failed to parse data to ClarificationSuggestion: {rejected.value}")
+    source.__cause__ = rejected.value
+    return StructuredOutputValidationError("ClarificationSuggestion", source, AIMessage(content=json.dumps(payload)))
+
+
+def test_schema_rejection_gets_one_repair_turn_from_the_request(monkeypatch):
+    stub = StubAgent([
+        _schema_rejection(),
+        {"structured_response": _question(), "messages": []},
+    ])
+    _install(monkeypatch, stub)
+
+    result = clarify_matching(_request())
+
+    assert result.question is not None
+    assert len(stub.calls) == 2
+    original = stub.calls[0]["payload"]["messages"][0]
+    repair_messages = stub.calls[1]["payload"]["messages"]
+    # The rejected AIMessage is never replayed: request + repair instruction.
+    assert repair_messages[0] is original
+    assert len(repair_messages) == 2
+    assert all(isinstance(message, HumanMessage) for message in repair_messages)
+    assert "strictly following the schema" in repair_messages[1].content
+    assert stub.calls[1]["config"] == stub.calls[0]["config"]
+
+
+def test_schema_rejection_on_the_repair_is_no_output(monkeypatch):
+    stub = StubAgent([_schema_rejection(), _schema_rejection()])
+    _install(monkeypatch, stub)
+
+    with pytest.raises(MatchingClarifyError) as caught:
+        clarify_matching(_request())
+
+    assert caught.value.code == "no_output"
+    assert caught.value.message == NO_OUTPUT_MESSAGE
+    assert len(stub.calls) == 2
+
+
+@pytest.mark.parametrize(
+    "second",
+    [
+        {"structured_response": None, "messages": []},
+        GraphRecursionError("loop"),
+    ],
+)
+def test_schema_rejection_then_a_failed_repair_is_no_output(monkeypatch, second):
+    stub = StubAgent([_schema_rejection(), second])
+    _install(monkeypatch, stub)
+
+    with pytest.raises(MatchingClarifyError) as caught:
+        clarify_matching(_request())
+
+    assert caught.value.code == "no_output"
+    assert len(stub.calls) == 2
+
+
+def test_schema_rejection_logs_the_type_never_the_rejected_content(monkeypatch, caplog):
+    stub = StubAgent([
+        _schema_rejection(rationale="SECRET-REJECTED-RATIONALE"),
+        {"structured_response": _question(), "messages": []},
+    ])
+    _install(monkeypatch, stub)
+
+    with caplog.at_level(logging.INFO, logger="app.agents.matching_clarify"):
+        clarify_matching(_request())
+
+    assert "error=StructuredOutputValidationError" in caplog.text
+    assert "SECRET-REJECTED-RATIONALE" not in caplog.text
+    assert "SECRET-BIO" not in caplog.text
+
+
+def test_a_provider_failure_is_not_turned_into_a_repair(monkeypatch):
+    stub = StubAgent([RuntimeError("provider down")])
+    _install(monkeypatch, stub)
+
+    with pytest.raises(RuntimeError, match="provider down"):
+        clarify_matching(_request())
+
+    assert len(stub.calls) == 1
 
 
 @pytest.mark.parametrize(

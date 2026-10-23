@@ -262,29 +262,39 @@ public class MatchingWorker {
         NextQuestion next = nextQuestion(matching, candidate, offer, payload, parsedAnalysis, history);
         LocalDateTime now = LocalDateTime.now();
         Integer done = transactionTemplate.execute(txStatus -> {
-            matchingResultRepository.setResult(result.getId(), json);
+            // Le CAS est la porte d'entrée : une exécution perdante ne doit
+            // jamais écrire le résultat d'un autre worker. L'écriture du JSON
+            // et les effets de bord restent dans la même tx : si l'un échoue,
+            // le CAS est annulé et le job reste RUNNING pour un retry.
             int applied = matchingJobRepository.casDone(job.getId(), MatchingJobStatus.RUNNING,
                     MatchingJobStatus.DONE, now);
-            if (applied == 1) {
-                if (next.question() != null) {
-                    clarificationRepository.saveAndFlush(Clarification.builder()
-                            .id(UUID.randomUUID())
-                            .matchingId(matching.getId())
-                            .matchingResultId(result.getId())
-                            .question(next.question())
-                            .rationale(next.rationale())
-                            .status(ClarificationStatus.OPEN)
-                            .build());
-                } else if (next.finish()) {
-                    matchingRepository.finishAssessment(matching.getId(), now);
-                }
+            if (applied != 1) {
+                return 0;
+            }
+            int written = matchingResultRepository.setResult(result.getId(), json);
+            if (written != 1) {
+                throw new IllegalStateException("Matching result already written or missing: " + result.getId());
+            }
+            if (next.question() != null) {
+                clarificationRepository.saveAndFlush(Clarification.builder()
+                        .id(UUID.randomUUID())
+                        .matchingId(matching.getId())
+                        .matchingResultId(result.getId())
+                        .question(next.question())
+                        .rationale(next.rationale())
+                        .status(ClarificationStatus.OPEN)
+                        .build());
+            } else if (next.finish()) {
+                matchingRepository.finishAssessment(matching.getId(), now);
             }
             return applied;
         });
         publishIfApplied(done, job.getId(), MatchingJobStatus.DONE);
-        log.info("Matching analysis done : jobId={}, matchingId={}, version={}, criteria={}, question={}, finished={}",
-                job.getId(), matching.getId(), result.getVersion(), criteria.size(), next.question() != null,
-                next.finish());
+        if (done != null && done == 1) {
+            log.info("Matching analysis done : jobId={}, matchingId={}, version={}, criteria={}, question={}, "
+                    + "finished={}", job.getId(), matching.getId(), result.getVersion(), criteria.size(),
+                    next.question() != null, next.finish());
+        }
     }
 
     /** Exigence de formation structurée (D68) ; {@code null} pour tout autre critère. */
@@ -423,7 +433,9 @@ public class MatchingWorker {
             Integer failed = transactionTemplate.execute(txStatus ->
                     matchingJobRepository.casFail(job.getId(), MatchingJobStatus.RUNNING, MatchingJobStatus.FAILED,
                             attempts, now, error));
-            log.warn("Matching abandoned after {} attempts : jobId={}, error={}", attempts, job.getId(), error);
+            if (failed != null && failed == 1) {
+                log.warn("Matching abandoned after {} attempts : jobId={}, error={}", attempts, job.getId(), error);
+            }
             publishIfApplied(failed, job.getId(), MatchingJobStatus.FAILED);
             return;
         }
@@ -431,10 +443,17 @@ public class MatchingWorker {
         Integer retried = transactionTemplate.execute(txStatus ->
                 matchingJobRepository.casRetry(job.getId(), MatchingJobStatus.RUNNING, MatchingJobStatus.PENDING,
                         attempts, nextAttemptAt, error));
-        log.info("Matching scheduled for retry : jobId={}, attempt={}, nextAttemptAt={}",
-                job.getId(), attempts, nextAttemptAt);
-        publishIfApplied(retried, job.getId(), MatchingJobStatus.PENDING);
-        scheduleAt(job.getId(), nextAttemptAt);
+        if (retried != null && retried == 1) {
+            log.info("Matching scheduled for retry : jobId={}, attempt={}, nextAttemptAt={}",
+                    job.getId(), attempts, nextAttemptAt);
+            publishStatus(job.getId(), MatchingJobStatus.PENDING);
+            scheduleAt(job.getId(), nextAttemptAt);
+        } else {
+            // Une autre instance a déjà repris ou terminé le job : ne pas
+            // planifier un doublon, ne pas publier un statut non commité.
+            log.warn("Matching retry transition not applied, job already moved : jobId={}, attempt={}",
+                    job.getId(), attempts);
+        }
     }
 
     /**

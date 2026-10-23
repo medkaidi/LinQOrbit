@@ -1,11 +1,14 @@
-import { api } from "@/lib/api/axios";
-import { useAuthStore } from "@/stores/auth-store";
+import {
+  parseStatusStreamEvents,
+  StatusStreamError,
+  streamStatusEvents,
+} from "@/lib/api/status-stream";
 import type { NormalizationStatusEvent, NormalizationTarget } from "@/types/normalization";
 
 /** Échec d'ouverture du flux de normalisation (statut HTTP conservé pour l'appelant). */
-export class NormalizationStreamError extends Error {
-  constructor(readonly status: number) {
-    super(`Normalization status stream failed with HTTP ${status}`);
+export class NormalizationStreamError extends StatusStreamError {
+  constructor(status: number) {
+    super(status, `Normalization status stream failed with HTTP ${status}`);
   }
 }
 
@@ -24,23 +27,7 @@ export function parseNormalizationEvents(
   buffer: string,
   onStatus: (event: NormalizationStatusEvent) => void,
 ): string {
-  const blocks = buffer.replace(/\r\n/g, "\n").split("\n\n");
-  const rest = blocks.pop() ?? "";
-  for (const block of blocks) {
-    let name = "message";
-    const data: string[] = [];
-    for (const line of block.split("\n")) {
-      if (line.startsWith("event:")) {
-        name = line.slice("event:".length).trim();
-      } else if (line.startsWith("data:")) {
-        data.push(line.slice("data:".length).trimStart());
-      }
-    }
-    if (name === "status" && data.length > 0) {
-      onStatus(JSON.parse(data.join("\n")) as NormalizationStatusEvent);
-    }
-  }
-  return rest;
+  return parseStatusStreamEvents(buffer, onStatus);
 }
 
 /**
@@ -57,29 +44,10 @@ export async function streamNormalizationStatus(
   onStatus: (event: NormalizationStatusEvent) => void,
   signal: AbortSignal,
 ): Promise<void> {
-  const token = useAuthStore.getState().token;
-  const response = await fetch(`${api.defaults.baseURL}${normalizationEventsPath(target)}`, {
-    headers: {
-      // problem+json : un refus (404) reste lisible malgré l'Accept SSE.
-      Accept: "text/event-stream, application/problem+json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+  await streamStatusEvents(
+    normalizationEventsPath(target),
+    onStatus,
     signal,
-  });
-  if (!response.ok || !response.body) {
-    if (response.status === 401) {
-      useAuthStore.getState().clearAuth();
-    }
-    throw new NormalizationStreamError(response.status);
-  }
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) {
-      return;
-    }
-    buffer = parseNormalizationEvents(buffer + decoder.decode(value, { stream: true }), onStatus);
-  }
+    (status) => new NormalizationStreamError(status),
+  );
 }

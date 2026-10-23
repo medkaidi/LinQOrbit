@@ -80,13 +80,20 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
                   )
             ) sc ON TRUE
             LEFT JOIN LATERAL (
-                SELECT COUNT(*)::int AS contested_count,
+                SELECT COUNT(DISTINCT f.criterion_key)::int AS contested_count,
                        AVG(ABS(f.self_value - (criterion->>'score')::numeric)) AS average_gap
-                FROM matching_criterion_feedback f
-                JOIN matching_result r ON r.id = f.matching_result_id
+                FROM matching_result r
+                JOIN matching_criterion_feedback f ON f.matching_result_id = r.id
                 CROSS JOIN LATERAL jsonb_array_elements(r.result->'sections') s
                 CROSS JOIN LATERAL jsonb_array_elements(s->'criteria') criterion
-                WHERE f.matching_id = a.matching_id
+                WHERE r.matching_id = a.matching_id
+                  AND r.result IS NOT NULL
+                  AND r.version = (
+                      SELECT MAX(r2.version)
+                      FROM matching_result r2
+                      WHERE r2.matching_id = a.matching_id
+                        AND r2.result IS NOT NULL
+                  )
                   AND criterion->>'key' = f.criterion_key
             ) fb ON TRUE
             WHERE a.job_offer_id = :offerId

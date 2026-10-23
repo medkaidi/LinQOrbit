@@ -667,17 +667,24 @@ class AdminServiceTest {
                 .thenReturn(Optional.of(review));
         when(criterionReportReviewRepository.findByReportIdAndReviewerUserId(reportId, otherReviewerId))
                 .thenReturn(Optional.empty());
+        when(criterionReportReviewRepository.findByReportIdAndReviewerUserId(reportId, authorId))
+                .thenReturn(Optional.empty());
 
         AdminCriterionReportDetailResponse mine = adminService.getCriterionReport(reportId, reviewerId);
         AdminCriterionReportDetailResponse other = adminService.getCriterionReport(reportId, otherReviewerId);
+        AdminCriterionReportDetailResponse author = adminService.getCriterionReport(reportId, authorId);
 
         assertThat(mine.myReview()).isNotNull();
+        assertThat(mine.canReview()).isFalse();
         assertThat(mine.myReview().id()).isEqualTo(review.getId());
         assertThat(mine.myReview().verdict()).isEqualTo("upheld");
         assertThat(mine.myReview().note()).isEqualTo("my review");
         assertThat(mine.myReview().correctedScore()).isEqualTo(85);
         assertThat(mine.myReview().correctedRationale()).isEqualTo("my rationale");
         assertThat(other.myReview()).isNull();
+        assertThat(other.canReview()).isTrue();
+        assertThat(author.myReview()).isNull();
+        assertThat(author.canReview()).isFalse();
         verify(criterionReportReviewRepository).findByReportIdAndReviewerUserId(reportId, reviewerId);
         verify(criterionReportReviewRepository).findByReportIdAndReviewerUserId(reportId, otherReviewerId);
     }

@@ -61,8 +61,10 @@ import com.linqorbit.joboffer.repository.JobOfferQuestionOptionRepository;
 import com.linqorbit.joboffer.repository.JobOfferQuestionRepository;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.matching.entity.Matching;
+import com.linqorbit.matching.entity.MatchingResult;
 import com.linqorbit.matching.repository.MatchingCriterionFeedbackRepository;
 import com.linqorbit.matching.repository.MatchingRepository;
+import com.linqorbit.matching.repository.MatchingResultRepository;
 
 /**
  * Candidature en brouillon (D59) : enregistrement par étages, remplacement
@@ -91,6 +93,7 @@ class ApplicationServiceTest {
     private final CandidateService candidateService = mock(CandidateService.class);
     private final NormalizedProfileRepository normalizedProfileRepository = mock(NormalizedProfileRepository.class);
     private final MatchingRepository matchingRepository = mock(MatchingRepository.class);
+    private final MatchingResultRepository matchingResultRepository = mock(MatchingResultRepository.class);
 
     private final CandidateRepository candidateRepository = mock(CandidateRepository.class);
     private final MatchingCriterionFeedbackRepository feedbackRepository =
@@ -99,7 +102,7 @@ class ApplicationServiceTest {
             applicationAnswerRepository, applicationAnswerOptionRepository, jobOfferRepository,
             jobOfferQuestionRepository, jobOfferQuestionOptionRepository, attachmentRepository, companyRepository,
             candidateService, candidateRepository, normalizedProfileRepository, matchingRepository,
-            feedbackRepository);
+            matchingResultRepository, feedbackRepository);
 
     /** Par défaut le compte a sa ligne candidat (verrouillée à l'enregistrement du brouillon). */
     @BeforeEach
@@ -546,7 +549,11 @@ class ApplicationServiceTest {
         stubCurrentCv("cv.pdf");
         stubCurrentMatching(matching);
         when(applicationRepository.findByCandidateIdAndJobOfferId(USER_ID, OFFER_ID)).thenReturn(Optional.of(draft));
-        when(feedbackRepository.existsByMatchingId(matching.getId())).thenReturn(true);
+        MatchingResult latest = MatchingResult.builder().id(UUID.randomUUID()).build();
+        when(matchingResultRepository
+                .findFirstByMatchingIdAndResultIsNotNullOrderByVersionDesc(matching.getId()))
+                .thenReturn(Optional.of(latest));
+        when(feedbackRepository.existsByMatchingResultId(latest.getId())).thenReturn(true);
 
         ApplicationContextResponse context = applicationService.getContext(USER_ID, PUBLIC_ID);
 

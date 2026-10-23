@@ -8,16 +8,22 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.linqorbit.matching.entity.MatchingCriterionFeedback;
 
 /**
- * Contestations du candidat : par résultat (lecture et remplacement complet)
- * et par matching (présence, vue recruteur T-66).
+ * Contestations du candidat : lectures strictement par résultat (le dernier
+ * résultat terminé est résolu par l'appelant). Aucune méthode par matching :
+ * une contestation d'un ancien résultat ne doit jamais être relue.
  */
 public interface MatchingCriterionFeedbackRepository extends JpaRepository<MatchingCriterionFeedback, UUID> {
 
     List<MatchingCriterionFeedback> findByMatchingResultIdOrderByCriterionKeyAsc(UUID matchingResultId);
 
-    List<MatchingCriterionFeedback> findByMatchingIdOrderByCriterionKeyAsc(UUID matchingId);
+    /** Contestations d'un lot de résultats (dernier résultat de chaque matching). */
+    List<MatchingCriterionFeedback> findByMatchingResultIdInOrderByMatchingResultIdAscCriterionKeyAsc(
+            List<UUID> matchingResultIds);
 
-    List<MatchingCriterionFeedback> findByMatchingIdInOrderByMatchingIdAscCriterionKeyAsc(List<UUID> matchingIds);
-
-    boolean existsByMatchingId(UUID matchingId);
+    /**
+     * Présence d'une contestation sur un résultat précis. Les lectures
+     * latest-only passent par cette méthode : une contestation d'un ancien
+     * résultat n'est jamais considérée comme courante.
+     */
+    boolean existsByMatchingResultId(UUID matchingResultId);
 }

@@ -123,6 +123,7 @@ function makeDetail(
       },
     ],
     averageGap: 20,
+    canReview: true,
     myReview: null,
     ...overrides,
   };
@@ -654,38 +655,87 @@ describe("AdminReportDetailView", () => {
     await waitFor(() => expect(mockedGetCriterionReport).toHaveBeenCalledTimes(2));
   });
 
-  it.each([
-    { status: 409, detail: "You have already reviewed this report." },
-    { status: 400, detail: "Corrected score must be between 0 and 100." },
-  ])(
-    "keeps a $status failure visible in the confirmation",
-    async ({ status, detail }) => {
-      mockedGetCriterionReport.mockResolvedValue(makeDetail());
-      mockedCreateCriterionReportReview.mockRejectedValue(
-        Object.assign(new Error("rejected"), {
-          isAxiosError: true,
-          response: { status, data: { detail } },
-        }),
-      );
+  it("explains why an author cannot review their own report", async () => {
+    mockedGetCriterionReport.mockResolvedValue(
+      makeDetail({ canReview: false, myReview: null }),
+    );
 
-      renderView();
-      const card = await reviewCard();
-      fireEvent.click(within(card).getByRole("button", { name: "Upheld" }));
-      fireEvent.click(within(card).getByRole("button", { name: "Review and submit" }));
+    renderView();
+    const card = await reviewCard();
 
-      const dialog = await screen.findByRole("dialog", { name: "Confirm your review" });
-      fireEvent.click(within(dialog).getByRole("button", { name: "Submit review" }));
+    expect(
+      within(card).getByText("Independent review required"),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByText(/Another administrator must review it/),
+    ).toBeInTheDocument();
+    expect(
+      within(card).queryByRole("group", { name: "Verdict" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(card).queryByRole("button", { name: /Review and submit/i }),
+    ).not.toBeInTheDocument();
+  });
 
-      expect(
-        await within(dialog).findByText("Could not submit your review"),
-      ).toBeInTheDocument();
-      expect(within(dialog).getByText(detail)).toBeInTheDocument();
-      expect(within(dialog).getByRole("button", { name: "Submit review" })).toBeEnabled();
-      expect(
-        screen.getByRole("dialog", { name: "Confirm your review" }),
-      ).toBeInTheDocument();
-    },
-  );
+  it("refetches on 409 and leaves the dead-end form for the saved review", async () => {
+    const createdReview = makeReview({ note: "Already reviewed elsewhere." });
+    mockedGetCriterionReport
+      .mockResolvedValueOnce(makeDetail())
+      .mockResolvedValue(makeDetail({ canReview: false, myReview: createdReview }));
+    mockedCreateCriterionReportReview.mockRejectedValue(
+      Object.assign(new Error("conflict"), {
+        isAxiosError: true,
+        response: {
+          status: 409,
+          data: { detail: "You have already reviewed this report." },
+        },
+      }),
+    );
+
+    renderView();
+    const card = await reviewCard();
+    fireEvent.click(within(card).getByRole("button", { name: "Upheld" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Review and submit" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Confirm your review" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Submit review" }));
+
+    expect(await within(card).findByText("Already reviewed elsewhere.")).toBeInTheDocument();
+    await waitFor(() => expect(mockedGetCriterionReport).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("dialog", { name: "Confirm your review" })).not.toBeInTheDocument();
+    expect(within(card).queryByRole("group", { name: "Verdict" })).not.toBeInTheDocument();
+    // Le 409 est résolu par la relecture : l'état réel (avis enregistré)
+    // remplace l'erreur, il ne reste pas un bandeau contradictoire.
+    expect(within(card).queryByText("Could not submit your review")).not.toBeInTheDocument();
+  });
+
+  it("keeps a 400 validation failure visible in the confirmation", async () => {
+    const detail = "Corrected score must be between 0 and 100.";
+    mockedGetCriterionReport.mockResolvedValue(makeDetail());
+    mockedCreateCriterionReportReview.mockRejectedValue(
+      Object.assign(new Error("rejected"), {
+        isAxiosError: true,
+        response: { status: 400, data: { detail } },
+      }),
+    );
+
+    renderView();
+    const card = await reviewCard();
+    fireEvent.click(within(card).getByRole("button", { name: "Upheld" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Review and submit" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Confirm your review" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Submit review" }));
+
+    expect(
+      await within(dialog).findByText("Could not submit your review"),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText(detail)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Submit review" })).toBeEnabled();
+    expect(
+      screen.getByRole("dialog", { name: "Confirm your review" }),
+    ).toBeInTheDocument();
+  });
 
   it("shows a not-found state with a way back to the list", async () => {
     mockedGetCriterionReport.mockRejectedValue(notFoundError());

@@ -18,6 +18,10 @@ import com.linqorbit.application.dto.RecruiterContestationView;
  * @param assessment     évaluation complète, même forme que la vue recruteur
  * @param contests       contestations du candidat (critère signalé compris)
  * @param averageGap     écart moyen absolu, même mesure que la vue recruteur
+ * @param canReview      true si l'admin courant peut déposer un avis : il n'a
+ *                       pas déjà revu ce signalement et n'en est pas l'auteur
+ *                       (auto-review interdite) — le serveur décide, l'UI ne
+ *                       déduit rien
  * @param myReview       avis final de l'admin courant, ou {@code null} s'il
  *                       n'a pas encore donné son avis — jamais les avis des
  *                       autres, ni leur nombre, ni leur existence
@@ -29,5 +33,6 @@ public record AdminCriterionReportDetailResponse(
         RecruiterAssessmentView assessment,
         List<RecruiterContestationView> contests,
         Double averageGap,
+        boolean canReview,
         AdminCriterionReportReviewResponse myReview) {
 }

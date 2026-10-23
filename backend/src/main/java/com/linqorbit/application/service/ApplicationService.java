@@ -64,6 +64,7 @@ import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.matching.entity.Matching;
 import com.linqorbit.matching.repository.MatchingCriterionFeedbackRepository;
 import com.linqorbit.matching.repository.MatchingRepository;
+import com.linqorbit.matching.repository.MatchingResultRepository;
 
 /**
  * Candidatures (D48–D49, révisées par D59) : parcours guidé en brouillon sur
@@ -105,6 +106,7 @@ public class ApplicationService {
     private final CandidateRepository candidateRepository;
     private final NormalizedProfileRepository normalizedProfileRepository;
     private final MatchingRepository matchingRepository;
+    private final MatchingResultRepository matchingResultRepository;
     private final MatchingCriterionFeedbackRepository feedbackRepository;
 
     /**
@@ -276,8 +278,14 @@ public class ApplicationService {
         return matchingId.flatMap(matchingRepository::findById)
                 .map(matching -> {
                     boolean finished = matching.getAssessmentFinishedAt() != null;
-                    return new ApplicationAssessmentView(true, !finished, finished,
-                            feedbackRepository.existsByMatchingId(matching.getId()));
+                    // Latest-only : une contestation d'un ancien résultat ne
+                    // doit jamais faire croire que le résultat courant est
+                    // contesté, ni rouvrir l'étape de revue.
+                    boolean contested = matchingResultRepository
+                            .findFirstByMatchingIdAndResultIsNotNullOrderByVersionDesc(matching.getId())
+                            .map(result -> feedbackRepository.existsByMatchingResultId(result.getId()))
+                            .orElse(false);
+                    return new ApplicationAssessmentView(true, !finished, finished, contested);
                 })
                 .orElse(ApplicationAssessmentView.NONE);
     }

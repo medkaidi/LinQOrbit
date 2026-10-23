@@ -104,6 +104,46 @@ class MatchingScoringTest {
                     "[{\"criterionKey\": \"skill:java\", \"score\": " + score + ", \"rationale\": \"r\"}]",
                     "invalid score");
         }
+        // Un score absent n'est jamais lu comme 0 : c'est une analyse
+        // inexploitable, retry du worker. Seul un 0 explicite est légitime.
+        assertInvalid(List.of(CRITERIA.get(0)),
+                "[{\"criterionKey\": \"skill:java\", \"rationale\": \"r\", \"evidence\": []}]",
+                "invalid score");
+    }
+
+    @Test
+    void contratDeVersionAbsentBlancOuInconnuEstRefuse() {
+        assertThatThrownBy(() -> scoring.score(List.of(CRITERIA.get(0)), objectMapper.readTree("""
+                {"policyVersion": "generic-1", "assessments": []}""")))
+                .isInstanceOf(InvalidMatchingAnalysisException.class)
+                .hasMessageContaining("no schemaVersion");
+        assertThatThrownBy(() -> scoring.score(List.of(CRITERIA.get(0)), objectMapper.readTree("""
+                {"schemaVersion": " ", "policyVersion": "generic-1", "assessments": []}""")))
+                .isInstanceOf(InvalidMatchingAnalysisException.class)
+                .hasMessageContaining("unsupported schemaVersion");
+        assertThatThrownBy(() -> scoring.score(List.of(CRITERIA.get(0)), objectMapper.readTree("""
+                {"schemaVersion": "3", "policyVersion": "generic-1", "assessments": []}""")))
+                .isInstanceOf(InvalidMatchingAnalysisException.class)
+                .hasMessageContaining("unsupported schemaVersion");
+        assertThatThrownBy(() -> scoring.score(List.of(CRITERIA.get(0)), objectMapper.readTree("""
+                {"schemaVersion": "2", "assessments": []}""")))
+                .isInstanceOf(InvalidMatchingAnalysisException.class)
+                .hasMessageContaining("no policyVersion");
+        assertThatThrownBy(() -> scoring.score(List.of(CRITERIA.get(0)), objectMapper.readTree("""
+                {"schemaVersion": "2", "policyVersion": "made-up", "assessments": []}""")))
+                .isInstanceOf(InvalidMatchingAnalysisException.class)
+                .hasMessageContaining("unsupported policyVersion");
+    }
+
+    @Test
+    void toutesLesVersionsDePolitiqueLivreesSontAcceptees() {
+        for (String policy : List.of("generic-1", "skills-3", "education-2")) {
+            ObjectNode result = scoring.score(List.of(CRITERIA.get(0)), objectMapper.readTree("""
+                    {"schemaVersion": "2", "policyVersion": "%s", "assessments": [
+                      {"criterionKey": "skill:java", "score": 0, "rationale": "r", "evidence": []}
+                    ]}""".formatted(policy)));
+            assertThat(result.path("policyVersion").asString()).isEqualTo(policy);
+        }
     }
 
     @Test

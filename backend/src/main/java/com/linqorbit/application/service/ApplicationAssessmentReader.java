@@ -113,18 +113,16 @@ public class ApplicationAssessmentReader {
 
     /**
      * Contestations lisibles : la note IA vient du résultat d'origine de la
-     * contestation, à défaut du résultat affiché ; un critère devenu
-     * introuvable est écarté (jamais de note inventée).
+     * contestation. Les lectures latest-only ne fournissent que le résultat
+     * affiché ; un critère introuvable est écarté (jamais de note inventée,
+     * jamais de note empruntée à un autre résultat).
      */
     public List<RecruiterContestationView> contests(List<MatchingCriterionFeedback> feedback,
-            Map<UUID, MatchingResult> feedbackResults, JsonNode latestRoot) {
+            Map<UUID, MatchingResult> feedbackResults) {
         List<RecruiterContestationView> contests = new ArrayList<>(feedback.size());
         for (MatchingCriterionFeedback item : feedback) {
             JsonNode root = tree(feedbackResults.get(item.getMatchingResultId()));
             CriterionScore criterion = criterion(root, item.getCriterionKey());
-            if (criterion == null && root != latestRoot) {
-                criterion = criterion(latestRoot, item.getCriterionKey());
-            }
             if (criterion == null) {
                 log.warn("Contestation skipped : criterion missing, feedbackId={}, key={}",
                         item.getId(), item.getCriterionKey());
@@ -139,7 +137,7 @@ public class ApplicationAssessmentReader {
 
     /** Écart moyen absolu (une décimale) et nombre de critères comparables. */
     public GapStats gapStats(List<MatchingCriterionFeedback> feedback,
-            Map<UUID, MatchingResult> feedbackResults, JsonNode latestRoot) {
+            Map<UUID, MatchingResult> feedbackResults) {
         if (feedback.isEmpty()) {
             return GapStats.NONE;
         }
@@ -148,9 +146,6 @@ public class ApplicationAssessmentReader {
         for (MatchingCriterionFeedback item : feedback) {
             JsonNode root = tree(feedbackResults.get(item.getMatchingResultId()));
             CriterionScore criterion = criterion(root, item.getCriterionKey());
-            if (criterion == null && root != latestRoot) {
-                criterion = criterion(latestRoot, item.getCriterionKey());
-            }
             if (criterion != null) {
                 total = total.add(BigDecimal.valueOf(Math.abs(item.getSelfValue() - criterion.score())));
                 counted++;
@@ -158,7 +153,7 @@ public class ApplicationAssessmentReader {
         }
         Double average = counted == 0 ? null
                 : total.divide(BigDecimal.valueOf(counted), 1, RoundingMode.HALF_UP).doubleValue();
-        return new GapStats(feedback.size(), average);
+        return new GapStats(counted, average);
     }
 
     private static JsonNode sectionNode(JsonNode root, String storageValue) {

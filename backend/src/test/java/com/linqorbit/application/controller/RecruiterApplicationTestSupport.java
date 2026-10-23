@@ -64,6 +64,23 @@ abstract class RecruiterApplicationTestSupport extends ApplicationStorageTestSup
 
     @AfterEach
     void cleanup() {
+        // Les tables de signalement sont append-only (V27) : le nettoyage de
+        // test doit explicitement suspendre les triggers, puis les rétablir.
+        setAppendOnlyTriggers(false);
+        try {
+            cleanupRows();
+        } finally {
+            setAppendOnlyTriggers(true);
+        }
+    }
+
+    protected void setAppendOnlyTriggers(boolean enabled) {
+        String action = enabled ? "ENABLE" : "DISABLE";
+        jdbcTemplate.execute("ALTER TABLE matching_criterion_report " + action + " TRIGGER USER");
+        jdbcTemplate.execute("ALTER TABLE matching_criterion_report_review " + action + " TRIGGER USER");
+    }
+
+    private void cleanupRows() {
         for (UUID offerId : createdOfferIds) {
             // L'application porte la FK vers le matching : elle part d'abord.
             jdbcTemplate.update("DELETE FROM application WHERE job_offer_id = ?", offerId);
@@ -83,6 +100,10 @@ abstract class RecruiterApplicationTestSupport extends ApplicationStorageTestSup
                     DELETE FROM clarification c
                     USING matching m
                     WHERE c.matching_id = m.id AND m.job_offer_id = ?""", offerId);
+            jdbcTemplate.update("""
+                    DELETE FROM matching_job j
+                    USING matching_result r, matching m
+                    WHERE j.job_id = r.id AND r.matching_id = m.id AND m.job_offer_id = ?""", offerId);
             jdbcTemplate.update("DELETE FROM matching_result r USING matching m"
                     + " WHERE r.matching_id = m.id AND m.job_offer_id = ?", offerId);
             jdbcTemplate.update("DELETE FROM matching WHERE job_offer_id = ?", offerId);

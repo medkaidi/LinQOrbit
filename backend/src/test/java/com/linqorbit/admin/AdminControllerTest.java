@@ -657,7 +657,7 @@ class AdminControllerTest {
                 new AdminCriterionContextResponse("skill:java", "Java", "requiredSkills",
                         60, 60.0, "Strong Java", "Criterion rationale", null, true),
                 new RecruiterAssessmentView(false, List.of()),
-                List.of(), null, review);
+                List.of(), null, true, review);
     }
 
     @Test

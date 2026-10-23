@@ -1,4 +1,10 @@
 import { Icon } from "@/components/ui/icon";
+import { IconBadge } from "@/components/ui/icon-badge";
+import {
+  MUTED_TEXT_CLASS,
+  SECTION_HEADER_CLASS,
+  SECTION_TITLE_CLASS,
+} from "@/components/ui/section";
 import { appliedOnLabel } from "@/features/application/application-shared";
 import { cn } from "@/lib/utils/cn";
 import type {
@@ -7,6 +13,27 @@ import type {
   RecruiterCandidateSummary,
   RecruiterSectionKey,
 } from "@/types/application";
+
+/** En-tête de carte du détail recruteur : icône, titre et méta facultative. */
+export function SectionHeader({
+  title,
+  icon,
+  aside,
+}: {
+  title: string;
+  icon: string;
+  aside?: string;
+}) {
+  return (
+    <header className={SECTION_HEADER_CLASS}>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <IconBadge icon={icon} />
+        <h2 className={SECTION_TITLE_CLASS}>{title}</h2>
+      </div>
+      {aside ? <span className={MUTED_TEXT_CLASS}>{aside}</span> : null}
+    </header>
+  );
+}
 
 /** Libellés des cinq sections du matching côté recruteur (mêmes clés que l'API). */
 export const RECRUITER_SECTION_LABELS: Record<RecruiterSectionKey, string> = {

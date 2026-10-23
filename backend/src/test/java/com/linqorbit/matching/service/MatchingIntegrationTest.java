@@ -76,6 +76,7 @@ import com.linqorbit.matching.dto.MatchingClarifyRequest;
 import com.linqorbit.matching.dto.MatchingCriterionPayload;
 import com.linqorbit.matching.dto.MatchingEducationPayload;
 import com.linqorbit.matching.entity.MatchingJobStatus;
+import com.linqorbit.matching.repository.MatchingResultRepository;
 
 /**
  * Matching de bout en bout sur PostgreSQL réel (règle racine : la chaîne FK,
@@ -143,6 +144,10 @@ class MatchingIntegrationTest {
     private JdbcTemplate jdbcTemplate;
     @Autowired
     private MatchingWorker matchingWorker;
+    @Autowired
+    private MatchingResultRepository matchingResultRepository;
+    @Autowired
+    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
 
     @MockitoBean
     private NormalizationWorker normalizationWorker;
@@ -307,6 +312,43 @@ class MatchingIntegrationTest {
                     sheetId, offerId);
         }
         return sheetId;
+    }
+
+    @Test
+    void uneExecutionQuiPerdLeCasNécritJamaisDeResultat() throws Exception {
+        Scenario scenario = readyScenario(null);
+        UUID matchingId = UUID.fromString(json(start(scenario.candidateJwt(), scenario.publicId())
+                .andExpect(status().isOk()).andReturn()).get("matchingId").asText());
+        UUID jobId = latestJobId(matchingId);
+        when(matchingAnalyzeClient.analyze(any())).thenAnswer(invocation -> {
+            // Un autre acteur termine le job pendant l'appel IA : notre
+            // exécution est perdante et le CAS final doit échouer.
+            jdbcTemplate.update("UPDATE matching_job SET status = 3, completed_at = now() WHERE job_id = ?", jobId);
+            return ANALYSIS;
+        });
+
+        matchingWorker.executeJob(jobId);
+
+        assertThat(jobStatus(jobId)).isEqualTo(MatchingJobStatus.DONE);
+        assertThat(jdbcTemplate.queryForObject("SELECT result::text FROM matching_result WHERE id = ?", String.class,
+                jobId)).isNull();
+        assertThat(count("SELECT count(*) FROM clarification WHERE matching_id = ?", matchingId)).isZero();
+        verify(matchingStatusBroadcaster, never()).publish(matchingId, MatchingJobStatus.DONE);
+    }
+
+    @Test
+    void setResultRefuseUneSecondeEcriture() throws Exception {
+        Scenario scenario = readyScenario(null);
+        UUID matchingId = analyzed(scenario);
+        UUID resultId = latestJobId(matchingId);
+        String snapshot = jdbcTemplate.queryForObject("SELECT result::text FROM matching_result WHERE id = ?",
+                String.class, resultId);
+
+        Integer updated = transactionTemplate.execute(status ->
+                matchingResultRepository.setResult(resultId, "{\"tampered\": true}"));
+        assertThat(updated).isEqualTo(0);
+        assertThat(jdbcTemplate.queryForObject("SELECT result::text FROM matching_result WHERE id = ?",
+                String.class, resultId)).isEqualTo(snapshot);
     }
 
     @Test
@@ -1217,7 +1259,7 @@ class MatchingIntegrationTest {
         // 2e échec : analyse inexploitable (un critère manque) → retry.
         // doReturn : réécrire un bouchon qui lève sans rappeler la méthode bouchonnée.
         doReturn("""
-                {"policyVersion": "generic-1", "assessments": [
+                {"schemaVersion": "2", "policyVersion": "generic-1", "assessments": [
                   {"criterionKey": "skill:java", "score": 90, "rationale": "r",
                    "evidence": [{"source": "skill", "index": 0}]}]}""").when(matchingAnalyzeClient).analyze(any());
         matchingWorker.executeJob(jobId);

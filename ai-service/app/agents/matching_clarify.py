@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 
+from langchain.agents.structured_output import StructuredOutputError
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
 
@@ -71,23 +72,39 @@ def clarify_matching(request: MatchingClarifyRequest) -> ClarificationSuggestion
             + json.dumps(payload, ensure_ascii=False)
         )
     ]
+    history = messages
     try:
         result = agent.invoke({"messages": messages}, config=config)
     except GraphRecursionError as exc:
         raise MatchingClarifyError("no_output", NO_OUTPUT_MESSAGE) from exc
+    except StructuredOutputError as exc:
+        # Rejected by the schema: restart from the request, never replay the
+        # invalid message. Logs carry the error type only, never the content.
+        logger.warning(
+            "Matching clarification : structured output rejected, running repair turn : error=%s",
+            type(exc).__name__,
+        )
+        parsed = None
+    else:
+        parsed = result.get("structured_response")
+        if isinstance(parsed, ClarificationSuggestion):
+            return parsed
+        history = result["messages"]
+        logger.warning("Matching clarification : structured output missing, running repair turn")
 
-    parsed = result.get("structured_response")
-    if isinstance(parsed, ClarificationSuggestion):
-        return parsed
-    logger.warning("Matching clarification : structured output missing, running repair turn")
-
-    # One repair turn, replaying this run's history explicitly (no checkpointer).
+    # One repair turn, replaying the request/history explicitly (no checkpointer).
     try:
         repair = agent.invoke(
-            {"messages": [*result["messages"], HumanMessage(content=REPAIR_MESSAGE)]},
+            {"messages": [*history, HumanMessage(content=REPAIR_MESSAGE)]},
             config=config,
         )
     except GraphRecursionError as exc:
+        raise MatchingClarifyError("no_output", NO_OUTPUT_MESSAGE) from exc
+    except StructuredOutputError as exc:
+        logger.warning(
+            "Matching clarification : repair output rejected : error=%s",
+            type(exc).__name__,
+        )
         raise MatchingClarifyError("no_output", NO_OUTPUT_MESSAGE) from exc
     parsed = repair.get("structured_response")
     if isinstance(parsed, ClarificationSuggestion):

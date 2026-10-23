@@ -8,6 +8,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 
 import {
   approveSkillSuggestion,
@@ -195,9 +196,17 @@ export function useCreateCriterionReportReview(reportId: string) {
       createCriterionReportReview(reportId, payload),
     onSuccess: (review) => {
       queryClient.setQueryData<AdminCriterionReportDetail>(reportKey, (current) =>
-        current ? { ...current, myReview: review } : current,
+        current ? { ...current, myReview: review, canReview: false } : current,
       );
       return queryClient.invalidateQueries({ queryKey: reportKey });
+    },
+    onError: (error) => {
+      // 409 = avis déjà déposé (autre onglet) ou auto-review : le serveur est
+      // la seule source de vérité, on relit le dossier pour fermer le
+      // formulaire et afficher l'état réel au lieu d'un cul-de-sac.
+      if (isAxiosError(error) && error.response?.status === 409) {
+        void queryClient.invalidateQueries({ queryKey: reportKey });
+      }
     },
   });
 }

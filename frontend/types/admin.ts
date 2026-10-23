@@ -212,6 +212,7 @@ export type AdminCriterionReportReviewPayload = {
  * évaluation complète en lecture seule et contestations du candidat. Aucune
  * de ces données n'est modifiable — un signalement ne rejoue pas l'évaluation.
  * `myReview` est le seul avis exposé : celui de l'admin courant, ou `null`.
+ * `canReview` est décidé par le serveur (pas d'auto-review, pas de second avis).
  */
 export type AdminCriterionReportDetail = {
   report: AdminCriterionReport;
@@ -220,5 +221,6 @@ export type AdminCriterionReportDetail = {
   assessment: RecruiterAssessmentView;
   contests: RecruiterContestationView[];
   averageGap: number | null;
+  canReview: boolean;
   myReview: AdminCriterionReportReview | null;
 };

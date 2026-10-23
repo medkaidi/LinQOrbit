@@ -620,18 +620,27 @@ public class AdminService {
                         detail.section(), detail.criterion().score(), detail.sectionScore(),
                         detail.criterion().requirement(), detail.criterion().rationale(), modelName, true);
 
-        List<MatchingCriterionFeedback> feedback = matching == null ? List.of()
-                : feedbackRepository.findByMatchingIdOrderByCriterionKeyAsc(matching.getId());
+        // Latest-only : les contestations affichées sont celles du dernier
+        // résultat terminé, jamais celles d'un ancien résultat épinglé. Le
+        // critère du dossier, lui, reste celui du résultat signalé.
+        MatchingResult latest = matching == null ? pinned
+                : matchingResultRepository
+                        .findFirstByMatchingIdAndResultIsNotNullOrderByVersionDesc(matching.getId())
+                        .orElse(pinned);
+        List<MatchingCriterionFeedback> feedback = latest == null ? List.of()
+                : feedbackRepository.findByMatchingResultIdOrderByCriterionKeyAsc(latest.getId());
         Map<UUID, MatchingResult> feedbackResults = assessmentReader.feedbackResults(feedback);
-        List<RecruiterContestationView> contests = assessmentReader.contests(feedback, feedbackResults, root);
-        ApplicationAssessmentReader.GapStats gap = assessmentReader.gapStats(feedback, feedbackResults, root);
+        List<RecruiterContestationView> contests = assessmentReader.contests(feedback, feedbackResults);
+        ApplicationAssessmentReader.GapStats gap = assessmentReader.gapStats(feedback, feedbackResults);
         RecruiterAssessmentView assessment = assessmentReader.assessment(root);
 
         log.info("Admin criterion report served : reportId={}, matchingId={}, resolved={}",
                 reportId, report.getMatchingId(), criterion.resolved());
         return new AdminCriterionReportDetailResponse(item,
                 matching == null ? null : matching.getCandidateId(), criterion, assessment, contests,
-                gap.averageGap(), myReview == null ? null : reviewResponse(myReview));
+                gap.averageGap(),
+                myReview == null && !report.getAuthorUserId().equals(reviewerUserId),
+                myReview == null ? null : reviewResponse(myReview));
     }
 
     /**

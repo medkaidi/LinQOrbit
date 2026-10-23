@@ -33,7 +33,12 @@ public interface MatchingResultRepository extends JpaRepository<MatchingResult, 
     @Query("select max(r.version) from MatchingResult r where r.matchingId = :matchingId")
     Integer findMaxVersionByMatchingId(UUID matchingId);
 
+    /**
+     * Écrit le JSON une seule fois : la garde {@code result IS NULL} rend un
+     * second écrivain impossible, même si un appelant contournait le CAS du
+     * worker. 0 = résultat déjà écrit ou inexistant (la tx doit être annulée).
+     */
     @Modifying(clearAutomatically = true)
-    @Query("update MatchingResult r set r.result = :result where r.id = :id")
+    @Query("update MatchingResult r set r.result = :result where r.id = :id and r.result is null")
     int setResult(UUID id, String result);
 }

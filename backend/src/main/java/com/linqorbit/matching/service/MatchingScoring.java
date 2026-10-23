@@ -38,6 +38,21 @@ public class MatchingScoring {
 
     /** Format du JSON {@code matching_result.result} (colonne schema_version). */
     public static final String RESULT_SCHEMA_VERSION = "2";
+    /**
+     * Versions du contrat d'analyse acceptées en entrée : 1 = ancien contrat
+     * (sans provenance de modèle), 2 = contrat courant. Toute autre version
+     * est refusée : le backend ne doit pas noter un format qu'il ne comprend
+     * pas, même si les champs connus sont présents.
+     */
+    public static final Set<String> SUPPORTED_ANALYSIS_SCHEMA_VERSIONS = Set.of("1", "2");
+    /**
+     * Versions de politique de comparaison connues du backend. La politique
+     * peut évoluer sans changer la forme du JSON, mais un résultat produit par
+     * une politique inconnue n'est pas exploitable : on ne peut pas garantir
+     * la signification des scores. Mettre à jour cette liste avec chaque
+     * {@code POLICY_VERSION} livrée par le service IA.
+     */
+    public static final Set<String> SUPPORTED_POLICY_VERSIONS = Set.of("generic-1", "skills-3", "education-2");
     /** Barème provisoire : moyenne pondérée par section. */
     public static final String SCORING_VERSION = "weighted-1";
 
@@ -50,6 +65,7 @@ public class MatchingScoring {
      * @throws InvalidMatchingAnalysisException analyse incomplète, en trop ou hors bornes
      */
     public ObjectNode score(List<MatchingCriterion> criteria, JsonNode analysis) {
+        requireSupportedContract(analysis);
         Map<String, JsonNode> assessments = indexAssessments(analysis);
         Set<String> expected = new HashSet<>();
         criteria.forEach(criterion -> expected.add(criterion.key()));
@@ -112,6 +128,30 @@ public class MatchingScoring {
             node.set("criteria", items);
         }
         return result;
+    }
+
+    /**
+     * Contrat explicite avant toute lecture de score : une version absente,
+     * blanche ou inconnue est une analyse inexploitable (retry du worker),
+     * jamais une analyse notée par défaut.
+     */
+    private static void requireSupportedContract(JsonNode analysis) {
+        if (analysis == null || !analysis.isObject()) {
+            throw new InvalidMatchingAnalysisException("AI analysis has no contract metadata");
+        }
+        requireSupportedVersion(analysis, "schemaVersion", SUPPORTED_ANALYSIS_SCHEMA_VERSIONS);
+        requireSupportedVersion(analysis, "policyVersion", SUPPORTED_POLICY_VERSIONS);
+    }
+
+    private static void requireSupportedVersion(JsonNode analysis, String field, Set<String> supported) {
+        JsonNode value = analysis.get(field);
+        if (value == null || !value.isTextual()) {
+            throw new InvalidMatchingAnalysisException("AI analysis has no " + field);
+        }
+        String version = value.asString().strip();
+        if (version.isEmpty() || !supported.contains(version)) {
+            throw new InvalidMatchingAnalysisException("AI analysis uses an unsupported " + field + ": " + version);
+        }
     }
 
     private static Map<String, JsonNode> indexAssessments(JsonNode analysis) {

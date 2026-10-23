@@ -495,6 +495,7 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
         mockMvc.perform(get(REPORTS_PATH + "/" + reportId)
                         .header("Authorization", "Bearer " + admin1.token()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.canReview").value(true))
                 .andExpect(jsonPath("$.myReview").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.reviews").doesNotExist())
                 .andExpect(jsonPath("$.reviewCount").doesNotExist());
@@ -529,6 +530,7 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
         mockMvc.perform(get(REPORTS_PATH + "/" + reportId)
                         .header("Authorization", "Bearer " + admin1.token()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.canReview").value(false))
                 .andExpect(jsonPath("$.myReview.id").value(review1Id.toString()))
                 .andExpect(jsonPath("$.myReview.verdict").value("upheld"))
                 .andExpect(jsonPath("$.myReview.note").value("Confirmed."))
@@ -541,6 +543,7 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
         mockMvc.perform(get(REPORTS_PATH + "/" + reportId)
                         .header("Authorization", "Bearer " + admin2.token()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.canReview").value(true))
                 .andExpect(jsonPath("$.myReview").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.reviews").doesNotExist())
                 .andExpect(jsonPath("$.reviewCount").doesNotExist());
@@ -556,6 +559,7 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
         mockMvc.perform(get(REPORTS_PATH + "/" + reportId)
                         .header("Authorization", "Bearer " + admin1.token()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.canReview").value(false))
                 .andExpect(jsonPath("$.myReview.id").value(review1Id.toString()))
                 .andExpect(jsonPath("$.myReview.verdict").value("upheld"))
                 .andExpect(jsonPath("$.reviews").doesNotExist())
@@ -595,13 +599,23 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
         Account admin = adminAccount();
 
         // L'auteur du signalement ne peut pas se reviewer lui-même.
-        jdbcTemplate.update("UPDATE matching_criterion_report SET author_user_id = ? WHERE id = ?",
-                admin.userId(), reportId);
+        setAppendOnlyTriggers(false);
+        try {
+            jdbcTemplate.update("UPDATE matching_criterion_report SET author_user_id = ? WHERE id = ?",
+                    admin.userId(), reportId);
+        } finally {
+            setAppendOnlyTriggers(true);
+        }
         review(admin.token(), reportId, "upheld", null, null, null)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value("You cannot review your own report."));
-        jdbcTemplate.update("UPDATE matching_criterion_report SET author_user_id = ? WHERE id = ?",
-                reportAuthorId, reportId);
+        setAppendOnlyTriggers(false);
+        try {
+            jdbcTemplate.update("UPDATE matching_criterion_report SET author_user_id = ? WHERE id = ?",
+                    reportAuthorId, reportId);
+        } finally {
+            setAppendOnlyTriggers(true);
+        }
 
         // Verdict absent, inconnu, correction avec notUpheld, champs hors bornes.
         review(admin.token(), reportId, null, null, null, null)
@@ -806,6 +820,168 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
         mockMvc.perform(delete(REPORTS_PATH + "/" + reportId + "/reviews")
                         .header("Authorization", "Bearer " + admin.token()))
                 .andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void signalementLitUniquementLeDernierResultatEtRefusePendantUneAnalyse() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", null);
+        publish(owner.token(), offerId);
+        String publicId = publicIdOf(offerId);
+        Account candidate = signup("Grace", "Hopper");
+        UUID applicationId = draftAndMatch(candidate, uploadCv(candidate.token()), publicId,
+                resultJson(60, 70, 80, 90, 95),
+                List.of(new FeedbackSpec("skill:java", 10, "Old result only")), null);
+        UUID matchingId = jdbcTemplate.queryForObject(
+                "SELECT matching_id FROM application WHERE id = ?", UUID.class, applicationId);
+        UUID oldResultId = jdbcTemplate.queryForObject(
+                "SELECT id FROM matching_result WHERE matching_id = ? AND version = 1", UUID.class, matchingId);
+
+        report(owner.token(), offerId, applicationId, "skill:java", "scoreIncorrect", null)
+                .andExpect(status().isCreated());
+        UUID reportId = reportIdOf(applicationId, "skill:java");
+
+        // Un second résultat terminé devient le résultat courant : la
+        // contestation du premier reste stockée mais n'est plus jamais lue.
+        UUID latestResultId = addResultCopy(matchingId, 2);
+        mockMvc.perform(get(OFFERS_PATH + "/" + offerId + "/applications/" + applicationId)
+                        .header("Authorization", "Bearer " + owner.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contests.length()").value(0))
+                .andExpect(jsonPath("$.averageGap").value(org.hamcrest.Matchers.nullValue()));
+        mockMvc.perform(get(OFFERS_PATH + "/" + offerId + "/applications")
+                        .header("Authorization", "Bearer " + owner.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].contestedCount").value(0))
+                .andExpect(jsonPath("$.items[0].averageGap").value(org.hamcrest.Matchers.nullValue()));
+        mockMvc.perform(get("/api/v1/applications/context/" + publicId)
+                        .header("Authorization", "Bearer " + candidate.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.assessment.contested").value(false));
+        mockMvc.perform(get(REPORTS_PATH + "/" + reportId)
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contests.length()").value(0))
+                .andExpect(jsonPath("$.canReview").value(true));
+
+        // Une contestation du dernier résultat redevient visible partout.
+        jdbcTemplate.update("""
+                INSERT INTO matching_criterion_feedback
+                    (id, matching_id, matching_result_id, criterion_key, self_value, comment,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, 'skill:java', 90, 'Latest result', now(), now())""",
+                UUID.randomUUID(), matchingId, latestResultId);
+        mockMvc.perform(get(OFFERS_PATH + "/" + offerId + "/applications/" + applicationId)
+                        .header("Authorization", "Bearer " + owner.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contests.length()").value(1))
+                .andExpect(jsonPath("$.contests[0].criterionKey").value("skill:java"))
+                .andExpect(jsonPath("$.contests[0].gap").value(30))
+                .andExpect(jsonPath("$.averageGap").value(30.0));
+        mockMvc.perform(get(OFFERS_PATH + "/" + offerId + "/applications")
+                        .header("Authorization", "Bearer " + owner.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].contestedCount").value(1))
+                .andExpect(jsonPath("$.items[0].averageGap").value(30.0));
+        mockMvc.perform(get("/api/v1/applications/context/" + publicId)
+                        .header("Authorization", "Bearer " + candidate.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.feedback").doesNotExist())
+                .andExpect(jsonPath("$.assessment.contested").value(true));
+        mockMvc.perform(get(REPORTS_PATH + "/" + reportId)
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contests.length()").value(1));
+
+        // Aucune perte : l'ancienne ligne est toujours en base, simplement ignorée.
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM matching_criterion_feedback WHERE matching_id = ?""",
+                Integer.class, matchingId)).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM matching_criterion_feedback WHERE matching_result_id = ?""",
+                Integer.class, oldResultId)).isEqualTo(1);
+
+        // P2-2 : tant que le dernier job est PENDING/RUNNING, le signalement est
+        // refusé (409) au lieu d'épingler un résultat encore changeant.
+        UUID latestJob = jdbcTemplate.queryForObject(
+                "SELECT job_id FROM matching_job WHERE job_id = ?", UUID.class, latestResultId);
+        for (short status : new short[] {1, 2}) {
+            jdbcTemplate.update("UPDATE matching_job SET status = ? WHERE job_id = ?", status, latestJob);
+            report(owner.token(), offerId, applicationId, "skill:kubernetes", "scoreIncorrect", null)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.detail").value(
+                            "An AI assessment is in progress for this application. Try again when it is finished."));
+        }
+        jdbcTemplate.update("UPDATE matching_job SET status = 3 WHERE job_id = ?", latestJob);
+        report(owner.token(), offerId, applicationId, "skill:kotlin", "scoreIncorrect", null)
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void lesTriggersRendentLesSignalementsEtRevuesAppendOnly() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", null);
+        publish(owner.token(), offerId);
+        String publicId = publicIdOf(offerId);
+        Account candidate = signup("Grace", "Hopper");
+        UUID applicationId = draftAndMatch(candidate, uploadCv(candidate.token()), publicId,
+                resultJson(60, 70, 80, 90, 95), List.of(), null);
+        report(owner.token(), offerId, applicationId, "skill:java", "scoreIncorrect", "Original")
+                .andExpect(status().isCreated());
+        UUID reportId = reportIdOf(applicationId, "skill:java");
+        Account admin = adminAccount();
+        review(admin.token(), reportId, "upheld", null, 80, null).andExpect(status().isCreated());
+        UUID reviewId = jdbcTemplate.queryForObject("""
+                SELECT id FROM matching_criterion_report_review WHERE report_id = ?""",
+                UUID.class, reportId);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE matching_criterion_report SET comment = 'tampered' WHERE id = ?", reportId))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("append-only");
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "DELETE FROM matching_criterion_report WHERE id = ?", reportId))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("append-only");
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE matching_criterion_report_review SET note = 'tampered' WHERE id = ?", reviewId))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("append-only");
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "DELETE FROM matching_criterion_report_review WHERE id = ?", reviewId))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("append-only");
+        assertThatThrownBy(() -> jdbcTemplate.execute("TRUNCATE matching_criterion_report_review"))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("append-only");
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT comment FROM matching_criterion_report WHERE id = ?""", String.class, reportId))
+                .isEqualTo("Original");
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT note FROM matching_criterion_report_review WHERE id = ?""", String.class, reviewId))
+                .isNull();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM pg_trigger
+                WHERE tgname IN ('trg_criterion_report_append_only',
+                                 'trg_criterion_report_no_truncate',
+                                 'trg_criterion_report_review_append_only',
+                                 'trg_criterion_report_review_no_truncate')""", Integer.class)).isEqualTo(4);
+    }
+
+    private UUID addResultCopy(UUID matchingId, int version) {
+        UUID resultId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO matching_result
+                    (id, matching_id, version, schema_version, result, job_offer_normalized_profile_id, created_at)
+                SELECT ?, matching_id, ?, '2', result, job_offer_normalized_profile_id, now()
+                FROM matching_result WHERE matching_id = ? AND version = 1""",
+                resultId, version, matchingId);
+        jdbcTemplate.update("""
+                INSERT INTO matching_job
+                    (job_id, status, attempts, next_attempt_at, created_at, started_at, completed_at)
+                VALUES (?, 3, 0, now(), now(), now(), now())""", resultId);
+        return resultId;
     }
 
     private UUID reportIdOf(UUID applicationId, String criterionKey) {

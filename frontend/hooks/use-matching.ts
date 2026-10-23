@@ -8,20 +8,15 @@ import {
   answerClarification,
   finishAssessment,
   getCurrentMatching,
-  MatchingStreamError,
   saveMatchingFeedback,
   skipClarification,
   startMatching,
   streamMatchingStatus,
 } from "@/lib/api/matching.api";
 import { queryKeys } from "@/hooks/query-keys";
+import { useStatusStream } from "@/hooks/use-status-stream";
 import type { AssessmentFeedbackValues } from "@/lib/validations/matching.schemas";
-import type { Matching, MatchingStatus } from "@/types/matching";
-
-/** Délai avant de rouvrir un flux fermé par le serveur (timeout) ou coupé par le réseau. */
-const RECONNECT_DELAY_MS = 1_000;
-/** Coupures réseau successives tolérées avant d'abandonner l'écoute (remis à zéro à chaque événement). */
-const MAX_NETWORK_RETRIES = 5;
+import type { Matching, MatchingStatusEvent } from "@/types/matching";
 
 /**
  * Matching courant du couple (D58). Retry coupé : 404 = aucun matching lancé,
@@ -146,29 +141,6 @@ export function useStartMatching(publicId: string) {
   });
 }
 
-function isTerminal(status: MatchingStatus): boolean {
-  return status === "done" || status === "failed";
-}
-
-function wait(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const onAbort = () => {
-      clearTimeout(timer);
-      resolve();
-    };
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
-/** Refus du serveur (404 aucun matching, 409 accès fermé, 401…) : définitif, inutile de réessayer. */
-function isRefusal(error: unknown): boolean {
-  return error instanceof MatchingStreamError && error.status < 500;
-}
-
 /**
  * Push SSE du statut (D60) : ouvert seulement pendant une analyse (`active`),
  * chaque événement invalide le matching courant (le GET reste la source de
@@ -182,45 +154,12 @@ function isRefusal(error: unknown): boolean {
 export function useMatchingStatusStream(publicId: string, active: boolean) {
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (!active) {
-      return;
-    }
-    const controller = new AbortController();
-    const refresh = () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.matching.current(publicId) });
-
-    const listen = async () => {
-      let finished = false;
-      let failures = 0;
-      while (!controller.signal.aborted && !finished) {
-        try {
-          await streamMatchingStatus(
-            publicId,
-            (event) => {
-              failures = 0;
-              finished = isTerminal(event.status);
-              void refresh();
-            },
-            controller.signal,
-          );
-        } catch (error) {
-          if (controller.signal.aborted) {
-            return;
-          }
-          void refresh();
-          failures += 1;
-          if (isRefusal(error) || failures > MAX_NETWORK_RETRIES) {
-            return;
-          }
-        }
-        if (!finished) {
-          await wait(RECONNECT_DELAY_MS, controller.signal);
-        }
-      }
-    };
-    void listen();
-
-    return () => controller.abort();
-  }, [publicId, active, queryClient]);
+  useStatusStream<MatchingStatusEvent>({
+    active,
+    streamKey: publicId,
+    stream: (onStatus, signal) => streamMatchingStatus(publicId, onStatus, signal),
+    isTerminal: (event) => event.status === "done" || event.status === "failed",
+    refresh: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.matching.current(publicId) }),
+  });
 }

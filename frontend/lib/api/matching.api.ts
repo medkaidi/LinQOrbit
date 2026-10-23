@@ -1,6 +1,10 @@
 import { api } from "@/lib/api/axios";
+import {
+  parseStatusStreamEvents,
+  StatusStreamError,
+  streamStatusEvents,
+} from "@/lib/api/status-stream";
 import type { AssessmentFeedbackValues } from "@/lib/validations/matching.schemas";
-import { useAuthStore } from "@/stores/auth-store";
 import type {
   Matching,
   MatchingFeedbackResponse,
@@ -84,31 +88,18 @@ export async function saveMatchingFeedback(
 }
 
 /** Échec d'ouverture du flux de statut (statut HTTP conservé pour l'appelant). */
-export class MatchingStreamError extends Error {
-  constructor(readonly status: number) {
-    super(`Matching status stream failed with HTTP ${status}`);
+export class MatchingStreamError extends StatusStreamError {
+  constructor(status: number) {
+    super(status, `Matching status stream failed with HTTP ${status}`);
   }
 }
 
 /** Extrait les événements « status » complets d'un tampon SSE ; renvoie le reste non terminé. */
-export function parseStatusEvents(buffer: string, onStatus: (event: MatchingStatusEvent) => void): string {
-  const blocks = buffer.replace(/\r\n/g, "\n").split("\n\n");
-  const rest = blocks.pop() ?? "";
-  for (const block of blocks) {
-    let name = "message";
-    const data: string[] = [];
-    for (const line of block.split("\n")) {
-      if (line.startsWith("event:")) {
-        name = line.slice("event:".length).trim();
-      } else if (line.startsWith("data:")) {
-        data.push(line.slice("data:".length).trimStart());
-      }
-    }
-    if (name === "status" && data.length > 0) {
-      onStatus(JSON.parse(data.join("\n")) as MatchingStatusEvent);
-    }
-  }
-  return rest;
+export function parseStatusEvents(
+  buffer: string,
+  onStatus: (event: MatchingStatusEvent) => void,
+): string {
+  return parseStatusStreamEvents(buffer, onStatus);
 }
 
 /**
@@ -125,29 +116,10 @@ export async function streamMatchingStatus(
   onStatus: (event: MatchingStatusEvent) => void,
   signal: AbortSignal,
 ): Promise<void> {
-  const token = useAuthStore.getState().token;
-  const response = await fetch(`${api.defaults.baseURL}/api/v1/matchings/offer/${publicId}/events`, {
-    headers: {
-      // problem+json : un refus (404/409) reste lisible malgré l'Accept SSE.
-      Accept: "text/event-stream, application/problem+json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+  await streamStatusEvents(
+    `/api/v1/matchings/offer/${publicId}/events`,
+    onStatus,
     signal,
-  });
-  if (!response.ok || !response.body) {
-    if (response.status === 401) {
-      useAuthStore.getState().clearAuth();
-    }
-    throw new MatchingStreamError(response.status);
-  }
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) {
-      return;
-    }
-    buffer = parseStatusEvents(buffer + decoder.decode(value, { stream: true }), onStatus);
-  }
+    (status) => new MatchingStreamError(status),
+  );
 }

@@ -67,9 +67,11 @@ import com.linqorbit.matching.entity.CriterionReportReason;
 import com.linqorbit.matching.entity.MatchingCriterionFeedback;
 import com.linqorbit.matching.entity.MatchingCriterionReport;
 import com.linqorbit.matching.entity.MatchingResult;
+import com.linqorbit.matching.entity.MatchingJobStatus;
 import com.linqorbit.matching.repository.ClarificationRepository;
 import com.linqorbit.matching.repository.MatchingCriterionFeedbackRepository;
 import com.linqorbit.matching.repository.MatchingCriterionReportRepository;
+import com.linqorbit.matching.repository.MatchingJobRepository;
 import com.linqorbit.matching.repository.MatchingResultRepository;
 import com.linqorbit.matching.service.MatchingSection;
 import com.linqorbit.user.User;
@@ -109,6 +111,7 @@ public class RecruiterApplicationService {
     private final UserRepository userRepository;
     private final CandidateRepository candidateRepository;
     private final MatchingResultRepository matchingResultRepository;
+    private final MatchingJobRepository matchingJobRepository;
     private final MatchingCriterionFeedbackRepository feedbackRepository;
     private final MatchingCriterionReportRepository criterionReportRepository;
     private final ClarificationRepository clarificationRepository;
@@ -175,15 +178,16 @@ public class RecruiterApplicationService {
         JsonNode assessmentRoot = assessmentReader.tree(latest);
         RecruiterAssessmentView assessment = assessmentReader.assessment(assessmentRoot);
         List<RecruiterClarificationView> clarifications = clarifications(application.getMatchingId());
-        List<MatchingCriterionFeedback> feedback = application.getMatchingId() == null ? List.of()
-                : feedbackRepository.findByMatchingIdOrderByCriterionKeyAsc(application.getMatchingId());
+        // Latest-only : seules les contestations du résultat affiché comptent.
+        // Celles d'un ancien résultat restent en base (traçabilité) mais ne
+        // sont jamais relues par la vue recruteur.
+        List<MatchingCriterionFeedback> feedback = latest == null ? List.of()
+                : feedbackRepository.findByMatchingResultIdOrderByCriterionKeyAsc(latest.getId());
         Map<UUID, MatchingResult> feedbackResults = assessmentReader.feedbackResults(feedback);
-        List<RecruiterContestationView> contests = assessmentReader.contests(feedback, feedbackResults,
-                assessmentRoot);
+        List<RecruiterContestationView> contests = assessmentReader.contests(feedback, feedbackResults);
         // Même mesure que la carte de liste : l'écart moyen est calculé par le
         // serveur, jamais déduit côté client.
-        ApplicationAssessmentReader.GapStats gap = assessmentReader.gapStats(feedback, feedbackResults,
-                assessmentRoot);
+        ApplicationAssessmentReader.GapStats gap = assessmentReader.gapStats(feedback, feedbackResults);
         // Signalements de l'auteur courant sur le résultat affiché (D66) : un
         // signalement est privé, le détail n'en montre que les siens.
         List<RecruiterCriterionReportView> criterionReports = criterionReports(latest, userId);
@@ -262,6 +266,23 @@ public class RecruiterApplicationService {
         log.info("Recruiter criterion report requested : userId={}, offerId={}, applicationId={}",
                 userId, offerId, applicationId);
 
+        // P2-2 : pendant qu'une analyse est en vol, le résultat « courant » peut
+        // encore changer : refuser le signalement plutôt que d'épingler un
+        // résultat qui va être remplacé. La course résiduelle (nouveau job créé
+        // juste après ce contrôle) est documentée dans TECH_DEBT.
+        boolean assessmentInProgress = application.getMatchingId() != null
+                && matchingResultRepository
+                        .findFirstByMatchingIdOrderByVersionDesc(application.getMatchingId())
+                        .flatMap(result -> matchingJobRepository.findById(result.getId()))
+                        .map(job -> job.getStatus() == MatchingJobStatus.PENDING
+                                || job.getStatus() == MatchingJobStatus.RUNNING)
+                        .orElse(false);
+        if (assessmentInProgress) {
+            log.warn("Recruiter criterion report rejected : assessment in progress, applicationId={}",
+                    applicationId);
+            throw new InvalidApplicationException(HttpStatus.CONFLICT,
+                    "An AI assessment is in progress for this application. Try again when it is finished.");
+        }
         MatchingResult latest = application.getMatchingId() == null ? null
                 : matchingResultRepository.findFirstByMatchingIdAndResultIsNotNullOrderByVersionDesc(
                         application.getMatchingId()).orElse(null);
@@ -373,7 +394,7 @@ public class RecruiterApplicationService {
         List<MatchingCriterionFeedback> feedback = application.getMatchingId() == null ? List.of()
                 : context.feedback().getOrDefault(application.getMatchingId(), List.of());
         ApplicationAssessmentReader.GapStats gap = assessmentReader.gapStats(feedback,
-                context.feedbackResults(), root);
+                context.feedbackResults());
         List<RecruiterSectionScore> sections = SECTIONS.stream()
                 .map(section -> new RecruiterSectionScore(section.getSectionKey(),
                         sectionScore(root, section.getStorageValue())))
@@ -382,7 +403,7 @@ public class RecruiterApplicationService {
                 candidate(context.users().get(application.getCandidateId()),
                         context.candidates().get(application.getCandidateId())),
                 application.getStatus().getApiValue(), application.getSubmittedAt(), root != null,
-                sections, feedback.size(), gap.averageGap());
+                sections, gap.count(), gap.averageGap());
     }
 
     private PageContext loadContext(List<Application> applications) {
@@ -401,9 +422,16 @@ public class RecruiterApplicationService {
             matchingResultRepository
                     .findByMatchingIdInAndResultIsNotNullOrderByMatchingIdAscVersionDesc(matchingIds)
                     .forEach(result -> latestResults.putIfAbsent(result.getMatchingId(), result));
-            feedbackRepository.findByMatchingIdInOrderByMatchingIdAscCriterionKeyAsc(matchingIds)
-                    .forEach(item -> feedback.computeIfAbsent(item.getMatchingId(), key -> new ArrayList<>())
-                            .add(item));
+            // Latest-only : on interroge les résultats affichés, jamais tous les
+            // résultats du matching. Les anciennes contestations restent en base.
+            List<UUID> latestResultIds = latestResults.values().stream()
+                    .map(MatchingResult::getId)
+                    .toList();
+            if (!latestResultIds.isEmpty()) {
+                feedbackRepository.findByMatchingResultIdInOrderByMatchingResultIdAscCriterionKeyAsc(latestResultIds)
+                        .forEach(item -> feedback.computeIfAbsent(item.getMatchingId(), key -> new ArrayList<>())
+                                .add(item));
+            }
         }
         List<MatchingCriterionFeedback> allFeedback = feedback.values().stream().flatMap(List::stream).toList();
         return new PageContext(users, candidates, latestResults, feedback,
