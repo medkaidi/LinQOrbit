@@ -68,6 +68,10 @@ abstract class RecruiterApplicationTestSupport extends ApplicationStorageTestSup
             // L'application porte la FK vers le matching : elle part d'abord.
             jdbcTemplate.update("DELETE FROM application WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("""
+                    DELETE FROM matching_criterion_report_review rv
+                    USING matching_criterion_report r, matching m
+                    WHERE rv.report_id = r.id AND r.matching_id = m.id AND m.job_offer_id = ?""", offerId);
+            jdbcTemplate.update("""
                     DELETE FROM matching_criterion_report r
                     USING matching m
                     WHERE r.matching_id = m.id AND m.job_offer_id = ?""", offerId);
@@ -95,6 +99,11 @@ abstract class RecruiterApplicationTestSupport extends ApplicationStorageTestSup
         }
         for (UUID candidateId : createdUserIds) {
             jdbcTemplate.update("DELETE FROM application WHERE candidate_id = ?", candidateId);
+            jdbcTemplate.update("DELETE FROM matching_criterion_report_review WHERE reviewer_user_id = ?",
+                    candidateId);
+            jdbcTemplate.update("DELETE FROM matching_criterion_report_review WHERE report_id IN"
+                    + " (SELECT id FROM matching_criterion_report WHERE matching_id IN"
+                    + " (SELECT id FROM matching WHERE candidate_id = ?))", candidateId);
             jdbcTemplate.update("DELETE FROM matching_criterion_report WHERE matching_id IN"
                     + " (SELECT id FROM matching WHERE candidate_id = ?)", candidateId);
             jdbcTemplate.update("DELETE FROM matching_criterion_feedback WHERE matching_id IN"

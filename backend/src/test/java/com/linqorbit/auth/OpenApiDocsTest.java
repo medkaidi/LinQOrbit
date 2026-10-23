@@ -132,7 +132,9 @@ class OpenApiDocsTest {
                         .value("Signaler une évaluation IA par critère"))
                 .andExpect(jsonPath("$.paths['/api/v1/admin/criterion-reports'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/admin/criterion-reports/{id}'].get.summary")
-                        .value("Consulter le dossier d'un signalement interne d'évaluation IA"));
+                        .value("Consulter le dossier d'un signalement interne d'évaluation IA"))
+                .andExpect(jsonPath("$.paths['/api/v1/admin/criterion-reports/{id}/reviews'].post.summary")
+                        .value("Créer la revue interne d'un signalement IA"));
     }
 
     @Test

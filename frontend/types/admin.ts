@@ -182,10 +182,36 @@ export type AdminCriterionContext = {
   resolved: boolean;
 };
 
+/** Verdict de la revue interne (T-96, D77/D78) — valeurs API exactes. */
+export type AdminCriterionReportReviewVerdict = "upheld" | "notUpheld";
+
+/**
+ * Avis final de l'admin courant sur un signalement (T-96, D77/D78). Le
+ * dossier n'expose jamais que cet avis : ni liste, ni compteur, ni existence
+ * d'un avis d'autrui.
+ */
+export type AdminCriterionReportReview = {
+  id: string;
+  verdict: AdminCriterionReportReviewVerdict;
+  note: string | null;
+  correctedScore: number | null;
+  correctedRationale: string | null;
+  createdAt: string;
+};
+
+/** Corps de `POST …/criterion-reports/{id}/reviews` (corrections déjà masquées si non upheld). */
+export type AdminCriterionReportReviewPayload = {
+  verdict: AdminCriterionReportReviewVerdict;
+  note: string | null;
+  correctedScore: number | null;
+  correctedRationale: string | null;
+};
+
 /**
  * Dossier complet d'un signalement IA (T-86, D66) : contexte de notation,
  * évaluation complète en lecture seule et contestations du candidat. Aucune
  * de ces données n'est modifiable — un signalement ne rejoue pas l'évaluation.
+ * `myReview` est le seul avis exposé : celui de l'admin courant, ou `null`.
  */
 export type AdminCriterionReportDetail = {
   report: AdminCriterionReport;
@@ -194,4 +220,5 @@ export type AdminCriterionReportDetail = {
   assessment: RecruiterAssessmentView;
   contests: RecruiterContestationView[];
   averageGap: number | null;
+  myReview: AdminCriterionReportReview | null;
 };

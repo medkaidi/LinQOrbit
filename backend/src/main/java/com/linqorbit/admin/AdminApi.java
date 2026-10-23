@@ -23,6 +23,7 @@ import jakarta.validation.Valid;
 
 import com.linqorbit.admin.dto.AdminCriterionReportDetailResponse;
 import com.linqorbit.admin.dto.AdminCriterionReportPageResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportReviewResponse;
 import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
 import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
 import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
@@ -31,6 +32,7 @@ import com.linqorbit.admin.dto.AdminUserDetailResponse;
 import com.linqorbit.admin.dto.AdminUserPageResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.dto.ApproveSkillSuggestionRequest;
+import com.linqorbit.admin.dto.CreateCriterionReportReviewRequest;
 import com.linqorbit.admin.dto.LinkSkillSuggestionRequest;
 import com.linqorbit.admin.dto.UpdateUserStatusRequest;
 import com.linqorbit.candidate.dto.CandidateProfileResponse;
@@ -251,7 +253,8 @@ public interface AdminApi {
             description = "Signalement (motif, commentaire, auteur, date), critère relu dans le résultat épinglé "
                     + "(score, score de section, exigence, justification IA, modèle réellement appelé ou null), "
                     + "évaluation complète en lecture seule, contestations du candidat et écart moyen (D66, D79). "
-                    + "Aucun effet sur le score.")
+                    + "Expose uniquement `myReview`, l'avis final de l'admin courant (ou null) : jamais les avis "
+                    + "des autres, un compteur ou leur existence. Aucun effet sur le score.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Dossier du signalement renvoyé"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
@@ -259,5 +262,27 @@ public interface AdminApi {
             @ApiResponse(responseCode = "404", description = "Signalement introuvable")
     })
     ResponseEntity<AdminCriterionReportDetailResponse> getCriterionReport(
-            @Parameter(description = "Identifiant du signalement") @PathVariable("id") UUID id);
+            @Parameter(description = "Identifiant du signalement") @PathVariable("id") UUID id,
+            Authentication authentication);
+
+    @PostMapping("/criterion-reports/{id}/reviews")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Créer la revue interne d'un signalement IA",
+            description = "Avis final et aveugle de l'admin courant sur un signalement (T-96, D77/D78) : un seul "
+                    + "avis par admin et par signalement, auto-review interdite, aucune édition ni suppression. "
+                    + "Corrections (`correctedScore`, `correctedRationale`) acceptées uniquement pour un verdict "
+                    + "`upheld` et facultatives séparément ; aucune moyenne, aucun effet sur le signalement, le "
+                    + "résultat, le score ou la décision, aucune notification.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Revue enregistrée"),
+            @ApiResponse(responseCode = "400", description = "Verdict, champs ou correction invalides"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN"),
+            @ApiResponse(responseCode = "404", description = "Signalement introuvable"),
+            @ApiResponse(responseCode = "409", description = "Revue déjà enregistrée ou auto-review interdite")
+    })
+    ResponseEntity<AdminCriterionReportReviewResponse> createCriterionReportReview(
+            @Parameter(description = "Identifiant du signalement") @PathVariable("id") UUID id,
+            @Valid @RequestBody CreateCriterionReportReviewRequest request,
+            Authentication authentication);
 }

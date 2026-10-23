@@ -3,6 +3,7 @@ package com.linqorbit.admin;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.linqorbit.admin.dto.AdminCriterionReportDetailResponse;
 import com.linqorbit.admin.dto.AdminCriterionReportPageResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportReviewResponse;
 import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
 import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
 import com.linqorbit.admin.dto.AdminNormalizedProfileResponse;
@@ -18,6 +20,7 @@ import com.linqorbit.admin.dto.AdminUserDetailResponse;
 import com.linqorbit.admin.dto.AdminUserPageResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
 import com.linqorbit.admin.dto.ApproveSkillSuggestionRequest;
+import com.linqorbit.admin.dto.CreateCriterionReportReviewRequest;
 import com.linqorbit.admin.dto.LinkSkillSuggestionRequest;
 import com.linqorbit.admin.dto.UpdateUserStatusRequest;
 import com.linqorbit.candidate.dto.CandidateProfileResponse;
@@ -119,7 +122,16 @@ public class AdminController implements AdminApi {
     }
 
     @Override
-    public ResponseEntity<AdminCriterionReportDetailResponse> getCriterionReport(UUID id) {
-        return ResponseEntity.ok(adminService.getCriterionReport(id));
+    public ResponseEntity<AdminCriterionReportDetailResponse> getCriterionReport(UUID id,
+            Authentication authentication) {
+        return ResponseEntity.ok(adminService.getCriterionReport(id, CurrentUserId.from(authentication)));
+    }
+
+    @Override
+    public ResponseEntity<AdminCriterionReportReviewResponse> createCriterionReportReview(UUID id,
+            CreateCriterionReportReviewRequest request, Authentication authentication) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(adminService.createCriterionReportReview(id, CurrentUserId.from(authentication),
+                        request));
     }
 }

@@ -124,7 +124,7 @@ class MatchingServiceTest {
         verify(matchingResultRepository).saveAndFlush(resultCaptor.capture());
         MatchingResult result = resultCaptor.getValue();
         assertThat(result.getVersion()).isEqualTo(1);
-        assertThat(result.getSchemaVersion()).isEqualTo("1");
+        assertThat(result.getSchemaVersion()).isEqualTo(MatchingScoring.RESULT_SCHEMA_VERSION);
         assertThat(result.getResult()).isNull();
         assertThat(result.getJobOfferNormalizedProfileId()).isEqualTo(OFFER_SHEET_ID);
         assertThat(savedJob.get().getId()).isEqualTo(result.getId());

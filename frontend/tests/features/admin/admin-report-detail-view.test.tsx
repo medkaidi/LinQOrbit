@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@/lib/api/admin.api", async (importOriginal) => {
@@ -7,14 +7,48 @@ vi.mock("@/lib/api/admin.api", async (importOriginal) => {
   return {
     ...actual,
     getCriterionReport: vi.fn(),
+    createCriterionReportReview: vi.fn(),
   };
 });
 
-import { getCriterionReport } from "@/lib/api/admin.api";
+import { createCriterionReportReview, getCriterionReport } from "@/lib/api/admin.api";
 import { AdminReportDetailView } from "@/features/admin/admin-report-detail-view";
-import type { AdminCriterionReportDetail } from "@/types/admin";
+import { useAuthStore } from "@/stores/auth-store";
+import type { AuthUser } from "@/types/auth";
+import type {
+  AdminCriterionReportDetail,
+  AdminCriterionReportReview,
+} from "@/types/admin";
 
 const mockedGetCriterionReport = vi.mocked(getCriterionReport);
+const mockedCreateCriterionReportReview = vi.mocked(createCriterionReportReview);
+
+const adminUser: AuthUser = {
+  id: "admin-1",
+  email: "admin@linqorbit.local",
+  firstName: "Platform",
+  lastName: "Admin",
+  sex: null,
+  phone: null,
+  homeCountry: null,
+  currentCity: null,
+  currentCountry: null,
+  roles: [1],
+};
+
+function makeReview(
+  overrides: Partial<AdminCriterionReportReview> = {},
+): AdminCriterionReportReview {
+  return {
+    id: "review-1",
+    verdict: "upheld",
+    note: "The report is valid.",
+    correctedScore: 80,
+    correctedRationale: "The CV shows eight years of Java.",
+    createdAt: "2026-10-23T10:00:00",
+    ...overrides,
+  };
+}
 
 function makeDetail(
   overrides: Partial<AdminCriterionReportDetail> = {},
@@ -89,11 +123,13 @@ function makeDetail(
       },
     ],
     averageGap: 20,
+    myReview: null,
     ...overrides,
   };
 }
 
-function renderView(reportId = "report-1") {
+function renderView(reportId = "report-1", user: AuthUser = adminUser) {
+  useAuthStore.getState().setAuth({ token: "jwt-token", user });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -111,9 +147,17 @@ function notFoundError() {
   });
 }
 
+async function reviewCard() {
+  return (
+    await screen.findByRole("heading", { level: 2, name: "Internal review" })
+  ).closest("section") as HTMLElement;
+}
+
 describe("AdminReportDetailView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedCreateCriterionReportReview.mockReset();
+    useAuthStore.getState().clearAuth();
   });
 
   it("shows the report, the scored criterion, the contest and the full assessment", async () => {
@@ -379,6 +423,269 @@ describe("AdminReportDetailView", () => {
     expect(within(assessmentCard).getByText("Kotlin is a plus.")).toBeInTheDocument();
     expect(within(assessmentCard).getByText("Reported")).toBeInTheDocument();
   });
+
+  it("requires a verdict and only submits after a final confirmation", async () => {
+    const createdReview = makeReview({
+      note: "Needs a correction.",
+      correctedScore: 85,
+      correctedRationale: "The CV shows eight years.",
+    });
+    mockedGetCriterionReport
+      .mockResolvedValueOnce(makeDetail())
+      .mockResolvedValue(makeDetail({ myReview: createdReview }));
+    mockedCreateCriterionReportReview.mockResolvedValue(createdReview);
+
+    renderView();
+    const card = await reviewCard();
+
+    expect(within(card).getByRole("group", { name: "Verdict" })).toBeInTheDocument();
+    expect(within(card).queryByText("Blind")).not.toBeInTheDocument();
+    expect(within(card).queryByText("Final")).not.toBeInTheDocument();
+    expect(
+      within(card).queryByLabelText("Corrected score (optional)"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole("button", { name: "Review and submit" }));
+    expect(await within(card).findByText("Choose a verdict")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole("button", { name: "Upheld" }));
+    expect(within(card).getByLabelText("Corrected score (optional)")).toBeInTheDocument();
+    expect(
+      within(card).getByLabelText("Corrected rationale (optional)"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(within(card).getByLabelText("Corrected score (optional)"), {
+      target: { value: "101" },
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Review and submit" }));
+    expect(
+      await within(card).findByText("Enter a whole number between 0 and 100"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.change(within(card).getByLabelText("Note (optional)"), {
+      target: { value: "Needs a correction." },
+    });
+    fireEvent.change(within(card).getByLabelText("Corrected score (optional)"), {
+      target: { value: "85" },
+    });
+    fireEvent.change(within(card).getByLabelText("Corrected rationale (optional)"), {
+      target: { value: "The CV shows eight years." },
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Review and submit" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Confirm your review" });
+    expect(within(dialog).getByText("Upheld")).toBeInTheDocument();
+    expect(within(dialog).getByText("Needs a correction.")).toBeInTheDocument();
+    expect(within(dialog).getByText("85%")).toBeInTheDocument();
+    expect(within(dialog).getByText("The CV shows eight years.")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Final, cannot be edited/)).toBeInTheDocument();
+    expect(mockedCreateCriterionReportReview).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockedCreateCriterionReportReview).not.toHaveBeenCalled();
+
+    fireEvent.click(within(card).getByRole("button", { name: "Review and submit" }));
+    const reopened = await screen.findByRole("dialog", { name: "Confirm your review" });
+    fireEvent.click(within(reopened).getByRole("button", { name: "Submit review" }));
+
+    await waitFor(() =>
+      expect(mockedCreateCriterionReportReview).toHaveBeenCalledWith("report-1", {
+        verdict: "upheld",
+        note: "Needs a correction.",
+        correctedScore: 85,
+        correctedRationale: "The CV shows eight years.",
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Your review is final and cannot be edited. It does not change the report, the AI score or the recruiter's decision.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(within(card).queryByRole("group", { name: "Verdict" })).not.toBeInTheDocument();
+    expect(within(card).getByText("Needs a correction.")).toBeInTheDocument();
+    expect(within(card).getByText("85%")).toBeInTheDocument();
+  });
+
+  it("sends no corrections when the report is not upheld", async () => {
+    const createdReview = makeReview({
+      verdict: "notUpheld",
+      note: "The AI score is correct.",
+      correctedScore: null,
+      correctedRationale: null,
+    });
+    mockedGetCriterionReport
+      .mockResolvedValueOnce(makeDetail())
+      .mockResolvedValue(makeDetail({ myReview: createdReview }));
+    mockedCreateCriterionReportReview.mockResolvedValue(createdReview);
+
+    renderView();
+    const card = await reviewCard();
+
+    fireEvent.click(within(card).getByRole("button", { name: "Not upheld" }));
+    expect(
+      within(card).queryByLabelText("Corrected score (optional)"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(card).queryByLabelText("Corrected rationale (optional)"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(within(card).getByLabelText("Note (optional)"), {
+      target: { value: "The AI score is correct." },
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Review and submit" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Confirm your review" });
+    expect(within(dialog).getByText("Not upheld")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Corrected score")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Corrected rationale")).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Submit review" }));
+
+    await waitFor(() =>
+      expect(mockedCreateCriterionReportReview).toHaveBeenCalledWith("report-1", {
+        verdict: "notUpheld",
+        note: "The AI score is correct.",
+        correctedScore: null,
+        correctedRationale: null,
+      }),
+    );
+    expect(
+      await screen.findByText("The report is not upheld; the AI score is maintained."),
+    ).toBeInTheDocument();
+    expect(within(card).queryByText("Corrected score")).not.toBeInTheDocument();
+  });
+
+  it("sends null optional fields when they are left empty", async () => {
+    mockedGetCriterionReport.mockResolvedValue(makeDetail());
+    mockedCreateCriterionReportReview.mockResolvedValue(
+      makeReview({ note: null, correctedScore: null, correctedRationale: null }),
+    );
+
+    renderView();
+    const card = await reviewCard();
+
+    fireEvent.click(within(card).getByRole("button", { name: "Upheld" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Review and submit" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Confirm your review" });
+    expect(within(dialog).getByText("No note.")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("Not provided.")).toHaveLength(2);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Submit review" }));
+
+    await waitFor(() =>
+      expect(mockedCreateCriterionReportReview).toHaveBeenCalledWith("report-1", {
+        verdict: "upheld",
+        note: null,
+        correctedScore: null,
+        correctedRationale: null,
+      }),
+    );
+  });
+
+  it("shows only my final review, never counters or another administrator's review", async () => {
+    const detailWithPrivateData = {
+      ...makeDetail({ myReview: makeReview({ note: "My private note." }) }),
+      reviews: [{ note: "Another admin's note." }],
+      reviewCount: 3,
+    } as AdminCriterionReportDetail;
+    mockedGetCriterionReport.mockResolvedValue(detailWithPrivateData);
+
+    renderView();
+    const card = await reviewCard();
+
+    expect(within(card).getByText("Final")).toBeInTheDocument();
+    expect(within(card).getByText("My private note.")).toBeInTheDocument();
+    expect(within(card).getByText("80%")).toBeInTheDocument();
+    expect(
+      within(card).getByText("The CV shows eight years of Java."),
+    ).toBeInTheDocument();
+    expect(within(card).getByText(/final and cannot be edited/i)).toBeInTheDocument();
+    expect(within(card).queryByRole("group", { name: "Verdict" })).not.toBeInTheDocument();
+    expect(
+      within(card).queryByRole("button", { name: /Review and submit|Submit review/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Another admin's note.")).not.toBeInTheDocument();
+    expect(screen.queryByText(/3 reviews/i)).not.toBeInTheDocument();
+  });
+
+  it("falls back honestly when the saved review has no note or corrections", async () => {
+    mockedGetCriterionReport.mockResolvedValue(
+      makeDetail({
+        myReview: makeReview({
+          note: null,
+          correctedScore: null,
+          correctedRationale: null,
+        }),
+      }),
+    );
+
+    renderView();
+    const card = await reviewCard();
+
+    expect(within(card).getByText("No note.")).toBeInTheDocument();
+    expect(within(card).getAllByText("Not provided.")).toHaveLength(2);
+  });
+
+  it("isolates the report cache per administrator", async () => {
+    const adminA: AuthUser = { ...adminUser, id: "admin-a", email: "a@linqorbit.local" };
+    const adminB: AuthUser = { ...adminUser, id: "admin-b", email: "b@linqorbit.local" };
+    mockedGetCriterionReport
+      .mockResolvedValueOnce(
+        makeDetail({ myReview: makeReview({ note: "Admin A private note." }) }),
+      )
+      .mockResolvedValueOnce(makeDetail({ myReview: null }));
+
+    renderView("report-1", adminA);
+    expect(await screen.findByText("Admin A private note.")).toBeInTheDocument();
+
+    act(() => {
+      useAuthStore.getState().setAuth({ token: "jwt-token", user: adminB });
+    });
+
+    const card = await reviewCard();
+    expect(within(card).getByRole("group", { name: "Verdict" })).toBeInTheDocument();
+    expect(screen.queryByText("Admin A private note.")).not.toBeInTheDocument();
+    await waitFor(() => expect(mockedGetCriterionReport).toHaveBeenCalledTimes(2));
+  });
+
+  it.each([
+    { status: 409, detail: "You have already reviewed this report." },
+    { status: 400, detail: "Corrected score must be between 0 and 100." },
+  ])(
+    "keeps a $status failure visible in the confirmation",
+    async ({ status, detail }) => {
+      mockedGetCriterionReport.mockResolvedValue(makeDetail());
+      mockedCreateCriterionReportReview.mockRejectedValue(
+        Object.assign(new Error("rejected"), {
+          isAxiosError: true,
+          response: { status, data: { detail } },
+        }),
+      );
+
+      renderView();
+      const card = await reviewCard();
+      fireEvent.click(within(card).getByRole("button", { name: "Upheld" }));
+      fireEvent.click(within(card).getByRole("button", { name: "Review and submit" }));
+
+      const dialog = await screen.findByRole("dialog", { name: "Confirm your review" });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Submit review" }));
+
+      expect(
+        await within(dialog).findByText("Could not submit your review"),
+      ).toBeInTheDocument();
+      expect(within(dialog).getByText(detail)).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Submit review" })).toBeEnabled();
+      expect(
+        screen.getByRole("dialog", { name: "Confirm your review" }),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("shows a not-found state with a way back to the list", async () => {
     mockedGetCriterionReport.mockRejectedValue(notFoundError());

@@ -4,6 +4,8 @@ import type {
   AdminCandidateNormalizedProfile,
   AdminCriterionReportDetail,
   AdminCriterionReportPage,
+  AdminCriterionReportReview,
+  AdminCriterionReportReviewPayload,
   AdminJobOfferDetail,
   AdminJobOfferPage,
   AdminJobOfferStatus,
@@ -161,5 +163,21 @@ export async function getCriterionReport(
   const response = await api.get<AdminCriterionReportDetail>(`${BASE}/criterion-reports/${id}`, {
     signal: options.signal,
   });
+  return response.data;
+}
+
+/**
+ * Avis final de l'admin courant sur un signalement (T-96) : un seul avis par
+ * admin, jamais modifiable. Le corps ne porte que les champs autorisés —
+ * l'appelant masque déjà les corrections quand le verdict n'est pas `upheld`.
+ */
+export async function createCriterionReportReview(
+  id: string,
+  body: AdminCriterionReportReviewPayload,
+): Promise<AdminCriterionReportReview> {
+  const response = await api.post<AdminCriterionReportReview>(
+    `${BASE}/criterion-reports/${id}/reviews`,
+    body,
+  );
   return response.data;
 }

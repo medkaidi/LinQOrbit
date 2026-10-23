@@ -15,6 +15,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.util.BindErrorUtils;
 
+import com.linqorbit.admin.exception.CriterionReportNotFoundException;
+import com.linqorbit.admin.exception.CriterionReportReviewConflictException;
+import com.linqorbit.admin.exception.InvalidCriterionReportReviewException;
 import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
 import com.linqorbit.admin.exception.InvalidSkillTypeException;
@@ -22,7 +25,6 @@ import com.linqorbit.admin.exception.InvalidUserCapabilityFilterException;
 import com.linqorbit.admin.exception.InvalidUserStatusException;
 import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
-import com.linqorbit.admin.exception.CriterionReportNotFoundException;
 import com.linqorbit.admin.exception.SuggestionNotFoundException;
 import com.linqorbit.admin.exception.UserNotFoundException;
 import com.linqorbit.application.exception.ApplicationNotFoundException;
@@ -282,6 +284,24 @@ public class GlobalExceptionHandler {
         problem.setTitle("Criterion report not found");
         problem.setDetail("No AI report matches this identifier.");
         log.warn("Admin criterion report lookup rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidCriterionReportReviewException.class)
+    public ProblemDetail handleInvalidCriterionReportReview(InvalidCriterionReportReviewException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Invalid criterion report review");
+        problem.setDetail(ex.getMessage());
+        log.warn("Admin criterion report review rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(CriterionReportReviewConflictException.class)
+    public ProblemDetail handleCriterionReportReviewConflict(CriterionReportReviewConflictException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setTitle("Criterion report review conflict");
+        problem.setDetail(ex.getMessage());
+        log.warn("Admin criterion report review rejected : {}", ex.getMessage());
         return problem;
     }
 

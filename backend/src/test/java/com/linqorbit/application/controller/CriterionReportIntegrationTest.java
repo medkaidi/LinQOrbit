@@ -2,8 +2,10 @@ package com.linqorbit.application.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -473,6 +475,368 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void revueAdminEstFinaleEtTotalementAveugle() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", null);
+        publish(owner.token(), offerId);
+        String publicId = publicIdOf(offerId);
+        Account candidate = signup("Grace", "Hopper");
+        UUID applicationId = draftAndMatch(candidate, uploadCv(candidate.token()), publicId,
+                resultJson(60, 70, 80, 90, 95), List.of(), null);
+        report(owner.token(), offerId, applicationId, "skill:java", "scoreIncorrect", "Original comment")
+                .andExpect(status().isCreated());
+        UUID reportId = reportIdOf(applicationId, "skill:java");
+        UUID reportAuthorId = authorOf(reportId);
+        String resultBefore = resultOf(applicationId);
+        Account admin1 = adminAccount();
+        Account admin2 = adminAccount();
+
+        mockMvc.perform(get(REPORTS_PATH + "/" + reportId)
+                        .header("Authorization", "Bearer " + admin1.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.myReview").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.reviews").doesNotExist())
+                .andExpect(jsonPath("$.reviewCount").doesNotExist());
+
+        MvcResult created = review(admin1.token(), reportId, "upheld", "  Confirmed.  ", 85,
+                "  Better rationale.  ")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNotEmpty())
+                .andExpect(jsonPath("$.verdict").value("upheld"))
+                .andExpect(jsonPath("$.note").value("Confirmed."))
+                .andExpect(jsonPath("$.correctedScore").value(85))
+                .andExpect(jsonPath("$.correctedRationale").value("Better rationale."))
+                .andExpect(jsonPath("$.createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.reviews").doesNotExist())
+                .andExpect(jsonPath("$.reviewCount").doesNotExist())
+                .andReturn();
+        UUID review1Id = UUID.fromString(objectMapper.readTree(
+                created.getResponse().getContentAsString()).get("id").asText());
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT verdict FROM matching_criterion_report_review WHERE id = ?""",
+                Short.class, review1Id)).isEqualTo((short) 1);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT note FROM matching_criterion_report_review WHERE id = ?""",
+                String.class, review1Id)).isEqualTo("Confirmed.");
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT corrected_score FROM matching_criterion_report_review WHERE id = ?""",
+                Integer.class, review1Id)).isEqualTo(85);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT corrected_rationale FROM matching_criterion_report_review WHERE id = ?""",
+                String.class, review1Id)).isEqualTo("Better rationale.");
+
+        mockMvc.perform(get(REPORTS_PATH + "/" + reportId)
+                        .header("Authorization", "Bearer " + admin1.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.myReview.id").value(review1Id.toString()))
+                .andExpect(jsonPath("$.myReview.verdict").value("upheld"))
+                .andExpect(jsonPath("$.myReview.note").value("Confirmed."))
+                .andExpect(jsonPath("$.myReview.correctedScore").value(85))
+                .andExpect(jsonPath("$.myReview.correctedRationale").value("Better rationale."))
+                .andExpect(jsonPath("$.reviews").doesNotExist())
+                .andExpect(jsonPath("$.reviewCount").doesNotExist());
+
+        // Le second admin ne voit ni l'avis du premier ni son existence.
+        mockMvc.perform(get(REPORTS_PATH + "/" + reportId)
+                        .header("Authorization", "Bearer " + admin2.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.myReview").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.reviews").doesNotExist())
+                .andExpect(jsonPath("$.reviewCount").doesNotExist());
+
+        review(admin2.token(), reportId, "notUpheld", "Not enough evidence", null, null)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.verdict").value("notUpheld"))
+                .andExpect(jsonPath("$.note").value("Not enough evidence"))
+                .andExpect(jsonPath("$.correctedScore").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.correctedRationale").value(org.hamcrest.Matchers.nullValue()));
+
+        // Même après l'avis du second, le premier ne voit toujours que le sien.
+        mockMvc.perform(get(REPORTS_PATH + "/" + reportId)
+                        .header("Authorization", "Bearer " + admin1.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.myReview.id").value(review1Id.toString()))
+                .andExpect(jsonPath("$.myReview.verdict").value("upheld"))
+                .andExpect(jsonPath("$.reviews").doesNotExist())
+                .andExpect(jsonPath("$.reviewCount").doesNotExist());
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM matching_criterion_report_review WHERE report_id = ?""",
+                Integer.class, reportId)).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(DISTINCT reviewer_user_id) FROM matching_criterion_report_review
+                WHERE report_id = ?""", Integer.class, reportId)).isEqualTo(2);
+
+        // Aucun effet sur le signalement, le résultat ou le score.
+        assertThat(authorOf(reportId)).isEqualTo(reportAuthorId);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT comment FROM matching_criterion_report WHERE id = ?""",
+                String.class, reportId)).isEqualTo("Original comment");
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT reason FROM matching_criterion_report WHERE id = ?""",
+                Short.class, reportId)).isEqualTo((short) 1);
+        assertThat(resultOf(applicationId)).isEqualTo(resultBefore);
+    }
+
+    @Test
+    void revueAdminRefuseAutoReviewDoublonEtEntreesInvalides() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", null);
+        publish(owner.token(), offerId);
+        String publicId = publicIdOf(offerId);
+        Account candidate = signup("Grace", "Hopper");
+        UUID applicationId = draftAndMatch(candidate, uploadCv(candidate.token()), publicId,
+                resultJson(60, 70, 80, 90, 95), List.of(), null);
+        report(owner.token(), offerId, applicationId, "skill:java", "scoreIncorrect", null)
+                .andExpect(status().isCreated());
+        UUID reportId = reportIdOf(applicationId, "skill:java");
+        UUID reportAuthorId = authorOf(reportId);
+        Account admin = adminAccount();
+
+        // L'auteur du signalement ne peut pas se reviewer lui-même.
+        jdbcTemplate.update("UPDATE matching_criterion_report SET author_user_id = ? WHERE id = ?",
+                admin.userId(), reportId);
+        review(admin.token(), reportId, "upheld", null, null, null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("You cannot review your own report."));
+        jdbcTemplate.update("UPDATE matching_criterion_report SET author_user_id = ? WHERE id = ?",
+                reportAuthorId, reportId);
+
+        // Verdict absent, inconnu, correction avec notUpheld, champs hors bornes.
+        review(admin.token(), reportId, null, null, null, null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("verdict")));
+        review(admin.token(), reportId, "bogus", null, null, null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid criterion report review"))
+                .andExpect(jsonPath("$.detail").value("Verdict must be upheld or notUpheld."));
+        review(admin.token(), reportId, "notUpheld", null, 50, null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(
+                        "Corrected score and rationale are only allowed when the report is upheld."));
+        review(admin.token(), reportId, "notUpheld", null, null, "rationale")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(
+                        "Corrected score and rationale are only allowed when the report is upheld."));
+        review(admin.token(), reportId, "upheld", null, 101, null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation failed"));
+        review(admin.token(), reportId, "upheld", "x".repeat(2001), null, null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation failed"));
+
+        // Un avis valide, puis définitif : le doublon est refusé même avec un autre verdict.
+        review(admin.token(), reportId, "notUpheld", "Not enough evidence", null, null)
+                .andExpect(status().isCreated());
+        review(admin.token(), reportId, "upheld", null, null, null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Criterion report review conflict"))
+                .andExpect(jsonPath("$.detail").value("You have already reviewed this report."));
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM matching_criterion_report_review
+                WHERE report_id = ? AND reviewer_user_id = ?""",
+                Integer.class, reportId, admin.userId())).isEqualTo(1);
+
+        review(admin.token(), UUID.randomUUID(), "upheld", null, null, null)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("No AI report matches this identifier."));
+
+        // Route réservée au rôle ADMIN.
+        review(owner.token(), reportId, "upheld", null, null, null)
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post(REPORTS_PATH + "/" + reportId + "/reviews")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"verdict\": \"upheld\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void revueAdminNAutoriseLesCorrectionsQuePourUpheld() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", null);
+        publish(owner.token(), offerId);
+        String publicId = publicIdOf(offerId);
+        Account candidate = signup("Grace", "Hopper");
+        UUID applicationId = draftAndMatch(candidate, uploadCv(candidate.token()), publicId,
+                resultJson(60, 70, 80, 90, 95), List.of(), null);
+        report(owner.token(), offerId, applicationId, "skill:java", "scoreIncorrect", null)
+                .andExpect(status().isCreated());
+        UUID reportId = reportIdOf(applicationId, "skill:java");
+        Account admin1 = adminAccount();
+        Account admin2 = adminAccount();
+        Account admin3 = adminAccount();
+        Account admin4 = adminAccount();
+
+        // NOT_UPHELD : aucune correction, même partielle.
+        review(admin1.token(), reportId, "notUpheld", null, 50, null)
+                .andExpect(status().isBadRequest());
+        review(admin1.token(), reportId, "notUpheld", null, null, "rationale")
+                .andExpect(status().isBadRequest());
+        review(admin1.token(), reportId, "notUpheld", "note", null, null)
+                .andExpect(status().isCreated());
+
+        // UPHELD : les deux champs restent facultatifs séparément.
+        review(admin2.token(), reportId, "upheld", null, 70, null)
+                .andExpect(status().isCreated());
+        review(admin3.token(), reportId, "upheld", null, null, "rationale")
+                .andExpect(status().isCreated());
+        review(admin4.token(), reportId, "upheld", null, 90, "both")
+                .andExpect(status().isCreated());
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT verdict FROM matching_criterion_report_review
+                WHERE report_id = ? AND reviewer_user_id = ?""",
+                Short.class, reportId, admin1.userId())).isEqualTo((short) 2);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT corrected_score FROM matching_criterion_report_review
+                WHERE report_id = ? AND reviewer_user_id = ?""",
+                Integer.class, reportId, admin1.userId())).isNull();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT corrected_rationale FROM matching_criterion_report_review
+                WHERE report_id = ? AND reviewer_user_id = ?""",
+                String.class, reportId, admin1.userId())).isNull();
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT corrected_score FROM matching_criterion_report_review
+                WHERE report_id = ? AND reviewer_user_id = ?""",
+                Integer.class, reportId, admin2.userId())).isEqualTo(70);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT corrected_rationale FROM matching_criterion_report_review
+                WHERE report_id = ? AND reviewer_user_id = ?""",
+                String.class, reportId, admin2.userId())).isNull();
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT corrected_score FROM matching_criterion_report_review
+                WHERE report_id = ? AND reviewer_user_id = ?""",
+                Integer.class, reportId, admin3.userId())).isNull();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT corrected_rationale FROM matching_criterion_report_review
+                WHERE report_id = ? AND reviewer_user_id = ?""",
+                String.class, reportId, admin3.userId())).isEqualTo("rationale");
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT corrected_score FROM matching_criterion_report_review
+                WHERE report_id = ? AND reviewer_user_id = ?""",
+                Integer.class, reportId, admin4.userId())).isEqualTo(90);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT corrected_rationale FROM matching_criterion_report_review
+                WHERE report_id = ? AND reviewer_user_id = ?""",
+                String.class, reportId, admin4.userId())).isEqualTo("both");
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM matching_criterion_report_review WHERE report_id = ?""",
+                Integer.class, reportId)).isEqualTo(4);
+    }
+
+    @Test
+    void laBaseRefuseDoublonVerdictHorsBornesEtCorrectionNotUpheld() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", null);
+        publish(owner.token(), offerId);
+        String publicId = publicIdOf(offerId);
+        Account candidate = signup("Grace", "Hopper");
+        UUID applicationId = draftAndMatch(candidate, uploadCv(candidate.token()), publicId,
+                resultJson(60, 70, 80, 90, 95), List.of(), null);
+        report(owner.token(), offerId, applicationId, "skill:java", "scoreIncorrect", null)
+                .andExpect(status().isCreated());
+        UUID reportId = reportIdOf(applicationId, "skill:java");
+        Account admin = adminAccount();
+        review(admin.token(), reportId, "upheld", null, null, null)
+                .andExpect(status().isCreated());
+
+        // Unicité (report, reviewer) : la base tranche, pas seulement le service.
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO matching_criterion_report_review
+                    (id, report_id, reviewer_user_id, verdict, note, corrected_score,
+                     corrected_rationale, created_at)
+                VALUES (?, ?, ?, 1, null, null, null, now())""",
+                UUID.randomUUID(), reportId, admin.userId()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        // Verdict hors 1–2.
+        UUID reviewer2 = adminAccount().userId();
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO matching_criterion_report_review
+                    (id, report_id, reviewer_user_id, verdict, note, corrected_score,
+                     corrected_rationale, created_at)
+                VALUES (?, ?, ?, 3, null, null, null, now())""",
+                UUID.randomUUID(), reportId, reviewer2))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        // NOT_UPHELD avec correction : refusé par la base.
+        UUID reviewer3 = adminAccount().userId();
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO matching_criterion_report_review
+                    (id, report_id, reviewer_user_id, verdict, note, corrected_score,
+                     corrected_rationale, created_at)
+                VALUES (?, ?, ?, 2, null, 50, null, now())""",
+                UUID.randomUUID(), reportId, reviewer3))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        UUID reviewer4 = adminAccount().userId();
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO matching_criterion_report_review
+                    (id, report_id, reviewer_user_id, verdict, note, corrected_score,
+                     corrected_rationale, created_at)
+                VALUES (?, ?, ?, 2, null, null, 'rationale', now())""",
+                UUID.randomUUID(), reportId, reviewer4))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        // Score corrigé hors 0–100.
+        UUID reviewer5 = adminAccount().userId();
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO matching_criterion_report_review
+                    (id, report_id, reviewer_user_id, verdict, note, corrected_score,
+                     corrected_rationale, created_at)
+                VALUES (?, ?, ?, 1, null, 101, null, now())""",
+                UUID.randomUUID(), reportId, reviewer5))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        // Append-only : aucune colonne d'édition, aucun endpoint d'update/delete.
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'matching_criterion_report_review'
+                  AND column_name = 'updated_at'""", Integer.class)).isZero();
+        mockMvc.perform(put(REPORTS_PATH + "/" + reportId + "/reviews")
+                        .header("Authorization", "Bearer " + admin.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"verdict\": \"notUpheld\"}"))
+                .andExpect(status().isMethodNotAllowed());
+        mockMvc.perform(delete(REPORTS_PATH + "/" + reportId + "/reviews")
+                        .header("Authorization", "Bearer " + admin.token()))
+                .andExpect(status().isMethodNotAllowed());
+    }
+
+    private UUID reportIdOf(UUID applicationId, String criterionKey) {
+        return jdbcTemplate.queryForObject("""
+                SELECT r.id FROM matching_criterion_report r
+                JOIN application a ON a.matching_id = r.matching_id
+                WHERE a.id = ? AND r.criterion_key = ?""",
+                UUID.class, applicationId, criterionKey);
+    }
+
+    private ResultActions review(String token, UUID reportId, String verdict, String note,
+            Integer correctedScore, String correctedRationale) throws Exception {
+        var body = objectMapper.createObjectNode();
+        if (verdict != null) {
+            body.put("verdict", verdict);
+        }
+        if (note != null) {
+            body.put("note", note);
+        }
+        if (correctedScore != null) {
+            body.put("correctedScore", correctedScore);
+        }
+        if (correctedRationale != null) {
+            body.put("correctedRationale", correctedRationale);
+        }
+        return mockMvc.perform(post(REPORTS_PATH + "/" + reportId + "/reviews")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(body)));
+    }
+
     private static JsonNode findReport(JsonNode items, UUID reportId) {
         for (JsonNode item : items) {
             if (reportId.toString().equals(item.get("id").asText())) {
@@ -507,11 +871,15 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
                 .content(body));
     }
 
+    private String adminToken() throws Exception {
+        return adminAccount().token();
+    }
+
     /**
-     * Jeton ADMIN : le rôle est inséré après le signup, donc un nouveau login
+     * Compte ADMIN : le rôle est inséré après le signup, donc un nouveau login
      * est nécessaire pour que le claim {@code roles} le porte.
      */
-    private String adminToken() throws Exception {
+    private Account adminAccount() throws Exception {
         String email = "admin-reports-it-" + UUID.randomUUID() + "@example.com";
         MvcResult signupResult = mockMvc.perform(post("/api/v1/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -540,6 +908,8 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
                         .content("{\"email\": \"%s\", \"password\": \"secret123\"}".formatted(email)))
                 .andExpect(status().isOk())
                 .andReturn();
-        return objectMapper.readTree(login.getResponse().getContentAsString()).get("token").asText();
+        String token = objectMapper.readTree(login.getResponse().getContentAsString())
+                .get("token").asText();
+        return new Account(token, id);
     }
 }

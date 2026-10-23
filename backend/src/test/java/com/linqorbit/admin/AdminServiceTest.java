@@ -23,11 +23,14 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
+import com.linqorbit.admin.dto.AdminCriterionReportDetailResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportReviewResponse;
 import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
 import com.linqorbit.admin.dto.AdminJobOfferListItem;
 import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
@@ -36,6 +39,10 @@ import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
 import com.linqorbit.admin.dto.AdminUserDetailResponse;
 import com.linqorbit.admin.dto.AdminUserPageResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
+import com.linqorbit.admin.dto.CreateCriterionReportReviewRequest;
+import com.linqorbit.admin.exception.CriterionReportNotFoundException;
+import com.linqorbit.admin.exception.CriterionReportReviewConflictException;
+import com.linqorbit.admin.exception.InvalidCriterionReportReviewException;
 import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
 import com.linqorbit.admin.exception.InvalidSkillTypeException;
@@ -76,8 +83,13 @@ import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.service.JobOfferService;
 import com.linqorbit.recruiter.entity.Recruiter;
 import com.linqorbit.application.service.ApplicationAssessmentReader;
+import com.linqorbit.matching.entity.CriterionReportReason;
+import com.linqorbit.matching.entity.CriterionReportReviewVerdict;
+import com.linqorbit.matching.entity.MatchingCriterionReport;
+import com.linqorbit.matching.entity.MatchingCriterionReportReview;
 import com.linqorbit.matching.repository.MatchingCriterionFeedbackRepository;
 import com.linqorbit.matching.repository.MatchingCriterionReportRepository;
+import com.linqorbit.matching.repository.MatchingCriterionReportReviewRepository;
 import com.linqorbit.matching.repository.MatchingRepository;
 import com.linqorbit.matching.repository.MatchingResultRepository;
 import com.linqorbit.matching.service.MatchingResultReader;
@@ -108,6 +120,11 @@ class AdminServiceTest {
     private JobOfferService jobOfferService;
     private CandidateService candidateService;
     private CompanyRepository companyRepository;
+    private MatchingCriterionReportRepository criterionReportRepository;
+    private MatchingCriterionReportReviewRepository criterionReportReviewRepository;
+    private MatchingCriterionFeedbackRepository feedbackRepository;
+    private MatchingRepository matchingRepository;
+    private MatchingResultRepository matchingResultRepository;
     private AdminService adminService;
 
     @BeforeEach
@@ -126,15 +143,19 @@ class AdminServiceTest {
         jobOfferService = mock(JobOfferService.class);
         candidateService = mock(CandidateService.class);
         companyRepository = mock(CompanyRepository.class);
+        criterionReportRepository = mock(MatchingCriterionReportRepository.class);
+        criterionReportReviewRepository = mock(MatchingCriterionReportReviewRepository.class);
+        feedbackRepository = mock(MatchingCriterionFeedbackRepository.class);
+        matchingRepository = mock(MatchingRepository.class);
+        matchingResultRepository = mock(MatchingResultRepository.class);
         MatchingResultReader matchingResultReader = new MatchingResultReader(new ObjectMapper());
         adminService = new AdminService(userRepository, userRoleRepository, skillSuggestionRepository,
                 skillRepository, candidateRepository, candidateSkillRepository, recruiterRepository,
                 normalizedProfileRepository, normalizedProfileJobOfferRepository,
                 normalizationJobRepository, jobOfferRepository, jobOfferService, candidateService,
-                companyRepository, mock(MatchingCriterionReportRepository.class),
-                mock(MatchingCriterionFeedbackRepository.class), mock(MatchingRepository.class),
-                mock(MatchingResultRepository.class), matchingResultReader,
-                new ApplicationAssessmentReader(matchingResultReader, mock(MatchingResultRepository.class)),
+                companyRepository, criterionReportRepository, criterionReportReviewRepository,
+                feedbackRepository, matchingRepository, matchingResultRepository, matchingResultReader,
+                new ApplicationAssessmentReader(matchingResultReader, matchingResultRepository),
                 new ObjectMapper());
     }
 
@@ -489,6 +510,187 @@ class AdminServiceTest {
         assertThatThrownBy(() -> adminService.rejectSuggestion(unknownId, adminId))
                 .isInstanceOf(SuggestionNotFoundException.class);
         verify(skillSuggestionRepository, never()).deleteAll(any());
+    }
+
+    @Test
+    void creeUneRevueUpheldAvecCorrectionsEtNettoieLesTextes() {
+        UUID reportId = UUID.randomUUID();
+        UUID reviewerId = UUID.randomUUID();
+        when(criterionReportRepository.findById(reportId))
+                .thenReturn(Optional.of(criterionReport(reportId, UUID.randomUUID())));
+        when(criterionReportReviewRepository.existsByReportIdAndReviewerUserId(reportId, reviewerId))
+                .thenReturn(false);
+        when(criterionReportReviewRepository.saveAndFlush(any(MatchingCriterionReportReview.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        AdminCriterionReportReviewResponse response = adminService.createCriterionReportReview(
+                reportId, reviewerId,
+                new CreateCriterionReportReviewRequest("upheld", "  note  ", 80, "  rationale  "));
+
+        assertThat(response.verdict()).isEqualTo("upheld");
+        assertThat(response.note()).isEqualTo("note");
+        assertThat(response.correctedScore()).isEqualTo(80);
+        assertThat(response.correctedRationale()).isEqualTo("rationale");
+        ArgumentCaptor<MatchingCriterionReportReview> captor =
+                ArgumentCaptor.forClass(MatchingCriterionReportReview.class);
+        verify(criterionReportReviewRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getReportId()).isEqualTo(reportId);
+        assertThat(captor.getValue().getReviewerUserId()).isEqualTo(reviewerId);
+        assertThat(captor.getValue().getVerdict()).isEqualTo(CriterionReportReviewVerdict.UPHELD);
+        assertThat(captor.getValue().getNote()).isEqualTo("note");
+        assertThat(captor.getValue().getCorrectedScore()).isEqualTo(80);
+        assertThat(captor.getValue().getCorrectedRationale()).isEqualTo("rationale");
+    }
+
+    @Test
+    void creeUneRevueNotUpheldSansCorrectionEtNormaliseLesBlancs() {
+        UUID reportId = UUID.randomUUID();
+        UUID reviewerId = UUID.randomUUID();
+        when(criterionReportRepository.findById(reportId))
+                .thenReturn(Optional.of(criterionReport(reportId, UUID.randomUUID())));
+        when(criterionReportReviewRepository.existsByReportIdAndReviewerUserId(reportId, reviewerId))
+                .thenReturn(false);
+        when(criterionReportReviewRepository.saveAndFlush(any(MatchingCriterionReportReview.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        AdminCriterionReportReviewResponse response = adminService.createCriterionReportReview(
+                reportId, reviewerId,
+                new CreateCriterionReportReviewRequest("notUpheld", "  note  ", null, "   "));
+
+        assertThat(response.verdict()).isEqualTo("notUpheld");
+        assertThat(response.note()).isEqualTo("note");
+        assertThat(response.correctedScore()).isNull();
+        assertThat(response.correctedRationale()).isNull();
+        verify(criterionReportReviewRepository).saveAndFlush(any(MatchingCriterionReportReview.class));
+    }
+
+    @Test
+    void refuseLAutoReviewEtLeDoublon() {
+        UUID reportId = UUID.randomUUID();
+        UUID reviewerId = UUID.randomUUID();
+        when(criterionReportRepository.findById(reportId))
+                .thenReturn(Optional.of(criterionReport(reportId, reviewerId)));
+
+        assertThatThrownBy(() -> adminService.createCriterionReportReview(reportId, reviewerId,
+                new CreateCriterionReportReviewRequest("upheld", null, null, null)))
+                .isInstanceOf(CriterionReportReviewConflictException.class)
+                .hasMessage("You cannot review your own report.");
+        verify(criterionReportReviewRepository, never()).saveAndFlush(any());
+
+        UUID authorId = UUID.randomUUID();
+        when(criterionReportRepository.findById(reportId))
+                .thenReturn(Optional.of(criterionReport(reportId, authorId)));
+        when(criterionReportReviewRepository.existsByReportIdAndReviewerUserId(reportId, reviewerId))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> adminService.createCriterionReportReview(reportId, reviewerId,
+                new CreateCriterionReportReviewRequest("upheld", null, null, null)))
+                .isInstanceOf(CriterionReportReviewConflictException.class)
+                .hasMessage("You have already reviewed this report.");
+        verify(criterionReportReviewRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void refuseUnVerdictInconnuEtUneCorrectionIncoherente() {
+        UUID reportId = UUID.randomUUID();
+        UUID reviewerId = UUID.randomUUID();
+        when(criterionReportRepository.findById(reportId))
+                .thenReturn(Optional.of(criterionReport(reportId, UUID.randomUUID())));
+        when(criterionReportReviewRepository.existsByReportIdAndReviewerUserId(reportId, reviewerId))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> adminService.createCriterionReportReview(reportId, reviewerId,
+                new CreateCriterionReportReviewRequest("bogus", null, null, null)))
+                .isInstanceOf(InvalidCriterionReportReviewException.class)
+                .hasMessage("Verdict must be upheld or notUpheld.");
+        assertThatThrownBy(() -> adminService.createCriterionReportReview(reportId, reviewerId,
+                new CreateCriterionReportReviewRequest("notUpheld", null, 50, null)))
+                .isInstanceOf(InvalidCriterionReportReviewException.class)
+                .hasMessage("Corrected score and rationale are only allowed when the report is upheld.");
+        assertThatThrownBy(() -> adminService.createCriterionReportReview(reportId, reviewerId,
+                new CreateCriterionReportReviewRequest("notUpheld", null, null, "rationale")))
+                .isInstanceOf(InvalidCriterionReportReviewException.class)
+                .hasMessage("Corrected score and rationale are only allowed when the report is upheld.");
+        assertThatThrownBy(() -> adminService.createCriterionReportReview(reportId, reviewerId,
+                new CreateCriterionReportReviewRequest("upheld", null, 101, null)))
+                .isInstanceOf(InvalidCriterionReportReviewException.class)
+                .hasMessage("Corrected score must be between 0 and 100.");
+        verify(criterionReportReviewRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void refuseUneRevueSurUnSignalementInconnuEtTraduitLaCourseEnConflit() {
+        UUID unknownId = UUID.randomUUID();
+        when(criterionReportRepository.findById(unknownId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> adminService.createCriterionReportReview(unknownId, UUID.randomUUID(),
+                new CreateCriterionReportReviewRequest("upheld", null, null, null)))
+                .isInstanceOf(CriterionReportNotFoundException.class);
+
+        UUID reportId = UUID.randomUUID();
+        UUID reviewerId = UUID.randomUUID();
+        when(criterionReportRepository.findById(reportId))
+                .thenReturn(Optional.of(criterionReport(reportId, UUID.randomUUID())));
+        when(criterionReportReviewRepository.existsByReportIdAndReviewerUserId(reportId, reviewerId))
+                .thenReturn(false);
+        when(criterionReportReviewRepository.saveAndFlush(any(MatchingCriterionReportReview.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        assertThatThrownBy(() -> adminService.createCriterionReportReview(reportId, reviewerId,
+                new CreateCriterionReportReviewRequest("upheld", null, null, null)))
+                .isInstanceOf(CriterionReportReviewConflictException.class)
+                .hasMessage("You have already reviewed this report.");
+    }
+
+    @Test
+    void getCriterionReportExposeUniquementLaRevueDeLAdminCourant() {
+        UUID reportId = UUID.randomUUID();
+        UUID reviewerId = UUID.randomUUID();
+        UUID otherReviewerId = UUID.randomUUID();
+        UUID authorId = UUID.randomUUID();
+        when(criterionReportRepository.findById(reportId))
+                .thenReturn(Optional.of(criterionReport(reportId, authorId)));
+        when(matchingRepository.findById(any())).thenReturn(Optional.empty());
+        when(matchingResultRepository.findById(any())).thenReturn(Optional.empty());
+        when(userRepository.findById(authorId)).thenReturn(Optional.empty());
+
+        MatchingCriterionReportReview review = MatchingCriterionReportReview.builder()
+                .id(UUID.randomUUID())
+                .reportId(reportId)
+                .reviewerUserId(reviewerId)
+                .verdict(CriterionReportReviewVerdict.UPHELD)
+                .note("my review")
+                .correctedScore(85)
+                .correctedRationale("my rationale")
+                .build();
+        when(criterionReportReviewRepository.findByReportIdAndReviewerUserId(reportId, reviewerId))
+                .thenReturn(Optional.of(review));
+        when(criterionReportReviewRepository.findByReportIdAndReviewerUserId(reportId, otherReviewerId))
+                .thenReturn(Optional.empty());
+
+        AdminCriterionReportDetailResponse mine = adminService.getCriterionReport(reportId, reviewerId);
+        AdminCriterionReportDetailResponse other = adminService.getCriterionReport(reportId, otherReviewerId);
+
+        assertThat(mine.myReview()).isNotNull();
+        assertThat(mine.myReview().id()).isEqualTo(review.getId());
+        assertThat(mine.myReview().verdict()).isEqualTo("upheld");
+        assertThat(mine.myReview().note()).isEqualTo("my review");
+        assertThat(mine.myReview().correctedScore()).isEqualTo(85);
+        assertThat(mine.myReview().correctedRationale()).isEqualTo("my rationale");
+        assertThat(other.myReview()).isNull();
+        verify(criterionReportReviewRepository).findByReportIdAndReviewerUserId(reportId, reviewerId);
+        verify(criterionReportReviewRepository).findByReportIdAndReviewerUserId(reportId, otherReviewerId);
+    }
+
+    private static MatchingCriterionReport criterionReport(UUID reportId, UUID authorId) {
+        return MatchingCriterionReport.builder()
+                .id(reportId)
+                .matchingId(UUID.randomUUID())
+                .matchingResultId(UUID.randomUUID())
+                .criterionKey("skill:java")
+                .authorUserId(authorId)
+                .reason(CriterionReportReason.SCORE_INCORRECT)
+                .build();
     }
 
     @Test

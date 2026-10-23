@@ -1,5 +1,6 @@
 package com.linqorbit.admin;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -27,6 +28,10 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.linqorbit.admin.dto.AdminCriterionContextResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportDetailResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportReviewResponse;
 import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
 import com.linqorbit.admin.dto.AdminJobOfferListItem;
 import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
@@ -35,6 +40,10 @@ import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
 import com.linqorbit.admin.dto.AdminUserDetailResponse;
 import com.linqorbit.admin.dto.AdminUserPageResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
+import com.linqorbit.admin.dto.CreateCriterionReportReviewRequest;
+import com.linqorbit.admin.exception.CriterionReportNotFoundException;
+import com.linqorbit.admin.exception.CriterionReportReviewConflictException;
+import com.linqorbit.admin.exception.InvalidCriterionReportReviewException;
 import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
 import com.linqorbit.admin.exception.InvalidUserCapabilityFilterException;
@@ -42,6 +51,7 @@ import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
 import com.linqorbit.admin.exception.SuggestionNotFoundException;
 import com.linqorbit.admin.exception.UserNotFoundException;
+import com.linqorbit.application.dto.RecruiterAssessmentView;
 import com.linqorbit.candidate.dto.CandidateProfileResponse;
 import com.linqorbit.config.SecurityConfig;
 import com.linqorbit.user.UserStatus;
@@ -492,6 +502,162 @@ class AdminControllerTest {
                         UUID.randomUUID()).with(adminJwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("Normalized profile not found"));
+    }
+
+    @Test
+    void getCriterionReportTransmetLAdminCourantEtExposeMyReview() throws Exception {
+        UUID reportId = UUID.randomUUID();
+        UUID adminId = UUID.randomUUID();
+        UUID reviewId = UUID.randomUUID();
+        AdminCriterionReportReviewResponse review = new AdminCriterionReportReviewResponse(
+                reviewId, "upheld", "note", 80, "rationale",
+                java.time.LocalDateTime.of(2026, 10, 23, 10, 0));
+        when(adminService.getCriterionReport(reportId, adminId)).thenReturn(detail(reportId, review));
+
+        mockMvc.perform(get("/api/v1/admin/criterion-reports/{id}", reportId)
+                        .with(adminJwt(adminId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.report.id").value(reportId.toString()))
+                .andExpect(jsonPath("$.myReview.id").value(reviewId.toString()))
+                .andExpect(jsonPath("$.myReview.verdict").value("upheld"))
+                .andExpect(jsonPath("$.myReview.note").value("note"))
+                .andExpect(jsonPath("$.myReview.correctedScore").value(80))
+                .andExpect(jsonPath("$.myReview.correctedRationale").value("rationale"))
+                .andExpect(jsonPath("$.myReview.createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.reviews").doesNotExist())
+                .andExpect(jsonPath("$.reviewCount").doesNotExist());
+
+        verify(adminService).getCriterionReport(reportId, adminId);
+    }
+
+    @Test
+    void createCriterionReportReviewRenvoie201AvecMonAvis() throws Exception {
+        UUID reportId = UUID.randomUUID();
+        UUID adminId = UUID.randomUUID();
+        UUID reviewId = UUID.randomUUID();
+        AdminCriterionReportReviewResponse review = new AdminCriterionReportReviewResponse(
+                reviewId, "upheld", "note", 80, "rationale",
+                java.time.LocalDateTime.of(2026, 10, 23, 10, 0));
+        when(adminService.createCriterionReportReview(eq(reportId), eq(adminId), any()))
+                .thenReturn(review);
+
+        mockMvc.perform(post("/api/v1/admin/criterion-reports/{id}/reviews", reportId)
+                        .with(adminJwt(adminId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "verdict": "upheld",
+                                  "note": "note",
+                                  "correctedScore": 80,
+                                  "correctedRationale": "rationale"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(reviewId.toString()))
+                .andExpect(jsonPath("$.verdict").value("upheld"))
+                .andExpect(jsonPath("$.note").value("note"))
+                .andExpect(jsonPath("$.correctedScore").value(80))
+                .andExpect(jsonPath("$.correctedRationale").value("rationale"))
+                .andExpect(jsonPath("$.createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.reviews").doesNotExist())
+                .andExpect(jsonPath("$.reviewCount").doesNotExist());
+
+        org.mockito.ArgumentCaptor<CreateCriterionReportReviewRequest> captor =
+                org.mockito.ArgumentCaptor.forClass(CreateCriterionReportReviewRequest.class);
+        verify(adminService).createCriterionReportReview(eq(reportId), eq(adminId), captor.capture());
+        assertThat(captor.getValue().verdict()).isEqualTo("upheld");
+        assertThat(captor.getValue().note()).isEqualTo("note");
+        assertThat(captor.getValue().correctedScore()).isEqualTo(80);
+        assertThat(captor.getValue().correctedRationale()).isEqualTo("rationale");
+    }
+
+    @Test
+    void createCriterionReportReviewRenvoie400QuandLeCorpsEstInvalide() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/criterion-reports/{id}/reviews", UUID.randomUUID())
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "verdict": " ",
+                                  "note": "%s",
+                                  "correctedScore": 101
+                                }
+                                """.formatted("x".repeat(2001))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation failed"));
+    }
+
+    @Test
+    void createCriterionReportReviewRenvoie400QuandLeVerdictEstInconnu() throws Exception {
+        doThrow(new InvalidCriterionReportReviewException("Verdict must be upheld or notUpheld."))
+                .when(adminService).createCriterionReportReview(any(), any(), any());
+
+        mockMvc.perform(post("/api/v1/admin/criterion-reports/{id}/reviews", UUID.randomUUID())
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"verdict\": \"bogus\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid criterion report review"))
+                .andExpect(jsonPath("$.detail").value("Verdict must be upheld or notUpheld."));
+    }
+
+    @Test
+    void createCriterionReportReviewRenvoie409QuandLAvisExisteDeja() throws Exception {
+        doThrow(new CriterionReportReviewConflictException("You have already reviewed this report."))
+                .when(adminService).createCriterionReportReview(any(), any(), any());
+
+        mockMvc.perform(post("/api/v1/admin/criterion-reports/{id}/reviews", UUID.randomUUID())
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"verdict\": \"upheld\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Criterion report review conflict"))
+                .andExpect(jsonPath("$.detail").value("You have already reviewed this report."));
+    }
+
+    @Test
+    void createCriterionReportReviewRenvoie404QuandLeSignalementEstInconnu() throws Exception {
+        UUID reportId = UUID.randomUUID();
+        doThrow(new CriterionReportNotFoundException(reportId))
+                .when(adminService).createCriterionReportReview(any(), any(), any());
+
+        mockMvc.perform(post("/api/v1/admin/criterion-reports/{id}/reviews", reportId)
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"verdict\": \"upheld\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Criterion report not found"))
+                .andExpect(jsonPath("$.detail").value("No AI report matches this identifier."));
+    }
+
+    @Test
+    void createCriterionReportReviewRenvoie403SansRoleAdminEt401SansJeton() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/criterion-reports/{id}/reviews", UUID.randomUUID())
+                        .with(SecurityMockMvcRequestPostProcessors.jwt()
+                                .jwt(j -> j.subject(UUID.randomUUID().toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"verdict\": \"upheld\"}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/admin/criterion-reports/{id}/reviews", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"verdict\": \"upheld\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    private static AdminCriterionReportDetailResponse detail(UUID reportId,
+            AdminCriterionReportReviewResponse review) {
+        return new AdminCriterionReportDetailResponse(
+                new AdminCriterionReportResponse(
+                        reportId, "skill:java", "Java", "requiredSkills", 60, 60.0,
+                        "scoreIncorrect", null,
+                        java.time.LocalDateTime.of(2026, 10, 22, 10, 0),
+                        "Ada", "Owner", "ada@example.com", "Grace", "Hopper",
+                        UUID.randomUUID(), "Backend Engineer", "Acme"),
+                UUID.randomUUID(),
+                new AdminCriterionContextResponse("skill:java", "Java", "requiredSkills",
+                        60, 60.0, "Strong Java", "Criterion rationale", null, true),
+                new RecruiterAssessmentView(false, List.of()),
+                List.of(), null, review);
     }
 
     @Test

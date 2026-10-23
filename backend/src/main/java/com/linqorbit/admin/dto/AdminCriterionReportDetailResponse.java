@@ -18,6 +18,9 @@ import com.linqorbit.application.dto.RecruiterContestationView;
  * @param assessment     évaluation complète, même forme que la vue recruteur
  * @param contests       contestations du candidat (critère signalé compris)
  * @param averageGap     écart moyen absolu, même mesure que la vue recruteur
+ * @param myReview       avis final de l'admin courant, ou {@code null} s'il
+ *                       n'a pas encore donné son avis — jamais les avis des
+ *                       autres, ni leur nombre, ni leur existence
  */
 public record AdminCriterionReportDetailResponse(
         AdminCriterionReportResponse report,
@@ -25,5 +28,6 @@ public record AdminCriterionReportDetailResponse(
         AdminCriterionContextResponse criterion,
         RecruiterAssessmentView assessment,
         List<RecruiterContestationView> contests,
-        Double averageGap) {
+        Double averageGap,
+        AdminCriterionReportReviewResponse myReview) {
 }

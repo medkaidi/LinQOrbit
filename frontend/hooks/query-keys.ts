@@ -62,9 +62,13 @@ export const queryKeys = {
     skillSuggestions: ["admin", "skill-suggestions"] as const,
     /** Signalements internes d'évaluations IA (D66) — liste infinie. */
     criterionReportsPage: ["admin", "criterion-reports"] as const,
-    /** Dossier d'un signalement (T-86) : détail d'une ligne de la liste. */
-    criterionReport: (reportId: string) =>
-      ["admin", "criterion-reports", reportId] as const,
+    /**
+     * Dossier d'un signalement (T-86) : détail d'une ligne de la liste.
+     * L'admin courant fait partie de la clé (T-97) — `myReview` ne doit
+     * jamais être relu depuis le cache d'un autre compte.
+     */
+    criterionReport: (reportId: string, adminId: string) =>
+      ["admin", "criterion-reports", reportId, adminId] as const,
   },
   publicJobs: {
     list: ["public-jobs", "list"] as const,

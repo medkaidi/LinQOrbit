@@ -1,5 +1,6 @@
 package com.linqorbit.admin;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +25,7 @@ import com.linqorbit.admin.dto.AdminCriterionContextResponse;
 import com.linqorbit.admin.dto.AdminCriterionReportDetailResponse;
 import com.linqorbit.admin.dto.AdminCriterionReportPageResponse;
 import com.linqorbit.admin.dto.AdminCriterionReportResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportReviewResponse;
 import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
 import com.linqorbit.admin.dto.AdminJobOfferListItem;
 import com.linqorbit.admin.dto.AdminJobOfferPageResponse;
@@ -31,12 +34,15 @@ import com.linqorbit.admin.dto.AdminSkillSuggestionResponse;
 import com.linqorbit.admin.dto.AdminUserDetailResponse;
 import com.linqorbit.admin.dto.AdminUserPageResponse;
 import com.linqorbit.admin.dto.AdminUserResponse;
+import com.linqorbit.admin.dto.CreateCriterionReportReviewRequest;
+import com.linqorbit.admin.exception.CriterionReportNotFoundException;
+import com.linqorbit.admin.exception.CriterionReportReviewConflictException;
+import com.linqorbit.admin.exception.InvalidCriterionReportReviewException;
 import com.linqorbit.admin.exception.InvalidOfferStatusFilterException;
 import com.linqorbit.admin.exception.InvalidSkillCategoryException;
 import com.linqorbit.admin.exception.InvalidSkillTypeException;
 import com.linqorbit.admin.exception.InvalidUserCapabilityFilterException;
 import com.linqorbit.admin.exception.InvalidUserStatusException;
-import com.linqorbit.admin.exception.CriterionReportNotFoundException;
 import com.linqorbit.admin.exception.NormalizedProfileNotFoundException;
 import com.linqorbit.admin.exception.SelfStatusChangeException;
 import com.linqorbit.admin.exception.SuggestionNotFoundException;
@@ -71,12 +77,15 @@ import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
 import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.service.JobOfferService;
+import com.linqorbit.matching.entity.CriterionReportReviewVerdict;
 import com.linqorbit.matching.entity.Matching;
 import com.linqorbit.matching.entity.MatchingCriterionFeedback;
 import com.linqorbit.matching.entity.MatchingCriterionReport;
+import com.linqorbit.matching.entity.MatchingCriterionReportReview;
 import com.linqorbit.matching.entity.MatchingResult;
 import com.linqorbit.matching.repository.MatchingCriterionFeedbackRepository;
 import com.linqorbit.matching.repository.MatchingCriterionReportRepository;
+import com.linqorbit.matching.repository.MatchingCriterionReportReviewRepository;
 import com.linqorbit.matching.repository.MatchingRepository;
 import com.linqorbit.matching.repository.MatchingResultRepository;
 import com.linqorbit.matching.service.MatchingResultReader;
@@ -124,6 +133,7 @@ public class AdminService {
     private final CandidateService candidateService;
     private final CompanyRepository companyRepository;
     private final MatchingCriterionReportRepository criterionReportRepository;
+    private final MatchingCriterionReportReviewRepository criterionReportReviewRepository;
     private final MatchingCriterionFeedbackRepository feedbackRepository;
     private final MatchingRepository matchingRepository;
     private final MatchingResultRepository matchingResultRepository;
@@ -578,9 +588,14 @@ public class AdminService {
      * l'évaluation complète et les contestations du candidat.
      */
     @Transactional(readOnly = true)
-    public AdminCriterionReportDetailResponse getCriterionReport(UUID reportId) {
+    public AdminCriterionReportDetailResponse getCriterionReport(UUID reportId, UUID reviewerUserId) {
         MatchingCriterionReport report = criterionReportRepository.findById(reportId)
                 .orElseThrow(() -> new CriterionReportNotFoundException(reportId));
+        // Aveugle total : la requête ne peut renvoyer que l'avis de l'admin
+        // courant — jamais la liste, un compteur ou l'existence d'un autre avis.
+        MatchingCriterionReportReview myReview = criterionReportReviewRepository
+                .findByReportIdAndReviewerUserId(reportId, reviewerUserId)
+                .orElse(null);
         Matching matching = matchingRepository.findById(report.getMatchingId()).orElse(null);
         MatchingResult pinned = matchingResultRepository.findById(report.getMatchingResultId()).orElse(null);
         JobOffer offer = matching == null ? null
@@ -616,7 +631,117 @@ public class AdminService {
                 reportId, report.getMatchingId(), criterion.resolved());
         return new AdminCriterionReportDetailResponse(item,
                 matching == null ? null : matching.getCandidateId(), criterion, assessment, contests,
-                gap.averageGap());
+                gap.averageGap(), myReview == null ? null : reviewResponse(myReview));
+    }
+
+    /**
+     * Enregistre l'avis final de l'admin courant sur un signalement (T-96,
+     * D77/D78). Un seul avis par admin et par signalement, auto-review
+     * interdite, aucun update/delete. L'avis est aveugle, immuable et sans
+     * effet sur le signalement, le résultat, le score ou la décision.
+     */
+    @Transactional
+    public AdminCriterionReportReviewResponse createCriterionReportReview(UUID reportId,
+            UUID reviewerUserId, CreateCriterionReportReviewRequest request) {
+        MatchingCriterionReport report = criterionReportRepository.findById(reportId)
+                .orElseThrow(() -> new CriterionReportNotFoundException(reportId));
+        log.info("Admin criterion report review requested : reportId={}, reviewerUserId={}",
+                reportId, reviewerUserId);
+
+        if (report.getAuthorUserId().equals(reviewerUserId)) {
+            log.warn("Admin criterion report review rejected : self review, reportId={}, reviewerUserId={}",
+                    reportId, reviewerUserId);
+            throw new CriterionReportReviewConflictException("You cannot review your own report.");
+        }
+        if (criterionReportReviewRepository.existsByReportIdAndReviewerUserId(reportId, reviewerUserId)) {
+            log.warn("Admin criterion report review rejected : already reviewed, reportId={}, reviewerUserId={}",
+                    reportId, reviewerUserId);
+            throw new CriterionReportReviewConflictException("You have already reviewed this report.");
+        }
+
+        CriterionReportReviewVerdict verdict = parseReviewVerdict(request.verdict());
+        String note = normalizeReviewText(request.note(), "Note");
+        String correctedRationale = normalizeReviewText(request.correctedRationale(),
+                "Corrected rationale");
+        if (!verdict.allowsCorrection()
+                && (request.correctedScore() != null || correctedRationale != null)) {
+            log.warn("Admin criterion report review rejected : correction with notUpheld, reportId={}, reviewerUserId={}",
+                    reportId, reviewerUserId);
+            throw new InvalidCriterionReportReviewException(
+                    "Corrected score and rationale are only allowed when the report is upheld.");
+        }
+        validateCorrectedScore(request.correctedScore());
+
+        MatchingCriterionReportReview review = MatchingCriterionReportReview.builder()
+                .id(UUID.randomUUID())
+                .reportId(reportId)
+                .reviewerUserId(reviewerUserId)
+                .verdict(verdict)
+                .note(note)
+                .correctedScore(request.correctedScore())
+                .correctedRationale(correctedRationale)
+                // Renseigné dès la construction pour que la réponse 201 porte
+                // toujours la date, même si le provider JPA ne réalimente pas
+                // le champ après l'insert.
+                .createdAt(LocalDateTime.now())
+                .build();
+        try {
+            criterionReportReviewRepository.saveAndFlush(review);
+        } catch (DataIntegrityViolationException ex) {
+            // Course entre deux avis du même admin sur le même signalement :
+            // l'unicité de la base tranche, jamais une 500.
+            log.warn("Admin criterion report review rejected : concurrent duplicate, reportId={}, reviewerUserId={}",
+                    reportId, reviewerUserId);
+            throw new CriterionReportReviewConflictException("You have already reviewed this report.");
+        }
+        log.info("Admin criterion report review recorded : reportId={}, reviewerUserId={}, verdict={}",
+                reportId, reviewerUserId, verdict.getApiValue());
+        return reviewResponse(review);
+    }
+
+    private static CriterionReportReviewVerdict parseReviewVerdict(String verdict) {
+        if (verdict == null || verdict.isBlank()) {
+            throw new InvalidCriterionReportReviewException(
+                    "Verdict must be upheld or notUpheld.");
+        }
+        String value = verdict.trim();
+        for (CriterionReportReviewVerdict candidate : CriterionReportReviewVerdict.values()) {
+            if (candidate.getApiValue().equals(value)) {
+                return candidate;
+            }
+        }
+        throw new InvalidCriterionReportReviewException("Verdict must be upheld or notUpheld.");
+    }
+
+    /** Texte nettoyé : blanc ou absent → {@code null} (jamais une chaîne vide). */
+    private static String normalizeReviewText(String value, String fieldLabel) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.length() > 2000) {
+            throw new InvalidCriterionReportReviewException(
+                    fieldLabel + " must not exceed 2000 characters.");
+        }
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static void validateCorrectedScore(Integer correctedScore) {
+        if (correctedScore != null && (correctedScore < 0 || correctedScore > 100)) {
+            throw new InvalidCriterionReportReviewException(
+                    "Corrected score must be between 0 and 100.");
+        }
+    }
+
+    private static AdminCriterionReportReviewResponse reviewResponse(
+            MatchingCriterionReportReview review) {
+        return new AdminCriterionReportReviewResponse(
+                review.getId(),
+                review.getVerdict().getApiValue(),
+                review.getNote(),
+                review.getCorrectedScore(),
+                review.getCorrectedRationale(),
+                review.getCreatedAt());
     }
 
     /** Ligne de signalement, partagée par la liste et le dossier (même contrat). */

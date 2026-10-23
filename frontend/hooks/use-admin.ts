@@ -11,6 +11,7 @@ import {
 
 import {
   approveSkillSuggestion,
+  createCriterionReportReview,
   getAdminJobOffer,
   getAdminUserProfile,
   getCriterionReport,
@@ -27,9 +28,16 @@ import {
   rejectSkillSuggestion,
   updateUserStatus,
 } from "@/lib/api/admin.api";
-import type { AdminJobOfferStatus, AdminUser, AdminUserFilters } from "@/types/admin";
+import type {
+  AdminCriterionReportDetail,
+  AdminCriterionReportReviewPayload,
+  AdminJobOfferStatus,
+  AdminUser,
+  AdminUserFilters,
+} from "@/types/admin";
 import { queryKeys } from "@/hooks/query-keys";
 import { nextPageParam } from "@/lib/utils/pagination";
+import { useAuthStore } from "@/stores/auth-store";
 
 /**
  * Liste des comptes (D34) en infinite scroll, filtrable (T-48) : recherche
@@ -158,15 +166,39 @@ export function useInfiniteAdminCriterionReports() {
 }
 
 /**
- * Dossier d'un signalement (T-86, D66) — requête inactive sans identifiant.
- * Les données sont immuables : le cache n'a pas besoin d'être rafraîchi.
+ * Dossier d'un signalement (T-86, D66) — requête inactive sans identifiant ou
+ * sans admin courant. La clé inclut l'admin (T-97) : le cache d'un compte ne
+ * peut jamais servir `myReview` à un autre compte sur le même navigateur.
  */
 export function useAdminCriterionReport(reportId: string | undefined) {
+  const adminId = useAuthStore((state) => state.user?.id);
   return useQuery({
-    queryKey: queryKeys.admin.criterionReport(reportId ?? ""),
+    queryKey: queryKeys.admin.criterionReport(reportId ?? "", adminId ?? ""),
     queryFn: ({ signal }) => getCriterionReport(reportId as string, { signal }),
-    enabled: Boolean(reportId),
+    enabled: Boolean(reportId && adminId),
     staleTime: 60_000,
+  });
+}
+
+/**
+ * Crée la revue finale de l'admin courant (T-96) : le dossier est mis à jour
+ * avec la réponse 201 puis invalidé. Les 409/400 restent dans l'état de la
+ * mutation, affichés par la carte — aucun cache n'est modifié avant succès.
+ */
+export function useCreateCriterionReportReview(reportId: string) {
+  const queryClient = useQueryClient();
+  const adminId = useAuthStore((state) => state.user?.id);
+  const reportKey = queryKeys.admin.criterionReport(reportId, adminId ?? "");
+
+  return useMutation({
+    mutationFn: (payload: AdminCriterionReportReviewPayload) =>
+      createCriterionReportReview(reportId, payload),
+    onSuccess: (review) => {
+      queryClient.setQueryData<AdminCriterionReportDetail>(reportKey, (current) =>
+        current ? { ...current, myReview: review } : current,
+      );
+      return queryClient.invalidateQueries({ queryKey: reportKey });
+    },
   });
 }
 
