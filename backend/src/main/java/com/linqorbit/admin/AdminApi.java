@@ -236,7 +236,9 @@ public interface AdminApi {
     @Operation(summary = "Lister les signalements internes d'évaluations IA",
             description = "Signalements posés par les recruteurs sur un critère d'une évaluation IA (D66), du plus "
                     + "récent au plus ancien : critère (libellé, section, score et score de section relus dans le "
-                    + "résultat épinglé), offre, company, candidat, auteur, motif, commentaire et date. Pagination "
+                    + "résultat épinglé), offre, company, candidat, auteur, motif, commentaire et date. Chaque ligne "
+                    + "porte `myReviewVerdict`, le verdict de l'admin courant (null = aucun avis, « Pending » côté "
+                    + "UI) : jamais l'avis d'un autre admin, un compteur ou un statut global (T-99). Pagination "
                     + "(défaut 20, max 50).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Page de signalements renvoyée"),
@@ -245,7 +247,8 @@ public interface AdminApi {
     })
     ResponseEntity<AdminCriterionReportPageResponse> listCriterionReports(
             @Parameter(description = "Index de page (0-based)") @RequestParam(name = "page", defaultValue = "0") int page,
-            @Parameter(description = "Taille de page (défaut 20, max 50) — valeur effective renvoyée dans la réponse") @RequestParam(name = "size", required = false) Integer size);
+            @Parameter(description = "Taille de page (défaut 20, max 50) — valeur effective renvoyée dans la réponse") @RequestParam(name = "size", required = false) Integer size,
+            Authentication authentication);
 
     @GetMapping("/criterion-reports/{id}")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)

@@ -17,6 +17,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { TextField } from "@/components/ui/text-field";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateCriterionReportReview } from "@/hooks/use-admin";
+import { REVIEW_VERDICT_LABELS } from "@/features/admin/criterion-report-shared";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import { formatShortDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -61,11 +62,6 @@ export function DetailCard({
     </section>
   );
 }
-
-const REVIEW_VERDICT_LABELS: Record<AdminCriterionReportReviewVerdict, string> = {
-  upheld: "Upheld",
-  notUpheld: "Not upheld"
-};
 
 const EMPTY_REVIEW_VALUES: CriterionReportReviewValues = {
   verdict: "",

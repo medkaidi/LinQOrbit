@@ -30,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.linqorbit.admin.dto.AdminCriterionContextResponse;
 import com.linqorbit.admin.dto.AdminCriterionReportDetailResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportPageResponse;
 import com.linqorbit.admin.dto.AdminCriterionReportResponse;
 import com.linqorbit.admin.dto.AdminCriterionReportReviewResponse;
 import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
@@ -644,6 +645,25 @@ class AdminControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void listCriterionReportsTransmetLAdminCourantEtExposeSonVerdict() throws Exception {
+        UUID adminId = UUID.randomUUID();
+        AdminCriterionReportResponse item = new AdminCriterionReportResponse(
+                UUID.randomUUID(), "skill:java", "Java", "requiredSkills", 60, 60.0,
+                "scoreIncorrect", null,
+                java.time.LocalDateTime.of(2026, 10, 22, 10, 0),
+                "Ada", "Owner", "ada@example.com", "Grace", "Hopper",
+                UUID.randomUUID(), "Backend Engineer", "Acme", "upheld");
+        when(adminService.listCriterionReports(0, null, adminId))
+                .thenReturn(new AdminCriterionReportPageResponse(List.of(item), 0, 20, 1));
+
+        mockMvc.perform(get("/api/v1/admin/criterion-reports").with(adminJwt(adminId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].myReviewVerdict").value("upheld"));
+
+        verify(adminService).listCriterionReports(0, null, adminId);
+    }
+
     private static AdminCriterionReportDetailResponse detail(UUID reportId,
             AdminCriterionReportReviewResponse review) {
         return new AdminCriterionReportDetailResponse(
@@ -652,7 +672,8 @@ class AdminControllerTest {
                         "scoreIncorrect", null,
                         java.time.LocalDateTime.of(2026, 10, 22, 10, 0),
                         "Ada", "Owner", "ada@example.com", "Grace", "Hopper",
-                        UUID.randomUUID(), "Backend Engineer", "Acme"),
+                        UUID.randomUUID(), "Backend Engineer", "Acme",
+                        review == null ? null : review.verdict()),
                 UUID.randomUUID(),
                 new AdminCriterionContextResponse("skill:java", "Java", "requiredSkills",
                         60, 60.0, "Strong Java", "Criterion rationale", null, true),

@@ -1,5 +1,6 @@
 package com.linqorbit.matching.repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,6 +18,13 @@ public interface MatchingCriterionReportReviewRepository
 
     Optional<MatchingCriterionReportReview> findByReportIdAndReviewerUserId(UUID reportId,
             UUID reviewerUserId);
+
+    /**
+     * Avis du reviewer courant sur une page de signalements (T-99) — lecture
+     * en un seul lot, jamais une requête par carte.
+     */
+    List<MatchingCriterionReportReview> findByReviewerUserIdAndReportIdIn(UUID reviewerUserId,
+            List<UUID> reportIds);
 
     boolean existsByReportIdAndReviewerUserId(UUID reportId, UUID reviewerUserId);
 }

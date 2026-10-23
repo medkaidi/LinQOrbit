@@ -154,14 +154,18 @@ export function useSkillSuggestions() {
 
 /**
  * Signalements internes d'évaluations IA (D66) en infinite scroll : la taille
- * de page reste décidée par le backend (jamais envoyée).
+ * de page reste décidée par le backend (jamais envoyée). La clé inclut l'admin
+ * courant (T-99) : la réponse porte son verdict personnel et ne doit jamais
+ * être servie depuis le cache d'un autre compte.
  */
 export function useInfiniteAdminCriterionReports() {
+  const adminId = useAuthStore((state) => state.user?.id);
   return useInfiniteQuery({
-    queryKey: queryKeys.admin.criterionReportsPage,
+    queryKey: queryKeys.admin.criterionReportsPage(adminId ?? ""),
     queryFn: ({ pageParam, signal }) => listCriterionReports({ page: pageParam }, { signal }),
     initialPageParam: 0,
     getNextPageParam: nextPageParam,
+    enabled: Boolean(adminId),
     staleTime: 30_000,
   });
 }
@@ -190,6 +194,7 @@ export function useCreateCriterionReportReview(reportId: string) {
   const queryClient = useQueryClient();
   const adminId = useAuthStore((state) => state.user?.id);
   const reportKey = queryKeys.admin.criterionReport(reportId, adminId ?? "");
+  const listKey = queryKeys.admin.criterionReportsPage(adminId ?? "");
 
   return useMutation({
     mutationFn: (payload: AdminCriterionReportReviewPayload) =>
@@ -198,14 +203,20 @@ export function useCreateCriterionReportReview(reportId: string) {
       queryClient.setQueryData<AdminCriterionReportDetail>(reportKey, (current) =>
         current ? { ...current, myReview: review, canReview: false } : current,
       );
-      return queryClient.invalidateQueries({ queryKey: reportKey });
+      // Le dossier et la liste portent tous deux le verdict de l'admin
+      // courant (T-99) : les deux doivent être relus après une revue.
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: reportKey }),
+        queryClient.invalidateQueries({ queryKey: listKey }),
+      ]);
     },
     onError: (error) => {
       // 409 = avis déjà déposé (autre onglet) ou auto-review : le serveur est
-      // la seule source de vérité, on relit le dossier pour fermer le
-      // formulaire et afficher l'état réel au lieu d'un cul-de-sac.
+      // la seule source de vérité, on relit le dossier et la liste pour
+      // afficher l'état réel au lieu d'un cul-de-sac.
       if (isAxiosError(error) && error.response?.status === 409) {
         void queryClient.invalidateQueries({ queryKey: reportKey });
+        void queryClient.invalidateQueries({ queryKey: listKey });
       }
     },
   });

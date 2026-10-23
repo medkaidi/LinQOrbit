@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@/lib/api/admin.api", async (importOriginal) => {
@@ -12,9 +12,24 @@ vi.mock("@/lib/api/admin.api", async (importOriginal) => {
 
 import { listCriterionReports } from "@/lib/api/admin.api";
 import { AdminReportsSection } from "@/features/admin/admin-reports-section";
+import { useAuthStore } from "@/stores/auth-store";
+import type { AuthUser } from "@/types/auth";
 import type { AdminCriterionReport, AdminCriterionReportPage } from "@/types/admin";
 
 const mockedListCriterionReports = vi.mocked(listCriterionReports);
+
+const adminUser: AuthUser = {
+  id: "admin-1",
+  email: "admin@linqorbit.local",
+  firstName: "Ada",
+  lastName: "Lovelace",
+  sex: null,
+  phone: null,
+  homeCountry: null,
+  currentCity: null,
+  currentCountry: null,
+  roles: [1],
+};
 
 function makeReport(overrides: Partial<AdminCriterionReport> = {}): AdminCriterionReport {
   return {
@@ -35,6 +50,7 @@ function makeReport(overrides: Partial<AdminCriterionReport> = {}): AdminCriteri
     offerId: "offer-1",
     offerTitle: "Backend Engineer",
     companyName: "Acme",
+    myReviewVerdict: null,
     ...overrides,
   };
 }
@@ -46,10 +62,17 @@ function makePage(
   return { items, page: 0, size: 20, total: items.length, ...overrides };
 }
 
-function renderSection() {
-  const queryClient = new QueryClient({
+function newQueryClient() {
+  return new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+}
+
+function renderSection(
+  queryClient = newQueryClient(),
+  user: AuthUser = adminUser,
+) {
+  useAuthStore.getState().setAuth({ token: "jwt-token", user });
   return render(
     <QueryClientProvider client={queryClient}>
       <AdminReportsSection />
@@ -60,6 +83,10 @@ function renderSection() {
 describe("AdminReportsSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    useAuthStore.getState().clearAuth();
   });
 
   it("lists the reports with the criterion, the offer, the candidate and the author", async () => {
@@ -149,6 +176,71 @@ describe("AdminReportsSection", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("No comment.")).toBeInTheDocument();
     expect(screen.queryByText("0%")).not.toBeInTheDocument();
+  });
+
+  it("shows the current admin's own review status on each card", async () => {
+    mockedListCriterionReports.mockResolvedValue(
+      makePage([
+        makeReport({ id: "report-1", myReviewVerdict: null }),
+        makeReport({
+          id: "report-2",
+          criterionLabel: "English",
+          criterionKey: "language:english",
+          myReviewVerdict: "upheld",
+        }),
+        makeReport({
+          id: "report-3",
+          criterionLabel: "French",
+          criterionKey: "language:french",
+          myReviewVerdict: "notUpheld",
+        }),
+      ]),
+    );
+
+    renderSection();
+
+    expect(await screen.findByText("Java")).toBeInTheDocument();
+    expect(screen.getAllByText("Your review")).toHaveLength(3);
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("Upheld")).toBeInTheDocument();
+    expect(screen.getByText("Not upheld")).toBeInTheDocument();
+  });
+
+  it("isolates the report list cache per administrator", async () => {
+    const adminA: AuthUser = {
+      ...adminUser,
+      id: "admin-a",
+      email: "a@linqorbit.local",
+    };
+    const adminB: AuthUser = {
+      ...adminUser,
+      id: "admin-b",
+      email: "b@linqorbit.local",
+    };
+    mockedListCriterionReports
+      .mockResolvedValueOnce(makePage([makeReport({ myReviewVerdict: "upheld" })]))
+      .mockResolvedValueOnce(makePage([makeReport({ myReviewVerdict: null })]));
+    const queryClient = newQueryClient();
+
+    renderSection(queryClient, adminA);
+    expect(await screen.findByText("Upheld")).toBeInTheDocument();
+
+    act(() => {
+      useAuthStore.getState().setAuth({ token: "jwt-token", user: adminB });
+    });
+
+    // La clé change avec l'admin : la liste est relue, jamais resservie depuis
+    // le cache du compte précédent.
+    await waitFor(() => expect(mockedListCriterionReports).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Pending")).toBeInTheDocument();
+    expect(screen.queryByText("Upheld")).not.toBeInTheDocument();
+
+    // Retour à A : son cache personnel est encore valide et garde son verdict.
+    act(() => {
+      useAuthStore.getState().setAuth({ token: "jwt-token", user: adminA });
+    });
+    expect(await screen.findByText("Upheld")).toBeInTheDocument();
+    expect(mockedListCriterionReports).toHaveBeenCalledTimes(2);
   });
 
   it("requests the first page without a size and follows the backend decision", async () => {

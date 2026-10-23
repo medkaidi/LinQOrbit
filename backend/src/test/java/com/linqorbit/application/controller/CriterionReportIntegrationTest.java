@@ -311,6 +311,36 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
     }
 
     @Test
+    void listeAdminExposeAChaqueAdminSonPropreVerdictETRienDAutre() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", null);
+        publish(owner.token(), offerId);
+        String publicId = publicIdOf(offerId);
+        Account candidate = signup("Grace", "Hopper");
+        UUID applicationId = draftAndMatch(candidate, uploadCv(candidate.token()), publicId,
+                resultJson(60, 70, 80, 90, 95), List.of(), null);
+        report(owner.token(), offerId, applicationId, "skill:java", "scoreIncorrect",
+                "The CV shows 8 years")
+                .andExpect(status().isCreated());
+        UUID reportId = reportIdOf(applicationId, "skill:java");
+        Account admin1 = adminAccount();
+        Account admin2 = adminAccount();
+        Account admin3 = adminAccount();
+
+        review(admin1.token(), reportId, "upheld", null, null, null)
+                .andExpect(status().isCreated());
+        review(admin2.token(), reportId, "notUpheld", null, null, null)
+                .andExpect(status().isCreated());
+
+        // Chaque admin ne lit que son propre verdict ; un admin sans avis lit
+        // null (« Pending » côté UI). Ni la liste ni les lignes n'exposent les
+        // avis des autres, un compteur ou leur existence.
+        assertListedVerdict(admin1.token(), reportId, "upheld");
+        assertListedVerdict(admin2.token(), reportId, "notUpheld");
+        assertListedVerdict(admin3.token(), reportId, null);
+    }
+
+    @Test
     void consoleAdminConsulteLeDossierDUnSignalement() throws Exception {
         Owner owner = ownerWithCompany("Acme");
         UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", null);
@@ -1020,6 +1050,26 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
             }
         }
         return null;
+    }
+
+    private void assertListedVerdict(String token, UUID reportId, String expectedVerdict)
+            throws Exception {
+        MvcResult result = mockMvc.perform(get(REPORTS_PATH)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviews").doesNotExist())
+                .andExpect(jsonPath("$.reviewCount").doesNotExist())
+                .andReturn();
+        JsonNode page = objectMapper.readTree(result.getResponse().getContentAsString());
+        JsonNode item = findReport(page.get("items"), reportId);
+        assertThat(item).isNotNull();
+        assertThat(item.has("reviews")).isFalse();
+        assertThat(item.has("reviewCount")).isFalse();
+        if (expectedVerdict == null) {
+            assertThat(item.get("myReviewVerdict").isNull()).isTrue();
+        } else {
+            assertThat(item.get("myReviewVerdict").asText()).isEqualTo(expectedVerdict);
+        }
     }
 
     private UUID authorOf(UUID reportId) {

@@ -536,9 +536,15 @@ public class AdminService {
      * <p>Le libellé du critère, sa section et ses scores sont relus dans le
      * JSON du résultat épinglé — la console lit exactement l'évaluation vue
      * par le recruteur, rien n'est dénormalisé.</p>
+     *
+     * <p>T-99 : chaque ligne porte le verdict de <b>l'admin courant</b> sur ce
+     * signalement, et lui seul ({@code null} = aucun avis, « Pending » côté
+     * UI). Les avis sont lus en un seul lot pour toute la page : jamais une
+     * requête par carte, jamais l'avis d'un autre admin ni un compteur.</p>
      */
     @Transactional(readOnly = true)
-    public AdminCriterionReportPageResponse listCriterionReports(int page, Integer size) {
+    public AdminCriterionReportPageResponse listCriterionReports(int page, Integer size,
+            UUID reviewerUserId) {
         int safePage = PageSizes.page(page);
         int safeSize = PageSizes.clamp(size);
         Page<MatchingCriterionReport> result = criterionReportRepository
@@ -548,6 +554,13 @@ public class AdminService {
             return new AdminCriterionReportPageResponse(List.of(), safePage, safeSize,
                     result.getTotalElements());
         }
+
+        Map<UUID, String> myVerdicts = criterionReportReviewRepository
+                .findByReviewerUserIdAndReportIdIn(reviewerUserId,
+                        reports.stream().map(MatchingCriterionReport::getId).toList())
+                .stream()
+                .collect(Collectors.toMap(MatchingCriterionReportReview::getReportId,
+                        review -> review.getVerdict().getApiValue()));
 
         Map<UUID, Matching> matchings = byId(matchingRepository,
                 reports.stream().map(MatchingCriterionReport::getMatchingId).toList(), Matching::getId);
@@ -573,7 +586,7 @@ public class AdminService {
                     User author = users.get(report.getAuthorUserId());
                     User candidate = matching == null ? null : users.get(matching.getCandidateId());
                     return reportResponse(report, matchingResultReader.tree(matchingResult), matching, offer,
-                            company, author, candidate);
+                            company, author, candidate, myVerdicts.get(report.getId()));
                 })
                 .toList();
         log.info("Admin criterion reports served : page={}, size={}, count={}, total={}",
@@ -608,7 +621,8 @@ public class AdminService {
 
         JsonNode root = assessmentReader.tree(pinned);
         AdminCriterionReportResponse item = reportResponse(report, root, matching, offer, company,
-                author, candidate);
+                author, candidate,
+                myReview == null ? null : myReview.getVerdict().getApiValue());
         // Provenance du résultat, indépendante de la résolution du critère :
         // un ancien résultat ou une analyse déterministe n'a pas de modèle.
         String modelName = matchingResultReader.modelName(root);
@@ -755,7 +769,8 @@ public class AdminService {
 
     /** Ligne de signalement, partagée par la liste et le dossier (même contrat). */
     private AdminCriterionReportResponse reportResponse(MatchingCriterionReport report, JsonNode root,
-            Matching matching, JobOffer offer, Company company, User author, User candidate) {
+            Matching matching, JobOffer offer, Company company, User author, User candidate,
+            String myReviewVerdict) {
         CriterionScore criterion = matchingResultReader.criterion(root, report.getCriterionKey());
         return new AdminCriterionReportResponse(
                 report.getId(),
@@ -775,7 +790,8 @@ public class AdminService {
                 candidate == null ? null : candidate.getLastName(),
                 offer == null ? null : offer.getId(),
                 offer == null ? null : offer.getTitle(),
-                company == null ? null : company.getName());
+                company == null ? null : company.getName(),
+                myReviewVerdict);
     }
 
     /** Lecture par lots : une requête par type, jamais une requête par ligne. */

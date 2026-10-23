@@ -117,8 +117,10 @@ public class AdminController implements AdminApi {
     }
 
     @Override
-    public ResponseEntity<AdminCriterionReportPageResponse> listCriterionReports(int page, Integer size) {
-        return ResponseEntity.ok(adminService.listCriterionReports(page, size));
+    public ResponseEntity<AdminCriterionReportPageResponse> listCriterionReports(int page, Integer size,
+            Authentication authentication) {
+        return ResponseEntity.ok(adminService.listCriterionReports(page, size,
+                CurrentUserId.from(authentication)));
     }
 
     @Override

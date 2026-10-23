@@ -19,6 +19,7 @@ import {
 import {
   CriterionReasonChip,
   CriterionSectionLabel,
+  ReviewStatusBadge,
   reportFullName
 } from "@/features/admin/criterion-report-shared";
 import { RetryButton } from "@/features/admin/retry-button";
@@ -86,9 +87,15 @@ function ReportCard({ report }: { report: AdminCriterionReport }) {
                 </span>
               </div>
             </div>
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <span className={FIELD_LABEL}>Reason</span>
-              <CriterionReasonChip reason={report.reason} />
+            <div className="flex shrink-0 flex-col items-end gap-3">
+              <div className="flex flex-col items-end gap-1">
+                <span className={FIELD_LABEL}>Reason</span>
+                <CriterionReasonChip reason={report.reason} />
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <span className={FIELD_LABEL}>Your review</span>
+                <ReviewStatusBadge verdict={report.myReviewVerdict} />
+              </div>
             </div>
           </div>
 

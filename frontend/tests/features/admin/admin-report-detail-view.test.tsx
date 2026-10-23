@@ -72,6 +72,7 @@ function makeDetail(
       offerId: "offer-1",
       offerTitle: "Backend Engineer",
       companyName: "Acme",
+      myReviewVerdict: null,
     },
     candidateUserId: "44444444-4444-4444-8444-444444444444",
     criterion: {

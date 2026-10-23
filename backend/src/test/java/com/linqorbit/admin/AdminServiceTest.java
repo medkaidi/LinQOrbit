@@ -30,6 +30,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import com.linqorbit.admin.dto.AdminCriterionReportDetailResponse;
+import com.linqorbit.admin.dto.AdminCriterionReportPageResponse;
 import com.linqorbit.admin.dto.AdminCriterionReportReviewResponse;
 import com.linqorbit.admin.dto.AdminJobOfferDetailResponse;
 import com.linqorbit.admin.dto.AdminJobOfferListItem;
@@ -687,6 +688,47 @@ class AdminServiceTest {
         assertThat(author.canReview()).isFalse();
         verify(criterionReportReviewRepository).findByReportIdAndReviewerUserId(reportId, reviewerId);
         verify(criterionReportReviewRepository).findByReportIdAndReviewerUserId(reportId, otherReviewerId);
+    }
+
+    @Test
+    void listCriterionReportsNeLitQueLeVerdictDeLAdminCourantEnUnSeulLot() {
+        UUID reviewerId = UUID.randomUUID();
+        UUID otherReviewerId = UUID.randomUUID();
+        MatchingCriterionReport first = criterionReport(UUID.randomUUID(), UUID.randomUUID());
+        MatchingCriterionReport second = criterionReport(UUID.randomUUID(), UUID.randomUUID());
+        List<UUID> reportIds = List.of(first.getId(), second.getId());
+        Pageable pageable = PageRequest.of(0, 20);
+        when(criterionReportRepository.findAllByOrderByCreatedAtDescIdDesc(pageable))
+                .thenReturn(new PageImpl<>(List.of(first, second), pageable, 2));
+        when(matchingRepository.findAllById(anyList())).thenReturn(List.of());
+        when(matchingResultRepository.findAllById(anyList())).thenReturn(List.of());
+        when(userRepository.findAllById(anyList())).thenReturn(List.of());
+
+        when(criterionReportReviewRepository.findByReviewerUserIdAndReportIdIn(reviewerId, reportIds))
+                .thenReturn(List.of(MatchingCriterionReportReview.builder()
+                        .id(UUID.randomUUID())
+                        .reportId(first.getId())
+                        .reviewerUserId(reviewerId)
+                        .verdict(CriterionReportReviewVerdict.UPHELD)
+                        .build()));
+        when(criterionReportReviewRepository.findByReviewerUserIdAndReportIdIn(otherReviewerId, reportIds))
+                .thenReturn(List.of(MatchingCriterionReportReview.builder()
+                        .id(UUID.randomUUID())
+                        .reportId(first.getId())
+                        .reviewerUserId(otherReviewerId)
+                        .verdict(CriterionReportReviewVerdict.NOT_UPHELD)
+                        .build()));
+
+        AdminCriterionReportPageResponse mine = adminService.listCriterionReports(0, null, reviewerId);
+        AdminCriterionReportPageResponse other = adminService.listCriterionReports(0, null, otherReviewerId);
+
+        assertThat(mine.items()).hasSize(2);
+        assertThat(mine.items().get(0).myReviewVerdict()).isEqualTo("upheld");
+        assertThat(mine.items().get(1).myReviewVerdict()).isNull();
+        assertThat(other.items().get(0).myReviewVerdict()).isEqualTo("notUpheld");
+        assertThat(other.items().get(1).myReviewVerdict()).isNull();
+        verify(criterionReportReviewRepository).findByReviewerUserIdAndReportIdIn(reviewerId, reportIds);
+        verify(criterionReportReviewRepository).findByReviewerUserIdAndReportIdIn(otherReviewerId, reportIds);
     }
 
     private static MatchingCriterionReport criterionReport(UUID reportId, UUID authorId) {

@@ -33,5 +33,12 @@ public record AdminCriterionReportResponse(
         String candidateLastName,
         UUID offerId,
         String offerTitle,
-        String companyName) {
+        String companyName,
+        /**
+         * Avis de <b>l'admin courant</b> sur ce signalement (T-99) :
+         * {@code upheld}, {@code notUpheld} ou {@code null} (aucun avis —
+         * « Pending » côté UI). Jamais l'avis d'un autre admin, jamais un
+         * compteur ou un statut global.
+         */
+        String myReviewVerdict) {
 }

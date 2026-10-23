@@ -1,8 +1,39 @@
+import { Badge } from "@/components/ui/badge";
 import {
   CRITERION_REASON_LABELS,
   recruiterSectionLabel,
 } from "@/features/application/recruiter-application-shared";
 import type { CriterionReportReason } from "@/types/application";
+import type { AdminCriterionReportReviewVerdict } from "@/types/admin";
+
+/** Libellés des verdicts de revue — une seule source liste ↔ dossier (T-99). */
+export const REVIEW_VERDICT_LABELS: Record<
+  AdminCriterionReportReviewVerdict,
+  string
+> = {
+  upheld: "Upheld",
+  notUpheld: "Not upheld",
+};
+
+/**
+ * Statut de revue **de l'admin courant** sur une carte de signalement (T-99) :
+ * `null` = aucun avis, affiché « Pending ». Ce composant ne reçoit jamais un
+ * verdict tiers — le serveur n'en expose aucun.
+ */
+export function ReviewStatusBadge({
+  verdict,
+}: {
+  verdict: AdminCriterionReportReviewVerdict | null;
+}) {
+  if (verdict === null) {
+    return <Badge tone="outline">Pending</Badge>;
+  }
+  return (
+    <Badge tone={verdict === "upheld" ? "success" : "neutral"}>
+      {REVIEW_VERDICT_LABELS[verdict]}
+    </Badge>
+  );
+}
 
 /** Couleurs de lecture du motif — aucune sévérité, aucune priorité inventée. */
 const REASON_CHIP_CLASSES: Record<CriterionReportReason, string> = {

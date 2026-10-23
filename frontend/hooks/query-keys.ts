@@ -60,8 +60,13 @@ export const queryKeys = {
     jobOfferNormalizedVersions: (offerId: string) =>
       ["admin", "job-offers", offerId, "normalized-profile", "versions"] as const,
     skillSuggestions: ["admin", "skill-suggestions"] as const,
-    /** Signalements internes d'évaluations IA (D66) — liste infinie. */
-    criterionReportsPage: ["admin", "criterion-reports"] as const,
+    /**
+     * Signalements internes d'évaluations IA (D66) — liste infinie. L'admin
+     * courant fait partie de la clé (T-99) : chaque réponse porte son propre
+     * `myReviewVerdict`, jamais celui d'un autre compte.
+     */
+    criterionReportsPage: (adminId: string) =>
+      ["admin", "criterion-reports", "page", adminId] as const,
     /**
      * Dossier d'un signalement (T-86) : détail d'une ligne de la liste.
      * L'admin courant fait partie de la clé (T-97) — `myReview` ne doit

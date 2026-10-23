@@ -153,6 +153,12 @@ export type AdminCriterionReport = {
   offerId: string | null;
   offerTitle: string | null;
   companyName: string | null;
+  /**
+   * Verdict de **l'admin courant** sur ce signalement (T-99) : `null` quand
+   * aucun avis n'a encore été déposé (« Pending » côté UI). Jamais le verdict
+   * d'un autre admin, jamais un compteur.
+   */
+  myReviewVerdict: AdminCriterionReportReviewVerdict | null;
 };
 
 /** Page de signalements (page 0-based — enveloppe backend). */
