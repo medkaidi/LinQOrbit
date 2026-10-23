@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  canRefreshOfferAnalysis,
   expiryCountdown,
   isOfferExpired,
   locationLabel,
@@ -55,6 +56,32 @@ describe("parsePublicId", () => {
     expect(parsePublicId("abc-backend")).toBeNull();
     expect(parsePublicId("ABCDEFGHIJKL-backend")).toBeNull();
     expect(parsePublicId("abcdefghijk_-backend")).toBeNull();
+  });
+});
+
+describe("canRefreshOfferAnalysis", () => {
+  const healthy = {
+    normalizationInProgress: false,
+    normalizationFailed: false,
+    analysisOutdated: false,
+    hasUnvalidatedChanges: false,
+  };
+
+  it("offers a refresh when the analysis failed, is outdated or the offer changed", () => {
+    expect(canRefreshOfferAnalysis({ ...healthy, normalizationFailed: true })).toBe(true);
+    expect(canRefreshOfferAnalysis({ ...healthy, analysisOutdated: true })).toBe(true);
+    expect(canRefreshOfferAnalysis({ ...healthy, hasUnvalidatedChanges: true })).toBe(true);
+  });
+
+  it("stays silent for a healthy offer or while an analysis is in progress", () => {
+    expect(canRefreshOfferAnalysis(healthy)).toBe(false);
+    expect(
+      canRefreshOfferAnalysis({
+        ...healthy,
+        normalizationInProgress: true,
+        analysisOutdated: true,
+      }),
+    ).toBe(false);
   });
 });
 

@@ -445,10 +445,10 @@ describe("JobOffersSection", () => {
 
     const menu = openActionsMenu();
 
+    expect(within(menu).getByRole("menuitem", { name: "Preview" })).toBeInTheDocument();
     expect(within(menu).getByRole("menuitem", { name: "Duplicate" })).toBeInTheDocument();
     expect(within(menu).getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
     expect(within(menu).queryByRole("menuitem", { name: "Close" })).not.toBeInTheDocument();
-    expect(within(menu).queryByRole("menuitem", { name: "Preview" })).not.toBeInTheDocument();
   });
 
   it("groups the validated secondary actions behind the overflow menu", () => {
@@ -568,6 +568,32 @@ describe("JobOffersSection", () => {
   it("links the preview of a validated offer", () => {
     useInfiniteJobOffersMock.mockReturnValue(
       infiniteResult([draftOffer({ status: "validated" })]),
+    );
+
+    render(<JobOffersSection companies={companies} />);
+
+    expect(within(openActionsMenu()).getByRole("menuitem", { name: "Preview" })).toHaveAttribute(
+      "href",
+      "/recruiter/offers/o1/preview",
+    );
+  });
+
+  it("links the preview of a draft offer", () => {
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer({ status: "draft" })]),
+    );
+
+    render(<JobOffersSection companies={companies} />);
+
+    expect(within(openActionsMenu()).getByRole("menuitem", { name: "Preview" })).toHaveAttribute(
+      "href",
+      "/recruiter/offers/o1/preview",
+    );
+  });
+
+  it("links the preview of a published offer", () => {
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer({ status: "published" })]),
     );
 
     render(<JobOffersSection companies={companies} />);

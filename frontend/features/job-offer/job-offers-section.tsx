@@ -27,55 +27,15 @@ import type { Company, JobOfferListItem } from "@/types/recruiter";
 import { CopyPublicLinkButton } from "@/features/job-offer/copy-public-link-button";
 import { JobOfferCard } from "@/features/job-offer/job-offer-card";
 import {
+  canRefreshOfferAnalysis,
   isOfferExpired,
   OFFER_INCOMPLETE_TOOLTIP,
+  OFFER_TRANSITION_CONFIRM,
   publicJobPath,
+  validateConfirmMessage,
+  type ConfirmedTransition,
+  type OfferTransition,
 } from "@/features/job-offer/job-offer-shared";
-
-/** Transition du cycle de vie demandée depuis une ligne (close part sans confirmation). */
-type OfferTransition = "validate" | "revalidate" | "publish" | "close";
-/** Transitions confirmées par un dialogue. */
-type ConfirmedTransition = Exclude<OfferTransition, "close">;
-
-/** Contenu de la confirmation selon l'action (validate / revalidate / publish). */
-const TRANSITION_CONFIRM: Record<
-  ConfirmedTransition,
-  { title: string; message: string; confirmLabel: string; icon: string }
-> = {
-  validate: {
-    title: "Validate this offer?",
-    message: "This marks the offer as reviewed and ready to publish. You can still edit it afterwards.",
-    confirmLabel: "Validate",
-    icon: "check_circle",
-  },
-  revalidate: {
-    title: "Refresh this offer's analysis?",
-    message:
-      "The offer stays published and visible on the job board while its analysis is refreshed in the background.",
-    confirmLabel: "Validate again",
-    icon: "check_circle",
-  },
-  publish: {
-    title: "Publish this offer?",
-    message: "The offer will become publicly visible on the job board.",
-    confirmLabel: "Publish",
-    icon: "publish",
-  },
-};
-
-/** Message de confirmation d'une (re)validation : la raison de la relance prime sur le texte générique. */
-function validateConfirmMessage(offer: JobOfferListItem, action: "validate" | "revalidate"): string {
-  if (offer.normalizationFailed) {
-    return "We could not finish analyzing this offer. You can try again.";
-  }
-  if (offer.analysisOutdated) {
-    return "This offer's analysis was made with an earlier version of our analysis. Validate again to refresh it.";
-  }
-  if (offer.hasUnvalidatedChanges) {
-    return "You've made changes to this offer. Validate again to refresh its analysis.";
-  }
-  return TRANSITION_CONFIRM[action].message;
-}
 
 /** Mutation en cours sur une ligne (busy ciblé : primaire = transition, kebab = tout le reste). */
 type OfferAction = "transition" | "duplicate" | "delete";
@@ -100,9 +60,7 @@ function OfferActions({
 }) {
   const ready = offer.readyToPublish;
   const blocked = ready ? undefined : OFFER_INCOMPLETE_TOOLTIP;
-  const canRevalidate =
-    !offer.normalizationInProgress &&
-    (offer.normalizationFailed || offer.analysisOutdated || offer.hasUnvalidatedChanges);
+  const canRevalidate = canRefreshOfferAnalysis(offer);
   const [menuOpen, setMenuOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -167,6 +125,14 @@ function OfferActions({
   const menuItems: ReactNode[] = [];
   if (offer.status === "draft") {
     menuItems.push(
+      <MenuItem
+        key="preview"
+        icon="visibility"
+        href={`/recruiter/offers/${offer.id}/preview`}
+        onClick={() => setMenuOpen(false)}
+      >
+        Preview
+      </MenuItem>,
       duplicateItem,
       separatorItem,
       <MenuItem
@@ -194,7 +160,20 @@ function OfferActions({
       closeItem,
     );
   } else if (offer.status === "published") {
-    menuItems.push(...revalidateItems, duplicateItem, separatorItem, closeItem);
+    menuItems.push(
+      <MenuItem
+        key="preview"
+        icon="visibility"
+        href={`/recruiter/offers/${offer.id}/preview`}
+        onClick={() => setMenuOpen(false)}
+      >
+        Preview
+      </MenuItem>,
+      ...revalidateItems,
+      duplicateItem,
+      separatorItem,
+      closeItem,
+    );
   }
 
   return (
@@ -493,14 +472,14 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
         ))}
         {dialog?.kind === "transition" ? (
           <ConfirmDialog
-            title={TRANSITION_CONFIRM[dialog.action].title}
+            title={OFFER_TRANSITION_CONFIRM[dialog.action].title}
             message={
               dialog.action === "publish"
-                ? TRANSITION_CONFIRM.publish.message
+                ? OFFER_TRANSITION_CONFIRM.publish.message
                 : validateConfirmMessage(dialog.offer, dialog.action)
             }
-            confirmLabel={TRANSITION_CONFIRM[dialog.action].confirmLabel}
-            icon={TRANSITION_CONFIRM[dialog.action].icon}
+            confirmLabel={OFFER_TRANSITION_CONFIRM[dialog.action].confirmLabel}
+            icon={OFFER_TRANSITION_CONFIRM[dialog.action].icon}
             busy={transition.isPending}
             onConfirm={() => {
               const { offer, action } = dialog;

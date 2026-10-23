@@ -12,6 +12,7 @@ import {
   companyInitials,
   expiryCountdown,
   locationLabel,
+  OfferAnalysisBadge,
   relativeTimeLabel,
   salaryLabel,
   SENIORITY_LABELS,
@@ -233,15 +234,12 @@ export function JobOfferCard({
             </span>
             <OfferStatusPill status={status} />
             {expired ? <Badge tone="neutral">Expired</Badge> : null}
-            {normalization === "progress" ? (
-              <Badge>Analyzing…</Badge>
-            ) : normalization === "failed" ? (
-              <Badge tone="neutral">Analysis failed</Badge>
-            ) : analysisOutdated && status !== "closed" ? (
-              <Badge>Analysis outdated</Badge>
-            ) : unvalidatedChanges && status === "validated" ? (
-              <Badge>Unvalidated changes</Badge>
-            ) : null}
+            <OfferAnalysisBadge
+              status={status}
+              normalization={normalization}
+              analysisOutdated={analysisOutdated}
+              unvalidatedChanges={unvalidatedChanges}
+            />
             {status === "draft" && !readyToPublish ? (
               <Badge tone="neutral">Not ready to publish</Badge>
             ) : null}

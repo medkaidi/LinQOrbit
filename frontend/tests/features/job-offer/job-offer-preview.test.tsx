@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { JobOfferPreview } from "@/features/job-offer/job-offer-preview";
@@ -11,15 +11,22 @@ vi.mock("next/navigation", () => ({
 }));
 
 const useJobOfferMock = vi.hoisted(() => vi.fn());
+const useJobOfferTransitionMock = vi.hoisted(() => vi.fn());
 const useContractTypesMock = vi.hoisted(() => vi.fn());
 const useEmploymentTypesMock = vi.hoisted(() => vi.fn());
 const useWorkModesMock = vi.hoisted(() => vi.fn());
+const useOfferNormalizationStreamMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/use-job-offers", () => ({
   useJobOffer: useJobOfferMock,
+  useJobOfferTransition: useJobOfferTransitionMock,
   useContractTypes: useContractTypesMock,
   useEmploymentTypes: useEmploymentTypesMock,
   useWorkModes: useWorkModesMock,
+}));
+
+vi.mock("@/hooks/use-normalization-stream", () => ({
+  useOfferNormalizationStream: useOfferNormalizationStreamMock,
 }));
 
 const useCompaniesMock = vi.hoisted(() => vi.fn());
@@ -112,7 +119,25 @@ function mockReferences() {
   useReferenceStudyFieldsMock.mockReturnValue({ data: [], isLoading: false, isError: false });
 }
 
+/** Forme retournée par useJobOfferTransition. */
+function mutation(overrides: Record<string, unknown> = {}) {
+  return {
+    mutate: vi.fn(),
+    variables: undefined,
+    error: null,
+    isPending: false,
+    reset: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe("JobOfferPreview", () => {
+  beforeEach(() => {
+    pushMock.mockClear();
+    useJobOfferTransitionMock.mockReturnValue(mutation());
+    useOfferNormalizationStreamMock.mockReset();
+  });
+
   it("renders the not-public banner with the resolved article", () => {
     useJobOfferMock.mockReturnValue({
       data: validatedOffer(),
@@ -186,6 +211,176 @@ describe("JobOfferPreview", () => {
     expect(screen.getByText("Remote (preferred) · On-site")).toBeInTheDocument();
     expect(screen.getByText("Years with Java?")).toBeInTheDocument();
     expect(screen.getByText("Number")).toBeInTheDocument();
+  });
+
+  it("flags an outdated analysis and refreshes a validated offer through validate", () => {
+    const transition = mutation();
+    useJobOfferTransitionMock.mockReturnValue(transition);
+    useJobOfferMock.mockReturnValue({
+      data: { ...validatedOffer(), analysisOutdated: true },
+      isLoading: false,
+      isError: false,
+    });
+    mockReferences();
+
+    render(<JobOfferPreview offerId="o1" />);
+
+    expect(screen.getByText("Analysis outdated")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Validate again" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Validate this offer?")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "This offer's analysis was made with an earlier version of our analysis. Validate again to refresh it.",
+      ),
+    ).toBeInTheDocument();
+    expect(transition.mutate).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Validate" }));
+
+    expect(transition.mutate).toHaveBeenCalledWith(
+      { offerId: "o1", action: "validate" },
+      expect.anything(),
+    );
+  });
+
+  it("refreshes a published outdated offer through revalidate, without republishing", () => {
+    const transition = mutation();
+    useJobOfferTransitionMock.mockReturnValue(transition);
+    useJobOfferMock.mockReturnValue({
+      data: { ...validatedOffer(), status: "published", analysisOutdated: true },
+      isLoading: false,
+      isError: false,
+    });
+    mockReferences();
+
+    render(<JobOfferPreview offerId="o1" />);
+
+    expect(screen.getByText("Published")).toBeInTheDocument();
+    expect(screen.getByText("Analysis outdated")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Validate again" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Refresh this offer's analysis?")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Validate again" }));
+
+    // /revalidate : l'offre reste publiée, seule l'analyse est rafraîchie.
+    expect(transition.mutate).toHaveBeenCalledWith(
+      { offerId: "o1", action: "revalidate" },
+      expect.anything(),
+    );
+  });
+
+  it("shows neither the badge nor the action when the analysis is current", () => {
+    useJobOfferMock.mockReturnValue({
+      data: validatedOffer(),
+      isLoading: false,
+      isError: false,
+    });
+    mockReferences();
+
+    render(<JobOfferPreview offerId="o1" />);
+
+    expect(screen.queryByText("Analysis outdated")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Validate again" })).not.toBeInTheDocument();
+    expect(useOfferNormalizationStreamMock).toHaveBeenCalledWith("o1", false);
+  });
+
+  it("hides the action while an analysis is running and follows its stream", () => {
+    useJobOfferMock.mockReturnValue({
+      data: {
+        ...validatedOffer(),
+        normalizationInProgress: true,
+        analysisOutdated: true,
+      },
+      isLoading: false,
+      isError: false,
+    });
+    mockReferences();
+
+    render(<JobOfferPreview offerId="o1" />);
+
+    expect(screen.getByText("Analyzing…")).toBeInTheDocument();
+    expect(screen.queryByText("Analysis outdated")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Validate again" })).not.toBeInTheDocument();
+    expect(useOfferNormalizationStreamMock).toHaveBeenCalledWith("o1", true);
+  });
+
+  it("shows a failed analysis and offers a retry on a published offer", () => {
+    const transition = mutation();
+    useJobOfferTransitionMock.mockReturnValue(transition);
+    useJobOfferMock.mockReturnValue({
+      data: { ...validatedOffer(), status: "published", normalizationFailed: true },
+      isLoading: false,
+      isError: false,
+    });
+    mockReferences();
+
+    render(<JobOfferPreview offerId="o1" />);
+
+    expect(screen.getByText("Analysis failed")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Validate again" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByText("We could not finish analyzing this offer. You can try again."),
+    ).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Validate again" }));
+
+    expect(transition.mutate).toHaveBeenCalledWith(
+      { offerId: "o1", action: "revalidate" },
+      expect.anything(),
+    );
+  });
+
+  it("offers Validate again on a validated offer with unvalidated changes", () => {
+    useJobOfferMock.mockReturnValue({
+      data: { ...validatedOffer(), hasUnvalidatedChanges: true },
+      isLoading: false,
+      isError: false,
+    });
+    mockReferences();
+
+    render(<JobOfferPreview offerId="o1" />);
+
+    expect(screen.getByText("Unvalidated changes")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Validate again" }));
+    expect(
+      screen.getByText("You've made changes to this offer. Validate again to refresh its analysis."),
+    ).toBeInTheDocument();
+  });
+
+  it("never offers a refresh on a closed offer", () => {
+    useJobOfferMock.mockReturnValue({
+      data: { ...validatedOffer(), status: "closed", analysisOutdated: true },
+      isLoading: false,
+      isError: false,
+    });
+    mockReferences();
+
+    render(<JobOfferPreview offerId="o1" />);
+
+    expect(screen.getByText("Closed")).toBeInTheDocument();
+    expect(screen.queryByText("Analysis outdated")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Validate again" })).not.toBeInTheDocument();
+  });
+
+  it("surfaces a refresh error", () => {
+    useJobOfferTransitionMock.mockReturnValue(
+      mutation({ error: new Error("boom") }),
+    );
+    useJobOfferMock.mockReturnValue({
+      data: { ...validatedOffer(), analysisOutdated: true },
+      isLoading: false,
+      isError: false,
+    });
+    mockReferences();
+
+    render(<JobOfferPreview offerId="o1" />);
+
+    expect(screen.getByText("Could not refresh the analysis")).toBeInTheDocument();
+    expect(screen.getByText("Something went wrong. Please try again.")).toBeInTheDocument();
   });
 
   it("shows the loading state", () => {

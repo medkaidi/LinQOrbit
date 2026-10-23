@@ -5,6 +5,7 @@ import type {
   QuestionTypeValue,
   SeniorityValue,
 } from "@/types/recruiter";
+import { Badge } from "@/components/ui/badge";
 import type { PublicJobArticleModel } from "@/features/job-offer/public-job-article";
 
 export const STATUS_LABELS: Record<JobOfferStatusValue, string> = {
@@ -13,6 +14,102 @@ export const STATUS_LABELS: Record<JobOfferStatusValue, string> = {
   published: "Published",
   closed: "Closed",
 };
+
+/** Transition du cycle de vie demandée depuis une offre (close part sans confirmation). */
+export type OfferTransition = "validate" | "revalidate" | "publish" | "close";
+/** Transitions confirmées par un dialogue. */
+export type ConfirmedTransition = Exclude<OfferTransition, "close">;
+
+/** Contenu de la confirmation selon l'action (validate / revalidate / publish) — liste et détail. */
+export const OFFER_TRANSITION_CONFIRM: Record<
+  ConfirmedTransition,
+  { title: string; message: string; confirmLabel: string; icon: string }
+> = {
+  validate: {
+    title: "Validate this offer?",
+    message: "This marks the offer as reviewed and ready to publish. You can still edit it afterwards.",
+    confirmLabel: "Validate",
+    icon: "check_circle",
+  },
+  revalidate: {
+    title: "Refresh this offer's analysis?",
+    message:
+      "The offer stays published and visible on the job board while its analysis is refreshed in the background.",
+    confirmLabel: "Validate again",
+    icon: "check_circle",
+  },
+  publish: {
+    title: "Publish this offer?",
+    message: "The offer will become publicly visible on the job board.",
+    confirmLabel: "Publish",
+    icon: "publish",
+  },
+};
+
+/** Signaux d'analyse communs à la ligne et au détail d'offre. */
+export type OfferAnalysisFlags = {
+  normalizationFailed: boolean;
+  analysisOutdated: boolean;
+  hasUnvalidatedChanges: boolean;
+};
+
+/** Une (re)validation est proposée hors analyse en cours, si elle a échoué, est obsolète ou si le contenu a changé. */
+export function canRefreshOfferAnalysis(
+  offer: OfferAnalysisFlags & { normalizationInProgress: boolean },
+): boolean {
+  return (
+    !offer.normalizationInProgress &&
+    (offer.normalizationFailed || offer.analysisOutdated || offer.hasUnvalidatedChanges)
+  );
+}
+
+/** Message de confirmation d'une (re)validation : la raison de la relance prime sur le texte générique. */
+export function validateConfirmMessage(
+  offer: OfferAnalysisFlags,
+  action: "validate" | "revalidate",
+): string {
+  if (offer.normalizationFailed) {
+    return "We could not finish analyzing this offer. You can try again.";
+  }
+  if (offer.analysisOutdated) {
+    return "This offer's analysis was made with an earlier version of our analysis. Validate again to refresh it.";
+  }
+  if (offer.hasUnvalidatedChanges) {
+    return "You've made changes to this offer. Validate again to refresh its analysis.";
+  }
+  return OFFER_TRANSITION_CONFIRM[action].message;
+}
+
+/**
+ * Badge d'état de l'analyse d'une offre — même priorité sur la carte et sur
+ * la preview/détail (D63/D64) : Analyzing… > Analysis failed > Analysis
+ * outdated (jamais closed) > Unvalidated changes (validated uniquement).
+ */
+export function OfferAnalysisBadge({
+  status,
+  normalization,
+  analysisOutdated = false,
+  unvalidatedChanges = false,
+}: {
+  status: JobOfferStatusValue;
+  normalization?: "progress" | "failed" | null;
+  analysisOutdated?: boolean;
+  unvalidatedChanges?: boolean;
+}) {
+  if (normalization === "progress") {
+    return <Badge>Analyzing…</Badge>;
+  }
+  if (normalization === "failed") {
+    return <Badge tone="neutral">Analysis failed</Badge>;
+  }
+  if (analysisOutdated && status !== "closed") {
+    return <Badge>Analysis outdated</Badge>;
+  }
+  if (unvalidatedChanges && status === "validated") {
+    return <Badge>Unvalidated changes</Badge>;
+  }
+  return null;
+}
 
 export const SENIORITY_LABELS: Record<SeniorityValue, string> = {
   junior: "Junior",
