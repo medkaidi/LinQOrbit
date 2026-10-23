@@ -388,6 +388,8 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
                 .andExpect(jsonPath("$.criterion.resolved").value(false))
                 .andExpect(jsonPath("$.criterion.label").value("skill:java"))
                 .andExpect(jsonPath("$.criterion.score")
+                        .value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.criterion.modelName")
                         .value(org.hamcrest.Matchers.nullValue()));
 
         // Même résultat corrompu dans la liste : aucun score inventé, les deux
@@ -403,6 +405,57 @@ class CriterionReportIntegrationTest extends RecruiterApplicationTestSupport {
         assertThat(item.get("section").isNull()).isTrue();
         assertThat(item.get("score").isNull()).isTrue();
         assertThat(item.get("sectionScore").isNull()).isTrue();
+    }
+
+    @Test
+    void dossierAdminExposeLeNomDuModeleEtLeLaisseNulPourUnAncienResultat() throws Exception {
+        Owner owner = ownerWithCompany("Acme");
+        UUID offerId = createOffer(owner.token(), owner.companyId(), "Backend Engineer", null);
+        publish(owner.token(), offerId);
+        String publicId = publicIdOf(offerId);
+        Account candidate = signup("Grace", "Hopper");
+        UUID applicationId = draftAndMatch(candidate, uploadCv(candidate.token()), publicId,
+                resultJson(60, 70, 80, 90, 95), List.of(), null);
+        report(owner.token(), offerId, applicationId, "skill:java", "scoreIncorrect", null)
+                .andExpect(status().isCreated());
+        UUID reportId = jdbcTemplate.queryForObject("""
+                SELECT r.id FROM matching_criterion_report r
+                JOIN application a ON a.matching_id = r.matching_id
+                WHERE a.id = ? AND r.criterion_key = 'skill:java'""", UUID.class, applicationId);
+        String adminToken = adminToken();
+
+        // Résultat de schéma 2 : le modèle réellement appelé est exposé tel quel.
+        jdbcTemplate.update("""
+                UPDATE matching_result SET schema_version = '2',
+                  result = jsonb_set(result, '{modelName}', '"gemini-3.1-flash-lite"'::jsonb)
+                WHERE id = (SELECT matching_result_id FROM matching_criterion_report WHERE id = ?)""", reportId);
+        mockMvc.perform(get(REPORTS_PATH + "/" + reportId).header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.criterion.modelName").value("gemini-3.1-flash-lite"))
+                .andExpect(jsonPath("$.criterion.resolved").value(true));
+
+        // Ancien résultat (schéma 1, champ absent) : aucun nom inventé.
+        jdbcTemplate.update("""
+                UPDATE matching_result SET schema_version = '1', result = result - 'modelName'
+                WHERE id = (SELECT matching_result_id FROM matching_criterion_report WHERE id = ?)""", reportId);
+        mockMvc.perform(get(REPORTS_PATH + "/" + reportId).header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.criterion.modelName").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.criterion.resolved").value(true));
+
+        // La provenance est portée par le résultat, pas par le critère : elle
+        // reste lisible même si la clé a disparu (aucune note inventée).
+        jdbcTemplate.update("""
+                UPDATE matching_result SET schema_version = '2',
+                  result = jsonb_set(
+                    jsonb_set(result, '{modelName}', '"gemini-3.1-flash-lite"'::jsonb),
+                    '{sections}', '[]'::jsonb)
+                WHERE id = (SELECT matching_result_id FROM matching_criterion_report WHERE id = ?)""", reportId);
+        mockMvc.perform(get(REPORTS_PATH + "/" + reportId).header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.criterion.modelName").value("gemini-3.1-flash-lite"))
+                .andExpect(jsonPath("$.criterion.resolved").value(false))
+                .andExpect(jsonPath("$.criterion.score").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test

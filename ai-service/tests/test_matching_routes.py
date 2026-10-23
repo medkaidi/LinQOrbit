@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.agents.matching_analyze import MatchingAnalyzeError
 from app.agents.matching_clarify import MatchingClarifyError
+from app.core.config import settings
 from app.main import app
 from app.schemas.matching import (
     ClarificationSuggestion,
@@ -33,8 +34,9 @@ def test_returns_the_scores_in_camel_case(monkeypatch):
     def fake_analyze(request: MatchingAnalyzeRequest) -> MatchingAnalysis:
         received["request"] = request
         return MatchingAnalysis(
-            schema_version="1",
+            schema_version="2",
             policy_version="generic-1",
+            model_name=settings.llm_model,
             assessments=[
                 {"criterion_key": "skill:java", "score": 80, "rationale": "Shown.", "evidence": [{"source": "bio"}]}
             ],
@@ -47,6 +49,7 @@ def test_returns_the_scores_in_camel_case(monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["policyVersion"] == "generic-1"
+    assert body["modelName"] == settings.llm_model
     assert body["assessments"][0]["criterionKey"] == "skill:java"
     assert "criterion_key" not in body["assessments"][0]
     assert received["request"].matching_id == "m-1"
@@ -96,8 +99,9 @@ def test_an_incomplete_body_is_a_validation_422(field):
 def test_serializes_the_whole_contract_in_camel_case(monkeypatch):
     def fake_analyze(_request):
         return MatchingAnalysis(
-            schema_version="1",
+            schema_version="2",
             policy_version="generic-1",
+            model_name=settings.llm_model,
             assessments=[
                 {
                     "criterion_key": "skill:java",
@@ -113,8 +117,9 @@ def test_serializes_the_whole_contract_in_camel_case(monkeypatch):
     body = client.post("/matching/analyze", json=BODY).json()
 
     assert body == {
-        "schemaVersion": "1",
+        "schemaVersion": "2",
         "policyVersion": "generic-1",
+        "modelName": settings.llm_model,
         "assessments": [
             {
                 "criterionKey": "skill:java",

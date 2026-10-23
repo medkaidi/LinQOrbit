@@ -39,9 +39,10 @@ class MatchingScoringTest {
                   {"criterionKey": "language:english", "score": 100, "rationale": "C2.", "evidence": [{"source": "skill", "index": 0}]}
                 ]"""));
 
-        assertThat(result.path("schemaVersion").asString()).isEqualTo("1");
+        assertThat(result.path("schemaVersion").asString()).isEqualTo("2");
         assertThat(result.path("policyVersion").asString()).isEqualTo("generic-1");
         assertThat(result.path("scoringVersion").asString()).isEqualTo(MatchingScoring.SCORING_VERSION);
+        assertThat(result.path("modelName").asString()).isEqualTo("gemini-test");
         JsonNode sections = result.path("sections");
         assertThat(sections).hasSize(3);
         // (5×80 + 1×0) / 6 = 66.67 → 66.7 : le Go absent pèse 0, sans compensation par les souhaitables.
@@ -140,6 +141,19 @@ class MatchingScoringTest {
     }
 
     @Test
+    void provenanceAbsenteDUnAncienResultatResteNulle() {
+        ObjectNode result = scoring.score(List.of(CRITERIA.get(0)), objectMapper.readTree("""
+                {"schemaVersion": "1", "policyVersion": "generic-1", "assessments": [
+                  {"criterionKey": "skill:java", "score": 80, "rationale": "r",
+                   "evidence": [{"source": "skill", "index": 0}]}
+                ]}"""));
+
+        // Le nouveau résultat est en schéma 2, mais le modèle n'est pas inventé.
+        assertThat(result.path("schemaVersion").asString()).isEqualTo("2");
+        assertThat(result.path("modelName").isNull()).isTrue();
+    }
+
+    @Test
     void analyseSansTableauEstRefusee() {
         assertThatThrownBy(() -> scoring.score(CRITERIA, objectMapper.readTree("{\"policyVersion\": \"x\"}")))
                 .isInstanceOf(InvalidMatchingAnalysisException.class);
@@ -154,7 +168,7 @@ class MatchingScoringTest {
     }
 
     private JsonNode analysis(String assessments) {
-        return objectMapper.readTree("{\"schemaVersion\": \"1\", \"policyVersion\": \"generic-1\", \"assessments\": "
-                + assessments + "}");
+        return objectMapper.readTree("{\"schemaVersion\": \"2\", \"policyVersion\": \"generic-1\", "
+                + "\"modelName\": \"gemini-test\", \"assessments\": " + assessments + "}");
     }
 }

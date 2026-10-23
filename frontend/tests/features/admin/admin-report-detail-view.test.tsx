@@ -48,6 +48,7 @@ function makeDetail(
       sectionScore: 60,
       requirement: "Strong Java",
       rationale: "The CV shows three years of Java.",
+      modelName: "gemini-3.1-flash-lite",
       resolved: true,
     },
     assessment: {
@@ -120,25 +121,63 @@ describe("AdminReportDetailView", () => {
 
     renderView();
 
-    // En-tête : le critère signalé porte le dossier.
+    // En-tête : le critère signalé porte le dossier, sans méta dupliquée.
     expect(await screen.findByRole("heading", { level: 1, name: "Java" })).toBeInTheDocument();
-    expect(screen.getAllByText("The score is wrong").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Oct 20, 2026").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("The score is wrong")).toHaveLength(1);
+    expect(screen.getAllByText("Reported on Oct 20, 2026")).toHaveLength(1);
 
-    // Le signalement : auteur, candidat, offre et commentaire.
-    expect(screen.getByText("Ada Owner")).toBeInTheDocument();
-    expect(screen.getByText("ada@example.com")).toBeInTheDocument();
-    expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
-    expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
-    expect(screen.getByText("Acme")).toBeInTheDocument();
-    expect(screen.getByText("The CV shows eight years of Java.")).toBeInTheDocument();
+    // Carte unique : contexte, motif, date, commentaire, score/rationale AI et liens.
+    const reportCard = screen
+      .getByRole("heading", { level: 2, name: "Report" })
+      .closest("section") as HTMLElement;
+    expect(within(reportCard).getByText("The score is wrong")).toBeInTheDocument();
+    expect(
+      within(reportCard).getByText("Reported on Oct 20, 2026"),
+    ).toBeInTheDocument();
+    expect(within(reportCard).getByText("Ada Owner")).toBeInTheDocument();
+    expect(within(reportCard).getByText("ada@example.com")).toBeInTheDocument();
+    expect(within(reportCard).getByText("Grace Hopper")).toBeInTheDocument();
+    expect(within(reportCard).getByText("Backend Engineer")).toBeInTheDocument();
+    expect(within(reportCard).getByText("Acme")).toBeInTheDocument();
+    expect(within(reportCard).getByText("The CV shows eight years of Java.")).toBeInTheDocument();
 
-    // Contexte de notation relu dans le résultat épinglé.
+    // Le motif et la date vivent dans le même conteneur que le commentaire.
+    const commentTile = within(reportCard)
+      .getByText("The CV shows eight years of Java.")
+      .closest("div") as HTMLElement;
+    expect(within(commentTile).getByText("The score is wrong")).toBeInTheDocument();
+    expect(
+      within(commentTile).getByText("Reported on Oct 20, 2026"),
+    ).toBeInTheDocument();
+    expect(within(commentTile).getByText("Comment:")).toBeInTheDocument();
+
+    expect(within(reportCard).getByRole("meter", { name: "Criterion score" })).toHaveAttribute(
+      "aria-valuenow",
+      "60",
+    );
+    expect(within(reportCard).getByRole("meter", { name: "Section score" })).toHaveAttribute(
+      "aria-valuenow",
+      "60",
+    );
+    expect(within(reportCard).getByText("Criterion")).toBeInTheDocument();
+    expect(within(reportCard).getByText("Section")).toBeInTheDocument();
+    expect(within(reportCard).getAllByText("60")).toHaveLength(2);
+    expect(within(reportCard).getByText("Strong Java")).toBeInTheDocument();
+    expect(within(reportCard).getByText("The CV shows three years of Java.")).toBeInTheDocument();
+    expect(within(reportCard).getByText("AI rationale")).toBeInTheDocument();
+    expect(within(reportCard).getByText("Required skills")).toBeInTheDocument();
+    expect(within(reportCard).getByText("Model: gemini-3.1-flash-lite")).toBeInTheDocument();
+    expect(
+      within(reportCard).queryByRole("link", { name: "Verify on candidate profile" }),
+    ).not.toBeInTheDocument();
     expect(screen.getAllByText("Strong Java")).toHaveLength(2);
     expect(screen.getAllByText("The CV shows three years of Java.")).toHaveLength(2);
     expect(screen.getAllByText("Required skills")).toHaveLength(2);
-    expect(screen.getByRole("heading", { level: 2, name: "Reported criterion" })).toBeInTheDocument();
-    expect(screen.getByText("AI rationale")).toBeInTheDocument();
+
+    // Aucun faux extrait de CV, aucune confiance, pondération ou note recruteur.
+    expect(screen.queryByText(/CV extract/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/confidence/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/recruiter score/i)).not.toBeInTheDocument();
 
     // Contestation : note du candidat, écart et argumentaire.
     const contestCard = screen
@@ -150,11 +189,11 @@ describe("AdminReportDetailView", () => {
     expect(screen.getByText("Reported")).toBeInTheDocument();
 
     // Liens de contexte vers la console.
-    expect(screen.getByRole("link", { name: "View offer" })).toHaveAttribute(
+    expect(within(reportCard).getByRole("link", { name: "View offer" })).toHaveAttribute(
       "href",
       "/admin/offers/offer-1",
     );
-    expect(screen.getByRole("link", { name: "View candidate" })).toHaveAttribute(
+    expect(within(reportCard).getByRole("link", { name: "View candidate" })).toHaveAttribute(
       "href",
       "/admin/users/44444444-4444-4444-8444-444444444444",
     );
@@ -198,6 +237,7 @@ describe("AdminReportDetailView", () => {
           sectionScore: null,
           requirement: null,
           rationale: null,
+          modelName: null,
           resolved: false,
         },
         assessment: { available: false, sections: [] },
@@ -206,7 +246,21 @@ describe("AdminReportDetailView", () => {
 
     renderView();
 
-    expect(await screen.findByText("Unresolved")).toBeInTheDocument();
+    const reportCard = (
+      await screen.findByRole("heading", { level: 2, name: "Report" })
+    ).closest("section") as HTMLElement;
+    expect(within(reportCard).getByText("Unresolved")).toBeInTheDocument();
+    expect(within(reportCard).getByText("Criterion key")).toBeInTheDocument();
+    expect(within(reportCard).getByText("skill:rust")).toBeInTheDocument();
+    expect(within(reportCard).getByText("Model not recorded")).toBeInTheDocument();
+    expect(
+      within(reportCard).getByRole("link", { name: "View candidate" }),
+    ).toHaveAttribute("href", "/admin/users/44444444-4444-4444-8444-444444444444");
+    expect(within(reportCard).queryByRole("meter")).not.toBeInTheDocument();
+    expect(within(reportCard).queryByText("AI score")).not.toBeInTheDocument();
+    expect(within(reportCard).queryByText("Criterion")).not.toBeInTheDocument();
+    expect(within(reportCard).queryByText("Section")).not.toBeInTheDocument();
+    expect(within(reportCard).queryByText("AI rationale")).not.toBeInTheDocument();
     expect(
       screen.getByText(
         "This criterion no longer exists in the pinned AI assessment. The report is kept as-is — no score or rationale is shown.",
@@ -218,6 +272,112 @@ describe("AdminReportDetailView", () => {
     ).toBeInTheDocument();
     // Le signalement reste visible : jamais un écran vide sur une donnée historique.
     expect(screen.getByText("The CV shows eight years of Java.")).toBeInTheDocument();
+  });
+
+  it("states when the model was not recorded for a resolved criterion", async () => {
+    const detail = makeDetail();
+    mockedGetCriterionReport.mockResolvedValue({
+      ...detail,
+      criterion: { ...detail.criterion, modelName: null },
+    });
+
+    renderView();
+
+    const reportCard = (
+      await screen.findByRole("heading", { level: 2, name: "Report" })
+    ).closest("section") as HTMLElement;
+    expect(within(reportCard).getByText("Model not recorded")).toBeInTheDocument();
+    expect(within(reportCard).queryByText(/^Model: /)).not.toBeInTheDocument();
+    expect(within(reportCard).getByRole("meter", { name: "Criterion score" })).toBeInTheDocument();
+  });
+
+  it("states when the candidate profile is unavailable", async () => {
+    mockedGetCriterionReport.mockResolvedValue(makeDetail({ candidateUserId: null }));
+
+    renderView();
+
+    const reportCard = (
+      await screen.findByRole("heading", { level: 2, name: "Report" })
+    ).closest("section") as HTMLElement;
+    expect(within(reportCard).getByText("Candidate profile unavailable")).toBeInTheDocument();
+    expect(
+      within(reportCard).queryByRole("link", { name: "View candidate" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Verify on candidate profile" })).not.toBeInTheDocument();
+  });
+
+  it("falls back honestly when optional report and criterion fields are empty", async () => {
+    const base = makeDetail();
+    mockedGetCriterionReport.mockResolvedValue({
+      ...base,
+      report: {
+        ...base.report,
+        comment: "",
+        authorFirstName: null,
+        authorLastName: null,
+        authorEmail: "",
+        candidateFirstName: null,
+        candidateLastName: null,
+        offerId: null,
+        offerTitle: "",
+        companyName: "",
+        section: "",
+      },
+      criterion: {
+        ...base.criterion,
+        section: "",
+        sectionScore: null,
+        requirement: "",
+        rationale: "",
+        modelName: "",
+      },
+    });
+
+    renderView();
+
+    const reportCard = (
+      await screen.findByRole("heading", { level: 2, name: "Report" })
+    ).closest("section") as HTMLElement;
+    expect(within(reportCard).getByText("Unknown author")).toBeInTheDocument();
+    expect(within(reportCard).getByText("Unknown candidate")).toBeInTheDocument();
+    expect(within(reportCard).getByText("Unknown offer")).toBeInTheDocument();
+    expect(
+      within(reportCard).getByText("No comment left by the recruiter."),
+    ).toBeInTheDocument();
+    expect(within(reportCard).getByText("Comment:")).toBeInTheDocument();
+    expect(within(reportCard).queryByRole("link", { name: "View offer" })).not.toBeInTheDocument();
+    expect(within(reportCard).getByRole("link", { name: "View candidate" })).toBeInTheDocument();
+    expect(within(reportCard).getByText("Not specified")).toBeInTheDocument();
+    expect(within(reportCard).getByText("No AI rationale.")).toBeInTheDocument();
+    expect(within(reportCard).getByText("Not evaluated")).toBeInTheDocument();
+    expect(within(reportCard).getByText("Model not recorded")).toBeInTheDocument();
+    expect(within(reportCard).queryByText("Required skills")).not.toBeInTheDocument();
+  });
+
+  it("leaves candidate contestation and full AI assessment unchanged", async () => {
+    mockedGetCriterionReport.mockResolvedValue(makeDetail());
+
+    renderView();
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Java" })).toBeInTheDocument();
+
+    const contestCard = screen
+      .getByRole("heading", { level: 2, name: "Candidate contestation" })
+      .closest("section") as HTMLElement;
+    expect(within(contestCard).getByText("I have eight years of Java.")).toBeInTheDocument();
+    expect(within(contestCard).getByText("Reported criterion")).toBeInTheDocument();
+    expect(within(contestCard).getAllByText("20 pts")).toHaveLength(2);
+    expect(within(contestCard).getByText("Java", { selector: "p" })).toBeInTheDocument();
+
+    const assessmentCard = screen
+      .getByRole("heading", { level: 2, name: "Full AI assessment" })
+      .closest("section") as HTMLElement;
+    expect(within(assessmentCard).getByText("Read-only")).toBeInTheDocument();
+    expect(
+      within(assessmentCard).getByRole("heading", { name: "Required skills" }),
+    ).toBeInTheDocument();
+    expect(within(assessmentCard).getByText("Kotlin is a plus.")).toBeInTheDocument();
+    expect(within(assessmentCard).getByText("Reported")).toBeInTheDocument();
   });
 
   it("shows a not-found state with a way back to the list", async () => {

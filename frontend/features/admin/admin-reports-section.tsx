@@ -1,8 +1,8 @@
 "use client";
 
+import { CtaLink } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { InfiniteList } from "@/components/ui/infinite-list";
-import { NavPill } from "@/components/ui/nav-pill";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Breadcrumb,
@@ -13,71 +13,23 @@ import {
 } from "@/components/layout/page-header";
 import {
   candidateInitials,
-  CRITERION_REASON_LABELS,
   displayScore,
-  recruiterSectionLabel,
   ScorePercentChip
 } from "@/features/application/recruiter-application-shared";
+import {
+  CriterionReasonChip,
+  CriterionSectionLabel,
+  reportFullName
+} from "@/features/admin/criterion-report-shared";
 import { RetryButton } from "@/features/admin/retry-button";
 import { useInfiniteAdminCriterionReports } from "@/hooks/use-admin";
 import { formatShortDate } from "@/lib/utils/format";
 import type { AdminCriterionReport } from "@/types/admin";
-import type { CriterionReportReason } from "@/types/application";
 
 const MUTED = "text-body-sm font-body-sm text-text-secondary";
 const FIELD_LABEL =
   "font-label-caps text-label-caps uppercase text-text-tertiary";
 const SCORE_LABEL = "font-label-caps text-label-caps uppercase text-blue-deep";
-
-/** Couleurs de lecture du motif — aucune sévérité, aucune priorité inventée. */
-const REASON_CHIP_CLASSES: Record<CriterionReportReason, string> = {
-  scoreIncorrect: "border-orange-border bg-orange-subtle text-orange-deep",
-  evidenceWrong: "border-blue-border bg-blue-surface text-blue-deep",
-  profileMisunderstood:
-    "border-secondary-fixed-dim bg-secondary-container text-on-secondary-fixed",
-  requirementMisunderstood:
-    "border-slate-border-strong bg-surface-container-low text-slate-ink",
-  other: "border-slate-border bg-canvas-subtle text-text-secondary"
-};
-
-/** Repère de section : couleur de catégorie, jamais de statut. */
-const SECTION_DOT_CLASSES: Record<string, string> = {
-  requiredSkills: "bg-blue-deep",
-  preferredSkills: "bg-secondary",
-  languages: "bg-orange-deep",
-  experience: "bg-slate-muted",
-  education: "bg-slate-ink"
-};
-
-function fullName(
-  firstName: string | null,
-  lastName: string | null,
-  fallback: string
-): string {
-  const name = `${firstName ?? ""} ${lastName ?? ""}`.trim();
-  return name.length > 0 ? name : fallback;
-}
-
-function ReasonChip({ reason }: { reason: CriterionReportReason }) {
-  return (
-    <span
-      className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 font-label-caps text-label-caps normal-case tracking-normal font-bold ${REASON_CHIP_CLASSES[reason]}`}
-    >
-      {CRITERION_REASON_LABELS[reason]}
-    </span>
-  );
-}
-
-function SectionLabel({ section }: { section: string | null }) {
-  const label = recruiterSectionLabel(section);
-  const dot = SECTION_DOT_CLASSES[section ?? ""] ?? "bg-text-tertiary";
-  return (
-    <span className="inline-flex items-center gap-1.5 font-label-caps text-label-caps uppercase text-text-secondary">
-      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-      {label ?? "Unknown section"}
-    </span>
-  );
-}
 
 function ScoreField({ label, score }: { label: string; score: number | null }) {
   const value = displayScore(score);
@@ -107,12 +59,12 @@ function ScoreField({ label, score }: { label: string; score: number | null }) {
  * relus dans le résultat épinglé, puis commentaire et action.
  */
 function ReportCard({ report }: { report: AdminCriterionReport }) {
-  const candidateName = fullName(
+  const candidateName = reportFullName(
     report.candidateFirstName,
     report.candidateLastName,
     "Unknown candidate"
   );
-  const authorName = fullName(
+  const authorName = reportFullName(
     report.authorFirstName,
     report.authorLastName,
     "Unknown author"
@@ -124,7 +76,7 @@ function ReportCard({ report }: { report: AdminCriterionReport }) {
         <div className="flex min-w-0 flex-col gap-3 lg:col-span-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <SectionLabel section={report.section} />
+              <CriterionSectionLabel section={report.section} />
               <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary break-words">
                   {report.criterionLabel}
@@ -136,7 +88,7 @@ function ReportCard({ report }: { report: AdminCriterionReport }) {
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
               <span className={FIELD_LABEL}>Reason</span>
-              <ReasonChip reason={report.reason} />
+              <CriterionReasonChip reason={report.reason} />
             </div>
           </div>
 
@@ -160,7 +112,6 @@ function ReportCard({ report }: { report: AdminCriterionReport }) {
               ) : null}
             </p>
           </div>
-
         </div>
 
         <div className="flex flex-col gap-2.5 rounded-lg border border-blue-border bg-blue-surface/60 p-6 lg:col-span-3">
@@ -215,12 +166,13 @@ function ReportCard({ report }: { report: AdminCriterionReport }) {
             {formatShortDate(report.createdAt)}
           </span>
         </div>
-        <NavPill
+        <CtaLink
           icon="arrow_forward"
-          label="View"
-          href={`/admin/reports/${report.id}`}
           tone="secondary"
-        />
+          href={`/admin/reports/${report.id}`}
+        >
+          View
+        </CtaLink>
       </div>
     </li>
   );

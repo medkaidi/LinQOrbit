@@ -37,7 +37,7 @@ import com.linqorbit.matching.exception.InvalidMatchingAnalysisException;
 public class MatchingScoring {
 
     /** Format du JSON {@code matching_result.result} (colonne schema_version). */
-    public static final String RESULT_SCHEMA_VERSION = "1";
+    public static final String RESULT_SCHEMA_VERSION = "2";
     /** Barème provisoire : moyenne pondérée par section. */
     public static final String SCORING_VERSION = "weighted-1";
 
@@ -91,6 +91,14 @@ public class MatchingScoring {
         result.put("schemaVersion", RESULT_SCHEMA_VERSION);
         result.put("policyVersion", analysis.path("policyVersion").asString(""));
         result.put("scoringVersion", SCORING_VERSION);
+        JsonNode modelName = analysis.get("modelName");
+        if (modelName != null && modelName.isTextual() && !modelName.asString().isBlank()) {
+            result.put("modelName", modelName.asString());
+        } else {
+            // Older analyses (schema 1) and deterministic-only runs carry no
+            // model: null is recorded explicitly, never guessed.
+            result.putNull("modelName");
+        }
         ArrayNode sections = result.putArray("sections");
         for (MatchingSection section : MatchingSection.values()) {
             ArrayNode items = criteriaBySection.get(section);

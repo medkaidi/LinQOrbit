@@ -108,7 +108,7 @@ class MatchingIntegrationTest {
              "languages": [{"name": "English", "level": "C2", "origin": "declared", "evidence": []}],
              "experiences": []}""";
     private static final String ANALYSIS = """
-            {"schemaVersion": "1", "policyVersion": "generic-1", "assessments": [
+            {"schemaVersion": "2", "policyVersion": "generic-1", "modelName": "gemini-3.1-flash-lite", "assessments": [
               {"criterionKey": "skill:java", "score": 90, "rationale": "Level 4, 5 years.",
                "evidence": [{"source": "skill", "index": 0}]},
               {"criterionKey": "skill:kubernetes", "score": 0, "rationale": "Not shown.", "evidence": []},
@@ -822,7 +822,7 @@ class MatchingIntegrationTest {
              "requiredStudyFields": [{"label": "Computer Science"}],
              "certifications": [{"name": "AWS Solutions Architect"}]}""";
     private static final String ANALYSIS_WITH_EDUCATION = """
-            {"schemaVersion": "1", "policyVersion": "education-2", "assessments": [
+            {"schemaVersion": "2", "policyVersion": "education-2", "modelName": "gemini-3.1-flash-lite", "assessments": [
               {"criterionKey": "skill:java", "score": 90, "rationale": "Level 4.", "evidence": [{"source": "skill", "index": 0}]},
               {"criterionKey": "education:requirement", "score": 0, "rationale": "No obtained diploma.", "evidence": []},
               {"criterionKey": "certification:aws-solutions-architect", "score": 0, "rationale": "None.", "evidence": []}
@@ -831,7 +831,7 @@ class MatchingIntegrationTest {
             {"schemaVersion": "2", "title": "Backend Engineer",
              "requiredDegrees": [{"label": "Master's degree"}], "requiredStudyFields": [{"label": "Computer Science"}]}""";
     private static final String ANALYSIS_EDUCATION_ONLY = """
-            {"schemaVersion": "1", "policyVersion": "education-2", "assessments": [
+            {"schemaVersion": "2", "policyVersion": "education-2", "modelName": null, "assessments": [
               {"criterionKey": "education:requirement", "score": 0, "rationale": "No obtained diploma.", "evidence": []}
             ]}""";
 
@@ -884,6 +884,9 @@ class MatchingIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT assessment_finished_at IS NOT NULL FROM matching WHERE id = ?", Boolean.class, matchingId))
                 .isTrue();
+        JsonNode stored = objectMapper.readTree(jdbcTemplate.queryForObject(
+                "SELECT result::text FROM matching_result WHERE id = ?", String.class, jobId));
+        assertThat(stored.path("modelName").isNull()).isTrue();
     }
 
     private void useOfferSheet(UUID offerId, String sheet) {
@@ -1161,6 +1164,7 @@ class MatchingIntegrationTest {
         JsonNode stored = objectMapper.readTree(jdbcTemplate.queryForObject(
                 "SELECT result::text FROM matching_result WHERE id = ?", String.class, jobId));
         assertThat(stored.path("scoringVersion").asText()).isEqualTo(MatchingScoring.SCORING_VERSION);
+        assertThat(stored.path("modelName").asText()).isEqualTo("gemini-3.1-flash-lite");
         // Obligatoires : (4×90 + 2×0) / 6 = 60 ; l'inféré (Kubernetes) compte comme le déclaré.
         assertThat(stored.path("sections").get(0).path("score").asDouble()).isEqualTo(60.0);
 

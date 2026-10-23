@@ -19,6 +19,7 @@ from app.agents.matching_analyze import (
     coverage_gaps,
     evidence_gaps,
 )
+from app.core.config import settings
 from app.graphs.matching_policy import POLICY_VERSION
 from app.schemas.matching import SCHEMA_VERSION, MatchingAnalysis, MatchingAnalyzeRequest
 
@@ -60,7 +61,7 @@ def _install(monkeypatch, stub):
     monkeypatch.setattr("app.agents.matching_analyze.build_matching_agent", lambda **_: stub)
 
 
-def test_returns_the_analysis_stamped_with_schema_and_policy_versions(monkeypatch):
+def test_returns_the_analysis_stamped_with_schema_policy_and_model_versions(monkeypatch):
     stub = StubAgent([{"structured_response": _analysis("a", "b"), "messages": []}])
     _install(monkeypatch, stub)
 
@@ -68,6 +69,8 @@ def test_returns_the_analysis_stamped_with_schema_and_policy_versions(monkeypatc
 
     assert result.schema_version == SCHEMA_VERSION
     assert result.policy_version == POLICY_VERSION
+    # The model was actually called: its configured name is stamped by the service.
+    assert result.model_name == settings.llm_model
     assert len(stub.calls) == 1
 
 
@@ -295,10 +298,11 @@ def test_the_repair_turn_replays_the_history_with_the_same_config(monkeypatch):
     assert stub.calls[1]["config"] == stub.calls[0]["config"]
 
 
-def test_versions_set_by_the_model_are_overwritten(monkeypatch):
+def test_provenance_set_by_the_model_is_overwritten(monkeypatch):
     analysis = _analysis("a")
     analysis.schema_version = "99"
     analysis.policy_version = "made-up"
+    analysis.model_name = "made-up"
     stub = StubAgent([{"structured_response": analysis, "messages": []}])
     _install(monkeypatch, stub)
 
@@ -306,6 +310,7 @@ def test_versions_set_by_the_model_are_overwritten(monkeypatch):
 
     assert result.schema_version == SCHEMA_VERSION
     assert result.policy_version == POLICY_VERSION
+    assert result.model_name == settings.llm_model
 
 
 def test_an_absent_requirement_is_not_sent_to_the_agent(monkeypatch):

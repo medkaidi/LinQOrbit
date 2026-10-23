@@ -54,6 +54,22 @@ public class MatchingResultReader {
         return null;
     }
 
+    /**
+     * Nom du modèle qui a produit le résultat, ou {@code null} pour un
+     * résultat antérieur au schéma 2 (champ absent) ou une analyse 100 %
+     * déterministe (champ explicitement nul). Aucun nom n'est inventé.
+     */
+    public String modelName(JsonNode root) {
+        if (root == null) {
+            return null;
+        }
+        JsonNode node = root.get("modelName");
+        if (node == null || !node.isTextual() || node.asString().isBlank()) {
+            return null;
+        }
+        return node.asString();
+    }
+
     /** Critère résolu : section, libellé, score de l'IA et score de sa section. */
     public record CriterionScore(MatchingSection section, String label, int score, Double sectionScore) {
     }

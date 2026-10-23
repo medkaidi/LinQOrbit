@@ -594,13 +594,16 @@ public class AdminService {
         JsonNode root = assessmentReader.tree(pinned);
         AdminCriterionReportResponse item = reportResponse(report, root, matching, offer, company,
                 author, candidate);
+        // Provenance du résultat, indépendante de la résolution du critère :
+        // un ancien résultat ou une analyse déterministe n'a pas de modèle.
+        String modelName = matchingResultReader.modelName(root);
         CriterionDetail detail = assessmentReader.criterionDetail(root, report.getCriterionKey());
         AdminCriterionContextResponse criterion = detail == null
                 ? new AdminCriterionContextResponse(report.getCriterionKey(), report.getCriterionKey(),
-                        null, null, null, null, null, false)
+                        null, null, null, null, null, modelName, false)
                 : new AdminCriterionContextResponse(detail.criterion().key(), detail.criterion().label(),
                         detail.section(), detail.criterion().score(), detail.sectionScore(),
-                        detail.criterion().requirement(), detail.criterion().rationale(), true);
+                        detail.criterion().requirement(), detail.criterion().rationale(), modelName, true);
 
         List<MatchingCriterionFeedback> feedback = matching == null ? List.of()
                 : feedbackRepository.findByMatchingIdOrderByCriterionKeyAsc(matching.getId());

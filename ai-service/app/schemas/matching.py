@@ -25,7 +25,7 @@ from app.schemas.normalize import EvidenceSource
 # Format of the analysis returned to the backend (mirrors matching_result
 # .schema_version). Versioned independently from the comparison policy
 # (policyVersion), which can change without changing the shape.
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 # Ceiling of job_offer.max_clarification_questions (0-10): the remaining
 # budget sent with a clarification request can never exceed it.
@@ -252,6 +252,13 @@ class MatchingAnalysis(CvModel):
 
     schema_version: str = Field(default=SCHEMA_VERSION, description="Set by the service, not by the model")
     policy_version: str = Field(default="", description="Set by the service, not by the model")
+    model_name: str | None = Field(
+        default=None,
+        description=(
+            "Set by the service to the model actually called; null when the whole analysis is deterministic "
+            "(education only)"
+        ),
+    )
     assessments: list[CriterionAssessment] = Field(
         description="Exactly one assessment per criterion of the request, in any order"
     )

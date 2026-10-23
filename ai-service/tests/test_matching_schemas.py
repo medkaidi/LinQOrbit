@@ -103,6 +103,7 @@ def test_analysis_serializes_in_camel_case_with_its_schema_version():
     body = analysis.model_dump(by_alias=True)
 
     assert body["schemaVersion"] == SCHEMA_VERSION
+    assert body["modelName"] is None
     assert body["assessments"][0] == {
         "criterionKey": "a",
         "score": 0,
@@ -220,6 +221,13 @@ def test_analysis_serializes_the_policy_version_in_camel_case():
 
     assert body["policyVersion"] == "generic-1"
     assert "policy_version" not in body
+
+
+def test_analysis_serializes_the_model_name_in_camel_case():
+    body = MatchingAnalysis(model_name="gemini-test", assessments=[]).model_dump(by_alias=True)
+
+    assert body["modelName"] == "gemini-test"
+    assert "model_name" not in body
 
 
 # --- T-62/T-63: evidence discipline, clarifications, clarify contract ---------

@@ -164,9 +164,11 @@ export type AdminCriterionReportPage = {
 };
 
 /**
- * Critère signalé relu dans **le résultat épinglé** (D66) : score et score de
- * section, exigence et justification IA. `resolved=false` quand la clé a
- * disparu du résultat — la page affiche alors le signalement sans note.
+ * Critère signalé relu dans **le résultat épinglé** (D66, D79) : score et
+ * score de section, exigence, justification IA et modèle réellement appelé.
+ * `modelName=null` pour un résultat antérieur au schéma 2 ou une analyse
+ * 100 % déterministe. `resolved=false` quand la clé a disparu du résultat —
+ * la page affiche alors le signalement sans note.
  */
 export type AdminCriterionContext = {
   key: string;
@@ -176,6 +178,7 @@ export type AdminCriterionContext = {
   sectionScore: number | null;
   requirement: string | null;
   rationale: string | null;
+  modelName: string | null;
   resolved: boolean;
 };
 

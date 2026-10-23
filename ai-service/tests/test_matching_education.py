@@ -378,6 +378,8 @@ def test_without_any_model_criterion_no_agent_is_built(monkeypatch):
     )
 
     assert [(a.criterion_key, a.score, a.evidence) for a in analysis.assessments] == [(EDUCATION_CRITERION_KEY, 0, [])]
+    # Aucun appel au modèle : aucune provenance inventée.
+    assert analysis.model_name is None
 
 
 def test_an_education_key_invented_by_the_model_is_repaired_against_the_model_subset(monkeypatch):

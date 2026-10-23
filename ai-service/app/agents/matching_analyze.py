@@ -40,6 +40,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
 from pydantic import ValidationError
 
+from app.core.config import settings
 from app.graphs.matching_agent import build_matching_agent
 from app.graphs.matching_policy import POLICY_VERSION, score_education
 from app.graphs.matching_policy import EducationRequirement as EducationRules
@@ -216,9 +217,10 @@ def _gaps(
     )
 
 
-def _finalize(analysis: MatchingAnalysis) -> MatchingAnalysis:
+def _finalize(analysis: MatchingAnalysis, model_name: str | None) -> MatchingAnalysis:
     analysis.schema_version = SCHEMA_VERSION
     analysis.policy_version = POLICY_VERSION
+    analysis.model_name = model_name
     return analysis
 
 
@@ -257,7 +259,8 @@ def analyze_matching(request: MatchingAnalyzeRequest) -> MatchingAnalysis:
         logger.info(
             "Matching analysis : deterministic criteria only, no model call : deterministic=%d", len(deterministic)
         )
-        return _finalize(MatchingAnalysis(assessments=deterministic))
+        # No model call: the provenance stays null, never the configured name.
+        return _finalize(MatchingAnalysis(assessments=deterministic), None)
 
     llm_keys = {criterion.key for criterion in llm_criteria}
     llm_request = request.model_copy(
@@ -289,7 +292,9 @@ def analyze_matching(request: MatchingAnalyzeRequest) -> MatchingAnalysis:
         raise MatchingAnalyzeError("no_output", NO_OUTPUT_MESSAGE)
     if deterministic:
         logger.info("Matching analysis : deterministic criteria merged : deterministic=%d", len(deterministic))
-    return _finalize(merged)
+    # The model was actually called for at least one criterion: stamp the
+    # configured model name, never a value the model could have supplied.
+    return _finalize(merged, settings.llm_model)
 
 
 def _analyze_with_model(request: MatchingAnalyzeRequest) -> MatchingAnalysis:

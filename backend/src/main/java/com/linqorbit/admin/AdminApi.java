@@ -249,8 +249,9 @@ public interface AdminApi {
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Consulter le dossier d'un signalement interne d'évaluation IA",
             description = "Signalement (motif, commentaire, auteur, date), critère relu dans le résultat épinglé "
-                    + "(score, score de section, exigence, justification IA), évaluation complète en lecture seule, "
-                    + "contestations du candidat et écart moyen (D66). Aucun effet sur le score.")
+                    + "(score, score de section, exigence, justification IA, modèle réellement appelé ou null), "
+                    + "évaluation complète en lecture seule, contestations du candidat et écart moyen (D66, D79). "
+                    + "Aucun effet sur le score.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Dossier du signalement renvoyé"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
