@@ -31,11 +31,24 @@ export function buildRecruiterApplicationCard(
   return {
     id: RECRUITER_APPLICATION_ID,
     candidate: { firstName: "Grace", lastName: "Hopper", title: "Senior Backend Engineer" },
+    highlights: {
+      seniority: "senior",
+      yearsOfExperience: 9,
+      country: "FR",
+      skills: [
+        { name: "Java", level: 5 },
+        { name: "PostgreSQL", level: 4 },
+      ],
+    },
     status: "submitted",
     submittedAt: "2026-10-15T09:30:00",
     assessmentAvailable: true,
     sections: SECTIONS,
     contestedCount: 2,
+    contestedSections: [
+      { section: "requiredSkills", count: 1 },
+      { section: "preferredSkills", count: 1 },
+    ],
     averageGap: 20,
     ...overrides,
   };

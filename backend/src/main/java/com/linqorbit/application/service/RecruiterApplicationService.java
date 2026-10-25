@@ -28,6 +28,7 @@ import com.linqorbit.application.dto.RecruiterApplicationCard;
 import com.linqorbit.application.dto.RecruiterApplicationDetail;
 import com.linqorbit.application.dto.RecruiterApplicationPageResponse;
 import com.linqorbit.application.dto.RecruiterAssessmentView;
+import com.linqorbit.application.dto.RecruiterCandidateHighlights;
 import com.linqorbit.application.dto.RecruiterCandidateSummary;
 import com.linqorbit.application.dto.RecruiterClarificationView;
 import com.linqorbit.application.dto.RecruiterContestationView;
@@ -52,6 +53,7 @@ import com.linqorbit.attachment.repository.AttachmentRepository;
 import com.linqorbit.attachment.service.AttachmentService;
 import com.linqorbit.candidate.entity.Candidate;
 import com.linqorbit.candidate.repository.CandidateRepository;
+import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.common.pagination.PageSizes;
 import com.linqorbit.company.entity.Company;
 import com.linqorbit.company.repository.CompanyRepository;
@@ -60,6 +62,7 @@ import com.linqorbit.joboffer.entity.JobOfferQuestion;
 import com.linqorbit.joboffer.entity.JobOfferQuestionOption;
 import com.linqorbit.joboffer.repository.JobOfferQuestionOptionRepository;
 import com.linqorbit.joboffer.repository.JobOfferQuestionRepository;
+import com.linqorbit.invitation.service.CandidateCardAnonymizer;
 import com.linqorbit.joboffer.service.JobOfferService;
 import com.linqorbit.matching.entity.Clarification;
 import com.linqorbit.matching.entity.ClarificationStatus;
@@ -110,6 +113,8 @@ public class RecruiterApplicationService {
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
     private final CandidateRepository candidateRepository;
+    private final NormalizedProfileRepository normalizedProfileRepository;
+    private final CandidateCardAnonymizer cardExtractor;
     private final MatchingResultRepository matchingResultRepository;
     private final MatchingJobRepository matchingJobRepository;
     private final MatchingCriterionFeedbackRepository feedbackRepository;
@@ -402,8 +407,9 @@ public class RecruiterApplicationService {
         return new RecruiterApplicationCard(application.getId(),
                 candidate(context.users().get(application.getCandidateId()),
                         context.candidates().get(application.getCandidateId())),
+                context.highlights().get(application.getCandidateId()),
                 application.getStatus().getApiValue(), application.getSubmittedAt(), root != null,
-                sections, gap.count(), gap.averageGap());
+                sections, gap.count(), gap.sections(), gap.averageGap());
     }
 
     private PageContext loadContext(List<Application> applications) {
@@ -434,8 +440,36 @@ public class RecruiterApplicationService {
             }
         }
         List<MatchingCriterionFeedback> allFeedback = feedback.values().stream().flatMap(List::stream).toList();
-        return new PageContext(users, candidates, latestResults, feedback,
+        return new PageContext(users, candidates, highlightsOf(candidateIds, candidates, users), latestResults, feedback,
                 assessmentReader.feedbackResults(allFeedback));
+    }
+
+    /**
+     * Repères de chaque candidat de la page, chargés <b>en lot</b> (une requête
+     * pour toutes les fiches courantes, jamais une par carte). Sans fiche
+     * exploitable, les années et le pays déclarés au profil servent de repli ;
+     * le reste est vide.
+     */
+    private Map<UUID, RecruiterCandidateHighlights> highlightsOf(List<UUID> candidateIds,
+            Map<UUID, Candidate> candidates, Map<UUID, User> users) {
+        Map<UUID, CandidateCardAnonymizer.Card> cards = new HashMap<>();
+        if (!candidateIds.isEmpty()) {
+            normalizedProfileRepository.findCurrentSheetsByCandidateIds(candidateIds)
+                    .forEach(sheet -> cards.put(sheet.getCandidateId(), cardExtractor.anonymize(sheet.getContent())));
+        }
+        Map<UUID, RecruiterCandidateHighlights> highlights = new HashMap<>();
+        for (UUID candidateId : candidateIds) {
+            CandidateCardAnonymizer.Card card = cards.get(candidateId);
+            Candidate candidate = candidates.get(candidateId);
+            Integer declaredYears = candidate == null ? null : candidate.getYearsOfExperience();
+            Integer years = card != null && card.yearsOfExperience() != null ? card.yearsOfExperience() : declaredYears;
+            User user = users.get(candidateId);
+            String declaredCountry = user == null ? null : user.getCurrentCountry();
+            String country = card != null && card.country() != null ? card.country() : blankToNull(declaredCountry);
+            highlights.put(candidateId, new RecruiterCandidateHighlights(card == null ? null : card.seniority(),
+                    years, country, card == null ? List.of() : card.skills()));
+        }
+        return highlights;
     }
 
     private Map<UUID, List<ApplicationAnswerOption>> selectionsOf(List<ApplicationAnswer> answerRows) {
@@ -541,6 +575,10 @@ public class RecruiterApplicationService {
                 offer.getStatus().getApiValue(), companyName);
     }
 
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     private static RecruiterCandidateSummary candidate(User user, Candidate candidate) {
         if (user == null) {
             return null;
@@ -603,6 +641,7 @@ public class RecruiterApplicationService {
     }
 
     private record PageContext(Map<UUID, User> users, Map<UUID, Candidate> candidates,
+            Map<UUID, RecruiterCandidateHighlights> highlights,
             Map<UUID, MatchingResult> latestResults,
             Map<UUID, List<MatchingCriterionFeedback>> feedback,
             Map<UUID, MatchingResult> feedbackResults) {

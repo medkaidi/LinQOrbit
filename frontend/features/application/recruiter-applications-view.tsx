@@ -15,6 +15,8 @@ import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { InfiniteList } from "@/components/ui/infinite-list";
+import { KeySignals, yearsLabel } from "@/components/ui/key-signals";
+import { MUTED_PILL_CLASS } from "@/components/ui/pill";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Select } from "@/components/ui/select";
 import {
@@ -36,6 +38,8 @@ import {
   ScorePercentValue,
   submittedOnLabel,
 } from "@/features/application/recruiter-application-shared";
+import { countryLabel } from "@/features/candidate/profile-shared";
+import { seniorityLabel } from "@/features/job-offer/job-offer-shared";
 import { useRecruiterApplications } from "@/hooks/use-recruiter-applications";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import { cn } from "@/lib/utils/cn";
@@ -44,6 +48,7 @@ import type {
   RecruiterApplicationDirection,
   RecruiterApplicationSortValue,
   RecruiterApplicationStatusValue,
+  RecruiterContestedSection,
   RecruiterSectionKey,
   RecruiterSectionScore,
 } from "@/types/application";
@@ -71,7 +76,7 @@ const EMPTY_MESSAGES: Record<RecruiterApplicationStatusValue, string> = {
 };
 
 /**
- * Ligne de score compacte : label, barre courte bleue, valeur colorée par bande.
+ * Ligne de score compacte : label et valeur colorée par bande sur une ligne, barre bleue pleine largeur dessous.
  * Le chiffre reste la source de vérité ; aucune note globale.
  */
 function SectionScoreRow({
@@ -86,45 +91,63 @@ function SectionScoreRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-lg px-1.5 py-0.5",
+        "flex min-w-0 flex-col gap-1 rounded-lg px-1.5 py-1",
         highlighted && "bg-blue-surface",
       )}
     >
-      <div className="w-24 shrink-0">
+      <div className="flex items-baseline justify-between gap-2">
         <span
           title={label}
           className={cn(
-            "block truncate text-[11px] font-semibold leading-tight",
+            "min-w-0 truncate text-[11px] font-semibold leading-tight",
             highlighted ? "font-bold text-blue-deep" : "text-text-secondary",
           )}
         >
           {label}
         </span>
-        {score === null ? (
-          <span className="block text-[10px] leading-tight text-text-tertiary">Not evaluated</span>
-        ) : null}
+        <span className="shrink-0 leading-tight">
+          {score === null ? (
+            <span className="text-[10px] text-text-tertiary">Not evaluated</span>
+          ) : (
+            <ScorePercentValue score={score} size="sm" />
+          )}
+        </span>
       </div>
-      {score === null ? (
-        <span aria-hidden="true" className="h-[3px] w-9 shrink-0" />
-      ) : (
-        <div
-          aria-hidden="true"
-          className="h-[3px] w-9 shrink-0 overflow-hidden rounded-full bg-slate-border"
-        >
+      <div aria-hidden="true" className="h-[3px] w-full overflow-hidden rounded-full bg-slate-border">
+        {score === null ? null : (
           <div
             className="h-full rounded-full bg-blue-deep transition-[width] duration-500 ease-out"
             style={{ width: `${score}%` }}
           />
-        </div>
-      )}
-      <span className="w-9 shrink-0 text-right leading-tight">
-        {score === null ? (
-          <span className="text-text-tertiary">—</span>
-        ) : (
-          <ScorePercentValue score={score} size="sm" />
         )}
-      </span>
+      </div>
     </div>
+  );
+}
+
+/**
+ * Sections où le candidat a contesté au moins un critère : une pastille par
+ * section (libellé + nombre de critères), dans l'ordre d'affichage du serveur.
+ * Vide (ancien serveur, critère introuvable) : rien n'est rendu.
+ */
+function ContestedSections({ sections }: { sections: RecruiterContestedSection[] }) {
+  if (sections.length === 0) {
+    return null;
+  }
+  return (
+    <ul aria-label="Contested sections" className="flex flex-wrap gap-1">
+      {sections.map(({ section, count }) => (
+        <li
+          key={section}
+          title={count === 1 ? "1 criterion contested" : `${count} criteria contested`}
+          className="flex min-w-0 items-center gap-1 rounded-full border border-orange-border/70 bg-canvas-white px-2 py-0.5 text-[10px] font-semibold text-orange-deep"
+        >
+          <span className="truncate">{RECRUITER_SECTION_LABELS[section]}</span>
+          <span aria-hidden="true">·</span>
+          <span className="font-bold tabular-nums">{count}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -155,6 +178,7 @@ function ContestPanel({ application }: { application: RecruiterApplicationCard }
       </span>
       {contested ? (
         <>
+          <ContestedSections sections={application.contestedSections} />
           <ContestGapBlock averageGap={application.averageGap} />
           <p className="flex items-start gap-1 text-[10px] font-semibold leading-snug text-orange-deep/80">
             <Icon name="info" className="mt-px text-[12px]" />
@@ -173,6 +197,14 @@ function ContestPanel({ application }: { application: RecruiterApplicationCard }
   );
 }
 
+/**
+ * Carte d'une candidature : jumelle de celle d'un candidat suggéré (même
+ * squelette, mêmes signaux et pastilles de compétences) — monogramme, nom-lien
+ * et poste à gauche, statut + date en haut à droite, bande Experience /
+ * Seniority / Location, compétences ; puis la rangée propre aux candidatures
+ * (scores de section | contestations, ou « No AI assessment ») et un pied
+ * « View application ». Une seule disposition à toutes les largeurs.
+ */
 function CandidateCard({
   offerId,
   application,
@@ -186,56 +218,82 @@ function CandidateCard({
   const candidateTitle = application.candidate?.title?.trim() || null;
   const submittedOn = submittedOnLabel(application.submittedAt);
   const detailHref = `/recruiter/offers/${offerId}/applications/${application.id}`;
-  const initials = candidateInitials(name);
+  const { highlights } = application;
 
   return (
-    <li className="@container min-w-0 rounded-3xl border border-slate-border bg-canvas-white p-4 shadow-sm transition-colors hover:border-slate-border-strong">
-      <div className="grid grid-cols-1 gap-4 @xl:grid-cols-[15rem_auto] @4xl:grid-cols-[15rem_auto_14rem_auto] @4xl:justify-between @4xl:items-stretch">
-        <div className="flex min-w-0 items-start gap-4 @xl:self-center">
-          <span
-            aria-hidden="true"
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-blue-border bg-blue-surface font-headline-sm text-headline-sm font-bold text-blue-deep"
-          >
-            {initials}
-          </span>
-          <div className="min-w-0">
-            <Link
-              href={detailHref}
-              title={name}
-              className={cn(
-                LINK_ACCENT_CLASS,
-                "block truncate font-headline-sm text-headline-sm font-bold tracking-tight",
-              )}
+    <li className="flex min-w-0 flex-col justify-between gap-4 rounded-3xl border border-slate-border bg-canvas-white p-5 shadow-sm transition-colors hover:border-slate-border-strong">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3.5">
+            <span
+              aria-hidden="true"
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-blue-border bg-blue-surface font-headline-sm text-headline-sm font-bold text-blue-deep"
             >
-              {name}
-            </Link>
-            {candidateTitle ? (
-              <p
-                title={candidateTitle}
-                className="mt-0.5 truncate text-[11px] font-semibold text-text-secondary"
+              {candidateInitials(name)}
+            </span>
+            <div className="min-w-0">
+              <Link
+                href={detailHref}
+                title={name}
+                className={cn(
+                  LINK_ACCENT_CLASS,
+                  "block truncate font-headline-sm text-headline-sm font-bold tracking-tight",
+                )}
               >
-                {candidateTitle}
-              </p>
-            ) : null}
-            <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <ApplicationStatusPill status={application.status} />
-              <span className="text-[11px] font-medium text-text-tertiary">
-                {submittedOn ? `Applied ${submittedOn}` : "Submission date unavailable"}
-              </span>
+                {name}
+              </Link>
+              {candidateTitle ? (
+                <p
+                  title={candidateTitle}
+                  className="mt-0.5 truncate text-[11px] font-semibold text-text-secondary"
+                >
+                  {candidateTitle}
+                </p>
+              ) : null}
             </div>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <ApplicationStatusPill status={application.status} />
+            <span className="text-[11px] font-medium text-text-tertiary">
+              {submittedOn ? `Applied ${submittedOn}` : "Submission date unavailable"}
+            </span>
           </div>
         </div>
 
-        <div
-          className={cn(
-            "flex min-w-0 flex-col rounded-2xl border border-slate-border bg-item-surface p-2",
-            application.assessmentAvailable
-              ? "h-full w-fit justify-center"
-              : "min-h-32 w-full items-center justify-center @4xl:col-span-2",
+        <KeySignals
+          signals={[
+            {
+              icon: "schedule",
+              label: "Experience",
+              value:
+                highlights.yearsOfExperience !== null ? yearsLabel(highlights.yearsOfExperience) : null,
+            },
+            { icon: "signal_cellular_alt", label: "Seniority", value: seniorityLabel(highlights.seniority) },
+            { icon: "location_on", label: "Location", value: countryLabel(highlights.country) },
+          ]}
+        />
+
+        <ul aria-label="Skills" className="flex min-w-0 flex-wrap content-start items-center gap-2">
+          {highlights.skills.length > 0 ? (
+            highlights.skills.map((skill) => (
+              <li
+                key={skill.name}
+                title={skill.level !== null ? `Level ${skill.level} of 5` : undefined}
+                className={MUTED_PILL_CLASS}
+              >
+                {skill.name}
+              </li>
+            ))
+          ) : (
+            <li className="px-1 py-1 font-body-sm text-body-sm text-text-tertiary">
+              No skills listed
+            </li>
           )}
-        >
-          {application.assessmentAvailable ? (
-            <div className="flex flex-col">
+        </ul>
+
+        {application.assessmentAvailable ? (
+          <div className="grid grid-cols-2 items-stretch gap-3">
+            <div className="flex min-w-0 flex-col justify-center rounded-2xl border border-slate-border bg-item-surface p-2">
               {application.sections.map((section) => (
                 <SectionScoreRow
                   key={section.section}
@@ -244,19 +302,20 @@ function CandidateCard({
                 />
               ))}
             </div>
-          ) : (
+            <ContestPanel application={application} />
+          </div>
+        ) : (
+          <div className="flex min-h-24 items-center justify-center rounded-2xl border border-slate-border bg-item-surface p-2">
             <p className={cn(MUTED_TEXT_CLASS, "px-2 py-1 text-center")}>No AI assessment</p>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
 
-        {application.assessmentAvailable ? <ContestPanel application={application} /> : null}
-
-        <div className="flex items-center @xl:col-start-2 @xl:justify-end @4xl:col-start-4 @4xl:justify-end @4xl:self-center">
-          <ButtonLink href={detailHref} variant="outline-sm" className="whitespace-nowrap">
-            View application
-            <Icon name="arrow_forward" className="text-[14px]" />
-          </ButtonLink>
-        </div>
+      <div className="flex items-center justify-end border-t border-slate-border pt-4">
+        <ButtonLink href={detailHref} variant="outline-sm" className="whitespace-nowrap">
+          View application
+          <Icon name="arrow_forward" className="text-[14px]" />
+        </ButtonLink>
       </div>
     </li>
   );
@@ -382,6 +441,7 @@ export function RecruiterApplicationsView({ offerId }: { offerId: string }) {
                 sortedSection={sortedSection}
               />
             )}
+            listClassName="grid grid-cols-1 gap-4 xl:grid-cols-2"
             hasNextPage={applications.hasNextPage}
             isFetchingNextPage={applications.isFetchingNextPage}
             fetchNextPage={() => void applications.fetchNextPage()}

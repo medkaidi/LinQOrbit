@@ -1,3 +1,4 @@
+import type { SuggestedSkill } from "@/types/invitation";
 import type { QuestionTypeValue } from "@/types/recruiter";
 
 /** Statut d'une candidature (miroir de l'enum backend `ApplicationStatus`, D49 révisé par D59). */
@@ -171,15 +172,37 @@ export type RecruiterSectionScore = {
   score: number | null;
 };
 
+/**
+ * Repères du candidat sur la carte (liste blanche tirée de sa dernière fiche
+ * normalisée) : séniorité, années d'expérience, pays, compétences hors soft skills.
+ * Chaque champ peut manquer — jamais de valeur inventée.
+ */
+export type RecruiterCandidateHighlights = {
+  seniority: string | null;
+  yearsOfExperience: number | null;
+  /** Code pays ISO (fiche, sinon pays déclaré) ; jamais de ville. */
+  country: string | null;
+  skills: SuggestedSkill[];
+};
+
+/** Section contenant au moins un critère contesté, avec le nombre de critères contestés (`count` ≥ 1). */
+export type RecruiterContestedSection = {
+  section: RecruiterSectionKey;
+  count: number;
+};
+
 /** Carte de liste : aucune note globale, seulement les cinq sections et le signal de contestation. */
 export type RecruiterApplicationCard = {
   id: string;
   candidate: RecruiterCandidateSummary | null;
+  highlights: RecruiterCandidateHighlights;
   status: RecruiterApplicationStatusValue;
   submittedAt: string;
   assessmentAvailable: boolean;
   sections: RecruiterSectionScore[];
   contestedCount: number;
+  /** Sections contestées dans l'ordre d'affichage ; la somme des `count` égale `contestedCount`. */
+  contestedSections: RecruiterContestedSection[];
   averageGap: number | null;
 };
 

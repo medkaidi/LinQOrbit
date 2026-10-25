@@ -3,6 +3,7 @@ package com.linqorbit.application.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 import com.linqorbit.application.dto.RecruiterAssessmentSectionView;
 import com.linqorbit.application.dto.RecruiterAssessmentView;
 import com.linqorbit.application.dto.RecruiterContestationView;
+import com.linqorbit.application.dto.RecruiterContestedSection;
 import com.linqorbit.application.dto.RecruiterCriterionView;
 import com.linqorbit.matching.entity.MatchingCriterionFeedback;
 import com.linqorbit.matching.entity.MatchingResult;
@@ -135,7 +137,11 @@ public class ApplicationAssessmentReader {
         return contests;
     }
 
-    /** Écart moyen absolu (une décimale) et nombre de critères comparables. */
+    /**
+     * Écart moyen absolu (une décimale), nombre de critères comparables et
+     * répartition par section. Une seule boucle : la somme par section est
+     * donc toujours égale au nombre de critères comparables.
+     */
     public GapStats gapStats(List<MatchingCriterionFeedback> feedback,
             Map<UUID, MatchingResult> feedbackResults) {
         if (feedback.isEmpty()) {
@@ -143,17 +149,24 @@ public class ApplicationAssessmentReader {
         }
         BigDecimal total = BigDecimal.ZERO;
         int counted = 0;
+        Map<MatchingSection, Integer> perSection = new EnumMap<>(MatchingSection.class);
         for (MatchingCriterionFeedback item : feedback) {
             JsonNode root = tree(feedbackResults.get(item.getMatchingResultId()));
             CriterionScore criterion = criterion(root, item.getCriterionKey());
             if (criterion != null) {
                 total = total.add(BigDecimal.valueOf(Math.abs(item.getSelfValue() - criterion.score())));
                 counted++;
+                if (criterion.section() != null) {
+                    perSection.merge(criterion.section(), 1, Integer::sum);
+                }
             }
         }
         Double average = counted == 0 ? null
                 : total.divide(BigDecimal.valueOf(counted), 1, RoundingMode.HALF_UP).doubleValue();
-        return new GapStats(counted, average);
+        List<RecruiterContestedSection> sections = perSection.entrySet().stream()
+                .map(entry -> new RecruiterContestedSection(entry.getKey().getSectionKey(), entry.getValue()))
+                .toList();
+        return new GapStats(counted, average, sections);
     }
 
     private static JsonNode sectionNode(JsonNode root, String storageValue) {
@@ -193,7 +206,8 @@ public class ApplicationAssessmentReader {
     public record CriterionDetail(String section, Double sectionScore, RecruiterCriterionView criterion) {
     }
 
-    public record GapStats(int count, Double averageGap) {
-        public static final GapStats NONE = new GapStats(0, null);
+    /** {@code sections} : sections contestées dans l'ordre d'affichage, {@code count >= 1} chacune. */
+    public record GapStats(int count, Double averageGap, List<RecruiterContestedSection> sections) {
+        public static final GapStats NONE = new GapStats(0, null, List.of());
     }
 }
