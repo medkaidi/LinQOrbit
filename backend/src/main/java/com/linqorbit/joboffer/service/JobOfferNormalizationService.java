@@ -1,8 +1,10 @@
 package com.linqorbit.joboffer.service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -89,36 +91,58 @@ public class JobOfferNormalizationService {
     }
 
     /**
-     * Validation explicite de l'offre, autorisée si {@code dirty ||
-     * analysisOutdated || failed} (D63) : no-op sinon (double-clic, re-POST).
+     * Instantané de la dernière analyse de chaque offre (D90) : une requête
+     * pour les dernières versions + une pour les fiches de référence, jamais de
+     * N+1. Une offre sans version est absente de la map ({@link
+     * OfferAnalysisState#NONE}). Source unique des signaux de la liste, du
+     * détail et de la décision de {@link #onValidated}.
+     */
+    public Map<UUID, OfferAnalysisState> analysisStates(List<UUID> offerIds) {
+        if (offerIds.isEmpty()) {
+            return Map.of();
+        }
+        Set<UUID> staleSchema = findOutdatedOfferIds(offerIds);
+        Map<UUID, OfferAnalysisState> states = new HashMap<>();
+        for (Object[] row : normalizedProfileJobOfferRepository.findLatestAnalyses(offerIds)) {
+            UUID offerId = (UUID) row[0];
+            states.put(offerId, new OfferAnalysisState(true, (NormalizationJobStatus) row[1],
+                    Boolean.TRUE.equals(row[2]), staleSchema.contains(offerId)));
+        }
+        return states;
+    }
+
+    /**
+     * Validation explicite de l'offre, autorisée si {@code dirty || failed ||
+     * analysisOutdated} (D63, D90) : no-op sinon (double-clic, re-POST).
      * Appelée par {@code validate} (DRAFT/VALIDATED) et par {@code revalidate}
      * (PUBLISHED, rafraîchissement sans changement de cycle de vie) ; le
-     * dirty-flag ne compte que sur un statut éditable. Une fiche obsolète ne
-     * relance pas une analyse déjà en cours (PENDING/RUNNING). Le lock pessimiste de la ligne offre sérialise les
-     * validations concurrentes d'une même offre. Miroir strict du candidat
-     * ({@code NormalizationService.validateProfile}) : une édition pendant
-     * une analyse en vol crée la version suivante (les PENDING sont
+     * dirty-flag ne compte que sur un statut éditable. {@code analysisOutdated}
+     * est celui de {@link OfferAnalysisState} — le même que celui exposé par
+     * l'API : schéma périmé ou, sur une offre PUBLISHED, dernière analyse
+     * inexploitable (aucune fiche, contenu absent). Il ne relance jamais une
+     * analyse déjà en cours (PENDING/RUNNING). Le lock pessimiste de la ligne
+     * offre sérialise les validations concurrentes d'une même offre : la
+     * seconde voit la version PENDING de la première. Miroir strict du
+     * candidat ({@code NormalizationService.validateProfile}) : une édition
+     * pendant une analyse en vol crée la version suivante (les PENDING sont
      * supersédés, un RUNNING antérieur termine sur sa propre version).
      */
     @Transactional
     public void onValidated(UUID offerId) {
         JobOffer offer = jobOfferRepository.findByIdForUpdate(offerId)
                 .orElseThrow(() -> new JobOfferNotFoundException(offerId));
-        NormalizationJobStatus latestStatus = latestJobStatus(offerId);
+        OfferAnalysisState state = analysisStates(List.of(offerId))
+                .getOrDefault(offerId, OfferAnalysisState.NONE);
         // D13 : le dirty-flag n'a de sens que sur un statut éditable — publish
         // pose updatedAt après validatedAt, une offre PUBLISHED (revalidate)
         // serait sinon toujours « sale ». Miroir du signal exposé par l'API.
         boolean dirty = (offer.getStatus() == JobOfferStatus.DRAFT || offer.getStatus() == JobOfferStatus.VALIDATED)
                 && hasUnvalidatedChanges(offer);
-        boolean failed = latestStatus == NormalizationJobStatus.FAILED;
-        boolean outdated = latestStatus != NormalizationJobStatus.PENDING
-                && latestStatus != NormalizationJobStatus.RUNNING
-                && findOutdatedOfferIds(List.of(offerId)).contains(offerId);
-        // D90 : une offre PUBLISHED sans aucune fiche reçoit la sienne par revalidate.
-        boolean missing = offer.getStatus() == JobOfferStatus.PUBLISHED && latestStatus == null;
-        if (!dirty && !outdated && !failed && !missing) {
+        boolean failed = state.failed();
+        boolean outdated = state.repairable(offer.getStatus());
+        if (!dirty && !outdated && !failed) {
             log.info("Job offer normalization skipped : no change since last validation,"
-                    + " offerId={}, latestStatus={}", offerId, latestStatus);
+                    + " offerId={}, latestStatus={}", offerId, state.latestStatus());
             return;
         }
 
@@ -151,8 +175,8 @@ public class JobOfferNormalizationService {
                 .build());
 
         log.info("Job offer normalization registered : offerId={}, version={}, dirty={}, outdated={}, failed={},"
-                + " missing={}, supersededPending={}, jobId={}",
-                offerId, version, dirty, outdated, failed, missing, superseded, profileId);
+                + " unusable={}, supersededPending={}, jobId={}",
+                offerId, version, dirty, outdated, failed, state.unusable(), superseded, profileId);
         eventPublisher.publishEvent(new JobOfferValidatedEvent(profileId));
     }
 

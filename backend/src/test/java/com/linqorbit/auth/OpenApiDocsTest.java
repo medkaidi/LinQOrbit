@@ -192,6 +192,10 @@ class OpenApiDocsTest {
                         .value("Rafraîchir l'analyse d'une offre publiée"))
                 .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/revalidate'].post.responses['409']")
                         .exists())
+                // D90 : les cas réparés (aucune fiche, dernière version sans contenu) et le no-op en cours.
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/revalidate'].post.description")
+                        .value(allOf(containsString("inexploitable"), containsString("sans contenu"),
+                                containsString("PENDING/RUNNING"))))
                 .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/publish'].post.summary")
                         .value("Publier une offre"))
                 .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/close'].post.summary")

@@ -16,11 +16,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.PageRequest;
 
 import com.linqorbit.candidate.entity.NormalizationJob;
 import com.linqorbit.candidate.entity.NormalizationJobStatus;
-import com.linqorbit.candidate.entity.NormalizationSourceType;
 import com.linqorbit.candidate.entity.NormalizedProfile;
 import com.linqorbit.candidate.repository.NormalizationJobRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
@@ -73,8 +71,12 @@ class JobOfferNormalizationServiceTest {
     private void stubNoHistory() {
         when(normalizedProfileJobOfferRepository.findMaxVersionByOfferId(OFFER_ID)).thenReturn(null);
         when(normalizedProfileJobOfferRepository.findMaxValidatedAtByOfferId(OFFER_ID)).thenReturn(null);
-        when(normalizedProfileJobOfferRepository.findLatestByOfferId(any(), any(PageRequest.class)))
-                .thenReturn(List.of());
+    }
+
+    /** Dernière version de l'offre : statut de son job et présence de son contenu. */
+    private void stubLatestAnalysis(NormalizationJobStatus status, boolean hasContent) {
+        when(normalizedProfileJobOfferRepository.findLatestAnalyses(List.of(OFFER_ID)))
+                .thenReturn(List.<Object[]>of(new Object[] {OFFER_ID, status, hasContent}));
     }
 
     @Test
@@ -93,15 +95,10 @@ class JobOfferNormalizationServiceTest {
     @Test
     void onValidatedNumeroteLaVersionEtSupersedeLesPending() {
         stubOffer(LocalDateTime.now());
-        UUID latestId = UUID.randomUUID();
         when(normalizedProfileJobOfferRepository.findMaxVersionByOfferId(OFFER_ID)).thenReturn(2);
         when(normalizedProfileJobOfferRepository.findMaxValidatedAtByOfferId(OFFER_ID))
                 .thenReturn(LocalDateTime.now().minusDays(1));
-        when(normalizedProfileJobOfferRepository.findLatestByOfferId(any(), any(PageRequest.class)))
-                .thenReturn(List.of(NormalizedProfile.builder().id(latestId).version(2).build()));
-        when(normalizationJobRepository.findById(latestId)).thenReturn(Optional.of(
-                NormalizationJob.builder().id(latestId).status(NormalizationJobStatus.DONE)
-                        .sourceType(NormalizationSourceType.OFFER).build()));
+        stubLatestAnalysis(NormalizationJobStatus.DONE, true);
 
         service.onValidated(OFFER_ID);
 
@@ -116,15 +113,10 @@ class JobOfferNormalizationServiceTest {
         // nouvelle version (les PENDING sont supersédés), pas un no-op qui
         // avalerait l'édition.
         stubOffer(LocalDateTime.now());
-        UUID latestId = UUID.randomUUID();
         when(normalizedProfileJobOfferRepository.findMaxVersionByOfferId(OFFER_ID)).thenReturn(1);
         when(normalizedProfileJobOfferRepository.findMaxValidatedAtByOfferId(OFFER_ID))
                 .thenReturn(LocalDateTime.now().minusDays(1));
-        when(normalizedProfileJobOfferRepository.findLatestByOfferId(any(), any(PageRequest.class)))
-                .thenReturn(List.of(NormalizedProfile.builder().id(latestId).version(1).build()));
-        when(normalizationJobRepository.findById(latestId)).thenReturn(Optional.of(
-                NormalizationJob.builder().id(latestId).status(NormalizationJobStatus.PENDING)
-                        .sourceType(NormalizationSourceType.OFFER).build()));
+        stubLatestAnalysis(NormalizationJobStatus.PENDING, false);
 
         service.onValidated(OFFER_ID);
 
@@ -139,14 +131,9 @@ class JobOfferNormalizationServiceTest {
         // Double-clic / re-POST sans édition : rien à normaliser.
         LocalDateTime validatedAt = LocalDateTime.now().minusHours(1);
         stubOffer(validatedAt.minusMinutes(5));
-        UUID latestId = UUID.randomUUID();
         when(normalizedProfileJobOfferRepository.findMaxValidatedAtByOfferId(OFFER_ID))
                 .thenReturn(validatedAt);
-        when(normalizedProfileJobOfferRepository.findLatestByOfferId(any(), any(PageRequest.class)))
-                .thenReturn(List.of(NormalizedProfile.builder().id(latestId).version(1).build()));
-        when(normalizationJobRepository.findById(latestId)).thenReturn(Optional.of(
-                NormalizationJob.builder().id(latestId).status(NormalizationJobStatus.PENDING)
-                        .sourceType(NormalizationSourceType.OFFER).build()));
+        stubLatestAnalysis(NormalizationJobStatus.PENDING, false);
 
         service.onValidated(OFFER_ID);
 
@@ -158,14 +145,9 @@ class JobOfferNormalizationServiceTest {
     void onValidatedEstNoOpQuandRienNaChangeDepuisDone() {
         LocalDateTime validatedAt = LocalDateTime.now().minusHours(1);
         stubOffer(validatedAt.minusMinutes(5));
-        UUID latestId = UUID.randomUUID();
         when(normalizedProfileJobOfferRepository.findMaxValidatedAtByOfferId(OFFER_ID))
                 .thenReturn(validatedAt);
-        when(normalizedProfileJobOfferRepository.findLatestByOfferId(any(), any(PageRequest.class)))
-                .thenReturn(List.of(NormalizedProfile.builder().id(latestId).version(1).build()));
-        when(normalizationJobRepository.findById(latestId)).thenReturn(Optional.of(
-                NormalizationJob.builder().id(latestId).status(NormalizationJobStatus.DONE)
-                        .sourceType(NormalizationSourceType.OFFER).build()));
+        stubLatestAnalysis(NormalizationJobStatus.DONE, true);
 
         service.onValidated(OFFER_ID);
 
@@ -176,14 +158,9 @@ class JobOfferNormalizationServiceTest {
     void onValidatedRelanceQuandLeDernierJobEstFailed() {
         LocalDateTime validatedAt = LocalDateTime.now().minusHours(1);
         stubOffer(validatedAt.minusMinutes(5));
-        UUID latestId = UUID.randomUUID();
         when(normalizedProfileJobOfferRepository.findMaxValidatedAtByOfferId(OFFER_ID))
                 .thenReturn(validatedAt);
-        when(normalizedProfileJobOfferRepository.findLatestByOfferId(any(), any(PageRequest.class)))
-                .thenReturn(List.of(NormalizedProfile.builder().id(latestId).version(1).build()));
-        when(normalizationJobRepository.findById(latestId)).thenReturn(Optional.of(
-                NormalizationJob.builder().id(latestId).status(NormalizationJobStatus.FAILED)
-                        .sourceType(NormalizationSourceType.OFFER).build()));
+        stubLatestAnalysis(NormalizationJobStatus.FAILED, false);
 
         service.onValidated(OFFER_ID);
 
@@ -252,7 +229,6 @@ class JobOfferNormalizationServiceTest {
         service.onValidated(OFFER_ID);
 
         verify(normalizedProfileRepository, never()).save(any());
-        verify(normalizedProfileJobOfferRepository, never()).findCurrentSheetSchemaVersions(any());
     }
 
     @Test
@@ -316,8 +292,6 @@ class JobOfferNormalizationServiceTest {
         published.setStatus(JobOfferStatus.PUBLISHED);
         when(jobOfferRepository.findByIdForUpdate(OFFER_ID)).thenReturn(Optional.of(published));
         when(normalizedProfileJobOfferRepository.findMaxVersionByOfferId(OFFER_ID)).thenReturn(null);
-        when(normalizedProfileJobOfferRepository.findLatestByOfferId(any(), any(PageRequest.class)))
-                .thenReturn(List.of());
 
         service.onValidated(OFFER_ID);
 
@@ -338,8 +312,6 @@ class JobOfferNormalizationServiceTest {
         JobOffer closed = offer(LocalDateTime.now());
         closed.setStatus(JobOfferStatus.CLOSED);
         when(jobOfferRepository.findByIdForUpdate(OFFER_ID)).thenReturn(Optional.of(closed));
-        when(normalizedProfileJobOfferRepository.findLatestByOfferId(any(), any(PageRequest.class)))
-                .thenReturn(List.of());
 
         service.onValidated(OFFER_ID);
 
@@ -347,16 +319,122 @@ class JobOfferNormalizationServiceTest {
         verify(eventPublisher, never()).publishEvent(any());
     }
 
+    // --- D90 : dernière analyse inexploitable ---------------------------------
+
+    private JobOffer stubPublishedOffer() {
+        JobOffer published = offer(LocalDateTime.now());
+        published.setStatus(JobOfferStatus.PUBLISHED);
+        when(jobOfferRepository.findByIdForUpdate(OFFER_ID)).thenReturn(Optional.of(published));
+        return published;
+    }
+
+    @Test
+    void onValidatedRepareUneOffrePublieeDontLeJobEstDoneSansContenu() {
+        JobOffer published = stubPublishedOffer();
+        stubLatestAnalysis(NormalizationJobStatus.DONE, false);
+        when(normalizedProfileJobOfferRepository.findMaxVersionByOfferId(OFFER_ID)).thenReturn(1);
+
+        service.onValidated(OFFER_ID);
+
+        org.mockito.ArgumentCaptor<NormalizedProfile> profile = org.mockito.ArgumentCaptor.forClass(NormalizedProfile.class);
+        verify(normalizedProfileRepository).save(profile.capture());
+        assertThat(profile.getValue().getVersion()).isEqualTo(2);
+        org.mockito.ArgumentCaptor<NormalizationJob> job = org.mockito.ArgumentCaptor.forClass(NormalizationJob.class);
+        verify(normalizationJobRepository).save(job.capture());
+        assertThat(job.getValue().getStatus()).isEqualTo(NormalizationJobStatus.PENDING);
+        verify(eventPublisher).publishEvent(any(JobOfferValidatedEvent.class));
+        assertThat(published.getStatus()).isEqualTo(JobOfferStatus.PUBLISHED);
+    }
+
+    @Test
+    void onValidatedRepareUneVersionRecenteInexploitableMemeAvecUneAncienneFicheValide() {
+        // v1 valide (référence, schéma courant) ; v2 = DONE sans contenu : la référence ne masque plus v2.
+        stubPublishedOffer();
+        stubLatestAnalysis(NormalizationJobStatus.DONE, false);
+        stubReferenceSheet("2");
+        when(normalizedProfileJobOfferRepository.findMaxVersionByOfferId(OFFER_ID)).thenReturn(2);
+
+        service.onValidated(OFFER_ID);
+
+        org.mockito.ArgumentCaptor<NormalizedProfile> profile = org.mockito.ArgumentCaptor.forClass(NormalizedProfile.class);
+        verify(normalizedProfileRepository).save(profile.capture());
+        assertThat(profile.getValue().getVersion()).isEqualTo(3);
+    }
+
+    @Test
+    void onValidatedRepareUnJobSupersedeOuAbsentSansContenu() {
+        for (NormalizationJobStatus status : new NormalizationJobStatus[] {NormalizationJobStatus.SUPERSEDED, null}) {
+            org.mockito.Mockito.reset(normalizedProfileRepository, normalizedProfileJobOfferRepository);
+            stubPublishedOffer();
+            stubLatestAnalysis(status, false);
+
+            service.onValidated(OFFER_ID);
+
+            verify(normalizedProfileRepository).save(any());
+        }
+    }
+
+    @Test
+    void onValidatedNeRepareJamaisUneAnalyseEnCoursMemeSansContenu() {
+        for (NormalizationJobStatus status : new NormalizationJobStatus[] {
+                NormalizationJobStatus.PENDING, NormalizationJobStatus.RUNNING}) {
+            stubPublishedOffer();
+            stubLatestAnalysis(status, false);
+
+            service.onValidated(OFFER_ID);
+        }
+
+        verify(normalizedProfileRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void onValidatedNeRepareQueLesOffresPublieesPourUneAnalyseInexploitable() {
+        // « Analyse inexploitable » (D90) ne vise que PUBLISHED : une offre VALIDATED propre garde ses
+        // déclencheurs existants (dirty-flag, schéma périmé, échec) — aucun n'est vrai ici.
+        stubCleanOfferWithLatestJob(NormalizationJobStatus.DONE);
+        stubLatestAnalysis(NormalizationJobStatus.DONE, false);
+
+        service.onValidated(OFFER_ID);
+
+        verify(normalizedProfileRepository, never()).save(any());
+    }
+
+    @Test
+    void analysisStatesAssembleLaDerniereVersionEtLeSchemaDeReference() {
+        UUID done = UUID.randomUUID();
+        UUID corrupted = UUID.randomUUID();
+        UUID stale = UUID.randomUUID();
+        UUID noVersion = UUID.randomUUID();
+        when(normalizedProfileJobOfferRepository.findLatestAnalyses(any())).thenReturn(List.of(
+                new Object[] {done, NormalizationJobStatus.DONE, true},
+                new Object[] {corrupted, NormalizationJobStatus.DONE, false},
+                new Object[] {stale, NormalizationJobStatus.PENDING, true}));
+        when(normalizedProfileJobOfferRepository.findCurrentSheetSchemaVersions(any())).thenReturn(List.of(
+                new Object[] {done, "2"},
+                new Object[] {corrupted, "2"},
+                new Object[] {stale, "1"}));
+
+        var states = service.analysisStates(List.of(done, corrupted, stale, noVersion));
+
+        assertThat(states.get(done)).isEqualTo(new OfferAnalysisState(true, NormalizationJobStatus.DONE, true, false));
+        assertThat(states.get(corrupted).unusable()).isTrue();
+        assertThat(states.get(stale).staleSchema()).isTrue();
+        assertThat(states).doesNotContainKey(noVersion);
+    }
+
+    @Test
+    void analysisStatesNInterrogePasLaBaseSansOffre() {
+        assertThat(service.analysisStates(List.of())).isEmpty();
+
+        verify(normalizedProfileJobOfferRepository, never()).findLatestAnalyses(any());
+    }
+
     private void stubCleanOfferWithLatestJob(NormalizationJobStatus status) {
         LocalDateTime validatedAt = LocalDateTime.now().minusHours(1);
         stubOffer(validatedAt.minusMinutes(5));
-        UUID latestId = UUID.randomUUID();
         when(normalizedProfileJobOfferRepository.findMaxValidatedAtByOfferId(OFFER_ID)).thenReturn(validatedAt);
-        when(normalizedProfileJobOfferRepository.findLatestByOfferId(any(), any(PageRequest.class)))
-                .thenReturn(List.of(NormalizedProfile.builder().id(latestId).version(1).build()));
-        when(normalizationJobRepository.findById(latestId)).thenReturn(Optional.of(
-                NormalizationJob.builder().id(latestId).status(status)
-                        .sourceType(NormalizationSourceType.OFFER).build()));
+        stubLatestAnalysis(status, true);
     }
 
     private void stubReferenceSheet(String schemaVersion) {

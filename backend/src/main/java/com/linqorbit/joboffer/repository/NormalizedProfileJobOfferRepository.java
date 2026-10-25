@@ -112,4 +112,24 @@ public interface NormalizedProfileJobOfferRepository
                                  and npo2.jobOfferId = npo.jobOfferId)
               and npo.jobOfferId in :offerIds""")
     List<Object[]> findLatestJobStatuses(List<UUID> offerIds);
+
+    /**
+     * Dernière version de chaque offre : statut de son job (NULL si la ligne
+     * de job manque) et présence de son contenu — jamais le JSON lui-même.
+     * Une offre sans version n'a pas de ligne. Source de
+     * {@code OfferAnalysisState} : une seule requête pour une liste.
+     * Ligne = [jobOfferId, status|null, hasContent].
+     */
+    @Query("""
+            select npo.jobOfferId, j.status,
+                   case when np.content is null then false else true end
+            from NormalizedProfile np
+            join NormalizedProfileJobOffer npo on npo.normalizedProfileId = np.id
+            left join NormalizationJob j on j.id = np.id
+            where np.version = (select max(np2.version)
+                               from NormalizedProfile np2, NormalizedProfileJobOffer npo2
+                               where npo2.normalizedProfileId = np2.id
+                                 and npo2.jobOfferId = npo.jobOfferId)
+              and npo.jobOfferId in :offerIds""")
+    List<Object[]> findLatestAnalyses(List<UUID> offerIds);
 }

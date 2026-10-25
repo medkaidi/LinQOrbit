@@ -152,8 +152,12 @@ public interface JobOfferApi {
             summary = "Rafraîchir l'analyse d'une offre publiée",
             description = "Owner ou créateur ; PUBLISHED uniquement, sans changement "
                     + "de cycle de vie. Crée une nouvelle version de fiche normalisée si "
-                    + "l'analyse est obsolète, en échec ou absente ; dans ce dernier cas, la fiche "
-                    + "manquante est créée. No-op si l'analyse est à jour ou déjà en cours.")
+                    + "l'analyse est obsolète, en échec (FAILED) ou inexploitable : aucune fiche, ou "
+                    + "dernière version au job DONE ou SUPERSEDED sans contenu, ou sans ligne de job "
+                    + "et sans contenu (FAILED n'en fait pas partie : il garde son propre signal et "
+                    + "sa relance). Une fiche valide plus ancienne reste la référence jusqu'à la "
+                    + "réussite de la nouvelle analyse. No-op si l'analyse est à jour ou déjà en "
+                    + "cours (PENDING/RUNNING).")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Analyse rafraîchie, fiche manquante créée ou déjà à jour"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),

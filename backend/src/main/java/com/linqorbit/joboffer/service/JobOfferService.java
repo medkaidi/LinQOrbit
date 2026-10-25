@@ -38,7 +38,6 @@ import com.linqorbit.application.repository.ApplicationRepository;
 import com.linqorbit.candidate.entity.Degree;
 import com.linqorbit.common.pagination.PageSizes;
 import com.linqorbit.candidate.entity.Language;
-import com.linqorbit.candidate.entity.NormalizationJobStatus;
 import com.linqorbit.candidate.entity.Skill;
 import com.linqorbit.candidate.entity.StudyField;
 import com.linqorbit.candidate.repository.DegreeRepository;
@@ -100,7 +99,6 @@ import com.linqorbit.joboffer.repository.JobOfferSearch;
 import com.linqorbit.joboffer.repository.JobOfferSearchRepository;
 import com.linqorbit.joboffer.repository.JobOfferSkillRepository;
 import com.linqorbit.joboffer.repository.JobOfferStudyFieldRepository;
-import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.repository.WorkModeRepository;
 import com.linqorbit.recruiter.exception.RecruiterNotFoundException;
 import com.linqorbit.recruiter.repository.RecruiterRepository;
@@ -142,7 +140,6 @@ public class JobOfferService {
     private final ContractTypeRepository contractTypeRepository;
     private final EmploymentTypeRepository employmentTypeRepository;
     private final WorkModeRepository workModeRepository;
-    private final NormalizedProfileJobOfferRepository normalizedProfileJobOfferRepository;
     private final JobOfferNormalizationService jobOfferNormalizationService;
     private final ApplicationRepository applicationRepository;
     private final ScreeningJobService screeningJobService;
@@ -1032,8 +1029,7 @@ public class JobOfferService {
         }
         List<UUID> offerIds = offers.stream().map(JobOffer::getId).toList();
         Set<UUID> withSkills = new LinkedHashSet<>(jobOfferSkillRepository.findOfferIdsWithSkills(offerIds));
-        Map<UUID, NormalizationJobStatus> latestStatuses = latestJobStatuses(offerIds);
-        Set<UUID> outdated = jobOfferNormalizationService.findOutdatedOfferIds(offerIds);
+        Map<UUID, OfferAnalysisState> analyses = jobOfferNormalizationService.analysisStates(offerIds);
         Map<UUID, Integer> applicationCounts = applicationCounts(offerIds);
         Map<UUID, ScreeningSignal> screenings = screeningSignals.forOffers(offerIds);
 
@@ -1061,9 +1057,9 @@ public class JobOfferService {
                                  && offer.getValidatedAt() != null
                                  && offer.getUpdatedAt() != null
                                  && offer.getUpdatedAt().isAfter(offer.getValidatedAt()),
-                        isInProgress(latestStatuses.get(offer.getId())),
-                        latestStatuses.get(offer.getId()) == NormalizationJobStatus.FAILED,
-                        isAnalysisOutdated(offer, outdated, latestStatuses),
+                        analysisOf(analyses, offer).inProgress(),
+                        analysisOf(analyses, offer).failed(),
+                        analysisOf(analyses, offer).outdated(offer.getStatus()),
                         screenings.get(offer.getId()),
                         offer.getDescription() != null
                                 && offer.getCountry() != null
@@ -1124,8 +1120,7 @@ public class JobOfferService {
         Map<UUID, List<JobOfferQuestion>> questionsByOffer = groupBy(questions, JobOfferQuestion::getJobOfferId);
         Map<UUID, List<JobOfferQuestionOption>> optionsByQuestion = groupBy(questionOptions,
                 JobOfferQuestionOption::getQuestionId);
-        Map<UUID, NormalizationJobStatus> latestStatuses = latestJobStatuses(offerIds);
-        Set<UUID> outdated = jobOfferNormalizationService.findOutdatedOfferIds(offerIds);
+        Map<UUID, OfferAnalysisState> analyses = jobOfferNormalizationService.analysisStates(offerIds);
         Map<UUID, ScreeningSignal> screenings = screeningSignals.forOffers(offerIds);
 
         return offers.stream()
@@ -1161,9 +1156,9 @@ public class JobOfferService {
                                  && offer.getValidatedAt() != null
                                  && offer.getUpdatedAt() != null
                                  && offer.getUpdatedAt().isAfter(offer.getValidatedAt()),
-                         isInProgress(latestStatuses.get(offer.getId())),
-                         latestStatuses.get(offer.getId()) == NormalizationJobStatus.FAILED,
-                         isAnalysisOutdated(offer, outdated, latestStatuses),
+                         analysisOf(analyses, offer).inProgress(),
+                         analysisOf(analyses, offer).failed(),
+                         analysisOf(analyses, offer).outdated(offer.getStatus()),
                          screenings.get(offer.getId()),
                         skillsByOffer.getOrDefault(offer.getId(), List.of()).stream()
                                 .map(skill -> new JobOfferSkillOption(
@@ -1375,33 +1370,12 @@ public class JobOfferService {
     }
 
     /**
-     * Statut du job de la dernière version de chaque offre, en une seule
-     * requête (pas de N+1 sur les signaux d'affichage de la liste).
+     * Instantané d'analyse de l'offre — les trois signaux d'affichage
+     * (en cours, en échec, à rafraîchir) en dérivent, comme la décision de
+     * {@code revalidate} (D90) ; offre sans version = {@link OfferAnalysisState#NONE}.
      */
-    private Map<UUID, NormalizationJobStatus> latestJobStatuses(List<UUID> offerIds) {
-        if (offerIds.isEmpty()) {
-            return Map.of();
-        }
-        Map<UUID, NormalizationJobStatus> statuses = new HashMap<>();
-        for (Object[] row : normalizedProfileJobOfferRepository.findLatestJobStatuses(offerIds)) {
-            statuses.put((UUID) row[0], (NormalizationJobStatus) row[1]);
-        }
-        return statuses;
-    }
-
-    /**
-     * Signal {@code analysisOutdated} : fiche de référence sur une version de
-     * schéma périmée, ou offre PUBLISHED sans aucune fiche (D90) — le
-     * recruteur peut alors la générer par {@code revalidate}.
-     */
-    private static boolean isAnalysisOutdated(JobOffer offer, Set<UUID> outdated,
-            Map<UUID, NormalizationJobStatus> latestStatuses) {
-        return outdated.contains(offer.getId())
-                || (offer.getStatus() == JobOfferStatus.PUBLISHED && latestStatuses.get(offer.getId()) == null);
-    }
-
-    private static boolean isInProgress(NormalizationJobStatus status) {
-        return status == NormalizationJobStatus.PENDING || status == NormalizationJobStatus.RUNNING;
+    private static OfferAnalysisState analysisOf(Map<UUID, OfferAnalysisState> analyses, JobOffer offer) {
+        return analyses.getOrDefault(offer.getId(), OfferAnalysisState.NONE);
     }
 
     private static String skillName(Map<UUID, Skill> skills, UUID id) {

@@ -13,9 +13,13 @@ import com.linqorbit.screening.dto.ScreeningSignal;
  * ne sont servies que par la fiche détail ({@link JobOfferResponse}).
  * {@code readyToPublish} porte le gate de complétude frontend (description,
  * pays, type d'emploi, au moins un skill) sans exposer la description.
- * {@code analysisOutdated} : signal unifié « analyse à rafraîchir » — fiche de
- * référence absente ou version de schéma périmée (D63, D90), même signal que
- * la fiche détail.
+ * {@code analysisOutdated} : signal unifié « analyse à rafraîchir » — version
+ * de schéma périmée (D63) ou, sur une offre PUBLISHED, dernière analyse
+ * inexploitable (D90, {@code OfferAnalysisState}) : aucune fiche, ou dernière
+ * version au job {@code DONE} ou {@code SUPERSEDED} sans contenu, ou sans
+ * ligne de job et sans contenu. {@code FAILED} n'en fait pas partie : il
+ * conserve uniquement {@code normalizationFailed} et sa relance. Même signal
+ * que la fiche détail et que la décision de {@code /revalidate}.
  */
 public record JobOfferListItem(
         UUID id,

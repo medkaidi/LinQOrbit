@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,6 +32,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import com.linqorbit.application.repository.ApplicationRepository;
+import com.linqorbit.candidate.entity.NormalizationJobStatus;
 import com.linqorbit.candidate.entity.Skill;
 import com.linqorbit.candidate.repository.DegreeRepository;
 import com.linqorbit.candidate.repository.LanguageRepository;
@@ -81,7 +83,6 @@ import com.linqorbit.joboffer.repository.JobOfferSearch;
 import com.linqorbit.joboffer.repository.JobOfferSearchRepository;
 import com.linqorbit.joboffer.repository.JobOfferSkillRepository;
 import com.linqorbit.joboffer.repository.JobOfferStudyFieldRepository;
-import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.repository.WorkModeRepository;
 import com.linqorbit.recruiter.exception.RecruiterNotFoundException;
 import com.linqorbit.recruiter.repository.RecruiterRepository;
@@ -163,7 +164,6 @@ class JobOfferServiceTest {
                 companyMemberRepository,
                 companyRepository, recruiterRepository, skillRepository, languageRepository, degreeRepository,
                 studyFieldRepository, contractTypeRepository, employmentTypeRepository, workModeRepository,
-                mock(NormalizedProfileJobOfferRepository.class),
                 jobOfferNormalizationService,
                 mock(ApplicationRepository.class),
                 screeningJobService,
@@ -610,6 +610,67 @@ class JobOfferServiceTest {
     void getSignaleObsoleteUneOffrePublieeSansFiche() {
         stubManagement(publishedOffer(), RECRUITER_ID, false);
 
+        assertThat(jobOfferService.get(RECRUITER_ID, OFFER_ID).analysisOutdated()).isTrue();
+    }
+
+    /** Les états d'analyse qui couvrent la règle D90 : tous passent par la même {@code OfferAnalysisState}. */
+    private static List<OfferAnalysisState> analysisCases() {
+        return List.of(
+                OfferAnalysisState.NONE,
+                new OfferAnalysisState(true, NormalizationJobStatus.DONE, false, false),
+                new OfferAnalysisState(true, NormalizationJobStatus.DONE, false, true),
+                new OfferAnalysisState(true, NormalizationJobStatus.SUPERSEDED, false, false),
+                new OfferAnalysisState(true, null, false, false),
+                new OfferAnalysisState(true, NormalizationJobStatus.DONE, true, false),
+                new OfferAnalysisState(true, NormalizationJobStatus.DONE, true, true),
+                new OfferAnalysisState(true, NormalizationJobStatus.PENDING, false, false),
+                new OfferAnalysisState(true, NormalizationJobStatus.RUNNING, false, false),
+                new OfferAnalysisState(true, NormalizationJobStatus.FAILED, false, false));
+    }
+
+    @Test
+    void listeEtDetailExposentLeSignalDeLaMemeAnalyseQueLaDecisionDeReparation() {
+        for (OfferAnalysisState state : analysisCases()) {
+            stubRecruiter(true);
+            stubMembership(RECRUITER_ID, false);
+            JobOffer offer = publishedOffer();
+            when(jobOfferSearchRepository.search(any(JobOfferSearch.class), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(offer), PageRequest.of(0, 20), 1));
+            when(jobOfferNormalizationService.analysisStates(any()))
+                    .thenReturn(Map.of(OFFER_ID, state));
+            stubManagement(offer, RECRUITER_ID, false);
+
+            JobOfferListItem listed = jobOfferService.listMine(RECRUITER_ID, null, null, null).items().get(0);
+            JobOfferResponse detail = jobOfferService.get(RECRUITER_ID, OFFER_ID);
+
+            String as = String.valueOf(state);
+            assertThat(listed.analysisOutdated()).as(as).isEqualTo(state.outdated(JobOfferStatus.PUBLISHED));
+            assertThat(detail.analysisOutdated()).as(as).isEqualTo(listed.analysisOutdated());
+            assertThat(listed.normalizationInProgress()).as(as).isEqualTo(state.inProgress());
+            assertThat(detail.normalizationInProgress()).as(as).isEqualTo(state.inProgress());
+            assertThat(listed.normalizationFailed()).as(as).isEqualTo(state.failed());
+            assertThat(detail.normalizationFailed()).as(as).isEqualTo(state.failed());
+            // Une analyse en cours n'est jamais « à rafraîchir » pour cause d'analyse inexploitable.
+            if (state.inProgress() && !state.staleSchema()) {
+                assertThat(listed.analysisOutdated()).as(as).isFalse();
+            }
+        }
+    }
+
+    @Test
+    void listeEtDetailSignalentObsoleteUneOffrePublieeDontLaDerniereAnalyseEstSansContenu() {
+        stubRecruiter(true);
+        stubMembership(RECRUITER_ID, false);
+        JobOffer offer = publishedOffer();
+        when(jobOfferSearchRepository.search(any(JobOfferSearch.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(offer), PageRequest.of(0, 20), 1));
+        stubManagement(offer, RECRUITER_ID, false);
+        // v2 = job DONE sans contenu, v1 valide au schéma courant (staleSchema=false) : la référence valide ne masque pas v2.
+        when(jobOfferNormalizationService.analysisStates(any())).thenReturn(Map.of(OFFER_ID,
+                new OfferAnalysisState(true, NormalizationJobStatus.DONE, false, false)));
+
+        assertThat(jobOfferService.listMine(RECRUITER_ID, null, null, null).items().get(0).analysisOutdated())
+                .isTrue();
         assertThat(jobOfferService.get(RECRUITER_ID, OFFER_ID).analysisOutdated()).isTrue();
     }
 
