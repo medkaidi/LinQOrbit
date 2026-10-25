@@ -197,6 +197,8 @@ class MatchingIntegrationTest {
                     DELETE FROM normalization_job j
                     USING normalized_profile_job_offer npo
                     WHERE npo.normalized_profile_id = j.job_id AND npo.job_offer_id = ?""", offerId);
+            // La publication crée un job de screening (FK vers la fiche, T-101) : à retirer avant les fiches.
+            jdbcTemplate.update("DELETE FROM screening_job WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("DELETE FROM normalized_profile_job_offer WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("DELETE FROM job_offer_skill WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("DELETE FROM job_offer_question WHERE job_offer_id = ?", offerId);
@@ -377,6 +379,46 @@ class MatchingIntegrationTest {
                 jobId)).isNull();
         verify(matchingClarifyClient, never()).clarify(any());
         assertThat(count("SELECT count(*) FROM clarification WHERE matching_id = ?", matchingId)).isZero();
+    }
+
+    @Test
+    void uneFicheOffreSansAucunCritereEchoueDEmbleeSansRetryNiAppelIA() throws Exception {
+        Scenario scenario = readyScenario(null);
+        useOfferSheet(scenario.offerId(), "{\"schemaVersion\": \"2\"}");
+        UUID matchingId = UUID.fromString(json(start(scenario.candidateJwt(), scenario.publicId())
+                .andExpect(status().isOk()).andReturn()).get("matchingId").asText());
+        UUID jobId = latestJobId(matchingId);
+
+        matchingWorker.executeJob(jobId);
+
+        // Une seule exécution : FAILED d'emblée, jamais replanifié, l'IA n'est pas appelée.
+        assertThat(jobStatus(jobId)).isEqualTo(MatchingJobStatus.FAILED);
+        assertThat(attempts(jobId)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT error FROM matching_job WHERE job_id = ?", String.class, jobId))
+                .contains("no criterion to score");
+        verify(matchingAnalyzeClient, never()).analyze(any());
+        verify(matchingClarifyClient, never()).clarify(any());
+        // Le candidat voit l'échec générique : rien de la fiche de l'offre ne sort.
+        String body = current(scenario.candidateJwt(), scenario.publicId())
+                .andExpect(jsonPath("$.status").value("failed"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("criterion").doesNotContain("sheet");
+    }
+
+    @Test
+    void uneFicheOffreAuxEntreesSansNomNeDonneAucunCritereNonPlus() throws Exception {
+        Scenario scenario = readyScenario(null);
+        useOfferSheet(scenario.offerId(), "{\"schemaVersion\": \"2\", \"requiredSkills\": [{\"name\": \"  \"}, {}],"
+                + " \"languages\": [{}], \"certifications\": [{}]}");
+        UUID matchingId = UUID.fromString(json(start(scenario.candidateJwt(), scenario.publicId())
+                .andExpect(status().isOk()).andReturn()).get("matchingId").asText());
+        UUID jobId = latestJobId(matchingId);
+
+        matchingWorker.executeJob(jobId);
+
+        assertThat(jobStatus(jobId)).isEqualTo(MatchingJobStatus.FAILED);
+        assertThat(attempts(jobId)).isEqualTo(1);
+        verify(matchingAnalyzeClient, never()).analyze(any());
     }
 
     // --- Clarifications IA (T-62, D52) ---------------------------------------

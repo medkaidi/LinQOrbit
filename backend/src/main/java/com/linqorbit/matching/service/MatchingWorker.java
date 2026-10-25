@@ -48,6 +48,7 @@ import com.linqorbit.matching.entity.MatchingJob;
 import com.linqorbit.matching.entity.MatchingJobStatus;
 import com.linqorbit.matching.entity.MatchingResult;
 import com.linqorbit.matching.exception.InvalidMatchingAnalysisException;
+import com.linqorbit.matching.exception.OfferWithoutCriteriaException;
 import com.linqorbit.matching.repository.ClarificationRepository;
 import com.linqorbit.matching.repository.MatchingJobRepository;
 import com.linqorbit.matching.repository.MatchingRepository;
@@ -206,6 +207,11 @@ public class MatchingWorker {
                 log.warn("Matching analysis failed : jobId={}, status={}, detail={}",
                         job.getId(), ex.getStatus(), ex.getMessage());
                 retryOrFail(job, ex.getMessage());
+            } catch (OfferWithoutCriteriaException ex) {
+                // La fiche de l'offre ne changera pas : un nouvel essai donnerait le même résultat.
+                log.warn("Matching impossible, offer sheet without criterion : jobId={}, detail={}", job.getId(),
+                        ex.getMessage());
+                failWithoutRetry(job, ex.getMessage());
             } catch (InvalidMatchingAnalysisException ex) {
                 log.warn("Matching analysis unusable : jobId={}, detail={}", job.getId(), ex.getMessage());
                 retryOrFail(job, ex.getMessage());
@@ -247,7 +253,7 @@ public class MatchingWorker {
         JsonNode offer = sheetContent(result.getJobOfferNormalizedProfileId());
         List<MatchingCriterion> criteria = matchingCriteriaBuilder.build(offer);
         if (criteria.isEmpty()) {
-            throw new InvalidMatchingAnalysisException("The offer sheet has no criterion to score");
+            throw new OfferWithoutCriteriaException("The offer sheet has no criterion to score");
         }
         List<MatchingCriterionPayload> payload = criteria.stream()
                 .map(criterion -> new MatchingCriterionPayload(criterion.key(), criterion.section().getStorageValue(),
@@ -430,13 +436,7 @@ public class MatchingWorker {
         int attempts = job.getAttempts() + 1;
         LocalDateTime now = LocalDateTime.now();
         if (attempts >= MAX_ATTEMPTS) {
-            Integer failed = transactionTemplate.execute(txStatus ->
-                    matchingJobRepository.casFail(job.getId(), MatchingJobStatus.RUNNING, MatchingJobStatus.FAILED,
-                            attempts, now, error));
-            if (failed != null && failed == 1) {
-                log.warn("Matching abandoned after {} attempts : jobId={}, error={}", attempts, job.getId(), error);
-            }
-            publishIfApplied(failed, job.getId(), MatchingJobStatus.FAILED);
+            fail(job, attempts, error);
             return;
         }
         LocalDateTime nextAttemptAt = now.plusSeconds(retryDelaySeconds);
@@ -454,6 +454,22 @@ public class MatchingWorker {
             log.warn("Matching retry transition not applied, job already moved : jobId={}, attempt={}",
                     job.getId(), attempts);
         }
+    }
+
+    /** Échec définitif d'emblée (cause déterministe) : FAILED à la première exécution, jamais de replanification. */
+    private void failWithoutRetry(MatchingJob job, String message) {
+        fail(job, job.getAttempts() + 1, truncate(message));
+    }
+
+    /** Transition CAS RUNNING → FAILED puis push du statut réel (rien si le job a déjà été repris ailleurs). */
+    private void fail(MatchingJob job, int attempts, String error) {
+        Integer failed = transactionTemplate.execute(txStatus ->
+                matchingJobRepository.casFail(job.getId(), MatchingJobStatus.RUNNING, MatchingJobStatus.FAILED,
+                        attempts, LocalDateTime.now(), error));
+        if (failed != null && failed == 1) {
+            log.warn("Matching abandoned after {} attempts : jobId={}, error={}", attempts, job.getId(), error);
+        }
+        publishIfApplied(failed, job.getId(), MatchingJobStatus.FAILED);
     }
 
     /**
