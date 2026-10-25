@@ -28,6 +28,7 @@ public final class EmbeddingTestData {
     private final List<UUID> companyIds = new ArrayList<>();
     private final List<UUID> offerIds = new ArrayList<>();
     private final List<UUID> profileIds = new ArrayList<>();
+    private final List<UUID> matchingIds = new ArrayList<>();
 
     public EmbeddingTestData(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -102,6 +103,30 @@ public final class EmbeddingTestData {
         return new OfferFixture(offerId, companyId, recruiterId);
     }
 
+    /** Offre supplémentaire dans une company déjà créée par {@link #offer} (même créateur, titre au choix). */
+    public OfferFixture offerIn(OfferFixture company, int status, LocalDate expiresAt, String title) {
+        UUID offerId = UUID.randomUUID();
+        offerIds.add(offerId);
+        jdbc.update("""
+                INSERT INTO job_offer (id, company_id, recruiter_id, status, title, public_id, slug,
+                                       expires_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'embedding-it-offer', ?, now(), now())""",
+                offerId, company.companyId(), company.creatorId(), status, title,
+                offerId.toString().replace("-", "").substring(0, 12), expiresAt);
+        return new OfferFixture(offerId, company.companyId(), company.creatorId());
+    }
+
+    /** Rattache un recruteur existant à une company (membre non owner). */
+    public void join(UUID recruiterId, UUID companyId) {
+        jdbc.update("INSERT INTO company_members (company_id, recruiter_id, is_owner) VALUES (?, ?, false)",
+                companyId, recruiterId);
+    }
+
+    /** Compte utilisateur sans profil recruteur ni candidat. */
+    public UUID bareUser() {
+        return user("bare");
+    }
+
     /** Autre recruteur de la company (membre ; {@code owner} = owner de la company). */
     public UUID recruiterIn(UUID companyId, boolean owner) {
         UUID recruiterId = user("recruiter");
@@ -123,6 +148,14 @@ public final class EmbeddingTestData {
      * est une pièce jointe de test (nettoyée avec le candidat).
      */
     public void application(UUID candidateId, UUID offerId, int status) {
+        application(candidateId, offerId, status, 0);
+    }
+
+    /**
+     * Idem, transmise il y a {@code submittedDaysAgo} jours : {@code submitted_at} est immuable en base (trigger),
+     * une candidature ancienne s'insère donc telle quelle, jamais par un UPDATE.
+     */
+    public void application(UUID candidateId, UUID offerId, int status, int submittedDaysAgo) {
         UUID attachmentId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO attachment (id, candidate_id, original_name, mime_type, size_bytes, sha256,
@@ -132,8 +165,9 @@ public final class EmbeddingTestData {
         jdbc.update("""
                 INSERT INTO application (id, candidate_id, job_offer_id, cv_attachment_id, status,
                                          created_at, updated_at, submitted_at)
-                VALUES (?, ?, ?, ?, ?, now(), now(), CASE WHEN ? = 1 THEN NULL ELSE now() END)""",
-                UUID.randomUUID(), candidateId, offerId, attachmentId, status, status);
+                VALUES (?, ?, ?, ?, ?, now(), now(),
+                        CASE WHEN ? = 1 THEN NULL ELSE now() - make_interval(days => ?) END)""",
+                UUID.randomUUID(), candidateId, offerId, attachmentId, status, status, submittedDaysAgo);
     }
 
     /** Offre au statut donné, après coup (clôture, expiration…). */
@@ -154,6 +188,64 @@ public final class EmbeddingTestData {
         jdbc.update("INSERT INTO normalized_profile_job_offer (normalized_profile_id, job_offer_id) VALUES (?, ?)",
                 profileId, offerId);
         return profileId;
+    }
+
+    /** Statuts de job (SMALLINT) : 1 PENDING, 2 RUNNING, 3 DONE, 4 FAILED, 5 SUPERSEDED. */
+    public static final int JOB_PENDING = 1;
+    public static final int JOB_DONE = 3;
+    public static final int JOB_FAILED = 4;
+    public static final int JOB_SUPERSEDED = 5;
+
+    /** Job de normalisation de la fiche (clé partagée) ; {@code candidate} dit la source (1 candidat, 2 offre). */
+    public void normalizationJob(UUID profileId, boolean candidate, int status) {
+        jdbc.update("""
+                INSERT INTO normalization_job (job_id, status, attempts, next_attempt_at, created_at, source_type)
+                VALUES (?, ?, 3, now(), now(), ?)""", profileId, status, candidate ? 1 : 2);
+    }
+
+    /** Job d'embedding de la fiche pour le couple donné. */
+    public void embeddingJob(UUID profileId, String model, int status) {
+        jdbc.update("""
+                INSERT INTO embedding_job
+                    (job_id, normalized_profile_id, model_name, model_version, strategy_version, status, attempts,
+                     next_attempt_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 3, now(), now())""",
+                UUID.randomUUID(), profileId, model, MODEL_VERSION, STRATEGY, status);
+    }
+
+    /** Job d'embedding du modèle actif des ITs. */
+    public void embeddingJob(UUID profileId, int status) {
+        embeddingJob(profileId, TEST_MODEL, status);
+    }
+
+    /** Job de screening de la fiche d'offre (nettoyé avec l'offre et la fiche). */
+    public void screeningJob(UUID offerId, UUID offerProfileId, int status) {
+        jdbc.update("""
+                INSERT INTO screening_job
+                    (job_id, job_offer_id, offer_normalized_profile_id, status, attempts, next_attempt_at, created_at)
+                VALUES (?, ?, ?, ?, 3, now(), now())""", UUID.randomUUID(), offerId, offerProfileId, status);
+    }
+
+    /** Matching du couple (fiche candidat donnée) ; les versions s'ajoutent avec {@link #matchingResult}. */
+    public UUID matching(UUID candidateId, UUID offerId, UUID candidateProfileId) {
+        UUID id = UUID.randomUUID();
+        matchingIds.add(id);
+        jdbc.update("""
+                INSERT INTO matching (id, candidate_id, job_offer_id, candidate_normalized_profile_id, created_at,
+                                      updated_at)
+                VALUES (?, ?, ?, ?, now(), now())""", id, candidateId, offerId, candidateProfileId);
+        return id;
+    }
+
+    /** Version {@code version} du matching, avec son job au statut donné. */
+    public void matchingResult(UUID matchingId, int version, UUID offerProfileId, int jobStatus) {
+        UUID resultId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO matching_result (id, matching_id, version, job_offer_normalized_profile_id, created_at)
+                VALUES (?, ?, ?, ?, now())""", resultId, matchingId, version, offerProfileId);
+        jdbc.update("""
+                INSERT INTO matching_job (job_id, status, attempts, next_attempt_at, created_at)
+                VALUES (?, ?, 3, now(), now())""", resultId, jobStatus);
     }
 
     /** Vecteur du couple donné, écrit tel quel (hors du worker). */
@@ -192,6 +284,13 @@ public final class EmbeddingTestData {
     /** Supprime uniquement ce que ce jeu de données a créé (et tout job/vecteur du modèle de test). */
     public void cleanup() {
         cleanupTestModelRows();
+        // Matchings d'abord (jobs, résultats) : ils référencent offres, candidats et fiches.
+        for (UUID matchingId : matchingIds) {
+            jdbc.update("DELETE FROM matching_job WHERE job_id IN (SELECT id FROM matching_result WHERE matching_id = ?)",
+                    matchingId);
+            jdbc.update("DELETE FROM matching_result WHERE matching_id = ?", matchingId);
+            jdbc.update("DELETE FROM matching WHERE id = ?", matchingId);
+        }
         // Candidatures, suggestions et jobs de recherche d'abord : ils référencent offres, candidats et fiches.
         for (UUID offerId : offerIds) {
             jdbc.update("DELETE FROM application WHERE job_offer_id = ?", offerId);
@@ -207,6 +306,7 @@ public final class EmbeddingTestData {
             jdbc.update("DELETE FROM screening_job WHERE offer_normalized_profile_id = ?", profileId);
             jdbc.update("DELETE FROM profile_embedding WHERE normalized_profile_id = ?", profileId);
             jdbc.update("DELETE FROM embedding_job WHERE normalized_profile_id = ?", profileId);
+            jdbc.update("DELETE FROM normalization_job WHERE job_id = ?", profileId);
             jdbc.update("DELETE FROM normalized_profile_candidate WHERE normalized_profile_id = ?", profileId);
             jdbc.update("DELETE FROM normalized_profile_job_offer WHERE normalized_profile_id = ?", profileId);
             jdbc.update("DELETE FROM normalized_profile WHERE normalized_profile_id = ?", profileId);
@@ -223,6 +323,7 @@ public final class EmbeddingTestData {
             jdbc.update("DELETE FROM candidates WHERE id = ?", userId);
             jdbc.update("DELETE FROM users WHERE id = ?", userId);
         }
+        matchingIds.clear();
         profileIds.clear();
         offerIds.clear();
         companyIds.clear();

@@ -1,4 +1,8 @@
-import type { JobOfferLanguageOption, JobOfferSkillOption } from "@/types/recruiter";
+import type {
+  JobOfferLanguageOption,
+  JobOfferSkillOption,
+  SeniorityValue,
+} from "@/types/recruiter";
 
 /**
  * Fiche publique d'une offre publiée (V15) — `GET /api/v1/jobs/{publicId}`.
@@ -54,6 +58,24 @@ export type PublicJobListItem = {
   salaryPeriod: string | null;
   publishedAt: string | null;
   expiresAt: string | null;
+};
+
+/** Tris du job board (T-77) : publication la plus récente (défaut) ou échéance la plus proche. */
+export type PublicJobSort = "recent" | "expiringSoon";
+
+/**
+ * Recherche, filtres et tri facultatifs du job board (T-77), combinés en ET :
+ * une clé absente n'est pas un filtre. `country` = code ISO alpha-2 ; `q`
+ * cherche dans le titre et le nom de la société.
+ */
+export type PublicJobFilters = {
+  q?: string;
+  workModeId?: string;
+  contractTypeId?: string;
+  employmentTypeId?: string;
+  seniority?: SeniorityValue;
+  country?: string;
+  sort?: PublicJobSort;
 };
 
 /** Enveloppe D34 du job board : `size` est la valeur effective appliquée par le backend. */

@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 
 import com.linqorbit.common.security.CurrentUserId;
 import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
+import com.linqorbit.joboffer.dto.JobOfferListFilters;
 import com.linqorbit.joboffer.dto.JobOfferPageResponse;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
@@ -31,8 +32,12 @@ public class JobOfferController implements JobOfferApi {
     }
 
     @Override
-    public ResponseEntity<JobOfferPageResponse> listMine(Integer page, Integer size, Authentication authentication) {
-        return ResponseEntity.ok(jobOfferService.listMine(CurrentUserId.from(authentication), page, size));
+    public ResponseEntity<JobOfferPageResponse> listMine(Integer page, Integer size, String q, String status,
+            UUID workModeId, UUID contractTypeId, UUID employmentTypeId, String seniority, UUID companyId,
+            String expiry, Authentication authentication) {
+        JobOfferListFilters filters = new JobOfferListFilters(q, status, workModeId, contractTypeId,
+                employmentTypeId, seniority, companyId, expiry);
+        return ResponseEntity.ok(jobOfferService.listMine(CurrentUserId.from(authentication), page, size, filters));
     }
 
     @Override

@@ -44,6 +44,7 @@ import com.linqorbit.company.exception.CompanyAccessDeniedException;
 import com.linqorbit.company.exception.CompanyNotFoundException;
 import com.linqorbit.invitation.exception.InvalidInvitationException;
 import com.linqorbit.joboffer.exception.InvalidJobOfferException;
+import com.linqorbit.joboffer.exception.InvalidJobOfferFilterException;
 import com.linqorbit.joboffer.exception.InvalidJobOfferStatusException;
 import com.linqorbit.joboffer.exception.JobOfferAccessDeniedException;
 import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
@@ -342,6 +343,16 @@ public class GlobalExceptionHandler {
         problem.setTitle("Unsupported status filter");
         problem.setDetail("Only draft, validated, published and closed can be used as a status filter.");
         log.warn("Admin offers list rejected : {}", ex.getMessage());
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidJobOfferFilterException.class)
+    public ProblemDetail handleInvalidJobOfferFilter(InvalidJobOfferFilterException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Unsupported filter value");
+        // Nom de paramètre constant : la valeur saisie n'est jamais renvoyée.
+        problem.setDetail("The '" + ex.getFilter() + "' filter has an unsupported value.");
+        log.warn("Job offers list rejected : {}", ex.getMessage());
         return problem;
     }
 

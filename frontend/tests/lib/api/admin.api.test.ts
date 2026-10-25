@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createCriterionReportReview,
+  getAdminDashboard,
   getCriterionReport,
   listAllJobOffers,
   listCriterionReports,
@@ -24,6 +25,15 @@ describe("admin.api", () => {
     mockedGet.mockReset();
     mockedGet.mockResolvedValue({ data: emptyPage });
     mockedPost.mockReset();
+  });
+
+  it("reads the platform figures from the dashboard endpoint, without any parameter", async () => {
+    const dashboard = { liveOffers: 3 };
+    mockedGet.mockResolvedValue({ data: dashboard });
+
+    await expect(getAdminDashboard()).resolves.toBe(dashboard);
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/admin/dashboard");
   });
 
   it("sends only the page when no user filter is set", async () => {
@@ -67,6 +77,58 @@ describe("admin.api", () => {
 
     expect(mockedGet).toHaveBeenCalledWith("/api/v1/admin/job-offers", {
       params: { status: "draft", page: 1 },
+      signal: undefined,
+    });
+  });
+
+  it("sends every offer filter when set, and still never a size", async () => {
+    await listAllJobOffers({
+      page: 2,
+      q: "acme",
+      status: "published",
+      workModeId: "wm1",
+      contractTypeId: "ct1",
+      employmentTypeId: "et1",
+      seniority: "senior",
+      expiry: "expiringSoon",
+    });
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/admin/job-offers", {
+      params: {
+        page: 2,
+        q: "acme",
+        status: "published",
+        workModeId: "wm1",
+        contractTypeId: "ct1",
+        employmentTypeId: "et1",
+        seniority: "senior",
+        expiry: "expiringSoon",
+      },
+      signal: undefined,
+    });
+  });
+
+  it("never sends an empty or undefined offer filter", async () => {
+    await listAllJobOffers({
+      page: 0,
+      q: "",
+      workModeId: "",
+      contractTypeId: undefined,
+      employmentTypeId: "",
+      expiry: undefined,
+    });
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/admin/job-offers", {
+      params: { page: 0 },
+      signal: undefined,
+    });
+  });
+
+  it("does not forward a company: the admin list is never scoped by company", async () => {
+    await listAllJobOffers({ page: 0, companyId: "c1" } as Parameters<typeof listAllJobOffers>[0]);
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/admin/job-offers", {
+      params: { page: 0 },
       signal: undefined,
     });
   });

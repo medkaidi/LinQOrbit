@@ -53,6 +53,7 @@ import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
 import com.linqorbit.joboffer.dto.JobOfferAdminView;
 import com.linqorbit.joboffer.dto.JobOfferLanguageOption;
 import com.linqorbit.joboffer.dto.JobOfferLanguageRequest;
+import com.linqorbit.joboffer.dto.JobOfferListFilters;
 import com.linqorbit.joboffer.dto.JobOfferListItem;
 import com.linqorbit.joboffer.dto.JobOfferPageResponse;
 import com.linqorbit.joboffer.dto.JobOfferQuestionOptionRequest;
@@ -62,6 +63,7 @@ import com.linqorbit.joboffer.dto.JobOfferQuestionView;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.JobOfferSkillOption;
 import com.linqorbit.joboffer.dto.JobOfferSkillRequest;
+import com.linqorbit.joboffer.dto.PublicJobFilters;
 import com.linqorbit.joboffer.dto.PublicJobListItem;
 import com.linqorbit.joboffer.dto.PublicJobPageResponse;
 import com.linqorbit.joboffer.dto.PublicJobResponse;
@@ -82,6 +84,7 @@ import com.linqorbit.joboffer.entity.SalaryPeriod;
 import com.linqorbit.joboffer.entity.Seniority;
 import com.linqorbit.joboffer.entity.WorkMode;
 import com.linqorbit.joboffer.exception.InvalidJobOfferException;
+import com.linqorbit.joboffer.exception.InvalidJobOfferFilterException;
 import com.linqorbit.joboffer.exception.InvalidJobOfferStatusException;
 import com.linqorbit.joboffer.exception.JobOfferAccessDeniedException;
 import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
@@ -93,6 +96,8 @@ import com.linqorbit.joboffer.repository.JobOfferLanguageRepository;
 import com.linqorbit.joboffer.repository.JobOfferQuestionOptionRepository;
 import com.linqorbit.joboffer.repository.JobOfferQuestionRepository;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
+import com.linqorbit.joboffer.repository.JobOfferSearch;
+import com.linqorbit.joboffer.repository.JobOfferSearchRepository;
 import com.linqorbit.joboffer.repository.JobOfferSkillRepository;
 import com.linqorbit.joboffer.repository.JobOfferStudyFieldRepository;
 import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
@@ -120,6 +125,7 @@ public class JobOfferService {
     private static final int RELATED_PUBLIC_JOBS_LIMIT = 3;
 
     private final JobOfferRepository jobOfferRepository;
+    private final JobOfferSearchRepository jobOfferSearchRepository;
     private final JobOfferSkillRepository jobOfferSkillRepository;
     private final JobOfferLanguageRepository jobOfferLanguageRepository;
     private final JobOfferDegreeRepository jobOfferDegreeRepository;
@@ -194,21 +200,75 @@ public class JobOfferService {
      * et les listes enfants ne sortent que par {@link #get}.
      */
     @Transactional(readOnly = true)
-    public JobOfferPageResponse listMine(UUID userId, Integer page, Integer size) {
+    public JobOfferPageResponse listMine(UUID userId, Integer page, Integer size, JobOfferListFilters filters) {
         int safePage = PageSizes.page(page);
         int safeSize = PageSizes.clamp(size);
         requireRecruiter(userId);
+        JobOfferListFilters f = filters == null ? JobOfferListFilters.none() : filters;
+        // Valeurs invalides rejetées avant tout court-circuit : un 400 ne dépend pas du périmètre.
+        JobOfferStatus status = parseStatusFilter(f.status());
+        Seniority seniority = OfferFilterParser.parseSeniority(f.seniority());
+        OfferFilterParser.ExpiryRange expiry = OfferFilterParser.parseExpiry(f.expiry(), LocalDate.now());
         List<UUID> companyIds = companyIdsOf(userId);
-        if (companyIds.isEmpty()) {
+        // Société étrangère ou inconnue : page vide, indiscernable d'une société sans offre.
+        if (companyIds.isEmpty() || (f.companyId() != null && !companyIds.contains(f.companyId()))) {
             return new JobOfferPageResponse(List.of(), safePage, safeSize, 0);
         }
-        Page<JobOffer> result = jobOfferRepository.findByCompanyIdIn(companyIds,
-                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt")));
+        List<UUID> scope = f.companyId() != null ? List.of(f.companyId()) : companyIds;
+        Page<JobOffer> result = jobOfferSearchRepository.search(
+                new JobOfferSearch(scope, status, null, f.workModeId(), f.contractTypeId(), f.employmentTypeId(),
+                        seniority, null, OfferSearchPattern.of(f.q()), false, expiry.from(), expiry.until(),
+                        JobOfferSearch.Order.CREATED_DESC),
+                PageRequest.of(safePage, safeSize));
         List<JobOfferListItem> items = buildListItems(result.getContent());
-        log.info("Job offers listed : recruiterId={}, page={}, size={}, count={}, total={}",
-                userId, safePage, safeSize, items.size(), result.getTotalElements());
+        log.info("Job offers listed : recruiterId={}, page={}, size={}, count={}, total={}, filtered={}",
+                userId, safePage, safeSize, items.size(), result.getTotalElements(), isFiltered(f));
         return new JobOfferPageResponse(items, result.getNumber(), result.getSize(),
                 result.getTotalElements());
+    }
+
+    private static boolean isFiltered(JobOfferListFilters f) {
+        return OfferSearchPattern.of(f.q()) != null || f.status() != null || f.workModeId() != null
+                || f.contractTypeId() != null || f.employmentTypeId() != null || f.seniority() != null
+                || f.companyId() != null || f.expiry() != null;
+    }
+
+    /** Statut en filtre : absent ou blanc = pas de filtre ; trim et casse ignorés ; inconnu = 400. */
+    private static JobOfferStatus parseStatusFilter(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return JobOfferStatus.fromApiValue(value.trim().toLowerCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidJobOfferFilterException("status", value);
+        }
+    }
+
+    /** Délai (en jours) du filtre « échéance proche » — source : {@link OfferFilterParser}. */
+    static final int EXPIRING_SOON_DAYS = OfferFilterParser.EXPIRING_SOON_DAYS;
+
+    /** Pays en filtre : ISO 3166-1 alpha-2 (deux lettres), casse ignorée ; autre forme = 400. */
+    private static String parseCountryFilter(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String country = value.trim();
+        if (country.length() != 2 || !country.chars().allMatch(c -> (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))) {
+            throw new InvalidJobOfferFilterException("country", value);
+        }
+        return country.toUpperCase(Locale.ROOT);
+    }
+
+    private static JobOfferSearch.Order parsePublicSort(String value) {
+        if (value == null || value.isBlank()) {
+            return JobOfferSearch.Order.PUBLISHED_DESC;
+        }
+        return switch (value.trim().toLowerCase(Locale.ROOT)) {
+            case "recent" -> JobOfferSearch.Order.PUBLISHED_DESC;
+            case "expiringsoon" -> JobOfferSearch.Order.EXPIRING_SOON;
+            default -> throw new InvalidJobOfferFilterException("sort", value);
+        };
     }
 
     public JobOfferResponse get(UUID userId, UUID offerId) {
@@ -298,14 +358,23 @@ public class JobOfferService {
      * jamais de N+1.
      */
     @Transactional(readOnly = true)
-    public PublicJobPageResponse listPublic(Integer page) {
+    public PublicJobPageResponse listPublic(Integer page, PublicJobFilters filters) {
         int safePage = PageSizes.page(page);
         int safeSize = PageSizes.clamp(null);
-        Page<JobOffer> result = jobOfferRepository.findPublic(JobOfferStatus.PUBLISHED, LocalDate.now(),
-                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "publishedAt")));
+        PublicJobFilters f = filters == null ? PublicJobFilters.none() : filters;
+        Seniority seniority = OfferFilterParser.parseSeniority(f.seniority());
+        String country = parseCountryFilter(f.country());
+        JobOfferSearch.Order order = parsePublicSort(f.sort());
+        String pattern = OfferSearchPattern.of(f.q());
+        // Les filtres ne s'ajoutent qu'au périmètre public (publiées, non expirées) : ils ne l'élargissent jamais.
+        Page<JobOffer> result = jobOfferSearchRepository.search(
+                new JobOfferSearch(null, JobOfferStatus.PUBLISHED, LocalDate.now(), f.workModeId(),
+                        f.contractTypeId(), f.employmentTypeId(), seniority, country, pattern, true, null, null,
+                        order),
+                PageRequest.of(safePage, safeSize));
         List<PublicJobListItem> items = buildPublicListItems(result.getContent());
-        log.info("Public jobs listed : page={}, size={}, count={}, total={}",
-                safePage, safeSize, items.size(), result.getTotalElements());
+        log.info("Public jobs listed : page={}, size={}, count={}, total={}, hasQuery={}, sort={}",
+                safePage, safeSize, items.size(), result.getTotalElements(), pattern != null, order);
         return new PublicJobPageResponse(items, result.getNumber(), result.getSize(),
                 result.getTotalElements());
     }
@@ -1322,7 +1391,7 @@ public class JobOfferService {
 
     /**
      * Signal {@code analysisOutdated} : fiche de référence sur une version de
-     * schéma périmée, ou offre PUBLISHED sans aucune fiche (T-88) — le
+     * schéma périmée, ou offre PUBLISHED sans aucune fiche (D90) — le
      * recruteur peut alors la générer par {@code revalidate}.
      */
     private static boolean isAnalysisOutdated(JobOffer offer, Set<UUID> outdated,

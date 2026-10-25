@@ -10,7 +10,7 @@ const APPLICATION_STATUS_LABELS: Record<ApplicationStatusValue, string> = {
 };
 
 /** Tons miroirs du motif `OfferStatusPill` (fond doux + point coloré). */
-const STATUS_PILL_TONES: Record<ApplicationStatusValue, StatusPillTone> = {
+export const APPLICATION_STATUS_TONES: Record<ApplicationStatusValue, StatusPillTone> = {
   draft: { pill: "bg-orange-subtle text-orange-deep", dot: "bg-orange-deep" },
   submitted: { pill: "bg-blue-surface text-blue-deep", dot: "bg-blue-deep" },
   withdrawn: { pill: "bg-slate-surface text-text-secondary", dot: "bg-slate-border" },
@@ -20,7 +20,7 @@ const STATUS_PILL_TONES: Record<ApplicationStatusValue, StatusPillTone> = {
 
 /** Pastille de statut d'une candidature — source unique liste / formulaire. */
 export function ApplicationStatusPill({ status }: { status: ApplicationStatusValue }) {
-  return <StatusPill tone={STATUS_PILL_TONES[status]}>{APPLICATION_STATUS_LABELS[status]}</StatusPill>;
+  return <StatusPill tone={APPLICATION_STATUS_TONES[status]}>{APPLICATION_STATUS_LABELS[status]}</StatusPill>;
 }
 
 /** Date de candidature (« Oct 17, 2026 »), null si l'ISO est illisible. */

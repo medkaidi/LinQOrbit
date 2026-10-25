@@ -1,10 +1,11 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryKeys } from "@/hooks/query-keys";
 import {
+  useCandidateDashboard,
   useDiscardApplication,
   useSaveApplicationDraft,
   useSubmitApplication,
@@ -12,6 +13,7 @@ import {
 } from "@/hooks/use-applications";
 import {
   discardApplication,
+  getCandidateDashboard,
   saveApplicationDraft,
   submitApplication,
   withdrawApplication,
@@ -20,6 +22,7 @@ import { buildApplication } from "@/tests/helpers/application-fixtures";
 
 vi.mock("@/lib/api/application.api", () => ({
   getApplicationContext: vi.fn(),
+  getCandidateDashboard: vi.fn(),
   listMyApplications: vi.fn(),
   saveApplicationDraft: vi.fn(),
   submitApplication: vi.fn(),
@@ -31,6 +34,7 @@ const saveMock = vi.mocked(saveApplicationDraft);
 const submitMock = vi.mocked(submitApplication);
 const discardMock = vi.mocked(discardApplication);
 const withdrawMock = vi.mocked(withdrawApplication);
+const dashboardMock = vi.mocked(getCandidateDashboard);
 const PUBLIC_ID = "abcdefghijkl";
 
 function httpError(status: number) {
@@ -179,5 +183,56 @@ describe("use-applications", () => {
     await act(() => result.current.mutateAsync("app-1"));
 
     expect(invalidatedKeys(invalidate)).toEqual([queryKeys.applications.mine]);
+  });
+});
+
+describe("useCandidateDashboard", () => {
+  const emptyDashboard = {
+    applications: { draft: 0, submitted: 0, withdrawn: 0, accepted: 0, rejected: 0 },
+    recentApplications: [],
+    openInvitations: 0,
+    openOffers: 0,
+  };
+
+  beforeEach(() => {
+    dashboardMock.mockReset();
+    withdrawMock.mockReset();
+    saveMock.mockReset();
+    dashboardMock.mockResolvedValue(emptyDashboard);
+  });
+
+  it("is keyed under the applications list, so every write of the flow re-reads the figures", () => {
+    expect(queryKeys.applications.dashboard.slice(0, queryKeys.applications.mine.length)).toEqual([
+      ...queryKeys.applications.mine,
+    ]);
+  });
+
+  it("is refetched after a withdrawal, without any extra invalidation", async () => {
+    const { wrapper } = setup();
+    withdrawMock.mockResolvedValue(undefined);
+    const { result } = renderHook(
+      () => ({ dashboard: useCandidateDashboard(), withdraw: useWithdrawApplication() }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.dashboard.isSuccess).toBe(true));
+    expect(dashboardMock).toHaveBeenCalledTimes(1);
+
+    await act(() => result.current.withdraw.mutateAsync("app-1"));
+
+    await waitFor(() => expect(dashboardMock).toHaveBeenCalledTimes(2));
+  });
+
+  it("is refetched after a draft save too", async () => {
+    const { wrapper } = setup();
+    saveMock.mockResolvedValue(buildApplication({ status: "draft" }));
+    const { result } = renderHook(
+      () => ({ dashboard: useCandidateDashboard(), save: useSaveApplicationDraft() }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.dashboard.isSuccess).toBe(true));
+
+    await act(() => result.current.save.mutateAsync({ jobPublicId: PUBLIC_ID, answers: [] }));
+
+    await waitFor(() => expect(dashboardMock).toHaveBeenCalledTimes(2));
   });
 });

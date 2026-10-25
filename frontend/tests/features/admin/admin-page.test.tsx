@@ -23,6 +23,10 @@ vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
   };
 });
 
+vi.mock("@/components/navigation/user-menu", () => ({
+  UserMenu: () => <div data-testid="user-menu" />,
+}));
+
 import {
   approveSkillSuggestion,
   linkSkillSuggestion,
@@ -32,9 +36,11 @@ import {
   updateUserStatus,
 } from "@/lib/api/admin.api";
 import { getReferenceSkills } from "@/lib/api/candidate.api";
+import { AdminHeader } from "@/components/layout/admin-header";
 import { AdminView } from "@/features/admin/admin-page";
 import { ROLE } from "@/lib/utils/roles";
 import { useAuthStore } from "@/stores/auth-store";
+import { useHeaderSearchStore } from "@/stores/header-search-store";
 import type { AuthUser } from "@/types/auth";
 import type { AdminSkillSuggestion, AdminUser, AdminUserPage } from "@/types/admin";
 import type { SkillReference } from "@/types/candidate";
@@ -106,6 +112,7 @@ function renderAdminView() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
+      <AdminHeader />
       <AdminView />
     </QueryClientProvider>,
   );
@@ -114,10 +121,22 @@ function renderAdminView() {
 describe("AdminView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useHeaderSearchStore.setState({ role: null, query: "" });
     useAuthStore.getState().clearAuth();
     useAuthStore.getState().setAuth({ token: "jwt-token", user: sessionUser });
     mockedListSkillSuggestions.mockResolvedValue([]);
     mockedGetReferenceSkills.mockResolvedValue([catalogSkill]);
+  });
+
+  it("is the Accounts page: its breadcrumb goes back to the Administration overview", async () => {
+    mockedListUsers.mockResolvedValue(usersPage([adminAccount]));
+    renderAdminView();
+
+    expect(screen.getByRole("heading", { level: 1, name: "Accounts & suggestions" })).toBeInTheDocument();
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(breadcrumb).getByRole("link", { name: "Administration" })).toHaveAttribute("href", "/admin");
+    expect(within(breadcrumb).getByText("Accounts")).toBeInTheDocument();
+    await screen.findByText("Platform Admin");
   });
 
   it("lists accounts with status, role badge and marks the current one", async () => {
@@ -192,6 +211,34 @@ describe("AdminView", () => {
     renderAdminView();
 
     expect(await screen.findByText("Loading accounts…")).toBeInTheDocument();
+  });
+
+  it("searches accounts from the header field, not from a field of the page", async () => {
+    mockedListUsers.mockResolvedValue(usersPage([candidateAccount]));
+
+    renderAdminView();
+    await screen.findByText("Ada Lovelace");
+
+    const field = screen.getByRole("textbox", { name: "Search accounts" });
+    expect(field.closest("header")).not.toBeNull();
+    expect(field).toHaveAttribute("placeholder", "Search by name or email");
+    expect(field).toHaveAttribute("maxlength", "100");
+    // Le header porte l'unique champ de recherche ; la page n'a plus que ses deux filtres.
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getByRole("group", { name: "Filter accounts by status" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Filter accounts by capability" })).toBeInTheDocument();
+  });
+
+  it("gives the header search back when the page is left", async () => {
+    mockedListUsers.mockResolvedValue(usersPage([candidateAccount]));
+
+    const { unmount } = renderAdminView();
+    await screen.findByText("Ada Lovelace");
+    expect(useHeaderSearchStore.getState().role?.id).toBe("admin-accounts");
+
+    unmount();
+
+    expect(useHeaderSearchStore.getState().role).toBeNull();
   });
 
   it("searches accounts with a debounced query", async () => {

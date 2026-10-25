@@ -119,15 +119,21 @@ public interface AdminApi {
     @GetMapping("/job-offers")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Lister toutes les offres du système",
-            description = "Vue globale de toutes les offres, filtre de statut optionnel (draft|validated|published|closed), pagination (défaut 20, max 50 — D34), tri createdAt décroissant.")
+            description = "Vue globale de toutes les offres, tri createdAt décroissant, pagination (défaut 20, max 50 — D34). Filtres facultatifs combinés en ET (absent, vide ou blanc = pas de filtre) : statut (draft|validated|published|closed), recherche q sur le titre ou le nom de la société (100 caractères au plus, % et _ littéraux), mode de travail, contrat, type d'emploi, séniorité, échéance (expired|expiringSoon).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Page d'offres renvoyée"),
-            @ApiResponse(responseCode = "400", description = "Filtre de statut non supporté"),
+            @ApiResponse(responseCode = "400", description = "Filtre de statut, de séniorité ou d'échéance non supporté"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
             @ApiResponse(responseCode = "403", description = "Compte sans rôle ADMIN")
     })
     ResponseEntity<AdminJobOfferPageResponse> listJobOffers(
+            @Parameter(description = "Recherche sur le titre ou le nom de la société") @RequestParam(name = "q", required = false) String q,
             @Parameter(description = "Filtre de statut d'offre") @RequestParam(name = "status", required = false) String status,
+            @Parameter(description = "Mode de travail (identifiant du vocabulaire)") @RequestParam(name = "workModeId", required = false) UUID workModeId,
+            @Parameter(description = "Type de contrat (identifiant du vocabulaire)") @RequestParam(name = "contractTypeId", required = false) UUID contractTypeId,
+            @Parameter(description = "Type d'emploi (identifiant du vocabulaire)") @RequestParam(name = "employmentTypeId", required = false) UUID employmentTypeId,
+            @Parameter(description = "Séniorité") @RequestParam(name = "seniority", required = false) String seniority,
+            @Parameter(description = "Échéance : expired | expiringSoon (≤ 30 jours)") @RequestParam(name = "expiry", required = false) String expiry,
             @Parameter(description = "Index de page (0-based)") @RequestParam(name = "page", defaultValue = "0") int page,
             @Parameter(description = "Taille de page (défaut 20, max 50) — valeur effective renvoyée dans la réponse") @RequestParam(name = "size", required = false) Integer size);
 

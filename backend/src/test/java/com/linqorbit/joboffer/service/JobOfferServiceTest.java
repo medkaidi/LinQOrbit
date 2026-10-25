@@ -41,11 +41,13 @@ import com.linqorbit.company.entity.CompanyMember;
 import com.linqorbit.company.repository.CompanyMemberRepository;
 import com.linqorbit.company.repository.CompanyRepository;
 import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
+import com.linqorbit.joboffer.dto.JobOfferListFilters;
 import com.linqorbit.joboffer.dto.JobOfferListItem;
 import com.linqorbit.joboffer.dto.JobOfferPageResponse;
 import com.linqorbit.joboffer.dto.JobOfferQuestionOptionRequest;
 import com.linqorbit.joboffer.dto.JobOfferQuestionRequest;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
+import com.linqorbit.joboffer.dto.PublicJobFilters;
 import com.linqorbit.joboffer.dto.PublicJobListItem;
 import com.linqorbit.joboffer.dto.PublicJobPageResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
@@ -60,8 +62,10 @@ import com.linqorbit.joboffer.entity.JobOfferStatus;
 import com.linqorbit.joboffer.entity.JobOfferStudyField;
 import com.linqorbit.joboffer.entity.QuestionType;
 import com.linqorbit.joboffer.entity.RequirementType;
+import com.linqorbit.joboffer.entity.Seniority;
 import com.linqorbit.joboffer.entity.WorkMode;
 import com.linqorbit.joboffer.exception.InvalidJobOfferException;
+import com.linqorbit.joboffer.exception.InvalidJobOfferFilterException;
 import com.linqorbit.joboffer.exception.InvalidJobOfferStatusException;
 import com.linqorbit.joboffer.exception.JobOfferAccessDeniedException;
 import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
@@ -73,6 +77,8 @@ import com.linqorbit.joboffer.repository.JobOfferLanguageRepository;
 import com.linqorbit.joboffer.repository.JobOfferQuestionOptionRepository;
 import com.linqorbit.joboffer.repository.JobOfferQuestionRepository;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
+import com.linqorbit.joboffer.repository.JobOfferSearch;
+import com.linqorbit.joboffer.repository.JobOfferSearchRepository;
 import com.linqorbit.joboffer.repository.JobOfferSkillRepository;
 import com.linqorbit.joboffer.repository.JobOfferStudyFieldRepository;
 import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
@@ -107,6 +113,7 @@ class JobOfferServiceTest {
     private static final UUID OPTION_ID = UUID.fromString("e1000000-0000-4000-8000-000000000001");
 
     private JobOfferRepository jobOfferRepository;
+    private JobOfferSearchRepository jobOfferSearchRepository;
     private JobOfferSkillRepository jobOfferSkillRepository;
     private JobOfferLanguageRepository jobOfferLanguageRepository;
     private JobOfferDegreeRepository jobOfferDegreeRepository;
@@ -130,6 +137,7 @@ class JobOfferServiceTest {
     @BeforeEach
     void setUp() {
         jobOfferRepository = mock(JobOfferRepository.class);
+        jobOfferSearchRepository = mock(JobOfferSearchRepository.class);
         jobOfferSkillRepository = mock(JobOfferSkillRepository.class);
         jobOfferLanguageRepository = mock(JobOfferLanguageRepository.class);
         jobOfferDegreeRepository = mock(JobOfferDegreeRepository.class);
@@ -149,7 +157,7 @@ class JobOfferServiceTest {
         jobOfferNormalizationService = mock(JobOfferNormalizationService.class);
         screeningJobService = mock(ScreeningJobService.class);
         jobOfferService = new JobOfferService(
-                jobOfferRepository, jobOfferSkillRepository, jobOfferLanguageRepository,
+                jobOfferRepository, jobOfferSearchRepository, jobOfferSkillRepository, jobOfferLanguageRepository,
                 jobOfferDegreeRepository, jobOfferStudyFieldRepository,
                 jobOfferQuestionRepository, jobOfferQuestionOptionRepository,
                 companyMemberRepository,
@@ -554,12 +562,12 @@ class JobOfferServiceTest {
                 .id(COPY_ID).companyId(COMPANY_ID).recruiterId(RECRUITER_ID)
                 .status(JobOfferStatus.DRAFT).title("Frontend Engineer")
                 .build();
-        when(jobOfferRepository.findByCompanyIdIn(eq(List.of(COMPANY_ID)), any(Pageable.class)))
+        when(jobOfferSearchRepository.search(any(JobOfferSearch.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(complete, incomplete), PageRequest.of(0, 20), 2));
         when(jobOfferSkillRepository.findOfferIdsWithSkills(List.of(OFFER_ID, COPY_ID)))
                 .thenReturn(List.of(OFFER_ID));
 
-        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, null, null);
+        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, null, null, null);
 
         assertThat(response.items()).hasSize(2);
         JobOfferListItem first = response.items().get(0);
@@ -589,10 +597,10 @@ class JobOfferServiceTest {
             offers.add(JobOffer.builder().id(UUID.randomUUID()).companyId(COMPANY_ID).recruiterId(RECRUITER_ID)
                     .status(status).title("Offer " + status).build());
         }
-        when(jobOfferRepository.findByCompanyIdIn(eq(List.of(COMPANY_ID)), any(Pageable.class)))
+        when(jobOfferSearchRepository.search(any(JobOfferSearch.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(offers, PageRequest.of(0, 20), offers.size()));
 
-        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, null, null);
+        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, null, null, null);
 
         assertThat(response.items()).allSatisfy(item -> assertThat(item.analysisOutdated())
                 .as(item.status()).isEqualTo("published".equals(item.status())));
@@ -609,10 +617,10 @@ class JobOfferServiceTest {
     void listMineBorneLaPagination() {
         stubRecruiter(true);
         stubMembership(RECRUITER_ID, false);
-        when(jobOfferRepository.findByCompanyIdIn(eq(List.of(COMPANY_ID)), any(Pageable.class)))
+        when(jobOfferSearchRepository.search(any(JobOfferSearch.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 50), 0));
 
-        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, -3, 500);
+        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, -3, 500, null);
 
         assertThat(response.page()).isZero();
         assertThat(response.size()).isEqualTo(50);
@@ -623,12 +631,12 @@ class JobOfferServiceTest {
         stubRecruiter(true);
         when(companyMemberRepository.findByRecruiterId(RECRUITER_ID)).thenReturn(List.of());
 
-        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, null, 10);
+        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, null, 10, null);
 
         assertThat(response.items()).isEmpty();
         assertThat(response.size()).isEqualTo(10);
         assertThat(response.total()).isZero();
-        verify(jobOfferRepository, never()).findByCompanyIdIn(any(), any());
+        verify(jobOfferSearchRepository, never()).search(any(), any());
     }
 
     @Test
@@ -641,7 +649,7 @@ class JobOfferServiceTest {
                 .city("Paris").country("FR")
                 .publishedAt(LocalDateTime.now())
                 .build();
-        when(jobOfferRepository.findPublic(eq(JobOfferStatus.PUBLISHED), any(LocalDate.class), any(Pageable.class)))
+        when(jobOfferSearchRepository.search(any(JobOfferSearch.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(published), PageRequest.of(0, 20), 1));
         when(companyRepository.findAllById(List.of(COMPANY_ID)))
                 .thenReturn(List.of(Company.builder().id(COMPANY_ID).name("Acme").build()));
@@ -660,14 +668,18 @@ class JobOfferServiceTest {
                 Skill.builder().id(SKILL_K8S_ID).name("Kubernetes").build()));
 
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-        PublicJobPageResponse response = jobOfferService.listPublic(1);
+        ArgumentCaptor<JobOfferSearch> search = ArgumentCaptor.forClass(JobOfferSearch.class);
+        PublicJobPageResponse response = jobOfferService.listPublic(1, null);
 
-        verify(jobOfferRepository).findPublic(eq(JobOfferStatus.PUBLISHED), any(LocalDate.class),
-                pageable.capture());
+        verify(jobOfferSearchRepository).search(search.capture(), pageable.capture());
         assertThat(pageable.getValue().getPageNumber()).isEqualTo(1);
         assertThat(pageable.getValue().getPageSize()).isEqualTo(20);
-        assertThat(pageable.getValue().getSort())
-                .isEqualTo(Sort.by(Sort.Direction.DESC, "publishedAt"));
+        // Sans filtre : périmètre public seul (publiées, non expirées), publication la plus récente d'abord.
+        assertThat(search.getValue().status()).isEqualTo(JobOfferStatus.PUBLISHED);
+        assertThat(search.getValue().publicToday()).isNotNull();
+        assertThat(search.getValue().order()).isEqualTo(JobOfferSearch.Order.PUBLISHED_DESC);
+        assertThat(search.getValue().titlePattern()).isNull();
+        assertThat(search.getValue().country()).isNull();
         assertThat(response.items()).hasSize(1);
         PublicJobListItem item = response.items().get(0);
         assertThat(item.title()).isEqualTo("Backend Engineer");
@@ -694,12 +706,12 @@ class JobOfferServiceTest {
                 .publicId("abcdefghijkl").slug("backend-engineer")
                 .publishedAt(LocalDateTime.now())
                 .build();
-        when(jobOfferRepository.findPublic(eq(JobOfferStatus.PUBLISHED), any(LocalDate.class), any(Pageable.class)))
+        when(jobOfferSearchRepository.search(any(JobOfferSearch.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(published), PageRequest.of(0, 20), 1));
         when(companyRepository.findAllById(List.of(COMPANY_ID)))
                 .thenReturn(List.of(Company.builder().id(COMPANY_ID).name("Acme").build()));
 
-        PublicJobPageResponse response = jobOfferService.listPublic(0);
+        PublicJobPageResponse response = jobOfferService.listPublic(0, null);
 
         assertThat(response.items().get(0).skills()).isEmpty();
         verify(jobOfferSkillRepository).findByJobOfferIdIn(List.of(OFFER_ID));
@@ -708,15 +720,161 @@ class JobOfferServiceTest {
 
     @Test
     void listPublicBorneLaPageNegative() {
-        when(jobOfferRepository.findPublic(eq(JobOfferStatus.PUBLISHED), any(LocalDate.class), any(Pageable.class)))
+        when(jobOfferSearchRepository.search(any(JobOfferSearch.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
-        PublicJobPageResponse response = jobOfferService.listPublic(-3);
+        PublicJobPageResponse response = jobOfferService.listPublic(-3, null);
 
         assertThat(response.items()).isEmpty();
         assertThat(response.total()).isZero();
-        verify(jobOfferRepository).findPublic(eq(JobOfferStatus.PUBLISHED), any(LocalDate.class),
+        verify(jobOfferSearchRepository).search(any(JobOfferSearch.class),
                 argThat(pageable -> pageable.getPageNumber() == 0 && pageable.getPageSize() == 20));
+    }
+
+    // --- T-70 / T-77 : filtres, recherche et tri -------------------------------------------------
+
+    private JobOfferSearch capturedSearch() {
+        ArgumentCaptor<JobOfferSearch> search = ArgumentCaptor.forClass(JobOfferSearch.class);
+        verify(jobOfferSearchRepository).search(search.capture(), any(Pageable.class));
+        return search.getValue();
+    }
+
+    private void stubEmptySearch() {
+        when(jobOfferSearchRepository.search(any(JobOfferSearch.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+    }
+
+    @Test
+    void listMineSansFiltreNeTransmetAucuneClauseEtTrieParCreation() {
+        stubRecruiter(true);
+        stubMembership(RECRUITER_ID, false);
+        stubEmptySearch();
+
+        jobOfferService.listMine(RECRUITER_ID, null, null, JobOfferListFilters.none());
+
+        JobOfferSearch search = capturedSearch();
+        assertThat(search.companyIds()).containsExactly(COMPANY_ID);
+        assertThat(search.status()).isNull();
+        assertThat(search.seniority()).isNull();
+        assertThat(search.titlePattern()).isNull();
+        assertThat(search.workModeId()).isNull();
+        assertThat(search.expiresFrom()).isNull();
+        assertThat(search.expiresUntil()).isNull();
+        assertThat(search.publicToday()).isNull();
+        assertThat(search.order()).isEqualTo(JobOfferSearch.Order.CREATED_DESC);
+    }
+
+    @Test
+    void listMineTransmetLesFiltresNormalises() {
+        stubRecruiter(true);
+        stubMembership(RECRUITER_ID, false);
+        stubEmptySearch();
+
+        jobOfferService.listMine(RECRUITER_ID, null, null, new JobOfferListFilters(
+                "  Back_End%  ", "  PUBLISHED ", WORK_MODE_ID, CONTRACT_TYPE_ID, null, "Senior", COMPANY_ID,
+                "expiringSoon"));
+
+        JobOfferSearch search = capturedSearch();
+        assertThat(search.status()).isEqualTo(JobOfferStatus.PUBLISHED);
+        assertThat(search.seniority()).isEqualTo(Seniority.SENIOR);
+        assertThat(search.workModeId()).isEqualTo(WORK_MODE_ID);
+        assertThat(search.contractTypeId()).isEqualTo(CONTRACT_TYPE_ID);
+        assertThat(search.employmentTypeId()).isNull();
+        // Les jokers saisis sont neutralisés : le texte est une valeur littérale.
+        assertThat(search.titlePattern()).isEqualTo("%back!_end!%%");
+        assertThat(search.matchCompanyName()).isFalse();
+        assertThat(search.expiresFrom()).isEqualTo(LocalDate.now());
+        assertThat(search.expiresUntil()).isEqualTo(LocalDate.now().plusDays(30));
+    }
+
+    @Test
+    void listMineExpireeBorneLaFenetreAvantAujourdhui() {
+        stubRecruiter(true);
+        stubMembership(RECRUITER_ID, false);
+        stubEmptySearch();
+
+        jobOfferService.listMine(RECRUITER_ID, null, null, new JobOfferListFilters(
+                null, "", null, null, null, "  ", null, "EXPIRED"));
+
+        JobOfferSearch search = capturedSearch();
+        assertThat(search.status()).isNull();
+        assertThat(search.seniority()).isNull();
+        assertThat(search.expiresFrom()).isNull();
+        assertThat(search.expiresUntil()).isEqualTo(LocalDate.now().minusDays(1));
+    }
+
+    @Test
+    void listMineRejetteLesValeursInvalidesMemeSansCompany() {
+        stubRecruiter(true);
+        when(companyMemberRepository.findByRecruiterId(RECRUITER_ID)).thenReturn(List.of());
+
+        for (JobOfferListFilters invalid : List.of(
+                new JobOfferListFilters(null, "archived", null, null, null, null, null, null),
+                new JobOfferListFilters(null, null, null, null, null, "expert", null, null),
+                new JobOfferListFilters(null, null, null, null, null, null, null, "soon"))) {
+            assertThatThrownBy(() -> jobOfferService.listMine(RECRUITER_ID, null, null, invalid))
+                    .isInstanceOf(InvalidJobOfferFilterException.class);
+        }
+        verify(jobOfferSearchRepository, never()).search(any(), any());
+    }
+
+    @Test
+    void listMineSocieteEtrangereRenvoieUnePageVideSansRequete() {
+        stubRecruiter(true);
+        stubMembership(RECRUITER_ID, false);
+
+        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, null, null,
+                new JobOfferListFilters(null, null, null, null, null, null, UUID.randomUUID(), null));
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.total()).isZero();
+        verify(jobOfferSearchRepository, never()).search(any(), any());
+    }
+
+    @Test
+    void listPublicNormaliseLesFiltresEtCherchePaysTitreEtSociete() {
+        stubEmptySearch();
+
+        jobOfferService.listPublic(0, new PublicJobFilters(
+                " Acme ", WORK_MODE_ID, null, CONTRACT_TYPE_ID, "LEAD", " fr ", "ExpiringSoon"));
+
+        JobOfferSearch search = capturedSearch();
+        assertThat(search.status()).isEqualTo(JobOfferStatus.PUBLISHED);
+        assertThat(search.publicToday()).isNotNull();
+        assertThat(search.seniority()).isEqualTo(Seniority.LEAD);
+        assertThat(search.country()).isEqualTo("FR");
+        assertThat(search.titlePattern()).isEqualTo("%acme%");
+        assertThat(search.matchCompanyName()).isTrue();
+        assertThat(search.order()).isEqualTo(JobOfferSearch.Order.EXPIRING_SOON);
+        assertThat(search.workModeId()).isEqualTo(WORK_MODE_ID);
+        assertThat(search.employmentTypeId()).isEqualTo(CONTRACT_TYPE_ID);
+        assertThat(search.contractTypeId()).isNull();
+    }
+
+    @Test
+    void listPublicTraiteLesValeursVidesCommeAbsentes() {
+        stubEmptySearch();
+
+        jobOfferService.listPublic(0, new PublicJobFilters("   ", null, null, null, "", "  ", ""));
+
+        JobOfferSearch search = capturedSearch();
+        assertThat(search.titlePattern()).isNull();
+        assertThat(search.seniority()).isNull();
+        assertThat(search.country()).isNull();
+        assertThat(search.order()).isEqualTo(JobOfferSearch.Order.PUBLISHED_DESC);
+    }
+
+    @Test
+    void listPublicRejetteUnPaysUneSenioriteOuUnTriInvalides() {
+        for (PublicJobFilters invalid : List.of(
+                new PublicJobFilters(null, null, null, null, null, "FRA", null),
+                new PublicJobFilters(null, null, null, null, null, "F1", null),
+                new PublicJobFilters(null, null, null, null, "expert", null, null),
+                new PublicJobFilters(null, null, null, null, null, null, "salary"))) {
+            assertThatThrownBy(() -> jobOfferService.listPublic(0, invalid))
+                    .isInstanceOf(InvalidJobOfferFilterException.class);
+        }
+        verify(jobOfferSearchRepository, never()).search(any(), any());
     }
 
     @Test

@@ -54,6 +54,7 @@ import com.linqorbit.admin.exception.SuggestionNotFoundException;
 import com.linqorbit.admin.exception.UserNotFoundException;
 import com.linqorbit.application.dto.RecruiterAssessmentView;
 import com.linqorbit.candidate.dto.CandidateProfileResponse;
+import com.linqorbit.joboffer.dto.JobOfferListFilters;
 import com.linqorbit.config.SecurityConfig;
 import com.linqorbit.user.UserStatus;
 
@@ -405,7 +406,11 @@ class AdminControllerTest {
 
     @Test
     void listJobOffersRenvoie200AvecParametres() throws Exception {
-        when(adminService.listJobOffers("published", 1, 10))
+        UUID workModeId = UUID.randomUUID();
+        UUID contractTypeId = UUID.randomUUID();
+        UUID employmentTypeId = UUID.randomUUID();
+        when(adminService.listJobOffers(new JobOfferListFilters("java acme", "published", workModeId,
+                contractTypeId, employmentTypeId, "senior", null, "expiringSoon"), 1, 10))
                 .thenReturn(new AdminJobOfferPageResponse(List.of(
                         new AdminJobOfferListItem(UUID.randomUUID(), "Dev Java", "published",
                                 "Acme", "abc123", "dev-java",
@@ -419,7 +424,12 @@ class AdminControllerTest {
                         1, 10, 42));
 
         mockMvc.perform(get("/api/v1/admin/job-offers")
-                        .param("status", "published").param("page", "1").param("size", "10")
+                        .param("q", "java acme").param("status", "published")
+                        .param("workModeId", workModeId.toString())
+                        .param("contractTypeId", contractTypeId.toString())
+                        .param("employmentTypeId", employmentTypeId.toString())
+                        .param("seniority", "senior").param("expiry", "expiringSoon")
+                        .param("page", "1").param("size", "10")
                         .with(adminJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].title").value("Dev Java"))
@@ -428,6 +438,33 @@ class AdminControllerTest {
                 .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.size").value(10))
                 .andExpect(jsonPath("$.total").value(42));
+    }
+
+    @Test
+    void listJobOffersSansParametreTransmetDesFiltresAbsents() throws Exception {
+        when(adminService.listJobOffers(JobOfferListFilters.none(), 0, null))
+                .thenReturn(new AdminJobOfferPageResponse(List.of(), 0, 20, 0));
+
+        mockMvc.perform(get("/api/v1/admin/job-offers").with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test
+    void listJobOffersRenvoie400QuandUnFiltreDeSenioriteEstInconnu() throws Exception {
+        doThrow(new com.linqorbit.joboffer.exception.InvalidJobOfferFilterException("seniority", "wizard"))
+                .when(adminService).listJobOffers(any(), anyInt(), any());
+
+        mockMvc.perform(get("/api/v1/admin/job-offers").param("seniority", "wizard")
+                        .with(adminJwt()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void listJobOffersRenvoie400QuandUnIdentifiantDeVocabulaireEstInvalide() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/job-offers").param("workModeId", "not-a-uuid")
+                        .with(adminJwt()))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

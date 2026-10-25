@@ -31,10 +31,12 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.linqorbit.config.SecurityConfig;
 import com.linqorbit.joboffer.dto.CreateJobOfferRequest;
+import com.linqorbit.joboffer.dto.JobOfferListFilters;
 import com.linqorbit.joboffer.dto.JobOfferListItem;
 import com.linqorbit.joboffer.dto.JobOfferPageResponse;
 import com.linqorbit.joboffer.dto.JobOfferResponse;
 import com.linqorbit.joboffer.dto.UpdateJobOfferRequest;
+import com.linqorbit.joboffer.exception.InvalidJobOfferFilterException;
 import com.linqorbit.joboffer.exception.InvalidJobOfferStatusException;
 import com.linqorbit.joboffer.exception.JobOfferAccessDeniedException;
 import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
@@ -290,7 +292,7 @@ class JobOfferControllerTest {
     @Test
     void listMineRenvoie200AvecEnveloppeEtLignesLegeres() throws Exception {
         UUID userId = UUID.randomUUID();
-        when(jobOfferService.listMine(eq(userId), isNull(), isNull()))
+        when(jobOfferService.listMine(eq(userId), isNull(), isNull(), any()))
                 .thenReturn(new JobOfferPageResponse(List.of(draftListItem()), 0, 20, 1));
 
         mockMvc.perform(get("/api/v1/job-offers")
@@ -309,7 +311,7 @@ class JobOfferControllerTest {
     @Test
     void listMineTransmetPageEtSize() throws Exception {
         UUID userId = UUID.randomUUID();
-        when(jobOfferService.listMine(eq(userId), eq(2), eq(10)))
+        when(jobOfferService.listMine(eq(userId), eq(2), eq(10), any()))
                 .thenReturn(new JobOfferPageResponse(List.of(), 2, 10, 0));
 
         mockMvc.perform(get("/api/v1/job-offers").param("page", "2").param("size", "10")
@@ -320,9 +322,54 @@ class JobOfferControllerTest {
     }
 
     @Test
+    void listMineTransmetLesFiltresAuService() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID workModeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        when(jobOfferService.listMine(eq(userId), isNull(), isNull(), any()))
+                .thenReturn(new JobOfferPageResponse(List.of(), 0, 20, 0));
+
+        mockMvc.perform(get("/api/v1/job-offers").param("q", "backend").param("status", "published")
+                        .param("workModeId", workModeId.toString()).param("seniority", "senior")
+                        .param("companyId", companyId.toString()).param("expiry", "expiringSoon")
+                        .param("contractTypeId", "").param("employmentTypeId", "")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isOk());
+
+        // Un paramètre vide arrive null (UUID) : vide ≡ absent dès l'entrée du contrôleur.
+        verify(jobOfferService).listMine(eq(userId), isNull(), isNull(), eq(new JobOfferListFilters(
+                "backend", "published", workModeId, null, null, "senior", companyId, "expiringSoon")));
+    }
+
+    @Test
+    void listMineRenvoie400SurUnFiltreNonSupporte() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(jobOfferService.listMine(eq(userId), isNull(), isNull(), any()))
+                .thenThrow(new InvalidJobOfferFilterException("status", "archived"));
+
+        mockMvc.perform(get("/api/v1/job-offers").param("status", "archived")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Unsupported filter value"))
+                // Le nom du paramètre est constant ; la valeur saisie n'est jamais renvoyée.
+                .andExpect(jsonPath("$.detail").value("The 'status' filter has an unsupported value."));
+    }
+
+    @Test
+    void listMineRenvoie400SurUnIdentifiantInvalide() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(get("/api/v1/job-offers").param("workModeId", "not-a-uuid")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("The request could not be processed."));
+        verify(jobOfferService, never()).listMine(any(), any(), any(), any());
+    }
+
+    @Test
     void listMineRenvoie404SansProfilRecruteur() throws Exception {
         UUID userId = UUID.randomUUID();
-        when(jobOfferService.listMine(eq(userId), isNull(), isNull()))
+        when(jobOfferService.listMine(eq(userId), isNull(), isNull(), any()))
                 .thenThrow(new RecruiterNotFoundException());
 
         mockMvc.perform(get("/api/v1/job-offers")

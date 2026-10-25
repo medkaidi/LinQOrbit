@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { answerValueLabel, appliedOnLabel } from "@/features/application/application-shared";
+import {
+  APPLICATION_STATUS_TONES,
+  answerValueLabel,
+  appliedOnLabel,
+} from "@/features/application/application-shared";
 import type { ApplicationAnswerView } from "@/types/application";
 
 const base = { questionId: "q1", label: "Question" } as const;
@@ -44,5 +48,16 @@ describe("answerValueLabel", () => {
     ["empty multiple choice", { ...base, type: "multiple_choice", value: [] }, ""],
   ])("renders a %s answer", (_name, answer, expected) => {
     expect(answerValueLabel(answer)).toBe(expected);
+  });
+});
+
+describe("APPLICATION_STATUS_TONES", () => {
+  it("gives every status the dot colour that also draws its dashboard bar", () => {
+    expect(Object.keys(APPLICATION_STATUS_TONES).sort()).toEqual(
+      ["accepted", "draft", "rejected", "submitted", "withdrawn"],
+    );
+    for (const tone of Object.values(APPLICATION_STATUS_TONES)) {
+      expect(tone.dot).toMatch(/^bg-/);
+    }
   });
 });

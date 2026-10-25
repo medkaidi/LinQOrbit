@@ -52,6 +52,51 @@ describe("public-jobs.api", () => {
     });
   });
 
+  it("transmits search, filters and sort next to the page", async () => {
+    mockedGet.mockResolvedValue({ data: { items: [], page: 1, size: 20, total: 0 } });
+
+    await listPublicJobs({
+      page: 1,
+      q: "devops",
+      workModeId: "wm1",
+      contractTypeId: "ct1",
+      employmentTypeId: "et1",
+      seniority: "lead",
+      country: "FR",
+      sort: "expiringSoon",
+    });
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/jobs", {
+      params: {
+        page: 1,
+        q: "devops",
+        workModeId: "wm1",
+        contractTypeId: "ct1",
+        employmentTypeId: "et1",
+        seniority: "lead",
+        country: "FR",
+        sort: "expiringSoon",
+      },
+      signal: undefined,
+    });
+  });
+
+  it("omits every empty filter instead of sending a blank value", async () => {
+    mockedGet.mockResolvedValue({ data: { items: [], page: 0, size: 20, total: 0 } });
+
+    await listPublicJobs({
+      q: "",
+      workModeId: "",
+      contractTypeId: "",
+      employmentTypeId: undefined,
+      country: "",
+    });
+
+    const params = mockedGet.mock.calls[0][1]?.params;
+    expect(params).toEqual({});
+    expect(params).not.toHaveProperty("size");
+  });
+
   it("reads the related offers of a published offer without params — size never sent", async () => {
     const items = [{ publicId: "zyxwvutsrqpo", title: "Frontend Engineer" }];
     mockedGet.mockResolvedValue({ data: items });

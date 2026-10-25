@@ -45,7 +45,7 @@ const baseClasses =
 
 /**
  * Pilule de navigation du dashboard : badge circulaire à gauche, libellé à
- * droite. Standard pour les CTA qui changent de page (« New campaign »,
+ * droite. Standard pour les CTA qui changent de page (« New offer »,
  * « Edit profile »…). Les accents de survol suivent le `tone`.
  */
 export function NavPill({ icon, label, href, tone = "primary", className }: NavPillProps) {

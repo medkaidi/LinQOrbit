@@ -88,22 +88,27 @@ describe("DashboardSidebar", () => {
     expect(profile).toHaveAttribute("aria-current", "page");
   });
 
-  it("renders future sections as enabled controls without links", () => {
+  it("offers only real destinations: no placeholder section without a page", () => {
     render(<DashboardSidebar />);
 
-    const futureSections = [
+    const nav = screen.getByRole("navigation", { name: "Dashboard" });
+    expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/dashboard",
+      "/dashboard",
+      "/profile",
+      "/jobs",
+      "/applications",
+    ]);
+    // Aucune entrée-bouton morte dans la navigation.
+    expect(nav.querySelectorAll("button")).toHaveLength(0);
+    for (const label of [
       "Candidate Pool",
       "AI Agents Studio",
       "Interviews & Evaluations",
       "Settings & Integrations",
-      "API Help & Documentation",
-    ];
-    for (const label of futureSections) {
-      const entry = screen.getByText(label);
-      expect(entry.closest("a")).toBeNull();
-      const control = entry.closest("button");
-      expect(control).not.toBeNull();
-      expect(control).not.toBeDisabled();
+      "3 AI",
+    ]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
     }
   });
 
@@ -141,14 +146,17 @@ describe("DashboardSidebar", () => {
     );
   });
 
-  it("shows the demo AI telemetry card", () => {
+  it("shows no invented telemetry nor an inert API help entry", () => {
     render(<DashboardSidebar />);
 
-    expect(screen.getByText("AI Telemetry")).toBeInTheDocument();
-    expect(screen.getByText("98%")).toBeInTheDocument();
-    expect(
-      screen.getByText("3 agents actively sourcing and ranking in real time."),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("AI Telemetry")).not.toBeInTheDocument();
+    expect(screen.queryByText("98%")).not.toBeInTheDocument();
+    expect(screen.queryByText(/agents actively sourcing/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("API Help & Documentation")).not.toBeInTheDocument();
+    // Seul bouton de la barre : le repli.
+    expect(screen.getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Collapse sidebar",
+    ]);
   });
 
   it("hides Administration for accounts without the admin role", () => {
@@ -254,21 +262,13 @@ describe("DashboardSidebar", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
 
-      // Rail : labels, badge « 3 AI » et carte AI Telemetry masqués ;
-      // liens/boutons nommés par aria-label + tooltip, largeur réduite.
+      // Rail : labels masqués ; liens nommés par aria-label + tooltip, largeur réduite.
       expect(screen.queryByText("Profile")).not.toBeInTheDocument();
-      expect(screen.queryByText("3 AI")).not.toBeInTheDocument();
-      expect(screen.queryByText("AI Telemetry")).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("title", "Profile");
-      expect(screen.getByRole("button", { name: "Candidate Pool" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "My applications" })).toHaveAttribute(
         "title",
-        "Candidate Pool",
+        "My applications",
       );
-      // API Help en icône seule.
-      expect(screen.queryByText("API Help & Documentation")).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: "API Help & Documentation" }),
-      ).toBeInTheDocument();
       const aside = screen.getByRole("complementary");
       expect(aside).toHaveClass("lg:w-20");
       expect(screen.getByRole("button", { name: "Expand sidebar" })).toHaveAttribute(
@@ -279,9 +279,6 @@ describe("DashboardSidebar", () => {
       fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
 
       expect(screen.getByText("Profile")).toBeInTheDocument();
-      expect(screen.getByText("3 AI")).toBeInTheDocument();
-      expect(screen.getByText("AI Telemetry")).toBeInTheDocument();
-      expect(screen.getByText("API Help & Documentation")).toBeInTheDocument();
       expect(aside).toHaveClass("lg:w-64");
     });
 

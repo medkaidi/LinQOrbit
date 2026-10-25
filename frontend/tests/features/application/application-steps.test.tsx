@@ -38,7 +38,7 @@ describe("ApplicationSteps", () => {
 
     expect(items.map((item) => item.textContent)).toEqual([
       expect.stringContaining("Step 1Recruiter questions"),
-      expect.stringContaining("Step 2AI clarifications"),
+      expect.stringContaining("Step 2Dynamic Candidate Assessment"),
       expect.stringContaining("Step 3Candidate review"),
       expect.stringContaining("Step 4Summary & apply"),
     ]);
@@ -48,7 +48,7 @@ describe("ApplicationSteps", () => {
     const items = itemsFor("matching", false);
 
     expect(items.map((item) => item.textContent)).toEqual([
-      expect.stringContaining("Step 1AI clarifications"),
+      expect.stringContaining("Step 1Dynamic Candidate Assessment"),
       expect.stringContaining("Step 2Candidate review"),
       expect.stringContaining("Step 3Summary & apply"),
     ]);
@@ -76,7 +76,7 @@ describe("ApplicationSteps", () => {
     expect(items[2]).toHaveTextContent("Upcoming");
   });
 
-  it("opens the AI clarifications once the required questions are answered and the match is open", () => {
+  it("opens the Dynamic Candidate Assessment once the required questions are answered and the match is open", () => {
     const items = itemsFor("matching", true, OPEN);
 
     expect(items[0]).toHaveTextContent("Done");
@@ -85,7 +85,7 @@ describe("ApplicationSteps", () => {
     expect(items[2]).toHaveTextContent("Upcoming");
   });
 
-  it("keeps the AI clarifications current while the assessment is open, even once matched", () => {
+  it("keeps the Dynamic Candidate Assessment current while the assessment is open, even once matched", () => {
     const items = itemsFor("matching", true, OPEN);
 
     expect(items[1]).toHaveAttribute("aria-current", "step");

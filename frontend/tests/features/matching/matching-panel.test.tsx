@@ -223,7 +223,7 @@ describe("MatchingPanel", () => {
 
     expect(await screen.findByRole("region", { name: "Required skills" })).toBeInTheDocument();
     // La clarification vit dans le contenu central du parcours depuis la refonte D6.
-    expect(screen.queryByRole("region", { name: "AI clarification" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Dynamic Candidate Assessment" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Finish the assessment" })).not.toBeInTheDocument();
   });

@@ -24,6 +24,11 @@ export function filterOptions(options: SelectOption[], query: string): SelectOpt
   return options.filter((option) => option.label.toLowerCase().includes(needle));
 }
 
+/** Menu compact : largeur de la plus longue option, bornée à 24 rem (ou à l'écran). */
+const COMPACT_LIST_CLASS = "min-w-full w-max max-w-[min(24rem,calc(100vw-2rem))]";
+/** Place minimale à droite du déclencheur (px) en deçà de laquelle le menu compact s'aligne à droite. */
+const COMPACT_LIST_ROOM = 320;
+
 type SelectProps = {
   label: string;
   options: SelectOption[];
@@ -73,6 +78,7 @@ export function Select({
 
   const [open, setOpen] = useState(false);
   const [upward, setUpward] = useState(false);
+  const [alignEnd, setAlignEnd] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const [query, setQuery] = useState("");
 
@@ -112,6 +118,8 @@ export function Select({
     if (rect) {
       const spaceBelow = window.innerHeight - rect.bottom;
       setUpward(spaceBelow < 240 && rect.top >= 240);
+      // Menu compact plus large que son déclencheur : près du bord droit, il s'ouvre vers la gauche.
+      setAlignEnd(compact && window.innerWidth - rect.left < COMPACT_LIST_ROOM);
     }
     if (searchable) setQuery("");
     setHighlight(index);
@@ -371,6 +379,7 @@ export function Select({
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errorId : undefined}
             value={inputKey}
+            title={selected?.label}
             placeholder={placeholder}
             onChange={(event) => handleInputChange(event.target.value)}
             onFocus={() => {
@@ -399,6 +408,7 @@ export function Select({
             aria-activedescendant={open ? `${listId}-opt-${highlight}` : undefined}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errorId : undefined}
+            title={selected?.label}
             onClick={() => (open ? close() : openList(selectedIndex >= 0 ? selectedIndex : 0))}
             onKeyDown={handleKeyDown}
             onBlur={onBlur}
@@ -428,7 +438,11 @@ export function Select({
             role="listbox"
             aria-label={label}
             className={cn(
-              "absolute z-50 w-full max-h-60 overflow-y-auto rounded-2xl bg-white border border-slate-border-strong shadow-md py-1.5",
+              "absolute z-50 max-h-60 overflow-y-auto rounded-2xl bg-white border border-slate-border-strong shadow-md py-1.5",
+              // Compact : le menu suit la plus longue option (jamais plus étroit que le déclencheur),
+              // sinon un déclencheur à « All » tronquerait toutes les valeurs.
+              compact ? COMPACT_LIST_CLASS : "w-full",
+              compact && alignEnd && "right-0",
               upward ? "bottom-full mb-1.5" : "top-full mt-1.5",
             )}
           >

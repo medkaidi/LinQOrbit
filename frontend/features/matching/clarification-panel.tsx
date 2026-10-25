@@ -69,11 +69,11 @@ function ClarificationQuestion({
   };
 
   return (
-    <section aria-label="AI clarification" className={SECTION_CARD_CLASS}>
+    <section aria-label="Dynamic Candidate Assessment" className={SECTION_CARD_CLASS}>
       <header className={SECTION_HEADER_CLASS}>
         <div className="flex items-center gap-2.5 min-w-0">
           <IconBadge icon="psychology" />
-          <h2 className={SECTION_TITLE_CLASS}>AI clarification</h2>
+          <h2 className={SECTION_TITLE_CLASS}>Dynamic Candidate Assessment</h2>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Badge tone="accent">Question {clarification.questionNumber}</Badge>
@@ -209,11 +209,11 @@ function NoOpenQuestion({ publicId }: { publicId: string }) {
   const [confirmFinish, setConfirmFinish] = useState(false);
 
   return (
-    <section aria-label="AI clarification" className={SECTION_CARD_CLASS}>
+    <section aria-label="Dynamic Candidate Assessment" className={SECTION_CARD_CLASS}>
       <header className={SECTION_HEADER_CLASS}>
         <div className="flex items-center gap-2.5 min-w-0">
           <IconBadge icon="psychology" />
-          <h2 className={SECTION_TITLE_CLASS}>AI clarification</h2>
+          <h2 className={SECTION_TITLE_CLASS}>Dynamic Candidate Assessment</h2>
         </div>
       </header>
       <div className="px-6 pt-5 pb-6 flex flex-col items-start gap-3">

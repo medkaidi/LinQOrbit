@@ -17,15 +17,14 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { InfiniteList } from "@/components/ui/infinite-list";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
 import { Spinner } from "@/components/ui/spinner";
-import { StatusPill, type StatusPillTone } from "@/components/ui/status-pill";
-import { TextField } from "@/components/ui/text-field";
+import { StatusPill } from "@/components/ui/status-pill";
 import {
   ITEM_CARD_CLASS,
   MUTED_TEXT_CLASS,
   SECTION_HEADER_CLASS,
   SECTION_TITLE_CLASS,
 } from "@/components/ui/section";
-import { AccountBadges } from "@/features/admin/account-badges";
+import { ACCOUNT_STATUS_TONES, AccountBadges } from "@/features/admin/account-badges";
 import { RetryButton } from "@/features/admin/retry-button";
 import { SuggestionReviewDialog } from "@/features/admin/suggestion-review-dialog";
 import {
@@ -35,7 +34,9 @@ import {
   useUpdateUserStatus
 } from "@/hooks/use-admin";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useHeaderSearch } from "@/hooks/use-header-search";
 import { useAuthStore } from "@/stores/auth-store";
+import type { HeaderSearchRole } from "@/stores/header-search-store";
 import type { AdminSkillSuggestion, AdminUser } from "@/types/admin";
 
 
@@ -54,6 +55,14 @@ const CAPABILITY_FILTER_OPTIONS: SegmentedOption<CapabilityFilter>[] = [
   { value: "recruiter", label: "Recruiters" },
 ];
 
+/** Rôle du champ de recherche du header sur la liste des comptes (T-110, D96) : nom ou e-mail. */
+const ACCOUNTS_SEARCH_ROLE: HeaderSearchRole = {
+  id: "admin-accounts",
+  label: "Search accounts",
+  placeholder: "Search by name or email",
+  maxLength: 100,
+};
+
 function Header() {
   return (
     <PageHeader
@@ -61,19 +70,15 @@ function Header() {
         <Breadcrumb>
           <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
           <BreadcrumbSeparator />
-          <BreadcrumbCurrent>Administration</BreadcrumbCurrent>
+          <BreadcrumbLink href="/admin">Administration</BreadcrumbLink>
+          <BreadcrumbSeparator />
+          <BreadcrumbCurrent>Accounts</BreadcrumbCurrent>
         </Breadcrumb>
       }
-      title="Administration"
+      title="Accounts & suggestions"
     />
   );
 }
-
-/** Tons de la pastille de statut de compte (actif/inactif) — gabarit `StatusPill` partagé. */
-const ACCOUNT_STATUS_TONES: Record<"active" | "inactive", StatusPillTone> = {
-  active: { pill: "bg-success-surface text-success-text", dot: "bg-tertiary" },
-  inactive: { pill: "bg-slate-surface text-text-secondary", dot: "bg-slate-border" },
-};
 
 function AccountRow({
   account,
@@ -141,7 +146,7 @@ function AccountRow({
 
 function AccountsSection() {
   const currentUser = useAuthStore((state) => state.user);
-  const [search, setSearch] = useState("");
+  const [search] = useHeaderSearch(ACCOUNTS_SEARCH_ROLE);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [capabilityFilter, setCapabilityFilter] = useState<CapabilityFilter>("all");
   const debouncedSearch = useDebouncedValue(search, 300);
@@ -173,16 +178,6 @@ function AccountsSection() {
       </header>
       <div className="px-6 pt-5 pb-6 flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="w-full sm:w-64">
-            <TextField
-              label="Search accounts"
-              hideLabel
-              icon="search"
-              placeholder="Search name or email"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
           <SegmentedControl
             label="Filter accounts by status"
             value={statusFilter}

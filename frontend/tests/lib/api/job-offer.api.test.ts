@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { listJobOffers, revalidateJobOffer, toJobOfferPayload } from "@/lib/api/job-offer.api";
+import {
+  getRecruiterDashboard,
+  listJobOffers,
+  revalidateJobOffer,
+  toJobOfferPayload,
+} from "@/lib/api/job-offer.api";
 import type { JobOfferValues } from "@/lib/validations/job-offer.schemas";
 
 vi.mock("@/lib/api/axios", () => ({
@@ -205,6 +210,54 @@ describe("listJobOffers", () => {
       signal: undefined,
     });
   });
+
+  it("transmits every filter that is set, next to the page", async () => {
+    mockedGet.mockResolvedValue({ data: { items: [], page: 1, size: 20, total: 0 } });
+
+    await listJobOffers({
+      page: 1,
+      q: "backend",
+      status: "published",
+      workModeId: "wm1",
+      contractTypeId: "ct1",
+      employmentTypeId: "et1",
+      seniority: "senior",
+      companyId: "c1",
+      expiry: "expiringSoon",
+    });
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/job-offers", {
+      params: {
+        page: 1,
+        q: "backend",
+        status: "published",
+        workModeId: "wm1",
+        contractTypeId: "ct1",
+        employmentTypeId: "et1",
+        seniority: "senior",
+        companyId: "c1",
+        expiry: "expiringSoon",
+      },
+      signal: undefined,
+    });
+  });
+
+  it("omits every empty filter instead of sending a blank value", async () => {
+    mockedGet.mockResolvedValue({ data: { items: [], page: 0, size: 20, total: 0 } });
+
+    await listJobOffers({
+      page: 0,
+      q: "",
+      workModeId: "",
+      contractTypeId: undefined,
+      employmentTypeId: "",
+      companyId: "",
+    });
+
+    const params = mockedGet.mock.calls[0][1]?.params;
+    expect(params).toEqual({ page: 0 });
+    expect(params).not.toHaveProperty("size");
+  });
 });
 
 describe("revalidateJobOffer", () => {
@@ -215,5 +268,23 @@ describe("revalidateJobOffer", () => {
 
     expect(mockedPost).toHaveBeenCalledTimes(1);
     expect(mockedPost).toHaveBeenCalledWith("/api/v1/job-offers/o1/revalidate");
+  });
+});
+
+describe("getRecruiterDashboard", () => {
+  it("reads the aggregated figures in a single call, with no filter or page size", async () => {
+    const body = {
+      offers: { draft: 1, validated: 0, published: 2, closed: 0 },
+      liveOffers: 2,
+      closingSoon: { count: 1, nextExpiry: "2026-11-03" },
+      applications: { toReview: 4, accepted: 1, rejected: 0 },
+      candidates: { toInvite: 3, invited: 1, searchesFailed: 0 },
+      attention: [],
+    };
+    mockedGet.mockResolvedValue({ data: body });
+
+    expect(await getRecruiterDashboard()).toEqual(body);
+    expect(mockedGet).toHaveBeenCalledTimes(1);
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/recruiters/me/dashboard");
   });
 });

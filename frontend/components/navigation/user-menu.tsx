@@ -9,11 +9,8 @@ import { useRecruiterProfile } from "@/hooks/use-recruiter";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { useAuthStore } from "@/stores/auth-store";
 
-/**
- * Menu utilisateur. `compact` (rail replié du sidenav admin, D40) masque le
- * bloc nom/email — le déclencheur garde son `aria-label`.
- */
-export function UserMenu({ compact = false }: { compact?: boolean }) {
+/** Menu utilisateur : posé en haut à droite des headers du dashboard et de la console admin (D93). */
+export function UserMenu() {
   const { logout } = useAuth();
   const user = useAuthStore((state) => state.user);
   const { mode } = useViewMode();
@@ -67,20 +64,18 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
         onClick={() => setOpen((current) => !current)}
         className="flex items-center gap-2.5 pl-1 pr-2 py-1 rounded-full hover:bg-canvas-subtle transition-[background-color,scale] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep active:scale-[0.98] cursor-pointer"
       >
-        {!compact && (
-          <span className="hidden sm:flex flex-col text-right">
-            <span className="text-xs text-text-primary font-bold leading-tight">{displayName}</span>
-            {isRecruiterMode && headline ? (
-              <span className="text-[11px] text-orange-deep leading-tight font-medium truncate max-w-[10rem]">
-                {headline}
-              </span>
-            ) : (
-              <span className="text-[11px] text-text-tertiary leading-tight font-medium truncate max-w-[10rem]">
-                {user.email}
-              </span>
-            )}
-          </span>
-        )}
+        <span className="hidden sm:flex flex-col text-right">
+          <span className="text-xs text-text-primary font-bold leading-tight">{displayName}</span>
+          {isRecruiterMode && headline ? (
+            <span className="text-[11px] text-orange-deep leading-tight font-medium truncate max-w-[10rem]">
+              {headline}
+            </span>
+          ) : (
+            <span className="text-[11px] text-text-tertiary leading-tight font-medium truncate max-w-[10rem]">
+              {user.email}
+            </span>
+          )}
+        </span>
         <span className="w-8 h-8 rounded-full bg-primary-fixed text-on-primary-fixed border-2 border-slate-border flex items-center justify-center text-label-md font-bold shrink-0">
           {initials}
         </span>

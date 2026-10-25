@@ -13,6 +13,7 @@ import { isAxiosError } from "axios";
 import {
   approveSkillSuggestion,
   createCriterionReportReview,
+  getAdminDashboard,
   getAdminJobOffer,
   getAdminUserProfile,
   getCriterionReport,
@@ -32,13 +33,26 @@ import {
 import type {
   AdminCriterionReportDetail,
   AdminCriterionReportReviewPayload,
-  AdminJobOfferStatus,
+  AdminJobOfferFilters,
   AdminUser,
   AdminUserFilters,
 } from "@/types/admin";
 import { queryKeys } from "@/hooks/query-keys";
 import { nextPageParam } from "@/lib/utils/pagination";
 import { useAuthStore } from "@/stores/auth-store";
+
+/**
+ * Chiffres du tableau de bord admin (D93). L'admin courant fait partie de la clé : le compteur
+ * « à relire » lui est propre. Chaque écriture admin qui déplace un chiffre invalide le préfixe.
+ */
+export function useAdminDashboard() {
+  const adminId = useAuthStore((state) => state.user?.id);
+  return useQuery({
+    queryKey: queryKeys.admin.dashboardFor(adminId ?? ""),
+    queryFn: getAdminDashboard,
+    staleTime: 30_000,
+  });
+}
 
 /**
  * Liste des comptes (D34) en infinite scroll, filtrable (T-48) : recherche
@@ -100,16 +114,19 @@ export function useAdminUserNormalizedVersions(
 }
 
 /**
- * Liste globale des offres (D33) en infinite scroll (D34) : filtre statut
- * optionnel, la taille de page reste décidée par le backend (jamais envoyée).
+ * Liste globale des offres (D33) en infinite scroll (D34) : recherche et
+ * filtres facultatifs (T-110), la taille de page reste décidée par le backend
+ * (jamais envoyée). Le changement de filtre garde l'ancienne liste affichée
+ * pendant la relecture (pas de clignotement de la toolbar).
  */
-export function useInfiniteAdminJobOffers(status: AdminJobOfferStatus | undefined) {
+export function useInfiniteAdminJobOffers(filters: AdminJobOfferFilters = {}) {
   return useInfiniteQuery({
-    queryKey: queryKeys.admin.jobOffersPage(status),
+    queryKey: queryKeys.admin.jobOffersPage(filters),
     queryFn: ({ pageParam, signal }) =>
-      listAllJobOffers({ status, page: pageParam }, { signal }),
+      listAllJobOffers({ ...filters, page: pageParam }, { signal }),
     initialPageParam: 0,
     getNextPageParam: nextPageParam,
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
 }
@@ -208,6 +225,7 @@ export function useCreateCriterionReportReview(reportId: string) {
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: reportKey }),
         queryClient.invalidateQueries({ queryKey: listKey }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard }),
       ]);
     },
     onError: (error) => {
@@ -231,6 +249,7 @@ export function useUpdateUserStatus() {
     onSuccess: (_data, { userId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.users });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.userDetail(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard });
     },
   });
 }
@@ -238,6 +257,7 @@ export function useUpdateUserStatus() {
 /** Approbation / lien : la file change et le catalogue peut grandir. */
 function invalidateReview(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: queryKeys.admin.skillSuggestions });
+  queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard });
   queryClient.invalidateQueries({ queryKey: queryKeys.candidate.referenceSkills });
 }
 
@@ -262,6 +282,10 @@ export function useRejectSkillSuggestion() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => rejectSkillSuggestion(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.skillSuggestions }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.skillSuggestions }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboard }),
+      ]),
   });
 }

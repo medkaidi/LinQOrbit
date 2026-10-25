@@ -2,13 +2,14 @@ import { api } from "@/lib/api/axios";
 import type { CandidateProfile } from "@/types/candidate";
 import type {
   AdminCandidateNormalizedProfile,
+  AdminDashboard,
   AdminCriterionReportDetail,
   AdminCriterionReportPage,
   AdminCriterionReportReview,
   AdminCriterionReportReviewPayload,
   AdminJobOfferDetail,
+  AdminJobOfferFilters,
   AdminJobOfferPage,
-  AdminJobOfferStatus,
   AdminOfferNormalizedProfile,
   AdminSkillSuggestion,
   AdminUser,
@@ -18,6 +19,12 @@ import type {
 } from "@/types/admin";
 
 const BASE = "/api/v1/admin";
+
+/** Chiffres du tableau de bord admin (un appel, compteurs agrégés côté serveur). */
+export async function getAdminDashboard(): Promise<AdminDashboard> {
+  const { data } = await api.get<AdminDashboard>(`${BASE}/dashboard`);
+  return data;
+}
 
 /** La taille de page n'est jamais envoyée : le backend décide (D34). */
 export async function listUsers(
@@ -66,18 +73,24 @@ export async function getUserNormalizedProfileVersions(
   return response.data;
 }
 
-/** La taille de page n'est jamais envoyée : le backend décide (D34). */
+/**
+ * La taille de page n'est jamais envoyée : le backend décide (D34). Un filtre
+ * vide ou absent n'est jamais envoyé (T-110).
+ */
 export async function listAllJobOffers(
-  params: {
-    status?: AdminJobOfferStatus;
-    page?: number;
-  } = {},
+  params: { page?: number } & AdminJobOfferFilters = {},
   options: { signal?: AbortSignal } = {},
 ): Promise<AdminJobOfferPage> {
   const response = await api.get<AdminJobOfferPage>(`${BASE}/job-offers`, {
     params: {
-      ...(params.status !== undefined ? { status: params.status } : {}),
       ...(params.page !== undefined ? { page: params.page } : {}),
+      ...(params.q ? { q: params.q } : {}),
+      ...(params.status ? { status: params.status } : {}),
+      ...(params.workModeId ? { workModeId: params.workModeId } : {}),
+      ...(params.contractTypeId ? { contractTypeId: params.contractTypeId } : {}),
+      ...(params.employmentTypeId ? { employmentTypeId: params.employmentTypeId } : {}),
+      ...(params.seniority ? { seniority: params.seniority } : {}),
+      ...(params.expiry ? { expiry: params.expiry } : {}),
     },
     signal: options.signal,
   });

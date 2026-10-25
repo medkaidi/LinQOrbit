@@ -12,26 +12,38 @@ import {
 import { Alert } from "@/components/ui/alert";
 import { ButtonLink } from "@/components/ui/button";
 import { InfiniteList } from "@/components/ui/infinite-list";
-import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
 import { Spinner } from "@/components/ui/spinner";
 import { RetryButton } from "@/features/admin/retry-button";
 import { JobOfferCard } from "@/features/job-offer/job-offer-card";
 import { isOfferExpired } from "@/features/job-offer/job-offer-shared";
+import {
+  EXPIRY_FILTER_OPTIONS,
+  FilterSelect,
+  NO_OFFER_FILTERS,
+  OFFER_SEARCH_MAX_LENGTH,
+  ResetFiltersButton,
+  SENIORITY_FILTER_OPTIONS,
+  STATUS_FILTER_OPTIONS,
+  toJobOfferFilters,
+  vocabularyOptions,
+  type OfferFilterState,
+} from "@/features/job-offer/offer-filter-controls";
 import { useInfiniteAdminJobOffers } from "@/hooks/use-admin";
-import { useContractTypes, useWorkModes } from "@/hooks/use-job-offers";
-import type { AdminJobOfferListItem, AdminJobOfferStatus } from "@/types/admin";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useHeaderSearch } from "@/hooks/use-header-search";
+import { useContractTypes, useEmploymentTypes, useWorkModes } from "@/hooks/use-job-offers";
+import type { HeaderSearchRole } from "@/stores/header-search-store";
+import type { AdminJobOfferListItem } from "@/types/admin";
 
 const MUTED = "text-body-sm font-body-sm text-text-secondary";
 
-type StatusFilter = AdminJobOfferStatus | undefined;
-
-const FILTER_OPTIONS: SegmentedOption<"all" | AdminJobOfferStatus>[] = [
-  { value: "all", label: "All" },
-  { value: "draft", label: "Draft" },
-  { value: "validated", label: "Validated" },
-  { value: "published", label: "Published" },
-  { value: "closed", label: "Closed" },
-];
+/** Rôle du champ de recherche du header sur la liste des offres (T-110, D96) : titre ou société. */
+const ADMIN_OFFERS_SEARCH_ROLE: HeaderSearchRole = {
+  id: "admin-offers",
+  label: "Search offers",
+  placeholder: "Search by title or company",
+  maxLength: OFFER_SEARCH_MAX_LENGTH,
+};
 
 /** Console en lecture seule (D33/D38) : la carte partage la présentation recruteur, une seule action « View ». */
 function OfferRow({
@@ -81,13 +93,28 @@ function OfferRow({
   );
 }
 
-/** Liste globale de toutes les offres du système (D33) : filtre + infinite scroll (D34). */
+/**
+ * Liste globale de toutes les offres du système (D33) : recherche dans le
+ * header (titre ou société) + filtres de la liste recruteur (T-110, D96) +
+ * infinite scroll (D34).
+ */
 export function AdminOffersSection() {
-  const [filter, setFilter] = useState<"all" | AdminJobOfferStatus>("all");
-  const status: StatusFilter = filter === "all" ? undefined : filter;
-  const offers = useInfiniteAdminJobOffers(status);
+  const [search, setSearch] = useHeaderSearch(ADMIN_OFFERS_SEARCH_ROLE);
+  const [selected, setSelected] = useState<OfferFilterState>(NO_OFFER_FILTERS);
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const filters = toJobOfferFilters(debouncedSearch, selected);
+  const offers = useInfiniteAdminJobOffers(filters);
   const contractTypes = useContractTypes();
+  const employmentTypes = useEmploymentTypes();
   const workModes = useWorkModes();
+  const select = (patch: Partial<OfferFilterState>) =>
+    setSelected((current) => ({ ...current, ...patch }));
+  const resetFilters = () => {
+    setSearch("");
+    setSelected(NO_OFFER_FILTERS);
+  };
+  const filtered = Object.keys(filters).length > 0;
+  const hasActiveControls = search.trim() !== "" || Object.values(selected).some(Boolean);
   const items = offers.data?.pages.flatMap((page) => page.items) ?? [];
   const total = offers.data?.pages[0]?.total ?? 0;
   const contractLabels = new Map(
@@ -115,17 +142,60 @@ export function AdminOffersSection() {
                 {total} {total === 1 ? "offer" : "offers"}
               </span>
             )}
-            <SegmentedControl
-              label="Filter offers by status"
-              value={filter}
-              options={FILTER_OPTIONS}
-              onChange={setFilter}
-            />
           </div>
         }
       />
       <section className="bg-canvas-white rounded-2xl shadow-sm">
         <div className="px-6 pt-5 pb-6 flex flex-col gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <FilterSelect
+              stacked
+              label="Status"
+              options={STATUS_FILTER_OPTIONS}
+              value={selected.status}
+              onChange={(value) => select({ status: value as OfferFilterState["status"] })}
+            />
+            <FilterSelect
+              stacked
+              label="Work mode"
+              options={vocabularyOptions(workModes.data)}
+              value={selected.workModeId}
+              onChange={(value) => select({ workModeId: value })}
+            />
+            <FilterSelect
+              stacked
+              label="Contract"
+              options={vocabularyOptions(contractTypes.data)}
+              value={selected.contractTypeId}
+              onChange={(value) => select({ contractTypeId: value })}
+            />
+            <FilterSelect
+              stacked
+              label="Employment"
+              options={vocabularyOptions(employmentTypes.data)}
+              value={selected.employmentTypeId}
+              onChange={(value) => select({ employmentTypeId: value })}
+            />
+            <FilterSelect
+              stacked
+              label="Seniority"
+              options={SENIORITY_FILTER_OPTIONS}
+              value={selected.seniority}
+              onChange={(value) => select({ seniority: value as OfferFilterState["seniority"] })}
+            />
+            <FilterSelect
+              stacked
+              label="Deadline"
+              options={EXPIRY_FILTER_OPTIONS}
+              value={selected.expiry}
+              onChange={(value) => select({ expiry: value as OfferFilterState["expiry"] })}
+            />
+            {hasActiveControls ? (
+              <div className="shrink-0">
+                <ResetFiltersButton onClick={resetFilters} />
+              </div>
+            ) : null}
+          </div>
           {offers.isError && (
             <Alert variant="error" title="Unable to load offers">
               <RetryButton onRetry={() => void offers.refetch()} label="Try again" />
@@ -156,9 +226,14 @@ export function AdminOffersSection() {
             fetchNextPage={() => void offers.fetchNextPage()}
             loading={offers.isLoading}
             empty={
-              <p className={MUTED}>
-                {status ? "No offers match this filter." : "No offers yet."}
-              </p>
+              filtered ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className={MUTED}>No offers match your filters.</p>
+                  <ResetFiltersButton onClick={resetFilters} />
+                </div>
+              ) : (
+                <p className={MUTED}>No offers yet.</p>
+              )
             }
           />
         </div>

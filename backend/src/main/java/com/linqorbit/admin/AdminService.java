@@ -1,5 +1,6 @@
 package com.linqorbit.admin;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -16,7 +17,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,12 +71,18 @@ import com.linqorbit.common.pagination.PageSizes;
 import com.linqorbit.company.entity.Company;
 import com.linqorbit.company.repository.CompanyRepository;
 import com.linqorbit.joboffer.dto.JobOfferAdminView;
+import com.linqorbit.joboffer.dto.JobOfferListFilters;
 import com.linqorbit.joboffer.entity.JobOffer;
 import com.linqorbit.joboffer.entity.JobOfferStatus;
 import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
+import com.linqorbit.joboffer.repository.JobOfferRow;
+import com.linqorbit.joboffer.repository.JobOfferSearch;
+import com.linqorbit.joboffer.repository.JobOfferSearchRepository;
 import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.service.JobOfferService;
+import com.linqorbit.joboffer.service.OfferFilterParser;
+import com.linqorbit.joboffer.service.OfferSearchPattern;
 import com.linqorbit.matching.entity.CriterionReportReviewVerdict;
 import com.linqorbit.matching.entity.Matching;
 import com.linqorbit.matching.entity.MatchingCriterionFeedback;
@@ -129,6 +135,7 @@ public class AdminService {
     private final NormalizedProfileJobOfferRepository normalizedProfileJobOfferRepository;
     private final NormalizationJobRepository normalizationJobRepository;
     private final JobOfferRepository jobOfferRepository;
+    private final JobOfferSearchRepository jobOfferSearchRepository;
     private final JobOfferService jobOfferService;
     private final CandidateService candidateService;
     private final CompanyRepository companyRepository;
@@ -474,54 +481,65 @@ public class AdminService {
     }
 
     /**
-     * Liste globale des offres (D33, bornes D34) : toutes les offres du
-     * système, filtre de statut optionnel (draft|validated|published|closed),
-     * pagination bornée par {@link PageSizes} (défaut 20, max 50), tri
-     * createdAt décroissant. Chaque ligne porte le statut du job de
-     * normalisation (anti-N+1).
+     * Liste globale des offres (D33, bornes D34, filtres T-110) : toutes les
+     * offres du système, pagination bornée par {@link PageSizes} (défaut 20,
+     * max 50), tri createdAt décroissant. Filtres facultatifs, combinés en ET :
+     * statut (draft|validated|published|closed), recherche sur le titre
+     * <b>ou</b> le nom de la société, mode de travail, contrat, type d'emploi,
+     * séniorité, échéance (expired|expiringSoon) — absent, vide ou blanc ≡ pas
+     * de filtre, valeur inconnue = 400 avant toute lecture. {@code companyId}
+     * est ignoré : la console admin ne restreint jamais par société.
+     *
+     * <p>Les lignes sont des projections sans description (TD-024) ; chacune
+     * porte le statut du job de normalisation (anti-N+1).
      */
     @Transactional(readOnly = true)
-    public AdminJobOfferPageResponse listJobOffers(String status, int page, Integer size) {
+    public AdminJobOfferPageResponse listJobOffers(JobOfferListFilters filters, int page, Integer size) {
         int safePage = PageSizes.page(page);
         int safeSize = PageSizes.clamp(size);
-        Pageable pageable = PageRequest.of(safePage, safeSize,
-                Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<JobOffer> result = (status == null || status.isBlank())
-                ? jobOfferRepository.findAll(pageable)
-                : jobOfferRepository.findByStatus(parseOfferStatus(status), pageable);
-        List<JobOffer> offers = result.getContent();
+        JobOfferListFilters f = filters == null ? JobOfferListFilters.none() : filters;
+        // Valeurs invalides rejetées avant toute lecture.
+        JobOfferStatus status = (f.status() == null || f.status().isBlank()) ? null : parseOfferStatus(f.status());
+        var seniority = OfferFilterParser.parseSeniority(f.seniority());
+        var expiry = OfferFilterParser.parseExpiry(f.expiry(), LocalDate.now());
+        Page<JobOfferRow> result = jobOfferSearchRepository.searchRows(
+                new JobOfferSearch(null, status, null, f.workModeId(), f.contractTypeId(), f.employmentTypeId(),
+                        seniority, null, OfferSearchPattern.of(f.q()), true, expiry.from(), expiry.until(),
+                        JobOfferSearch.Order.CREATED_DESC),
+                PageRequest.of(safePage, safeSize));
+        List<JobOfferRow> offers = result.getContent();
         Map<UUID, String> companyNames = companyNamesOf(offers);
         Map<UUID, NormalizationJobStatus> jobStatuses = latestOfferJobStatuses(offers);
         List<AdminJobOfferListItem> items = offers.stream()
                 .map(offer -> new AdminJobOfferListItem(
-                        offer.getId(),
-                        offer.getTitle(),
-                        offer.getStatus().getApiValue(),
-                        companyNames.get(offer.getCompanyId()),
-                        offer.getPublicId(),
-                        offer.getSlug(),
-                        offer.getCreatedAt(),
-                        offer.getUpdatedAt(),
-                        offer.getExpiresAt(),
-                        offer.getPublishedAt(),
-                        offer.getSeniority() == null ? null : offer.getSeniority().getApiValue(),
-                        offer.getCity(),
-                        offer.getCountry(),
-                        offer.getContractTypeId(),
-                        offer.getWorkModeId(),
-                        offer.getSalaryMin(),
-                        offer.getSalaryMax(),
-                        offer.getSalaryCurrency(),
-                        offer.getSalaryPeriod() == null ? null : offer.getSalaryPeriod().getApiValue(),
+                        offer.id(),
+                        offer.title(),
+                        offer.status().getApiValue(),
+                        companyNames.get(offer.companyId()),
+                        offer.publicId(),
+                        offer.slug(),
+                        offer.createdAt(),
+                        offer.updatedAt(),
+                        offer.expiresAt(),
+                        offer.publishedAt(),
+                        offer.seniority() == null ? null : offer.seniority().getApiValue(),
+                        offer.city(),
+                        offer.country(),
+                        offer.contractTypeId(),
+                        offer.workModeId(),
+                        offer.salaryMin(),
+                        offer.salaryMax(),
+                        offer.salaryCurrency(),
+                        offer.salaryPeriod() == null ? null : offer.salaryPeriod().getApiValue(),
                         // Même règle que la liste recruteur (buildListItems) : le
                         // dirty-flag n'a de sens que sur un statut éditable.
-                        (offer.getStatus() == JobOfferStatus.DRAFT
-                                 || offer.getStatus() == JobOfferStatus.VALIDATED)
-                                 && offer.getValidatedAt() != null
-                                 && offer.getUpdatedAt() != null
-                                 && offer.getUpdatedAt().isAfter(offer.getValidatedAt()),
-                        jobStatuses.containsKey(offer.getId())
-                                ? jobStatuses.get(offer.getId()).name().toLowerCase(Locale.ROOT)
+                        (offer.status() == JobOfferStatus.DRAFT
+                                 || offer.status() == JobOfferStatus.VALIDATED)
+                                 && offer.validatedAt() != null
+                                 && offer.updatedAt() != null
+                                 && offer.updatedAt().isAfter(offer.validatedAt()),
+                        jobStatuses.containsKey(offer.id())
+                                ? jobStatuses.get(offer.id()).name().toLowerCase(Locale.ROOT)
                                 : null))
                 .toList();
         return new AdminJobOfferPageResponse(
@@ -884,22 +902,22 @@ public class AdminService {
         return value;
     }
 
-    private Map<UUID, String> companyNamesOf(List<JobOffer> offers) {
+    private Map<UUID, String> companyNamesOf(List<JobOfferRow> offers) {
         if (offers.isEmpty()) {
             return Map.of();
         }
         Set<UUID> companyIds = offers.stream()
-                .map(JobOffer::getCompanyId)
+                .map(JobOfferRow::companyId)
                 .collect(Collectors.toSet());
         return companyRepository.findAllById(companyIds).stream()
                 .collect(Collectors.toMap(Company::getId, Company::getName));
     }
 
-    private Map<UUID, NormalizationJobStatus> latestOfferJobStatuses(List<JobOffer> offers) {
+    private Map<UUID, NormalizationJobStatus> latestOfferJobStatuses(List<JobOfferRow> offers) {
         if (offers.isEmpty()) {
             return Map.of();
         }
-        List<UUID> offerIds = offers.stream().map(JobOffer::getId).toList();
+        List<UUID> offerIds = offers.stream().map(JobOfferRow::id).toList();
         Map<UUID, NormalizationJobStatus> statuses = new HashMap<>();
         for (Object[] row : normalizedProfileJobOfferRepository.findLatestJobStatuses(offerIds)) {
             statuses.put((UUID) row[0], (NormalizationJobStatus) row[1]);

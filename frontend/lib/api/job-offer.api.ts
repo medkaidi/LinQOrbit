@@ -8,8 +8,10 @@ import type {
 import { isChoiceQuestionType } from "@/lib/validations/job-offer.schemas";
 import type {
   JobOffer,
+  JobOfferFilters,
   JobOfferLabelOption,
   JobOfferPage,
+  RecruiterDashboard,
 } from "@/types/recruiter";
 
 /** Corps envoyé au backend : "" → null, nombres en string → number (miroir profil candidat). */
@@ -121,13 +123,27 @@ export function toJobOfferPayload(
   };
 }
 
-/** La taille de page n'est jamais envoyée : le backend décide (D34). */
+/**
+ * La taille de page n'est jamais envoyée : le backend décide (D34). Un
+ * filtre vide n'est pas envoyé du tout (absent ≡ vide côté serveur, mais le
+ * client ne bavarde pas pour rien).
+ */
 export async function listJobOffers(
-  params: { page?: number } = {},
+  params: { page?: number } & JobOfferFilters = {},
   options: { signal?: AbortSignal } = {},
 ): Promise<JobOfferPage> {
   const response = await api.get<JobOfferPage>("/api/v1/job-offers", {
-    params: { ...(params.page !== undefined ? { page: params.page } : {}) },
+    params: {
+      ...(params.page !== undefined ? { page: params.page } : {}),
+      ...(params.q ? { q: params.q } : {}),
+      ...(params.status ? { status: params.status } : {}),
+      ...(params.workModeId ? { workModeId: params.workModeId } : {}),
+      ...(params.contractTypeId ? { contractTypeId: params.contractTypeId } : {}),
+      ...(params.employmentTypeId ? { employmentTypeId: params.employmentTypeId } : {}),
+      ...(params.seniority ? { seniority: params.seniority } : {}),
+      ...(params.companyId ? { companyId: params.companyId } : {}),
+      ...(params.expiry ? { expiry: params.expiry } : {}),
+    },
     signal: options.signal,
   });
   return response.data;
@@ -205,4 +221,10 @@ export async function listWorkModes(): Promise<JobOfferLabelOption[]> {
     "/api/v1/job-offers/reference/work-modes",
   );
   return response.data;
+}
+
+/** Chiffres du tableau de bord recruteur (un appel, compteurs agrégés côté serveur). */
+export async function getRecruiterDashboard(): Promise<RecruiterDashboard> {
+  const { data } = await api.get<RecruiterDashboard>("/api/v1/recruiters/me/dashboard");
+  return data;
 }

@@ -14,8 +14,9 @@ import com.linqorbit.screening.dto.ScreeningSignal;
  * dirty-flag (modifications post-validation, miroir candidat) que le frontend
  * affiche avant la re-validation, {@code normalizationInProgress} et
  * {@code normalizationFailed} les signaux du job de normalisation (miroir
- * candidat, pilotés par la base), {@code analysisOutdated} la fiche de
- * référence sur une version de schéma périmée (D63), {@code screening} la
+ * candidat, pilotés par la base), {@code analysisOutdated} le signal unifié
+ * « analyse à rafraîchir » : fiche de référence absente ou version de schéma
+ * périmée (D63, D90), {@code screening} la
  * recherche automatique de candidats lancée à la publication (T-101 : statut
  * du dernier job + nombre de suggérés une fois terminée, {@code null} sans
  * recherche).

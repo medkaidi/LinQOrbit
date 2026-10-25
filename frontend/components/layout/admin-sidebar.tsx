@@ -7,20 +7,21 @@ import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/brand/logo";
 import { Wordmark } from "@/components/brand/wordmark";
+import { AdminHeader } from "@/components/layout/admin-header";
 import { SidebarLink } from "@/components/layout/sidebar-link";
-import { UserMenu } from "@/components/navigation/user-menu";
 import { Icon } from "@/components/ui/icon";
 import { useAdminSidebarStore } from "@/stores/admin-sidebar-store";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Chrome admin (D33) : rubriques Accounts & suggestions + Offers, retour au
- * dashboard, menu utilisateur en pied — volontairement distinct du chrome
- * candidat/recruteur (DashboardSidebar). Repliable en rail icônes (D40,
- * état persisté `linqorbit.adminSidebar`) : labels masqués + `aria-label`,
- * Wordmark et bloc nom du UserMenu masqués, toggle compact en haut à droite
- * du conteneur logo (`rounded-xl` sans bordure, distinct des nav links
- * `rounded-full` bordés).
+ * Chrome admin (D33) : rubriques Overview, Accounts & suggestions, Offers et
+ * AI reports, retour au dashboard — volontairement distinct du chrome
+ * candidat/recruteur (DashboardSidebar). Le menu utilisateur n'est plus en
+ * pied : il vit en haut à droite, dans `AdminHeader` (D93). Repliable en rail
+ * icônes (D40, état persisté `linqorbit.adminSidebar`) : labels masqués +
+ * `aria-label`, Wordmark masqué, toggle compact en haut à droite du conteneur
+ * logo (`rounded-xl` sans bordure, distinct des nav links `rounded-full`
+ * bordés).
  */
 export function AdminSidebar() {
   const pathname = usePathname();
@@ -30,7 +31,7 @@ export function AdminSidebar() {
   return (
     <aside
       className={cn(
-        "hidden lg:flex fixed left-0 top-0 h-full bg-canvas-white border-r border-slate-border z-50 flex-col justify-between pb-5",
+        "hidden lg:flex fixed left-0 top-0 h-full bg-canvas-white border-r border-slate-border z-50 flex-col pb-5",
         collapsed ? "lg:w-20" : "lg:w-64",
       )}
     >
@@ -71,9 +72,16 @@ export function AdminSidebar() {
         <nav className="flex flex-col gap-1 px-3 pt-4" aria-label="Administration">
           <SidebarLink
             href="/admin"
+            icon="dashboard"
+            label="Overview"
+            active={pathname === "/admin"}
+            collapsed={collapsed}
+          />
+          <SidebarLink
+            href="/admin/accounts"
             icon="group"
             label="Accounts & suggestions"
-            active={pathname === "/admin"}
+            active={pathname.startsWith("/admin/accounts")}
             collapsed={collapsed}
           />
           <SidebarLink
@@ -102,18 +110,15 @@ export function AdminSidebar() {
           />
         </div>
       </div>
-
-      <div className="px-3 flex flex-col gap-1">
-        <UserMenu compact={collapsed} />
-      </div>
     </aside>
   );
 }
 
 /**
- * Shell de la zone admin : sidebar + `main` dont le padding suit le repli
- * (`lg:pl-64` ↔ `lg:pl-20`, D40). Client (store Zustand) — le layout de
- * route l'enveloppe sous les gates.
+ * Shell de la zone admin : sidebar + barre supérieure (menu utilisateur,
+ * D93) + `main` dont le padding suit le repli (`lg:pl-64` ↔ `lg:pl-20`, D40)
+ * et que `pt-16` dégage sous la barre fixe. Client (store Zustand) — le
+ * layout de route l'enveloppe sous les gates.
  *
  * Expose aussi la largeur de la sidenav en `--sidenav-w` sur `<html>` :
  * c'est la source de vérité pour le drawer normalisé (50 % du contenu hors
@@ -134,7 +139,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-canvas-subtle antialiased selection:bg-orange-subtle selection:text-orange-deep">
       <AdminSidebar />
-      <main className={collapsed ? "lg:pl-20" : "lg:pl-64"}>
+      <AdminHeader collapsed={collapsed} />
+      <main className={cn("pt-16", collapsed ? "lg:pl-20" : "lg:pl-64")}>
         <div className="w-full px-gutter py-7 flex flex-col gap-6">{children}</div>
       </main>
     </div>

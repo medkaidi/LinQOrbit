@@ -10,6 +10,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.linqorbit.invitation.entity.OfferCandidate;
 import com.linqorbit.invitation.entity.OfferCandidateStatus;
@@ -65,4 +66,44 @@ public interface OfferCandidateRepository extends JpaRepository<OfferCandidate, 
             order by oc.invitedAt desc, oc.id""")
     List<OfferCandidate> findOpenInvitations(UUID candidateId, OfferCandidateStatus invited,
             JobOfferStatus published, LocalDate today);
+
+    /**
+     * Nombre d'invitations en cours : <b>même prédicat</b> que
+     * {@link #findOpenInvitations} (un test d'intégration épingle l'égalité), sans
+     * charger les lignes — tableau de bord candidat.
+     */
+    @Query("""
+            select count(oc) from OfferCandidate oc, JobOffer j
+            where oc.jobOfferId = j.id and oc.candidateId = :candidateId
+              and oc.status = :invited
+              and j.status = :published
+              and (j.expiresAt is null or j.expiresAt >= :today)
+              and not exists (select 1 from Application a
+                              where a.candidateId = oc.candidateId and a.jobOfferId = oc.jobOfferId)""")
+    long countOpenInvitations(UUID candidateId, OfferCandidateStatus invited,
+            JobOfferStatus published, LocalDate today);
+
+    /**
+     * Tableau de bord recruteur, sur les offres ouvertes de ces sociétés et parmi les candidats
+     * ayant consenti (relu à chaque lecture, comme la liste des suggestions) : une ligne
+     * {@code [à inviter, invités]}. À inviter = suggérés qui n'ont pas candidaté (le
+     * {@code canInvite} de la liste) ; invités = lignes INVITED, candidature ou non.
+     */
+    @Query(value = """
+            SELECT COALESCE(SUM(CASE WHEN oc.status = :suggested AND NOT EXISTS (
+                                        SELECT 1 FROM application a
+                                        WHERE a.candidate_id = oc.candidate_id AND a.job_offer_id = oc.job_offer_id)
+                                     THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN oc.status = :invited THEN 1 ELSE 0 END), 0)
+            FROM offer_candidate oc
+            JOIN job_offer o ON o.id = oc.job_offer_id
+            JOIN candidates c ON c.id = oc.candidate_id
+            WHERE o.company_id IN (:companyIds)
+              AND o.status = :published
+              AND (o.expires_at IS NULL OR o.expires_at >= :today)
+              AND c.recruiter_visibility_consent_at IS NOT NULL
+            """, nativeQuery = true)
+    List<Object[]> countToInviteAndInvited(@Param("companyIds") Collection<UUID> companyIds,
+            @Param("suggested") short suggested, @Param("invited") short invited,
+            @Param("published") short published, @Param("today") LocalDate today);
 }

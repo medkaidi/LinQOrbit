@@ -1,6 +1,7 @@
 package com.linqorbit.joboffer.controller;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -8,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import lombok.RequiredArgsConstructor;
 
+import com.linqorbit.joboffer.dto.PublicJobFilters;
 import com.linqorbit.joboffer.dto.PublicJobListItem;
 import com.linqorbit.joboffer.dto.PublicJobPageResponse;
 import com.linqorbit.joboffer.dto.PublicJobResponse;
@@ -25,8 +27,11 @@ public class JobPublicController implements JobPublicApi {
     private final JobOfferService jobOfferService;
 
     @Override
-    public ResponseEntity<PublicJobPageResponse> listJobs(Integer page) {
-        return ResponseEntity.ok(jobOfferService.listPublic(page));
+    public ResponseEntity<PublicJobPageResponse> listJobs(Integer page, String q, UUID workModeId,
+            UUID contractTypeId, UUID employmentTypeId, String seniority, String country, String sort) {
+        PublicJobFilters filters = new PublicJobFilters(q, workModeId, contractTypeId, employmentTypeId, seniority,
+                country, sort);
+        return ResponseEntity.ok(jobOfferService.listPublic(page, filters));
     }
 
     @Override

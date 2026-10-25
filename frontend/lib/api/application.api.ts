@@ -3,6 +3,7 @@ import { saveBlob } from "@/lib/utils/download";
 import type {
   ApplicationContext,
   ApplicationResponse,
+  CandidateDashboard,
   CriterionReportReason,
   RecruiterApplicationDecision,
   RecruiterApplicationDetail,
@@ -152,4 +153,10 @@ export async function reportCriterion(
     `/api/v1/job-offers/${offerId}/applications/${applicationId}/criterion-reports`,
     body,
   );
+}
+
+/** Chiffres du tableau de bord candidat (un appel, compteurs agrégés côté serveur). */
+export async function getCandidateDashboard(): Promise<CandidateDashboard> {
+  const { data } = await api.get<CandidateDashboard>("/api/v1/candidates/me/dashboard");
+  return data;
 }

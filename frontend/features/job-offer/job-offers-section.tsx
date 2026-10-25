@@ -20,14 +20,29 @@ import {
   useJobOfferTransition,
   useWorkModes,
 } from "@/hooks/use-job-offers";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useHeaderSearch } from "@/hooks/use-header-search";
 import { useScreeningStream } from "@/hooks/use-invitations";
 import { useOfferNormalizationStream } from "@/hooks/use-normalization-stream";
 import { SECTION_HEADER_CLASS, SECTION_TITLE_CLASS } from "@/components/ui/section";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
+import type { HeaderSearchRole } from "@/stores/header-search-store";
 import type { Company, JobOfferListItem } from "@/types/recruiter";
 import { CopyPublicLinkButton } from "@/features/job-offer/copy-public-link-button";
 import { isScreeningInProgress, ScreeningBadge } from "@/features/invitation/screening-badge";
 import { JobOfferCard } from "@/features/job-offer/job-offer-card";
+import {
+  EXPIRY_FILTER_OPTIONS,
+  FilterSelect,
+  NO_OFFER_FILTERS,
+  OFFER_SEARCH_MAX_LENGTH,
+  ResetFiltersButton,
+  SENIORITY_FILTER_OPTIONS,
+  STATUS_FILTER_OPTIONS,
+  toJobOfferFilters,
+  vocabularyOptions,
+  type OfferFilterState,
+} from "@/features/job-offer/offer-filter-controls";
 import {
   canRefreshOfferAnalysis,
   isOfferExpired,
@@ -348,6 +363,14 @@ function OfferScreeningWatcher({ offerId, active }: { offerId: string; active: b
   return null;
 }
 
+/** Rôle du champ de recherche du header sur la liste recruteur : titre de l'offre. */
+const OFFERS_SEARCH_ROLE: HeaderSearchRole = {
+  id: "recruiter-offers",
+  label: "Search offers",
+  placeholder: "Search by job title",
+  maxLength: OFFER_SEARCH_MAX_LENGTH,
+};
+
 /** Dialogue de confirmation ouvert au-dessus de la liste — un seul état pour les deux modales. */
 type OfferDialog =
   | { kind: "transition"; offer: JobOfferListItem; action: ConfirmedTransition }
@@ -358,7 +381,11 @@ type OfferDialog =
  * mutation partagé par les actions, erreurs en `Alert` sans perdre la liste.
  */
 export function JobOffersSection({ companies }: { companies: Company[] }) {
-  const offers = useInfiniteJobOffers();
+  const [search, setSearch] = useHeaderSearch(OFFERS_SEARCH_ROLE);
+  const [selected, setSelected] = useState<OfferFilterState>(NO_OFFER_FILTERS);
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const filters = toJobOfferFilters(debouncedSearch, selected);
+  const offers = useInfiniteJobOffers(filters);
   const transition = useJobOfferTransition();
   const remove = useDeleteJobOffer();
   const duplicate = useDuplicateJobOffer();
@@ -385,41 +412,15 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
   const pendingDuplicateId = duplicate.isPending ? duplicate.variables ?? null : null;
   const error = transition.error ?? remove.error ?? duplicate.error;
 
-  if (offers.isLoading) {
-    return (
-      <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <header className={SECTION_HEADER_CLASS}>
-          <h2 className={SECTION_TITLE_CLASS}>Job offers</h2>
-        </header>
-        <div className="px-6 pt-5 pb-6 flex items-center gap-2 text-body-sm text-text-secondary">
-          <Spinner />
-          Loading offers…
-        </div>
-      </section>
-    );
-  }
-
-  if (offers.isError) {
-    return (
-      <section className="bg-canvas-white rounded-2xl shadow-sm">
-        <header className={SECTION_HEADER_CLASS}>
-          <h2 className={SECTION_TITLE_CLASS}>Job offers</h2>
-        </header>
-        <div className="px-6 pt-5 pb-6">
-          <Alert variant="error" title="Could not load offers">
-            <div className="flex items-center justify-between gap-3">
-              <span>{getApiErrorMessage(offers.error)}</span>
-              <Button variant="outline-sm" onClick={() => void offers.refetch()}>
-                Retry
-              </Button>
-            </div>
-          </Alert>
-        </div>
-      </section>
-    );
-  }
-
   const list = offers.data?.pages.flatMap((page) => page.items) ?? [];
+  const filtered = Object.keys(filters).length > 0;
+  const hasActiveControls = search.trim() !== "" || Object.values(selected).some(Boolean);
+  const select = (patch: Partial<OfferFilterState>) =>
+    setSelected((current) => ({ ...current, ...patch }));
+  const resetFilters = () => {
+    setSearch("");
+    setSelected(NO_OFFER_FILTERS);
+  };
   const watchedOffers = list.filter((offer) => watchedOfferIds.includes(offer.id));
 
   return (
@@ -429,10 +430,84 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
         <NavPill icon="add" label="New offer" href="/recruiter/offers/new" />
       </header>
       <div className="px-6 pt-5 pb-6 flex flex-col gap-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <FilterSelect
+            stacked
+            label="Status"
+            options={STATUS_FILTER_OPTIONS}
+            value={selected.status}
+            onChange={(value) => select({ status: value as OfferFilterState["status"] })}
+          />
+          <FilterSelect
+            stacked
+            label="Work mode"
+            options={vocabularyOptions(workModes.data)}
+            value={selected.workModeId}
+            onChange={(value) => select({ workModeId: value })}
+          />
+          <FilterSelect
+            stacked
+            label="Contract"
+            options={vocabularyOptions(contractTypes.data)}
+            value={selected.contractTypeId}
+            onChange={(value) => select({ contractTypeId: value })}
+          />
+          <FilterSelect
+            stacked
+            label="Employment"
+            options={vocabularyOptions(employmentTypes.data)}
+            value={selected.employmentTypeId}
+            onChange={(value) => select({ employmentTypeId: value })}
+          />
+          <FilterSelect
+            stacked
+            label="Seniority"
+            options={SENIORITY_FILTER_OPTIONS}
+            value={selected.seniority}
+            onChange={(value) => select({ seniority: value as OfferFilterState["seniority"] })}
+          />
+          <FilterSelect
+            stacked
+            label="Deadline"
+            options={EXPIRY_FILTER_OPTIONS}
+            value={selected.expiry}
+            onChange={(value) => select({ expiry: value as OfferFilterState["expiry"] })}
+          />
+          {companies.length > 1 ? (
+            <FilterSelect
+              stacked
+              label="Company"
+              options={companies.map((company) => ({ value: company.id, label: company.name }))}
+              value={selected.companyId}
+              onChange={(value) => select({ companyId: value })}
+            />
+          ) : null}
+          {hasActiveControls ? (
+            <div className="shrink-0">
+              <ResetFiltersButton onClick={resetFilters} />
+            </div>
+          ) : null}
+        </div>
         {error ? (
           <Alert variant="error" title="Action failed">
             {getApiErrorMessage(error)}
           </Alert>
+        ) : null}
+        {offers.isError ? (
+          <Alert variant="error" title="Could not load offers">
+            <div className="flex items-center justify-between gap-3">
+              <span>{getApiErrorMessage(offers.error)}</span>
+              <Button variant="outline-sm" onClick={() => void offers.refetch()}>
+                Retry
+              </Button>
+            </div>
+          </Alert>
+        ) : null}
+        {offers.isLoading ? (
+          <div className="flex items-center gap-2 text-body-sm text-text-secondary">
+            <Spinner />
+            Loading offers…
+          </div>
         ) : null}
         <InfiniteList
           items={list}
@@ -475,9 +550,18 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
           fetchNextPage={() => void offers.fetchNextPage()}
           loading={offers.isLoading}
           empty={
-            <p className="text-body-md font-body-md text-text-secondary">
-              No offers yet. Create your first job offer to start matching candidates.
-            </p>
+            offers.isError ? null : filtered ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-body-md font-body-md text-text-secondary">
+                  No offers match your filters.
+                </p>
+                <ResetFiltersButton onClick={resetFilters} />
+              </div>
+            ) : (
+              <p className="text-body-md font-body-md text-text-secondary">
+                No offers yet. Create your first job offer to start matching candidates.
+              </p>
+            )
           }
         />
         {watchedOffers.map((offer) => (

@@ -5,6 +5,7 @@ import type {
   RecruiterContestationView,
 } from "@/types/application";
 import type {
+  JobOfferFilters,
   JobOfferStatusValue,
   SalaryPeriodValue,
   SeniorityValue,
@@ -73,6 +74,13 @@ export type AdminOfferNormalizedProfile = AdminNormalizedProfile<NormalizedJobOf
 
 /** Statut de vie d'une offre (valeurs API backend) — même union que la carte recruteur (TD-042). */
 export type AdminJobOfferStatus = JobOfferStatusValue;
+
+/**
+ * Filtres facultatifs de la liste globale des offres (T-110), combinés en ET :
+ * ceux de la liste recruteur, sans la société (la console admin n'est jamais
+ * restreinte par société). `q` cherche dans le titre **et** le nom de la société.
+ */
+export type AdminJobOfferFilters = Omit<JobOfferFilters, "companyId">;
 
 /** Ligne de la liste globale des offres (GET /api/v1/admin/job-offers) — mêmes signaux que la carte recruteur. */
 export type AdminJobOfferListItem = {
@@ -229,4 +237,43 @@ export type AdminCriterionReportDetail = {
   averageGap: number | null;
   canReview: boolean;
   myReview: AdminCriterionReportReview | null;
+};
+
+/**
+ * Chiffres du tableau de bord admin (`GET /api/v1/admin/dashboard`) : toute la plateforme, agrégée côté
+ * serveur. Chaque compteur est le total de la liste admin correspondante ; `candidates` / `recruiters`
+ * sont des identités cumulables (ne pas les additionner). Aucune moyenne ni tendance — seuls les
+ * « nouveaux sur 7 jours » existent.
+ */
+export type AdminDashboard = {
+  accounts: {
+    active: number;
+    inactive: number;
+    suspended: number;
+    candidates: number;
+    recruiters: number;
+    admins: number;
+    newLast7Days: number;
+  };
+  offers: { draft: number; validated: number; published: number; closed: number };
+  /** Offres publiées non expirées (le périmètre du job board). */
+  liveOffers: number;
+  applications: { toReview: number; accepted: number; rejected: number; newLast7Days: number };
+  moderation: {
+    skillSuggestions: number;
+    /** Signalements IA que l'admin courant peut relire (ni auteur, ni déjà relu). */
+    reportsAwaitingMyReview: number;
+    reportsTotal: number;
+  };
+  /**
+   * Traitements IA définitivement en échec (tentatives épuisées) et encore d'actualité : un échec
+   * remplacé par une version postérieure n'est pas compté. Un compte par sujet, lecture seule.
+   */
+  processingFailures: {
+    candidateAnalyses: number;
+    offerAnalyses: number;
+    embeddings: number;
+    screenings: number;
+    matchings: number;
+  };
 };

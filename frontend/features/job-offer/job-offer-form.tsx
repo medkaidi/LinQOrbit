@@ -565,7 +565,7 @@ export function JobOfferForm({
 
       <section className="bg-canvas-white rounded-2xl shadow-sm">
         <header className={SECTION_HEADER_CLASS}>
-          <h2 className={SECTION_TITLE_CLASS}>AI clarifications</h2>
+          <h2 className={SECTION_TITLE_CLASS}>Dynamic Candidate Assessment</h2>
         </header>
         <div className="px-6 pt-5 pb-6 flex flex-col gap-4">
           <p className="text-body-sm font-body-sm text-text-secondary">

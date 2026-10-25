@@ -14,9 +14,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/navigation/user-menu", () => ({
-  UserMenu: ({ compact = false }: { compact?: boolean }) => (
-    <div data-testid="user-menu" data-compact={String(compact)} />
-  ),
+  UserMenu: () => <div data-testid="user-menu" />,
 }));
 
 describe("AdminSidebar", () => {
@@ -26,12 +24,42 @@ describe("AdminSidebar", () => {
     window.localStorage.removeItem(ADMIN_SIDEBAR_STORAGE_KEY);
   });
 
-  it("links Accounts & suggestions to /admin and marks it active there", () => {
+  it("links Overview to /admin and marks it active only on the exact route", () => {
+    render(<AdminSidebar />);
+
+    const overview = screen.getByRole("link", { name: /^overview$/i });
+    expect(overview).toHaveAttribute("href", "/admin");
+    expect(overview).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /accounts & suggestions/i })).not.toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("links Accounts & suggestions to /admin/accounts and keeps Overview inactive there", () => {
+    pathnameMock.mockReturnValue("/admin/accounts");
+
     render(<AdminSidebar />);
 
     const accounts = screen.getByRole("link", { name: /accounts & suggestions/i });
-    expect(accounts).toHaveAttribute("href", "/admin");
+    expect(accounts).toHaveAttribute("href", "/admin/accounts");
     expect(accounts).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /^overview$/i })).not.toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("keeps Overview inactive on the other admin routes", () => {
+    pathnameMock.mockReturnValue("/admin/reports/abc");
+
+    render(<AdminSidebar />);
+
+    expect(screen.getByRole("link", { name: /^overview$/i })).not.toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: /ai reports/i })).toHaveAttribute("aria-current", "page");
   });
 
   it("links Offers to /admin/offers and marks it active on its routes", () => {
@@ -76,10 +104,10 @@ describe("AdminSidebar", () => {
     expect(toggle).not.toHaveClass("w-full");
   });
 
-  it("renders the user menu in the footer", () => {
+  it("no longer hosts the user menu (it lives in the top bar)", () => {
     render(<AdminSidebar />);
 
-    expect(screen.getByTestId("user-menu")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-menu")).not.toBeInTheDocument();
   });
 
   it("collapses to an icon rail, then restores the labels on expand", () => {
@@ -94,7 +122,7 @@ describe("AdminSidebar", () => {
       "Offers",
     );
     expect(screen.getByRole("link", { name: "Accounts & suggestions" })).toBeInTheDocument();
-    expect(screen.getByTestId("user-menu")).toHaveAttribute("data-compact", "true");
+    expect(screen.getByRole("link", { name: "Overview" })).toBeInTheDocument();
     const aside = screen.getByRole("complementary");
     expect(aside).toHaveClass("lg:w-20");
     expect(screen.getByRole("button", { name: "Expand sidebar" })).toHaveAttribute(
@@ -105,7 +133,6 @@ describe("AdminSidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
 
     expect(screen.getByText("Offers")).toBeInTheDocument();
-    expect(screen.getByTestId("user-menu")).toHaveAttribute("data-compact", "false");
     expect(aside).toHaveClass("lg:w-64");
   });
 
@@ -142,6 +169,34 @@ describe("AdminShell", () => {
     });
 
     expect(main).toHaveClass("lg:pl-20");
+  });
+
+  it("renders the top bar with the user menu and clears it below with pt-16", () => {
+    const { container } = render(
+      <AdminShell>
+        <p>page content</p>
+      </AdminShell>,
+    );
+
+    const header = container.querySelector("header");
+    expect(header).toContainElement(screen.getByTestId("user-menu"));
+    expect(container.querySelector("main")).toHaveClass("pt-16");
+  });
+
+  it("makes the top bar follow the sidebar state", () => {
+    const { container } = render(
+      <AdminShell>
+        <p>content</p>
+      </AdminShell>,
+    );
+    const header = container.querySelector("header");
+    expect(header).toHaveClass("lg:left-64");
+
+    act(() => {
+      useAdminSidebarStore.getState().toggle();
+    });
+
+    expect(header).toHaveClass("lg:left-20");
   });
 
   it("exposes the sidebar width as --sidenav-w on <html>", () => {

@@ -34,7 +34,8 @@ export const OFFER_SALARY_CHIP =
 /** Thèmes du chip méta : neutre (gris) ou accent (outline orange). */
 export type MetaChipTone = "neutral" | "accent";
 
-const STATUS_PILL_TONES: Record<JobOfferStatusValue, StatusPillTone> = {
+/** Tons de la pastille de statut d'offre ; le point colore aussi les barres des répartitions des dashboards. */
+export const OFFER_STATUS_TONES: Record<JobOfferStatusValue, StatusPillTone> = {
   draft: { pill: "bg-canvas-subtle text-text-secondary", dot: "bg-text-tertiary" },
   validated: { pill: "bg-orange-subtle text-orange-deep", dot: "bg-orange-vibrant" },
   published: { pill: "bg-success-surface text-success-text", dot: "bg-tertiary" },
@@ -52,7 +53,7 @@ const TILE_TONES: Record<JobOfferStatusValue, string> = {
 
 /** Pastille de statut à point coloré — partagée carte / détail admin (source unique). */
 export function OfferStatusPill({ status }: { status: JobOfferStatusValue }) {
-  return <StatusPill tone={STATUS_PILL_TONES[status]}>{STATUS_LABELS[status]}</StatusPill>;
+  return <StatusPill tone={OFFER_STATUS_TONES[status]}>{STATUS_LABELS[status]}</StatusPill>;
 }
 
 /**

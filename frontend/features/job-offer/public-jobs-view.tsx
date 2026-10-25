@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import type { ReactNode } from "react";
 
 import {
@@ -15,6 +16,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink, CtaLink } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { InfiniteList } from "@/components/ui/infinite-list";
+import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { MUTED_PILL_CLASS } from "@/components/ui/pill";
 import {
@@ -27,9 +29,77 @@ import {
   seniorityLabel,
   workModeIcon,
 } from "@/features/job-offer/job-offer-shared";
+import {
+  FilterSelect,
+  OFFER_SEARCH_MAX_LENGTH,
+  ResetFiltersButton,
+  SENIORITY_FILTER_OPTIONS,
+  vocabularyOptions,
+} from "@/features/job-offer/offer-filter-controls";
+import { countryOptions } from "@/config/countries";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useHeaderSearch } from "@/hooks/use-header-search";
+import {
+  useContractTypes,
+  useEmploymentTypes,
+  useWorkModes,
+} from "@/hooks/use-job-offers";
 import { useInfinitePublicJobs } from "@/hooks/use-public-jobs";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
-import type { PublicJobListItem } from "@/types/public-job";
+import type { HeaderSearchRole } from "@/stores/header-search-store";
+import type { PublicJobFilters, PublicJobListItem, PublicJobSort } from "@/types/public-job";
+import type { SeniorityValue } from "@/types/recruiter";
+
+/** Rôle du champ de recherche du header sur le board : titre ou société de l'offre. */
+const BOARD_SEARCH_ROLE: HeaderSearchRole = {
+  id: "job-board",
+  label: "Search jobs",
+  placeholder: "Search by job title or company",
+  maxLength: OFFER_SEARCH_MAX_LENGTH,
+};
+
+const SORT_OPTIONS: { value: PublicJobSort; label: string }[] = [
+  { value: "recent", label: "Most recent" },
+  { value: "expiringSoon", label: "Expiring soon" },
+];
+
+/** Sélections brutes de la toolbar : "" = « All » (aucun filtre). */
+type BoardSelection = {
+  workModeId: string;
+  contractTypeId: string;
+  employmentTypeId: string;
+  seniority: "" | SeniorityValue;
+  country: string;
+};
+
+const NO_SELECTION: BoardSelection = {
+  workModeId: "",
+  contractTypeId: "",
+  employmentTypeId: "",
+  seniority: "",
+  country: "",
+};
+
+/**
+ * État de la toolbar → filtres d'API : une sélection vide n'est jamais
+ * envoyée, et le tri par défaut (« recent ») non plus.
+ */
+function toPublicJobFilters(
+  search: string,
+  selection: BoardSelection,
+  sort: PublicJobSort,
+): PublicJobFilters {
+  const q = search.trim();
+  return {
+    ...(q ? { q } : {}),
+    ...(selection.workModeId ? { workModeId: selection.workModeId } : {}),
+    ...(selection.contractTypeId ? { contractTypeId: selection.contractTypeId } : {}),
+    ...(selection.employmentTypeId ? { employmentTypeId: selection.employmentTypeId } : {}),
+    ...(selection.seniority ? { seniority: selection.seniority } : {}),
+    ...(selection.country ? { country: selection.country } : {}),
+    ...(sort !== "recent" ? { sort } : {}),
+  };
+}
 
 /** Tuile bleue (accent secondaire) : sur un board tout est publié, la couleur porte l'identité, pas un statut. */
 const TILE_CLASS = "bg-blue-surface text-blue-deep";
@@ -176,15 +246,36 @@ function PublicJobCard({ job }: { job: PublicJobListItem }) {
 }
 
 /**
- * Job board (T-72, intégré au shell dashboard en T-74, refonte cartes T-76) :
- * offres publiées non expirées, flux en grille deux colonnes ≥ xl et
- * chargement automatique en bas de liste (`InfiniteList`) — la taille de page
- * est décidée par le backend (D34), aucun filtre à ce jour.
+ * Job board (T-72, intégré au shell dashboard en T-74, refonte cartes T-76,
+ * recherche, filtres et tri T-77) : offres publiées non expirées, flux en
+ * grille deux colonnes ≥ xl et chargement automatique en bas de liste
+ * (`InfiniteList`) — la taille de page est décidée par le backend (D34). La
+ * toolbar reste montée pendant le chargement et en cas d'erreur : sans elle,
+ * un échec détruirait les filtres que l'utilisateur vient de saisir.
  */
 export function PublicJobsView() {
-  const query = useInfinitePublicJobs();
+  const [search, setSearch] = useHeaderSearch(BOARD_SEARCH_ROLE);
+  const [selection, setSelection] = useState<BoardSelection>(NO_SELECTION);
+  const [sort, setSort] = useState<PublicJobSort>("recent");
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const filters = toPublicJobFilters(debouncedSearch, selection, sort);
+  const query = useInfinitePublicJobs(filters);
+  const workModes = useWorkModes();
+  const contractTypes = useContractTypes();
+  const employmentTypes = useEmploymentTypes();
   const jobs = query.data?.pages.flatMap((page) => page.items) ?? [];
   const total = query.data?.pages[0]?.total ?? 0;
+  // Le tri seul n'est pas un filtre : il ne change pas le message d'état vide.
+  const filtered = Object.keys(filters).some((key) => key !== "sort");
+  const hasActiveControls =
+    search.trim() !== "" || Object.values(selection).some(Boolean) || sort !== "recent";
+  const select = (patch: Partial<BoardSelection>) =>
+    setSelection((current) => ({ ...current, ...patch }));
+  const resetFilters = () => {
+    setSearch("");
+    setSelection(NO_SELECTION);
+    setSort("recent");
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -200,7 +291,61 @@ export function PublicJobsView() {
         title="Open positions"
       />
 
-      <div className="w-full">
+      <div className="w-full flex flex-col gap-4">
+        <div className="rounded-2xl border border-slate-border bg-canvas-white p-4 shadow-sm">
+          {/* Une seule rangée à partir de xl : cinq filtres à parts égales, tri + Reset dans la dernière colonne à la largeur de leur contenu. */}
+          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
+            <FilterSelect
+              stacked
+              label="Work mode"
+              options={vocabularyOptions(workModes.data)}
+              value={selection.workModeId}
+              onChange={(value) => select({ workModeId: value })}
+            />
+            <FilterSelect
+              stacked
+              label="Contract"
+              options={vocabularyOptions(contractTypes.data)}
+              value={selection.contractTypeId}
+              onChange={(value) => select({ contractTypeId: value })}
+            />
+            <FilterSelect
+              stacked
+              label="Employment"
+              options={vocabularyOptions(employmentTypes.data)}
+              value={selection.employmentTypeId}
+              onChange={(value) => select({ employmentTypeId: value })}
+            />
+            <FilterSelect
+              stacked
+              label="Seniority"
+              options={SENIORITY_FILTER_OPTIONS}
+              value={selection.seniority}
+              onChange={(value) => select({ seniority: value as BoardSelection["seniority"] })}
+            />
+            <FilterSelect
+              stacked
+              label="Country"
+              searchable
+              options={countryOptions}
+              value={selection.country}
+              onChange={(value) => select({ country: value })}
+            />
+            <div className="flex min-w-0 items-end gap-2">
+              <div className="min-w-0 flex-1">
+                <Select
+                  label="Sort by"
+                  compact
+                  options={SORT_OPTIONS}
+                  value={sort}
+                  onValueChange={(value) => setSort(value as PublicJobSort)}
+                />
+              </div>
+              {hasActiveControls ? <ResetFiltersButton onClick={resetFilters} /> : null}
+            </div>
+          </div>
+        </div>
+
         {query.isLoading ? (
           <div className="flex items-center gap-2 text-body-sm font-body-sm text-text-secondary">
             <Spinner />
@@ -221,11 +366,18 @@ export function PublicJobsView() {
         ) : jobs.length === 0 ? (
           <div className="rounded-2xl border border-slate-border bg-canvas-white px-6 py-12 text-center shadow-sm">
             <h2 className="font-headline-sm text-headline-sm text-text-primary">
-              No open positions right now
+              {filtered ? "No offers match your filters" : "No open positions right now"}
             </h2>
             <p className="mt-2 text-body-sm font-body-sm text-text-secondary">
-              Published offers will show up here as companies open roles.
+              {filtered
+                ? "Try a different search or remove some filters."
+                : "Published offers will show up here as companies open roles."}
             </p>
+            {filtered ? (
+              <div className="mt-4 flex justify-center">
+                <ResetFiltersButton onClick={resetFilters} />
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="flex flex-col gap-4">

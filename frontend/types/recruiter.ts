@@ -153,10 +153,57 @@ export type JobOfferListItem = {
   updatedAt: string;
 };
 
+/** Fenêtre d'échéance d'un filtre de la liste (T-70) : « expiringSoon » = dans les 30 jours. */
+export type JobOfferExpiryFilter = "expired" | "expiringSoon";
+
+/**
+ * Filtres facultatifs de la liste des offres du recruteur (T-70), combinés en
+ * ET : une clé absente n'est pas un filtre (jamais de valeur vide envoyée).
+ */
+export type JobOfferFilters = {
+  q?: string;
+  status?: JobOfferStatusValue;
+  workModeId?: string;
+  contractTypeId?: string;
+  employmentTypeId?: string;
+  seniority?: SeniorityValue;
+  companyId?: string;
+  expiry?: JobOfferExpiryFilter;
+};
+
 /** Page d'offres du recruteur (enveloppe backend, page 0-based — D34). */
 export type JobOfferPage = {
   items: JobOfferListItem[];
   page: number;
   size: number;
   total: number;
+};
+
+/** Offre à regarder en premier sur le tableau de bord (ligne légère : ni description ni candidats). */
+export type DashboardAttentionOffer = {
+  id: string;
+  title: string;
+  status: JobOfferStatusValue;
+  expiresAt: string | null;
+  /** Candidatures transmises en attente de décision. */
+  toReview: number;
+  screening: ScreeningSignal | null;
+};
+
+/**
+ * Chiffres du tableau de bord recruteur, **calculés par le serveur** sur les
+ * offres de toutes ses sociétés : offres par statut (une offre publiée expirée
+ * reste « published »), offres ouvertes (même périmètre que le job board),
+ * échéances dans les 30 jours (même fenêtre que le filtre de la liste),
+ * candidatures visibles (ni brouillon ni retrait), candidats à inviter / invités
+ * parmi ceux qui ont consenti, recherches en échec et jusqu'à 5 offres à
+ * regarder. Jamais de moyenne, de délai d'embauche ni de tendance.
+ */
+export type RecruiterDashboard = {
+  offers: Record<JobOfferStatusValue, number>;
+  liveOffers: number;
+  closingSoon: { count: number; nextExpiry: string | null };
+  applications: { toReview: number; accepted: number; rejected: number };
+  candidates: { toInvite: number; invited: number; searchesFailed: number };
+  attention: DashboardAttentionOffer[];
 };

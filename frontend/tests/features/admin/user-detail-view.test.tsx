@@ -160,9 +160,13 @@ describe("UserDetailView", () => {
 
     // Breadcrumb à trois niveaux : Administration / Accounts / {nom}.
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
-    expect(within(breadcrumb).getByRole("link", { name: "Accounts" })).toHaveAttribute(
+    expect(within(breadcrumb).getByRole("link", { name: "Administration" })).toHaveAttribute(
       "href",
       "/admin",
+    );
+    expect(within(breadcrumb).getByRole("link", { name: "Accounts" })).toHaveAttribute(
+      "href",
+      "/admin/accounts",
     );
     expect(within(breadcrumb).getByText("Ada Lovelace")).toBeInTheDocument();
 

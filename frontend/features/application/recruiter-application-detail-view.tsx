@@ -306,15 +306,15 @@ function RecruiterQuestionsCard({ answers }: { answers: RecruiterAnswerView[] })
 
 function ClarificationsCard({ clarifications }: { clarifications: RecruiterClarificationView[] }) {
   return (
-    <section className={SECTION_CARD_CLASS} aria-label="AI clarifications">
+    <section className={SECTION_CARD_CLASS} aria-label="Dynamic Candidate Assessment">
       <SectionHeader
-        title="AI clarifications"
+        title="Dynamic Candidate Assessment"
         icon="lightbulb"
         aside={clarifications.length === 1 ? "1 exchange" : `${clarifications.length} exchanges`}
       />
       <div className="px-5 pt-4 pb-5">
         {clarifications.length === 0 ? (
-          <p className={MUTED_TEXT_CLASS}>No AI clarification exchange.</p>
+          <p className={MUTED_TEXT_CLASS}>No assessment questions were asked.</p>
         ) : (
           <ul className="flex flex-col gap-3">
             {clarifications.map((clarification) => (

@@ -25,6 +25,7 @@ import com.linqorbit.admin.dto.LinkSkillSuggestionRequest;
 import com.linqorbit.admin.dto.UpdateUserStatusRequest;
 import com.linqorbit.candidate.dto.CandidateProfileResponse;
 import com.linqorbit.common.security.CurrentUserId;
+import com.linqorbit.joboffer.dto.JobOfferListFilters;
 
 import lombok.RequiredArgsConstructor;
 
@@ -63,8 +64,11 @@ public class AdminController implements AdminApi {
     }
 
     @Override
-    public ResponseEntity<AdminJobOfferPageResponse> listJobOffers(String status, int page, Integer size) {
-        return ResponseEntity.ok(adminService.listJobOffers(status, page, size));
+    public ResponseEntity<AdminJobOfferPageResponse> listJobOffers(String q, String status, UUID workModeId,
+            UUID contractTypeId, UUID employmentTypeId, String seniority, String expiry, int page, Integer size) {
+        JobOfferListFilters filters = new JobOfferListFilters(q, status, workModeId, contractTypeId,
+                employmentTypeId, seniority, null, expiry);
+        return ResponseEntity.ok(adminService.listJobOffers(filters, page, size));
     }
 
     @Override

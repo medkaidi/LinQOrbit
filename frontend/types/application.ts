@@ -330,3 +330,35 @@ export type RecruiterApplicationDetail = {
 };
 
 export type RecruiterApplicationDecision = "accepted" | "rejected";
+
+/** Nombre de candidatures par statut (0 quand il n'y en a aucune). */
+export type ApplicationCounts = {
+  draft: number;
+  submitted: number;
+  withdrawn: number;
+  accepted: number;
+  rejected: number;
+};
+
+/** Ligne « dernières candidatures » du tableau de bord : statut, dates et offre, sans réponses ni CV. */
+export type DashboardApplication = {
+  id: string;
+  status: ApplicationStatusValue;
+  createdAt: string;
+  updatedAt: string;
+  job: ApplicationJobSummary;
+};
+
+/**
+ * Chiffres du tableau de bord candidat, **calculés par le serveur** :
+ * candidatures par statut, les 4 plus récentes, invitations ouvertes (même
+ * définition que « My applications ») et offres ouvertes du job board (même
+ * périmètre que le total de `/jobs`). Profil, CV et consentement viennent de
+ * leurs propres endpoints.
+ */
+export type CandidateDashboard = {
+  applications: ApplicationCounts;
+  recentApplications: DashboardApplication[];
+  openInvitations: number;
+  openOffers: number;
+};

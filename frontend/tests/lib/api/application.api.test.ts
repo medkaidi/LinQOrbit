@@ -5,6 +5,7 @@ import {
   discardApplication,
   downloadRecruiterApplicationCv,
   getApplicationContext,
+  getCandidateDashboard,
   getRecruiterApplication,
   listMyApplications,
   listRecruiterApplications,
@@ -78,6 +79,20 @@ describe("application.api", () => {
     expect(getMock).toHaveBeenCalledWith("/api/v1/applications/mine");
     await withdrawApplication("app-1");
     expect(postMock).toHaveBeenCalledWith("/api/v1/applications/app-1/withdraw");
+  });
+
+  it("reads the candidate dashboard in one call and returns the body untouched", async () => {
+    const body = {
+      applications: { draft: 1, submitted: 2, withdrawn: 0, accepted: 0, rejected: 0 },
+      recentApplications: [],
+      openInvitations: 3,
+      openOffers: 12,
+    };
+    getMock.mockResolvedValue({ data: body });
+
+    expect(await getCandidateDashboard()).toEqual(body);
+    expect(getMock).toHaveBeenCalledTimes(1);
+    expect(getMock).toHaveBeenCalledWith("/api/v1/candidates/me/dashboard");
   });
 
   it("lists recruiter applications with optional filters and never sends a page size", async () => {

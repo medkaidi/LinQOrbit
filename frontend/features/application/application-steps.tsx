@@ -14,7 +14,7 @@ type StepDefinition = {
 
 /**
  * Étapes du parcours (D59, maquette `matching_screen_upper_drawer_*`). Le
- * matching ouvre l'étape « AI clarifications » (T-62), juste après les
+ * matching ouvre l'étape « Dynamic Candidate Assessment » (T-62), juste après les
  * questions du recruteur ; l'évaluation close ouvre la « Candidate review »
  * (T-63). Sans matching, les deux étapes facultatives sont « Not required » ;
  * une étape que le candidat n'a pas faite avant de transmettre est
@@ -22,7 +22,7 @@ type StepDefinition = {
  */
 const STEPS: StepDefinition[] = [
   { key: "questions", label: "Recruiter questions" },
-  { key: "clarifications", label: "AI clarifications" },
+  { key: "clarifications", label: "Dynamic Candidate Assessment" },
   { key: "review", label: "Candidate review" },
   { key: "summary", label: "Summary & apply" },
 ];

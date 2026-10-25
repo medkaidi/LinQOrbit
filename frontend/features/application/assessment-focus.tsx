@@ -13,7 +13,7 @@ import { useCurrentMatching } from "@/hooks/use-matching";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 
 /**
- * Contenu central de l'étape « AI clarifications » quand l'évaluation est
+ * Contenu central de l'étape « Dynamic Candidate Assessment » quand l'évaluation est
  * ouverte (`assessmentOpen`, D6) : un chargement pendant l'analyse, la
  * question IA (ou la clôture à demander) une fois l'analyse terminée. La
  * transmission est masquée tant que ce contenu est affiché — le candidat agit

@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { META_CHIP_ACCENT_CLASS } from "@/components/ui/pill";
 import { JobOffersSection } from "@/features/job-offer/job-offers-section";
+import { useHeaderSearchStore } from "@/stores/header-search-store";
 import type { Company, JobOfferListItem } from "@/types/recruiter";
 
 function classesOf(value: string) {
@@ -1062,5 +1063,183 @@ describe("JobOffersSection", () => {
     ]);
 
     expect(useScreeningStreamMock).not.toHaveBeenCalled();
+  });
+
+  describe("search and filters (T-70)", () => {
+    function lastFilters() {
+      return useInfiniteJobOffersMock.mock.calls.at(-1)?.[0];
+    }
+
+    function pick(comboboxName: string, optionName: string) {
+      fireEvent.click(screen.getByRole("combobox", { name: comboboxName }));
+      fireEvent.click(screen.getByRole("option", { name: optionName }));
+    }
+
+    /** Saisie dans le champ de recherche du header : la section ne porte plus son propre champ. */
+    function typeInHeaderSearch(value: string) {
+      act(() => useHeaderSearchStore.getState().setQuery(value));
+    }
+
+    beforeEach(() => {
+      useInfiniteJobOffersMock.mockReset();
+      useInfiniteJobOffersMock.mockReturnValue(infiniteResult([draftOffer()]));
+      useHeaderSearchStore.setState({ role: null, query: "" });
+    });
+
+    it("starts unfiltered: no filter key at all and no Reset", () => {
+      render(<JobOffersSection companies={companies} />);
+
+      expect(useInfiniteJobOffersMock).toHaveBeenCalledWith({});
+      expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument();
+    });
+
+    it("owns the header search field while mounted and has no search field of its own", () => {
+      const view = render(<JobOffersSection companies={companies} />);
+
+      expect(useHeaderSearchStore.getState().role).toMatchObject({
+        label: "Search offers",
+        placeholder: "Search by job title",
+        maxLength: 100,
+      });
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+
+      view.unmount();
+
+      expect(useHeaderSearchStore.getState().role).toBeNull();
+    });
+
+    it("stacks every filter label above its trigger", () => {
+      render(<JobOffersSection companies={companies} />);
+
+      for (const name of ["Status", "Work mode", "Contract", "Employment", "Seniority", "Deadline"]) {
+        const root = screen.getByText(name, { selector: "label" }).parentElement;
+        expect(root).toHaveClass("flex-col");
+        expect(root?.parentElement).toHaveClass("flex-1", "basis-32");
+      }
+    });
+
+    it("searches the title with a debounced, trimmed query", async () => {
+      render(<JobOffersSection companies={companies} />);
+
+      typeInHeaderSearch("  backend ");
+
+      await waitFor(() => expect(lastFilters()).toEqual({ q: "backend" }));
+    });
+
+    it("treats a blank search as no filter", async () => {
+      render(<JobOffersSection companies={companies} />);
+
+      typeInHeaderSearch("backend");
+      await waitFor(() => expect(lastFilters()).toEqual({ q: "backend" }));
+
+      typeInHeaderSearch("  ");
+      await waitFor(() => expect(lastFilters()).toEqual({}));
+    });
+
+    it("sends each chosen filter, combined", () => {
+      render(<JobOffersSection companies={companies} />);
+
+      pick("Status", "Published");
+      pick("Work mode", "Remote");
+      pick("Contract", "Permanent");
+      pick("Employment", "Full-time");
+      pick("Seniority", "Lead");
+      pick("Deadline", "Expiring soon");
+
+      expect(lastFilters()).toEqual({
+        status: "published",
+        workModeId: "wm2",
+        contractTypeId: "ct1",
+        employmentTypeId: "et1",
+        seniority: "lead",
+        expiry: "expiringSoon",
+      });
+    });
+
+    it("picking All again removes the filter key", () => {
+      render(<JobOffersSection companies={companies} />);
+      pick("Status", "Draft");
+      expect(lastFilters()).toEqual({ status: "draft" });
+
+      pick("Status", "All");
+
+      expect(lastFilters()).toEqual({});
+    });
+
+    it("offers the company filter only with more than one company", () => {
+      const view = render(<JobOffersSection companies={companies} />);
+      expect(screen.queryByRole("combobox", { name: "Company" })).not.toBeInTheDocument();
+      view.unmount();
+
+      render(
+        <JobOffersSection
+          companies={[
+            ...companies,
+            { id: "c2", name: "Globex", description: null, isOwner: false },
+          ]}
+        />,
+      );
+      pick("Company", "Globex");
+
+      expect(lastFilters()).toEqual({ companyId: "c2" });
+    });
+
+    it("resets the search and every filter at once", async () => {
+      render(<JobOffersSection companies={companies} />);
+      typeInHeaderSearch("backend");
+      pick("Status", "Published");
+      await waitFor(() => expect(lastFilters()).toEqual({ q: "backend", status: "published" }));
+
+      fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+      await waitFor(() => expect(lastFilters()).toEqual({}));
+      // Reset vide aussi la saisie du header.
+      expect(useHeaderSearchStore.getState().query).toBe("");
+      expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument();
+    });
+
+    it("a header search alone turns the empty list into a filtered one, with a Reset", async () => {
+      useInfiniteJobOffersMock.mockReturnValue(infiniteResult([]));
+      render(<JobOffersSection companies={companies} />);
+      expect(screen.getByText(/No offers yet/)).toBeInTheDocument();
+
+      typeInHeaderSearch("zzz");
+
+      expect(await screen.findByText("No offers match your filters.")).toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: "Reset" }).length).toBeGreaterThan(0);
+    });
+
+    it("tells a filtered-empty list apart from a recruiter with no offer yet", () => {
+      useInfiniteJobOffersMock.mockReturnValue(infiniteResult([]));
+      render(<JobOffersSection companies={companies} />);
+      expect(screen.getByText(/No offers yet/)).toBeInTheDocument();
+
+      pick("Status", "Closed");
+
+      expect(screen.getByText("No offers match your filters.")).toBeInTheDocument();
+      expect(screen.queryByText(/No offers yet/)).not.toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: "Reset" }).length).toBeGreaterThan(0);
+    });
+
+    it("keeps the toolbar while loading and on error", () => {
+      useInfiniteJobOffersMock.mockReturnValue(
+        infiniteResult([], { unloaded: true, isLoading: true }),
+      );
+      const view = render(<JobOffersSection companies={companies} />);
+      expect(screen.getByText("Loading offers…")).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: "Status" })).toBeInTheDocument();
+      expect(useHeaderSearchStore.getState().role).not.toBeNull();
+      view.unmount();
+
+      useInfiniteJobOffersMock.mockReturnValue(
+        infiniteResult([], { isError: true, error: new Error("boom") }),
+      );
+      render(<JobOffersSection companies={companies} />);
+      expect(screen.getByText("Could not load offers")).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: "Status" })).toBeInTheDocument();
+      expect(useHeaderSearchStore.getState().role).not.toBeNull();
+      // Une erreur n'est pas un état vide : aucun message trompeur « No offers yet ».
+      expect(screen.queryByText(/No offers yet/)).not.toBeInTheDocument();
+    });
   });
 });

@@ -67,4 +67,17 @@ public interface MatchingJobRepository extends JpaRepository<MatchingJob, UUID> 
             where j.id = :jobId and j.status = :expected""")
     int casFail(UUID jobId, MatchingJobStatus expected, MatchingJobStatus target,
             int attempts, LocalDateTime now, String error);
+
+    /**
+     * Analyses de matching définitivement épuisées (tableau de bord admin) : un job FAILED compte
+     * seulement s'il porte la dernière version de son matching — une relance crée une version
+     * suivante, qui remplace l'échec.
+     */
+    @Query(value = """
+            select count(*) from matching_job j
+            join matching_result r on r.id = j.job_id
+            where j.status = :failed
+              and r.version = (select max(r2.version) from matching_result r2
+                               where r2.matching_id = r.matching_id)""", nativeQuery = true)
+    long countFailedLatest(short failed);
 }

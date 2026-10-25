@@ -114,7 +114,7 @@ public class JobOfferNormalizationService {
         boolean outdated = latestStatus != NormalizationJobStatus.PENDING
                 && latestStatus != NormalizationJobStatus.RUNNING
                 && findOutdatedOfferIds(List.of(offerId)).contains(offerId);
-        // T-88 : une offre PUBLISHED sans aucune fiche reçoit la sienne par revalidate.
+        // D90 : une offre PUBLISHED sans aucune fiche reçoit la sienne par revalidate.
         boolean missing = offer.getStatus() == JobOfferStatus.PUBLISHED && latestStatus == null;
         if (!dirty && !outdated && !failed && !missing) {
             log.info("Job offer normalization skipped : no change since last validation,"

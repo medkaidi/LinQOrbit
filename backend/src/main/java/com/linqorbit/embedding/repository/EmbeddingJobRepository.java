@@ -154,4 +154,35 @@ public interface EmbeddingJobRepository extends JpaRepository<EmbeddingJob, UUID
             limit :limit""", nativeQuery = true)
     List<UUID> findCurrentProfileIdsWithoutJob(String modelName, String modelVersion, String strategyVersion,
             int limit);
+
+    /**
+     * Embeddings définitivement épuisés (tableau de bord admin) : job FAILED du couple modèle / version /
+     * stratégie <b>actif</b> sur une fiche encore courante (même définition que {@link #isCurrentProfile}).
+     * Un échec d'un ancien modèle ou d'une fiche remplacée n'est plus une panne.
+     */
+    @Query(value = """
+            select count(*) from embedding_job j
+            where j.status = :failed
+              and j.model_name = :modelName and j.model_version = :modelVersion
+              and j.strategy_version = :strategyVersion
+              and (exists (
+                    select 1 from normalized_profile np
+                    join normalized_profile_candidate l on l.normalized_profile_id = np.normalized_profile_id
+                    where np.normalized_profile_id = j.normalized_profile_id
+                      and np.content is not null
+                      and np.version = (select max(np2.version) from normalized_profile np2
+                                        join normalized_profile_candidate l2
+                                          on l2.normalized_profile_id = np2.normalized_profile_id
+                                        where l2.candidate_id = l.candidate_id and np2.content is not null))
+                or exists (
+                    select 1 from normalized_profile np
+                    join normalized_profile_job_offer o on o.normalized_profile_id = np.normalized_profile_id
+                    where np.normalized_profile_id = j.normalized_profile_id
+                      and np.content is not null
+                      and np.version = (select max(np2.version) from normalized_profile np2
+                                        join normalized_profile_job_offer o2
+                                          on o2.normalized_profile_id = np2.normalized_profile_id
+                                        where o2.job_offer_id = o.job_offer_id and np2.content is not null)))""",
+            nativeQuery = true)
+    long countFailedCurrent(short failed, String modelName, String modelVersion, String strategyVersion);
 }

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import {
   discardApplication,
   getApplicationContext,
+  getCandidateDashboard,
   listMyApplications,
   saveApplicationDraft,
   submitApplication,
@@ -27,6 +28,14 @@ export function useMyApplications() {
   return useQuery({
     queryKey: queryKeys.applications.mine,
     queryFn: listMyApplications,
+  });
+}
+
+/** Chiffres du tableau de bord candidat — relus avec `mine` après toute écriture du parcours. */
+export function useCandidateDashboard() {
+  return useQuery({
+    queryKey: queryKeys.applications.dashboard,
+    queryFn: getCandidateDashboard,
   });
 }
 

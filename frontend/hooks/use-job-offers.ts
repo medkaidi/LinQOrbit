@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -14,6 +15,7 @@ import {
   deleteJobOffer,
   duplicateJobOffer,
   getJobOffer,
+  getRecruiterDashboard,
   listContractTypes,
   listEmploymentTypes,
   listJobOffers,
@@ -29,20 +31,38 @@ import type {
 } from "@/lib/validations/job-offer.schemas";
 import { queryKeys } from "@/hooks/query-keys";
 import { nextPageParam } from "@/lib/utils/pagination";
+import type { JobOfferFilters } from "@/types/recruiter";
 
 const OFFER_REFERENCES_STALE_TIME = 5 * 60_000;
 
 /**
  * Offres des companies du recruteur en infinite scroll (D34) : la taille de
- * page reste décidée par le backend (jamais envoyée).
+ * page reste décidée par le backend (jamais envoyée). Les filtres (T-70)
+ * entrent dans la clé ; l'ancienne liste reste affichée pendant qu'une
+ * nouvelle combinaison se charge (la toolbar ne clignote pas).
  */
-export function useInfiniteJobOffers() {
+export function useInfiniteJobOffers(filters: JobOfferFilters = {}) {
   return useInfiniteQuery({
-    queryKey: queryKeys.jobOffers.list,
-    queryFn: ({ pageParam, signal }) => listJobOffers({ page: pageParam }, { signal }),
+    queryKey: queryKeys.jobOffers.page(filters),
+    queryFn: ({ pageParam, signal }) =>
+      listJobOffers({ ...filters, page: pageParam }, { signal }),
     initialPageParam: 0,
     getNextPageParam: nextPageParam,
     staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Chiffres du tableau de bord recruteur. `enabled` = profil et société existent :
+ * sans eux l'endpoint répond 404 et le dashboard n'affiche rien (jamais d'appel de bruit).
+ */
+export function useRecruiterDashboard({ enabled }: { enabled: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.jobOffers.dashboard,
+    queryFn: getRecruiterDashboard,
+    staleTime: 30_000,
+    enabled,
   });
 }
 

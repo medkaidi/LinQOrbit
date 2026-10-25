@@ -8,12 +8,7 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/brand/logo";
 import { Wordmark } from "@/components/brand/wordmark";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
-import {
-  SidebarLink,
-  SIDEBAR_ICON_IDLE_CLASS,
-  SIDEBAR_ITEM_IDLE_CLASS,
-  SIDEBAR_LABEL_CLASS
-} from "@/components/layout/sidebar-link";
+import { SidebarLink } from "@/components/layout/sidebar-link";
 import { Icon } from "@/components/ui/icon";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { isAdmin } from "@/lib/utils/roles";
@@ -21,70 +16,12 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useDashboardSidebarStore } from "@/stores/dashboard-sidebar-store";
 import { cn } from "@/lib/utils/cn";
 
-const NAV_ITEMS = [
-  { icon: "group", label: "Candidate Pool" },
-  { icon: "smart_toy", label: "AI Agents Studio", badge: "3 AI" },
-  { icon: "assignment_turned_in", label: "Interviews & Evaluations" },
-  { icon: "tune", label: "Settings & Integrations" }
-] as const;
-
-const SIDEBAR_ITEM_BUTTON_CLASS = `${SIDEBAR_ITEM_IDLE_CLASS} cursor-pointer text-left`;
-
-function SidebarPlaceholderButton({
-  item,
-  collapsed
-}: {
-  item: (typeof NAV_ITEMS)[number];
-  collapsed: boolean;
-}) {
-  const hasBadge = "badge" in item && Boolean(item.badge);
-  return (
-    <button
-      type="button"
-      aria-label={collapsed ? item.label : undefined}
-      title={collapsed ? item.label : undefined}
-      className={cn(
-        SIDEBAR_ITEM_BUTTON_CLASS,
-        hasBadge && !collapsed && "justify-between",
-        collapsed ? "justify-center px-0" : "px-3"
-      )}
-    >
-      {hasBadge ? (
-        <>
-          <span className="flex items-center gap-2.5">
-            <span className={SIDEBAR_ICON_IDLE_CLASS}>
-              <Icon name={item.icon} className="text-[16px]" />
-            </span>
-            {!collapsed && (
-              <span className={SIDEBAR_LABEL_CLASS}>{item.label}</span>
-            )}
-          </span>
-          {!collapsed && (
-            <span className="px-2 py-0.5 text-[9px] font-bold font-mono rounded-full bg-orange-subtle text-orange-deep border border-orange-border">
-              {item.badge}
-            </span>
-          )}
-        </>
-      ) : (
-        <>
-          <span className={SIDEBAR_ICON_IDLE_CLASS}>
-            <Icon name={item.icon} className="text-[16px]" />
-          </span>
-          {!collapsed && (
-            <span className={SIDEBAR_LABEL_CLASS}>{item.label}</span>
-          )}
-        </>
-      )}
-    </button>
-  );
-}
-
 /**
  * Sidenav candidat/recruteur, repliable en rail icônes (T-40, état persisté
  * `linqorbit.dashboardSidebar`) : toggle compact en haut à droite du
- * conteneur logo (`rounded-xl` sans bordure), labels/badge « 3 AI »/carte AI
- * Telemetry masqués en rail (API Help en icône seule), `aria-label` sur les
- * liens et boutons repliés — même pattern que `AdminSidebar` (D40).
+ * conteneur logo (`rounded-xl` sans bordure), labels masqués en rail,
+ * `aria-label` sur les liens repliés — même pattern que `AdminSidebar` (D40).
+ * Aucun élément factice ou inerte : ni entrées sans page, ni télémétrie, ni aide.
  */
 export function DashboardSidebar() {
   const pathname = usePathname();
@@ -193,13 +130,6 @@ export function DashboardSidebar() {
                 active={pathname.startsWith("/applications")}
                 collapsed={collapsed}
               />
-              {NAV_ITEMS.map((item) => (
-                <SidebarPlaceholderButton
-                  key={item.label}
-                  item={item}
-                  collapsed={collapsed}
-                />
-              ))}
             </>
           )}
         </nav>
@@ -215,49 +145,6 @@ export function DashboardSidebar() {
             />
           </div>
         )}
-      </div>
-
-      <div className="px-3 flex flex-col gap-2">
-        {!collapsed && (
-          <div className="rounded-xl bg-canvas-subtle border border-slate-border p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Icon
-                name="monitoring"
-                className="text-[16px] text-orange-deep"
-              />
-              <span className="font-label-caps text-label-caps uppercase tracking-wider text-text-tertiary">
-                AI Telemetry
-              </span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-headline-lg text-headline-lg font-bold text-orange-deep">
-                98%
-              </span>
-              <span className="text-body-sm font-body-sm text-text-secondary">
-                live
-              </span>
-            </div>
-            <p className="mt-1 text-body-sm font-body-sm text-text-secondary">
-              3 agents actively sourcing and ranking in real time.
-            </p>
-          </div>
-        )}
-
-        <button
-          type="button"
-          aria-label={collapsed ? "API Help & Documentation" : undefined}
-          title={collapsed ? "API Help & Documentation" : undefined}
-          className={cn(
-            "flex items-center gap-2 py-1.5 text-slate-muted hover:text-text-primary text-xs font-medium transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep",
-            collapsed ? "justify-center px-0" : "px-2 text-left"
-          )}
-        >
-          <Icon
-            name="help_outline"
-            className="text-[16px] text-text-tertiary"
-          />
-          {!collapsed && <span>API Help &amp; Documentation</span>}
-        </button>
       </div>
     </aside>
   );

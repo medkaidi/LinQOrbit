@@ -152,7 +152,7 @@ describe("RecruiterApplicationDetailView", () => {
     expect(contests.getByText("I write English docs every day.")).toBeInTheDocument();
   });
 
-  it("shows the recruiter answers with preferred options and the AI clarifications", async () => {
+  it("shows the recruiter answers with preferred options and the Dynamic Candidate Assessment", async () => {
     detailMock.mockResolvedValue(buildRecruiterApplicationDetail());
 
     renderDetail();
@@ -164,7 +164,7 @@ describe("RecruiterApplicationDetailView", () => {
     expect(questions.getByText("On site")).toBeInTheDocument();
     expect(questions.getAllByText("Preferred")).toHaveLength(2);
 
-    const clarifications = within(screen.getByRole("region", { name: "AI clarifications" }));
+    const clarifications = within(screen.getByRole("region", { name: "Dynamic Candidate Assessment" }));
     expect(clarifications.getByText("1 exchange")).toBeInTheDocument();
     expect(clarifications.getByText("Why did you choose Java?")).toBeInTheDocument();
     expect(clarifications.getByText("Why the AI asked this")).toBeInTheDocument();
@@ -173,6 +173,16 @@ describe("RecruiterApplicationDetailView", () => {
     expect(clarifications.getByText("Answer")).toBeInTheDocument();
     expect(clarifications.getByText("Answered")).toBeInTheDocument();
     expect(clarifications.getByText("Because I use it daily.")).toBeInTheDocument();
+  });
+
+  it("says no assessment question was asked when the exchange list is empty", async () => {
+    detailMock.mockResolvedValue(buildRecruiterApplicationDetail({ clarifications: [] }));
+
+    renderDetail();
+
+    const assessment = within(await screen.findByRole("region", { name: "Dynamic Candidate Assessment" }));
+    expect(assessment.getByText("0 exchanges")).toBeInTheDocument();
+    expect(assessment.getByText("No assessment questions were asked.")).toBeInTheDocument();
   });
 
   it("confirms an accept decision before recording it", async () => {

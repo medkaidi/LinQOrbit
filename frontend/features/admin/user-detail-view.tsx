@@ -100,7 +100,7 @@ export function UserDetailView({ userId }: { userId: string }) {
           <Breadcrumb>
             <BreadcrumbLink href="/admin">Administration</BreadcrumbLink>
             <BreadcrumbSeparator />
-            <BreadcrumbLink href="/admin">Accounts</BreadcrumbLink>
+            <BreadcrumbLink href="/admin/accounts">Accounts</BreadcrumbLink>
             <BreadcrumbSeparator />
             <BreadcrumbCurrent>{displayName}</BreadcrumbCurrent>
           </Breadcrumb>

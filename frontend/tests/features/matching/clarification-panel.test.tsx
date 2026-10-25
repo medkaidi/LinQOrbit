@@ -51,7 +51,7 @@ describe("ClarificationPanel", () => {
   it("shows the open question, why it is asked and how many may follow", () => {
     renderAsked();
 
-    const panel = screen.getByRole("region", { name: "AI clarification" });
+    const panel = screen.getByRole("region", { name: "Dynamic Candidate Assessment" });
     expect(within(panel).getByText(CLARIFICATION.question)).toBeInTheDocument();
     expect(within(panel).getByText(CLARIFICATION.rationale!)).toBeInTheDocument();
     expect(within(panel).getByText("Question 1")).toBeInTheDocument();

@@ -1,5 +1,10 @@
 import { api } from "@/lib/api/axios";
-import type { PublicJob, PublicJobListItem, PublicJobPage } from "@/types/public-job";
+import type {
+  PublicJob,
+  PublicJobFilters,
+  PublicJobListItem,
+  PublicJobPage,
+} from "@/types/public-job";
 
 /**
  * Lecture publique d'une offre publiée (V15) : sans jeton — le backend
@@ -16,11 +21,20 @@ export async function getPublicJob(publicId: string): Promise<PublicJob> {
  * La taille de page n'est jamais envoyée : le backend décide.
  */
 export async function listPublicJobs(
-  params: { page?: number } = {},
+  params: { page?: number } & PublicJobFilters = {},
   options: { signal?: AbortSignal } = {},
 ): Promise<PublicJobPage> {
   const response = await api.get<PublicJobPage>("/api/v1/jobs", {
-    params: { ...(params.page !== undefined ? { page: params.page } : {}) },
+    params: {
+      ...(params.page !== undefined ? { page: params.page } : {}),
+      ...(params.q ? { q: params.q } : {}),
+      ...(params.workModeId ? { workModeId: params.workModeId } : {}),
+      ...(params.contractTypeId ? { contractTypeId: params.contractTypeId } : {}),
+      ...(params.employmentTypeId ? { employmentTypeId: params.employmentTypeId } : {}),
+      ...(params.seniority ? { seniority: params.seniority } : {}),
+      ...(params.country ? { country: params.country } : {}),
+      ...(params.sort ? { sort: params.sort } : {}),
+    },
     signal: options.signal,
   });
   return response.data;

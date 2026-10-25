@@ -9,12 +9,14 @@
  * - Invalider une famille = la clé racine de cette famille
  *   (`queryKeys.candidate.reference` rafraîchit les 4 listes de référence).
  */
-import type { AdminUserFilters } from "@/types/admin";
+import type { AdminJobOfferFilters, AdminUserFilters } from "@/types/admin";
 import type {
   RecruiterApplicationDirection,
   RecruiterApplicationSortValue,
   RecruiterApplicationStatusValue,
 } from "@/types/application";
+import type { PublicJobFilters } from "@/types/public-job";
+import type { JobOfferFilters } from "@/types/recruiter";
 
 export const queryKeys = {
   auth: {
@@ -37,6 +39,10 @@ export const queryKeys = {
   },
   jobOffers: {
     list: ["job-offers", "list"] as const,
+    /** Liste infinie filtrée (T-70) : les filtres entrent dans la clé, sous le préfixe `list` (invalidations inchangées). */
+    page: (filters: JobOfferFilters) => ["job-offers", "list", filters] as const,
+    /** Tableau de bord recruteur : sous le préfixe `list`, donc relu par toute mutation d'offre. */
+    dashboard: ["job-offers", "list", "dashboard"] as const,
     detail: (offerId: string) => ["job-offers", "detail", offerId] as const,
     reference: ["job-offers", "reference"] as const,
     contractTypes: ["job-offers", "reference", "contract-types"] as const,
@@ -53,15 +59,22 @@ export const queryKeys = {
     userNormalized: (userId: string) => ["admin", "users", userId, "normalized-profile"] as const,
     userNormalizedVersions: (userId: string) =>
       ["admin", "users", userId, "normalized-profile", "versions"] as const,
-    /** Liste infinie (D34) : les pages sont implicites dans le cache TanStack. */
-    jobOffersPage: (status: string | undefined) =>
-      ["admin", "job-offers", status ?? "all"] as const,
+    /** Liste infinie filtrée (D34, T-110) : les filtres entrent dans la clé, les pages sont implicites. */
+    jobOffersPage: (filters: AdminJobOfferFilters) =>
+      ["admin", "job-offers", "list", filters] as const,
     jobOfferDetail: (offerId: string) => ["admin", "job-offers", offerId] as const,
     jobOfferNormalized: (offerId: string) =>
       ["admin", "job-offers", offerId, "normalized-profile"] as const,
     jobOfferNormalizedVersions: (offerId: string) =>
       ["admin", "job-offers", offerId, "normalized-profile", "versions"] as const,
     skillSuggestions: ["admin", "skill-suggestions"] as const,
+    /**
+     * Tableau de bord admin (D93) : préfixe invalidé par chaque écriture qui déplace un chiffre
+     * (statut de compte, file de suggestions, revue de signalement). L'admin courant fait partie de
+     * la clé : « à relire par moi » est propre à chaque compte.
+     */
+    dashboard: ["admin", "dashboard"] as const,
+    dashboardFor: (adminId: string) => ["admin", "dashboard", adminId] as const,
     /**
      * Signalements internes d'évaluations IA (D66) — liste infinie. L'admin
      * courant fait partie de la clé (T-99) : chaque réponse porte son propre
@@ -79,11 +92,19 @@ export const queryKeys = {
   },
   publicJobs: {
     list: ["public-jobs", "list"] as const,
+    /** Liste infinie filtrée et triée (T-77) : les filtres entrent dans la clé, sous le préfixe `list`. */
+    page: (filters: PublicJobFilters) => ["public-jobs", "list", filters] as const,
     detail: (publicId: string) => ["public-jobs", publicId] as const,
     related: (publicId: string) => ["public-jobs", "related", publicId] as const,
   },
   applications: {
     mine: ["applications", "mine"] as const,
+    /**
+     * Tableau de bord candidat : **sous le préfixe `mine`** — toute écriture du
+     * parcours (brouillon, transmission, abandon, retrait) invalide `mine` et
+     * relit donc aussi les chiffres, sans invalidation supplémentaire.
+     */
+    dashboard: ["applications", "mine", "dashboard"] as const,
     context: (publicId: string) => ["applications", "context", publicId] as const,
   },
   recruiterApplications: {

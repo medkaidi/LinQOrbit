@@ -75,4 +75,34 @@ public interface NormalizationJobRepository extends JpaRepository<NormalizationJ
             where j.id = :jobId and j.status = :expected""")
     int casFail(UUID jobId, NormalizationJobStatus expected, NormalizationJobStatus target,
             int attempts, LocalDateTime now, String error);
+
+    /**
+     * Candidats dont la dernière analyse est définitivement épuisée (tableau de bord admin) : un job
+     * FAILED compte seulement s'il porte la dernière version de fiche du candidat — une validation
+     * postérieure (nouvelle version) le remplace, jamais deux échecs pour un même candidat.
+     */
+    @Query(value = """
+            select count(distinct l.candidate_id)
+            from normalization_job j
+            join normalized_profile np on np.normalized_profile_id = j.job_id
+            join normalized_profile_candidate l on l.normalized_profile_id = j.job_id
+            where j.status = :failed
+              and np.version = (select max(np2.version) from normalized_profile np2
+                                join normalized_profile_candidate l2
+                                  on l2.normalized_profile_id = np2.normalized_profile_id
+                                where l2.candidate_id = l.candidate_id)""", nativeQuery = true)
+    long countFailedLatestForCandidates(short failed);
+
+    /** Idem pour les offres : analyse FAILED portant la dernière version de fiche de l'offre. */
+    @Query(value = """
+            select count(distinct o.job_offer_id)
+            from normalization_job j
+            join normalized_profile np on np.normalized_profile_id = j.job_id
+            join normalized_profile_job_offer o on o.normalized_profile_id = j.job_id
+            where j.status = :failed
+              and np.version = (select max(np2.version) from normalized_profile np2
+                                join normalized_profile_job_offer o2
+                                  on o2.normalized_profile_id = np2.normalized_profile_id
+                                where o2.job_offer_id = o.job_offer_id)""", nativeQuery = true)
+    long countFailedLatestForOffers(short failed);
 }

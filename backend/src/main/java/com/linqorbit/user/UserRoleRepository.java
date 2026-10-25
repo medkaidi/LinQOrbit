@@ -14,4 +14,7 @@ public interface UserRoleRepository extends JpaRepository<UserRole, UserRoleId> 
     List<UserRole> findByUserIdIn(Collection<UUID> userIds);
 
     boolean existsByRole(Short role);
+
+    /** Tableau de bord admin : comptes portant ce rôle. */
+    long countByRole(Short role);
 }

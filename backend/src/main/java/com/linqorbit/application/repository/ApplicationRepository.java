@@ -1,10 +1,13 @@
 package com.linqorbit.application.repository;
 
+import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -22,6 +25,22 @@ import com.linqorbit.application.entity.ApplicationStatus;
 public interface ApplicationRepository extends JpaRepository<Application, UUID> {
 
     List<Application> findByCandidateIdOrderByCreatedAtDescIdDesc(UUID candidateId);
+
+    /** Les plus récentes d'abord (même ordre que la liste complète), bornées par la page — sans {@code count}. */
+    List<Application> findByCandidateIdOrderByCreatedAtDescIdDesc(UUID candidateId, Pageable pageable);
+
+    /**
+     * Compteurs du tableau de bord : un seul GROUP BY filtré sur le candidat (l'index de
+     * {@code uq_application_candidate_job_offer} a {@code candidate_id} en tête), jamais un
+     * COUNT par statut. Un statut absent du résultat vaut 0.
+     */
+    @Query(value = """
+            SELECT a.status, COUNT(*)
+            FROM application a
+            WHERE a.candidate_id = :candidateId
+            GROUP BY a.status
+            """, nativeQuery = true)
+    List<Object[]> countByStatusForCandidate(@Param("candidateId") UUID candidateId);
 
     Optional<Application> findByIdAndCandidateId(UUID id, UUID candidateId);
 
@@ -146,4 +165,41 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
             """, nativeQuery = true)
     List<Object[]> countVisibleApplicationsByOfferIds(@Param("offerIds") List<UUID> offerIds,
             @Param("excluded") List<Short> excluded);
+
+    /**
+     * Tableau de bord admin : candidatures visibles (statuts {@code visible}) de toute la plateforme,
+     * un seul GROUP BY. Un statut absent du résultat vaut 0.
+     */
+    @Query(value = """
+            SELECT a.status, COUNT(*)
+            FROM application a
+            WHERE a.status IN (:visible)
+            GROUP BY a.status
+            """, nativeQuery = true)
+    List<Object[]> countVisibleByStatus(@Param("visible") List<Short> visible);
+
+    /** Tableau de bord admin : candidatures visibles transmises à partir de {@code since} (borne incluse). */
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM application a
+            WHERE a.status IN (:visible)
+              AND a.submitted_at >= :since
+            """, nativeQuery = true)
+    long countVisibleSubmittedSince(@Param("visible") List<Short> visible, @Param("since") LocalDateTime since);
+
+    /**
+     * Tableau de bord recruteur : candidatures visibles (statuts {@code visible} — le
+     * périmètre de {@link #countVisibleApplicationsByOfferIds}) de toutes les offres de ces
+     * sociétés, un seul GROUP BY. Un statut absent du résultat vaut 0.
+     */
+    @Query(value = """
+            SELECT a.status, COUNT(*)
+            FROM application a
+            JOIN job_offer o ON o.id = a.job_offer_id
+            WHERE o.company_id IN (:companyIds)
+              AND a.status IN (:visible)
+            GROUP BY a.status
+            """, nativeQuery = true)
+    List<Object[]> countByStatusForCompanies(@Param("companyIds") Collection<UUID> companyIds,
+            @Param("visible") List<Short> visible);
 }

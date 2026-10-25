@@ -316,6 +316,15 @@ describe("JobOfferForm", () => {
 
     const capField = () => screen.getByRole("textbox", { name: /Max AI questions/ });
 
+    it("sits under the Dynamic Candidate Assessment title, not the former AI clarifications one", () => {
+      renderForm();
+
+      const heading = screen.getByRole("heading", { name: "Dynamic Candidate Assessment" });
+      expect(heading).toBeInTheDocument();
+      expect(heading.closest("section")).toContainElement(capField());
+      expect(screen.queryByRole("heading", { name: /AI clarifications/ })).not.toBeInTheDocument();
+    });
+
     it("defaults to 3 on a new offer", () => {
       renderForm();
 

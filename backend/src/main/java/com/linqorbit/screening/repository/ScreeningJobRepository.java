@@ -1,5 +1,6 @@
 package com.linqorbit.screening.repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -10,6 +11,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
+import com.linqorbit.joboffer.entity.JobOfferStatus;
 import com.linqorbit.screening.entity.ScreeningJob;
 import com.linqorbit.screening.entity.ScreeningJobStatus;
 
@@ -48,6 +50,22 @@ public interface ScreeningJobRepository extends JpaRepository<ScreeningJob, UUID
               and j.createdAt = (select max(j2.createdAt) from ScreeningJob j2
                                  where j2.jobOfferId = j.jobOfferId and j2.status <> :superseded)""")
     List<ScreeningJob> findLatestVisibleByOfferIds(Collection<UUID> offerIds, ScreeningJobStatus superseded);
+
+    /**
+     * Tableau de bord recruteur : offres ouvertes de ces sociétés dont le dernier job visible (celui
+     * du signal de la liste, {@link #findLatestVisibleByOfferIds}) est {@code failed}.
+     */
+    @Query("""
+            select count(j) from ScreeningJob j, JobOffer o
+            where j.jobOfferId = o.id
+              and o.companyId in :companyIds
+              and o.status = :published
+              and (o.expiresAt is null or o.expiresAt >= :today)
+              and j.status = :failed
+              and j.createdAt = (select max(j2.createdAt) from ScreeningJob j2
+                                 where j2.jobOfferId = j.jobOfferId and j2.status <> :superseded)""")
+    long countLatestFailedOnOpenOffers(Collection<UUID> companyIds, JobOfferStatus published, LocalDate today,
+            ScreeningJobStatus failed, ScreeningJobStatus superseded);
 
     boolean existsByJobOfferIdAndStatus(UUID jobOfferId, ScreeningJobStatus status);
 
@@ -128,4 +146,23 @@ public interface ScreeningJobRepository extends JpaRepository<ScreeningJob, UUID
             select j from ScreeningJob j
             where j.status = :status and j.startedAt <= :threshold""")
     List<ScreeningJob> findByStatusAndStartedAtLessThanEqual(ScreeningJobStatus status, LocalDateTime threshold);
+
+    /**
+     * Screenings définitivement épuisés (tableau de bord admin) : job FAILED sur la fiche d'offre encore
+     * courante (dernière version avec contenu). Un job sur une fiche remplacée n'est plus une panne.
+     */
+    @Query(value = """
+            select count(*) from screening_job j
+            where j.status = :failed
+              and exists (
+                    select 1 from normalized_profile np
+                    join normalized_profile_job_offer o on o.normalized_profile_id = np.normalized_profile_id
+                    where np.normalized_profile_id = j.offer_normalized_profile_id
+                      and np.content is not null
+                      and np.version = (select max(np2.version) from normalized_profile np2
+                                        join normalized_profile_job_offer o2
+                                          on o2.normalized_profile_id = np2.normalized_profile_id
+                                        where o2.job_offer_id = o.job_offer_id and np2.content is not null))""",
+            nativeQuery = true)
+    long countFailedCurrent(short failed);
 }

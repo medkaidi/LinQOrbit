@@ -79,7 +79,12 @@ import com.linqorbit.joboffer.entity.JobOfferStatus;
 import com.linqorbit.joboffer.entity.SalaryPeriod;
 import com.linqorbit.joboffer.entity.Seniority;
 import com.linqorbit.joboffer.exception.JobOfferNotFoundException;
+import com.linqorbit.joboffer.dto.JobOfferListFilters;
+import com.linqorbit.joboffer.exception.InvalidJobOfferFilterException;
 import com.linqorbit.joboffer.repository.JobOfferRepository;
+import com.linqorbit.joboffer.repository.JobOfferRow;
+import com.linqorbit.joboffer.repository.JobOfferSearch;
+import com.linqorbit.joboffer.repository.JobOfferSearchRepository;
 import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.service.JobOfferService;
 import com.linqorbit.recruiter.entity.Recruiter;
@@ -118,6 +123,7 @@ class AdminServiceTest {
     private NormalizedProfileJobOfferRepository normalizedProfileJobOfferRepository;
     private NormalizationJobRepository normalizationJobRepository;
     private JobOfferRepository jobOfferRepository;
+    private JobOfferSearchRepository jobOfferSearchRepository;
     private JobOfferService jobOfferService;
     private CandidateService candidateService;
     private CompanyRepository companyRepository;
@@ -141,6 +147,7 @@ class AdminServiceTest {
         normalizedProfileJobOfferRepository = mock(NormalizedProfileJobOfferRepository.class);
         normalizationJobRepository = mock(NormalizationJobRepository.class);
         jobOfferRepository = mock(JobOfferRepository.class);
+        jobOfferSearchRepository = mock(JobOfferSearchRepository.class);
         jobOfferService = mock(JobOfferService.class);
         candidateService = mock(CandidateService.class);
         companyRepository = mock(CompanyRepository.class);
@@ -153,7 +160,8 @@ class AdminServiceTest {
         adminService = new AdminService(userRepository, userRoleRepository, skillSuggestionRepository,
                 skillRepository, candidateRepository, candidateSkillRepository, recruiterRepository,
                 normalizedProfileRepository, normalizedProfileJobOfferRepository,
-                normalizationJobRepository, jobOfferRepository, jobOfferService, candidateService,
+                normalizationJobRepository, jobOfferRepository, jobOfferSearchRepository, jobOfferService,
+                candidateService,
                 companyRepository, criterionReportRepository, criterionReportReviewRepository,
                 feedbackRepository, matchingRepository, matchingResultRepository, matchingResultReader,
                 new ApplicationAssessmentReader(matchingResultReader, matchingResultRepository),
@@ -1008,25 +1016,32 @@ class AdminServiceTest {
                 .isInstanceOf(NormalizedProfileNotFoundException.class);
     }
 
+    private static JobOfferRow row(UUID id, UUID companyId, JobOfferStatus status) {
+        return new JobOfferRow(id, companyId, "Dev Java", status, "abc123", "dev-java",
+                LocalDateTime.of(2026, 10, 1, 8, 0), LocalDateTime.of(2026, 10, 1, 9, 0),
+                LocalDate.of(2026, 12, 31), LocalDateTime.of(2026, 10, 1, 10, 0), null, Seniority.MID,
+                "Paris", "FR", null, null, new BigDecimal("50000"), new BigDecimal("70000"), "EUR",
+                SalaryPeriod.YEAR);
+    }
+
+    private static Page<JobOfferRow> rows(Pageable pageable, long total, JobOfferRow... rows) {
+        return new PageImpl<>(List.of(rows), pageable, total);
+    }
+
+    private JobOfferSearch capturedSearch(Pageable[] pageable) {
+        ArgumentCaptor<JobOfferSearch> searchCaptor = ArgumentCaptor.forClass(JobOfferSearch.class);
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(jobOfferSearchRepository).searchRows(searchCaptor.capture(), pageableCaptor.capture());
+        pageable[0] = pageableCaptor.getValue();
+        return searchCaptor.getValue();
+    }
+
     @Test
-    void listJobOffersSansFiltreAppelleFindAllEtJointLesNomsDEntreprises() {
+    void listJobOffersSansFiltreJointLesNomsDEntreprisesEtLeStatutDeNormalisation() {
         UUID offerId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
-        JobOffer offer = JobOffer.builder().id(offerId).companyId(companyId)
-                .status(JobOfferStatus.PUBLISHED).title("Dev Java").publicId("abc123")
-                .slug("dev-java").createdAt(LocalDateTime.of(2026, 10, 1, 8, 0))
-                .updatedAt(LocalDateTime.of(2026, 10, 1, 9, 0))
-                .expiresAt(LocalDate.of(2026, 12, 31))
-                .publishedAt(LocalDateTime.of(2026, 10, 1, 10, 0))
-                .seniority(Seniority.MID).city("Paris").country("FR")
-                .salaryMin(new BigDecimal("50000")).salaryMax(new BigDecimal("70000"))
-                .salaryCurrency("EUR").salaryPeriod(SalaryPeriod.YEAR)
-                .build();
-        Page<JobOffer> page = new PageImpl<>(List.of(offer),
-                PageRequest.of(0, 20, org.springframework.data.domain.Sort.by(
-                        org.springframework.data.domain.Sort.Direction.DESC, "createdAt")),
-                1);
-        when(jobOfferRepository.findAll(any(Pageable.class))).thenReturn(page);
+        when(jobOfferSearchRepository.searchRows(any(JobOfferSearch.class), any(Pageable.class)))
+                .thenReturn(rows(PageRequest.of(0, 20), 1, row(offerId, companyId, JobOfferStatus.PUBLISHED)));
         when(companyRepository.findAllById(any())).thenReturn(List.of(
                 Company.builder().id(companyId).name("Acme").build()));
         when(normalizedProfileJobOfferRepository.findLatestJobStatuses(anyList()))
@@ -1059,78 +1074,145 @@ class AdminServiceTest {
     }
 
     @Test
+    void listJobOffersSansFiltreNeRestreintRien() {
+        when(jobOfferSearchRepository.searchRows(any(JobOfferSearch.class), any(Pageable.class)))
+                .thenReturn(rows(PageRequest.of(0, 20), 0));
+
+        adminService.listJobOffers(JobOfferListFilters.none(), 0, 20);
+
+        JobOfferSearch search = capturedSearch(new Pageable[1]);
+        assertThat(search.companyIds()).isNull();
+        assertThat(search.status()).isNull();
+        assertThat(search.publicToday()).isNull();
+        assertThat(search.workModeId()).isNull();
+        assertThat(search.contractTypeId()).isNull();
+        assertThat(search.employmentTypeId()).isNull();
+        assertThat(search.seniority()).isNull();
+        assertThat(search.country()).isNull();
+        assertThat(search.titlePattern()).isNull();
+        assertThat(search.expiresFrom()).isNull();
+        assertThat(search.expiresUntil()).isNull();
+        assertThat(search.order()).isEqualTo(JobOfferSearch.Order.CREATED_DESC);
+    }
+
+    @Test
     void listJobOffersMarqueLeDirtyFlagSurStatutEditable() {
         UUID offerId = UUID.randomUUID();
-        JobOffer offer = JobOffer.builder().id(offerId).companyId(UUID.randomUUID())
-                .status(JobOfferStatus.VALIDATED).title("Dev Java")
-                .validatedAt(LocalDateTime.of(2026, 10, 1, 8, 0))
-                .updatedAt(LocalDateTime.of(2026, 10, 2, 8, 0))
-                .build();
-        when(jobOfferRepository.findAll(any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(offer), PageRequest.of(0, 20), 1));
+        JobOfferRow dirty = new JobOfferRow(offerId, UUID.randomUUID(), "Dev Java", JobOfferStatus.VALIDATED,
+                "abc123", "dev-java", null, LocalDateTime.of(2026, 10, 2, 8, 0), null, null,
+                LocalDateTime.of(2026, 10, 1, 8, 0), null, null, null, null, null, null, null, null, null);
+        JobOfferRow published = new JobOfferRow(UUID.randomUUID(), UUID.randomUUID(), "Dev Java",
+                JobOfferStatus.PUBLISHED, "abc124", "dev-java", null, LocalDateTime.of(2026, 10, 2, 8, 0), null,
+                null, LocalDateTime.of(2026, 10, 1, 8, 0), null, null, null, null, null, null, null, null, null);
+        JobOfferRow neverValidated = new JobOfferRow(UUID.randomUUID(), UUID.randomUUID(), "Dev Java",
+                JobOfferStatus.DRAFT, "abc125", "dev-java", null, LocalDateTime.of(2026, 10, 2, 8, 0), null, null,
+                null, null, null, null, null, null, null, null, null, null);
+        when(jobOfferSearchRepository.searchRows(any(JobOfferSearch.class), any(Pageable.class)))
+                .thenReturn(rows(PageRequest.of(0, 20), 3, dirty, published, neverValidated));
 
         AdminJobOfferPageResponse response = adminService.listJobOffers(null, 0, 20);
 
-        assertThat(response.items().get(0).hasUnvalidatedChanges()).isTrue();
+        assertThat(response.items()).extracting(AdminJobOfferListItem::hasUnvalidatedChanges)
+                .containsExactly(true, false, false);
     }
 
     @Test
-    void listJobOffersAvecFiltreAppelleFindByStatus() {
-        when(jobOfferRepository.findByStatus(eq(JobOfferStatus.PUBLISHED), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(1, 20), 0));
+    void listJobOffersAccepteLeStatutEnCasseMajusculeEtAvecBlancs() {
+        when(jobOfferSearchRepository.searchRows(any(JobOfferSearch.class), any(Pageable.class)))
+                .thenReturn(rows(PageRequest.of(1, 20), 0));
 
-        AdminJobOfferPageResponse response = adminService.listJobOffers(" published ", 1, 20);
+        AdminJobOfferPageResponse response = adminService.listJobOffers(
+                new JobOfferListFilters(null, " PUBLISHED ", null, null, null, null, null, null), 1, 20);
 
         assertThat(response.items()).isEmpty();
         assertThat(response.page()).isEqualTo(1);
-        verify(jobOfferRepository, never()).findAll(any(Pageable.class));
+        assertThat(capturedSearch(new Pageable[1]).status()).isEqualTo(JobOfferStatus.PUBLISHED);
     }
 
     @Test
-    void listJobOffersAccepteLaCasseMajuscule() {
-        when(jobOfferRepository.findByStatus(eq(JobOfferStatus.PUBLISHED), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+    void listJobOffersTraiteUnStatutVideOuBlancCommeAbsent() {
+        when(jobOfferSearchRepository.searchRows(any(JobOfferSearch.class), any(Pageable.class)))
+                .thenReturn(rows(PageRequest.of(0, 20), 0));
 
-        AdminJobOfferPageResponse response = adminService.listJobOffers("PUBLISHED", 0, 20);
+        adminService.listJobOffers(new JobOfferListFilters(null, "   ", null, null, null, null, null, null), 0, 20);
+        adminService.listJobOffers(new JobOfferListFilters(null, "", null, null, null, null, null, null), 0, 20);
 
-        assertThat(response.items()).isEmpty();
-        verify(jobOfferRepository, never()).findAll(any(Pageable.class));
+        ArgumentCaptor<JobOfferSearch> searchCaptor = ArgumentCaptor.forClass(JobOfferSearch.class);
+        verify(jobOfferSearchRepository, org.mockito.Mockito.times(2))
+                .searchRows(searchCaptor.capture(), any(Pageable.class));
+        assertThat(searchCaptor.getAllValues()).allSatisfy(search -> assertThat(search.status()).isNull());
     }
 
     @Test
-    void listJobOffersRejetteUnFiltreInconnu() {
-        assertThatThrownBy(() -> adminService.listJobOffers("archived", 0, 20))
+    void listJobOffersRejetteUnStatutInconnuAvantToutelecture() {
+        assertThatThrownBy(() -> adminService.listJobOffers(
+                new JobOfferListFilters(null, "archived", null, null, null, null, null, null), 0, 20))
                 .isInstanceOf(InvalidOfferStatusFilterException.class);
-        verify(jobOfferRepository, never()).findAll(any(Pageable.class));
-        verify(jobOfferRepository, never()).findByStatus(any(), any());
+        verify(jobOfferSearchRepository, never()).searchRows(any(), any());
+    }
+
+    @Test
+    void listJobOffersRejetteUneSenioriteOuUneEcheanceInconnue() {
+        assertThatThrownBy(() -> adminService.listJobOffers(
+                new JobOfferListFilters(null, null, null, null, null, "wizard", null, null), 0, 20))
+                .isInstanceOf(InvalidJobOfferFilterException.class);
+        assertThatThrownBy(() -> adminService.listJobOffers(
+                new JobOfferListFilters(null, null, null, null, null, null, null, "someday"), 0, 20))
+                .isInstanceOf(InvalidJobOfferFilterException.class);
+        verify(jobOfferSearchRepository, never()).searchRows(any(), any());
+    }
+
+    @Test
+    void listJobOffersTransmetChaqueFiltreAuRepositoryEtCherchePartoutDansLaSociete() {
+        UUID workMode = UUID.randomUUID();
+        UUID contract = UUID.randomUUID();
+        UUID employment = UUID.randomUUID();
+        when(jobOfferSearchRepository.searchRows(any(JobOfferSearch.class), any(Pageable.class)))
+                .thenReturn(rows(PageRequest.of(0, 20), 0));
+
+        adminService.listJobOffers(new JobOfferListFilters(" Acme_100% ", "draft", workMode, contract, employment,
+                " SENIOR ", UUID.randomUUID(), "expiringSoon"), 0, 20);
+
+        JobOfferSearch search = capturedSearch(new Pageable[1]);
+        assertThat(search.status()).isEqualTo(JobOfferStatus.DRAFT);
+        assertThat(search.workModeId()).isEqualTo(workMode);
+        assertThat(search.contractTypeId()).isEqualTo(contract);
+        assertThat(search.employmentTypeId()).isEqualTo(employment);
+        assertThat(search.seniority()).isEqualTo(Seniority.SENIOR);
+        assertThat(search.titlePattern()).isEqualTo("%acme!_100!%%");
+        assertThat(search.matchCompanyName()).isTrue();
+        assertThat(search.expiresFrom()).isEqualTo(LocalDate.now());
+        assertThat(search.expiresUntil()).isEqualTo(LocalDate.now().plusDays(30));
+        // La console admin ne restreint jamais par société, même si l'appelant en passe une.
+        assertThat(search.companyIds()).isNull();
     }
 
     @Test
     void listJobOffersBorneLaPagination() {
-        when(jobOfferRepository.findAll(any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 50), 0));
+        when(jobOfferSearchRepository.searchRows(any(JobOfferSearch.class), any(Pageable.class)))
+                .thenReturn(rows(PageRequest.of(0, 50), 0));
 
         AdminJobOfferPageResponse response = adminService.listJobOffers(null, -5, 500);
 
         assertThat(response.page()).isZero();
         assertThat(response.size()).isEqualTo(50);
-        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        verify(jobOfferRepository).findAll(pageableCaptor.capture());
-        assertThat(pageableCaptor.getValue().getPageNumber()).isZero();
-        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(50);
+        Pageable[] pageable = new Pageable[1];
+        capturedSearch(pageable);
+        assertThat(pageable[0].getPageNumber()).isZero();
+        assertThat(pageable[0].getPageSize()).isEqualTo(50);
     }
 
     @Test
     void listJobOffersAppliqueLaTailleParDefaut() {
-        when(jobOfferRepository.findAll(any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+        when(jobOfferSearchRepository.searchRows(any(JobOfferSearch.class), any(Pageable.class)))
+                .thenReturn(rows(PageRequest.of(0, 20), 0));
 
         AdminJobOfferPageResponse response = adminService.listJobOffers(null, 0, null);
 
         assertThat(response.size()).isEqualTo(20);
-        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        verify(jobOfferRepository).findAll(pageableCaptor.capture());
-        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(20);
+        Pageable[] pageable = new Pageable[1];
+        capturedSearch(pageable);
+        assertThat(pageable[0].getPageSize()).isEqualTo(20);
     }
 
     @Test

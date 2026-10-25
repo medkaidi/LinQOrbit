@@ -1,5 +1,7 @@
 package com.linqorbit.user;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -14,6 +16,13 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);
+
+    /** Tableau de bord admin : comptes par statut, un seul GROUP BY. Un statut absent vaut 0. */
+    @Query("select u.status, count(u) from User u group by u.status")
+    List<Object[]> countByStatus();
+
+    /** Tableau de bord admin : comptes créés à partir de {@code since} (borne incluse). */
+    long countByCreatedAtGreaterThanEqual(LocalDateTime since);
 
     /**
      * Page des comptes triée par nom puis prénom (liste admin), filtrable

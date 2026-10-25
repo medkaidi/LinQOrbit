@@ -51,18 +51,30 @@ public interface JobOfferApi {
 
     @GetMapping
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
-    @Operation(summary = "Lister mes offres (paginé)",
+    @Operation(summary = "Lister mes offres (paginé, filtrable)",
             description = "Offres des companies dont le compte est membre (tous statuts), les plus récentes en premier. "
+                    + "Filtres facultatifs combinables (ET logique) : un paramètre absent ou vide n'est pas un filtre ; "
+                    + "total est le total filtré. Statut, séniorité ou échéance inconnus : 400. "
+                    + "Une société qui n'est pas la vôtre donne une page vide (jamais une fuite). "
                     + "Taille de page décidée par le backend (défaut 20, max 50) et renvoyée dans l'enveloppe (D34). "
                     + "Lignes légères : la description et les listes enfants ne sont servies que par le détail.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Page renvoyée (vide si aucune)"),
+            @ApiResponse(responseCode = "400", description = "Statut, séniorité, échéance ou identifiant invalide"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
             @ApiResponse(responseCode = "404", description = "Aucun profil recruteur pour ce compte")
     })
     ResponseEntity<JobOfferPageResponse> listMine(
             @Parameter(description = "Index de page (0-based)") @RequestParam(name = "page", required = false) Integer page,
             @Parameter(description = "Taille de page (défaut 20, max 50) — valeur effective renvoyée dans la réponse") @RequestParam(name = "size", required = false) Integer size,
+            @Parameter(description = "Recherche sur le titre (insensible à la casse, 100 caractères au plus)") @RequestParam(name = "q", required = false) String q,
+            @Parameter(description = "Statut : draft, validated, published ou closed") @RequestParam(name = "status", required = false) String status,
+            @Parameter(description = "Mode de travail (id du vocabulaire)") @RequestParam(name = "workModeId", required = false) UUID workModeId,
+            @Parameter(description = "Type de contrat (id du vocabulaire)") @RequestParam(name = "contractTypeId", required = false) UUID contractTypeId,
+            @Parameter(description = "Type d'emploi (id du vocabulaire)") @RequestParam(name = "employmentTypeId", required = false) UUID employmentTypeId,
+            @Parameter(description = "Séniorité : junior, mid, senior, lead ou principal") @RequestParam(name = "seniority", required = false) String seniority,
+            @Parameter(description = "Société (parmi les vôtres)") @RequestParam(name = "companyId", required = false) UUID companyId,
+            @Parameter(description = "Échéance : expired ou expiringSoon (dans les 30 jours)") @RequestParam(name = "expiry", required = false) String expiry,
             Authentication authentication);
 
     @GetMapping("/{offerId}")
@@ -140,9 +152,10 @@ public interface JobOfferApi {
             summary = "Rafraîchir l'analyse d'une offre publiée",
             description = "Owner ou créateur ; PUBLISHED uniquement, sans changement "
                     + "de cycle de vie. Crée une nouvelle version de fiche normalisée si "
-                    + "l'analyse est obsolète ou en échec ; no-op sinon.")
+                    + "l'analyse est obsolète, en échec ou absente ; dans ce dernier cas, la fiche "
+                    + "manquante est créée. No-op si l'analyse est à jour ou déjà en cours.")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Analyse rafraîchie ou déjà à jour"),
+            @ApiResponse(responseCode = "204", description = "Analyse rafraîchie, fiche manquante créée ou déjà à jour"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
             @ApiResponse(responseCode = "403", description = "Membre sans droits d'écriture sur l'offre"),
             @ApiResponse(responseCode = "404", description = "Offre inexistante ou inaccessible"),

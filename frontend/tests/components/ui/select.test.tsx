@@ -237,3 +237,84 @@ describe("Select (searchable)", () => {
     expect(screen.getByText("Pick a skill")).toBeInTheDocument();
   });
 });
+
+describe("Select (compact menu width)", () => {
+  const long = [
+    { value: "", label: "All" },
+    { value: "x", label: "A very long option label that a short trigger would cut" },
+  ];
+
+  it("lets the compact menu grow with its longest option, never below the trigger", () => {
+    render(<Select label="Filter" options={long} value="" compact />);
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Filter" }));
+
+    const list = screen.getByRole("listbox");
+    expect(list).toHaveClass("min-w-full", "w-max");
+    expect(list).not.toHaveClass("w-full");
+  });
+
+  it("keeps the standard menu exactly as wide as its trigger", () => {
+    render(<Select label="Filter" options={long} value="" />);
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Filter" }));
+
+    const list = screen.getByRole("listbox");
+    expect(list).toHaveClass("w-full");
+    expect(list).not.toHaveClass("w-max");
+  });
+
+  it("opens a compact menu towards the left when the trigger is near the right edge", () => {
+    const { container } = render(<Select label="Filter" options={long} value="" compact />);
+    const root = container.firstElementChild as HTMLElement;
+    vi.spyOn(root, "getBoundingClientRect").mockReturnValue({
+      left: window.innerWidth - 100,
+      top: 0,
+      bottom: 36,
+      right: window.innerWidth,
+      width: 100,
+      height: 36,
+      x: window.innerWidth - 100,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Filter" }));
+
+    expect(screen.getByRole("listbox")).toHaveClass("right-0");
+  });
+
+  it("opens from the left edge of the trigger when there is room", () => {
+    const { container } = render(<Select label="Filter" options={long} value="" compact />);
+    vi.spyOn(container.firstElementChild as HTMLElement, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      bottom: 36,
+      right: 100,
+      width: 100,
+      height: 36,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Filter" }));
+
+    expect(screen.getByRole("listbox")).not.toHaveClass("right-0");
+  });
+
+  it("shows the full selected label as a tooltip on the trigger", () => {
+    render(<Select label="Filter" options={long} value="x" compact />);
+
+    expect(screen.getByRole("combobox", { name: "Filter" })).toHaveAttribute(
+      "title",
+      long[1].label,
+    );
+  });
+
+  it("has no tooltip while nothing is selected", () => {
+    render(<Select label="Filter" options={long} value="nope" compact />);
+
+    expect(screen.getByRole("combobox", { name: "Filter" })).not.toHaveAttribute("title");
+  });
+});

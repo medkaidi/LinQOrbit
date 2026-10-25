@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { META_CHIP_ACCENT_CLASS, META_CHIP_CLASS } from "@/components/ui/pill";
-import { MetaChip } from "@/features/job-offer/job-offer-card";
+import { MetaChip, OFFER_STATUS_TONES } from "@/features/job-offer/job-offer-card";
 
 function classesOf(value: string) {
   return value.split(" ");
@@ -28,5 +28,14 @@ describe("MetaChip", () => {
     expect(chip).toHaveClass(...classesOf(META_CHIP_ACCENT_CLASS));
     expect(chip).not.toHaveClass("bg-item-surface/50");
     expect(chip.querySelector("span")).not.toHaveClass("text-text-tertiary");
+  });
+});
+
+describe("OFFER_STATUS_TONES", () => {
+  it("gives every offer status the dot colour that also draws its dashboard bar", () => {
+    expect(Object.keys(OFFER_STATUS_TONES).sort()).toEqual(["closed", "draft", "published", "validated"]);
+    for (const tone of Object.values(OFFER_STATUS_TONES)) {
+      expect(tone.dot).toMatch(/^bg-/);
+    }
   });
 });

@@ -236,7 +236,7 @@ describe("ApplyView", () => {
     expect(screen.queryByRole("region", { name: "Submit your application" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Your answers" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Your assessment" })).not.toBeInTheDocument();
-    expect(currentStep()).toHaveTextContent("AI clarifications");
+    expect(currentStep()).toHaveTextContent("Dynamic Candidate Assessment");
   });
 
   it("shows the AI question in the central column, outside the match panel, while the assessment is open", async () => {
@@ -251,13 +251,13 @@ describe("ApplyView", () => {
 
     renderWithQueryClient(<ApplyView jobParam={JOB_PARAM} />);
 
-    const clarification = await screen.findByRole("region", { name: "AI clarification" });
+    const clarification = await screen.findByRole("region", { name: "Dynamic Candidate Assessment" });
     const match = screen.getByRole("region", { name: "Your match" });
     expect(match).not.toContainElement(clarification);
     expect(screen.queryByRole("region", { name: "Submit your application" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Your answers" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Your assessment" })).not.toBeInTheDocument();
-    expect(currentStep()).toHaveTextContent("AI clarifications");
+    expect(currentStep()).toHaveTextContent("Dynamic Candidate Assessment");
   });
 
   it("reports a failed analysis without reopening the submission", async () => {
@@ -286,7 +286,7 @@ describe("ApplyView", () => {
     await waitFor(() => expect(getContextMock).toHaveBeenCalledTimes(2));
     expect(await screen.findByRole("region", { name: "Assessment in progress" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Submit your application" })).not.toBeInTheDocument();
-    expect(currentStep()).toHaveTextContent("AI clarifications");
+    expect(currentStep()).toHaveTextContent("Dynamic Candidate Assessment");
   });
 
   it("shows the candidate review first, on the current step, once the assessment is finished", async () => {
@@ -361,10 +361,10 @@ describe("ApplyView", () => {
 
     renderWithQueryClient(<ApplyView jobParam={JOB_PARAM} />);
 
-    expect(await screen.findByRole("region", { name: "AI clarification" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Dynamic Candidate Assessment" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Your assessment" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Submit your application" })).not.toBeInTheDocument();
-    expect(currentStep()).toHaveTextContent("AI clarifications");
+    expect(currentStep()).toHaveTextContent("Dynamic Candidate Assessment");
   });
 
   it("re-reads the journey context when the match closes the assessment by itself", async () => {

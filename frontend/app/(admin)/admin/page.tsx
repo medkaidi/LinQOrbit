@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 
-import { AdminView } from "@/features/admin/admin-page";
+import { AdminOverview } from "@/features/admin/admin-overview";
 
 export const metadata: Metadata = {
   title: "Administration — LinQOrbit",
-  description: "Accounts and skill suggestion review for administrators.",
+  description: "Platform overview for administrators: accounts, offers, applications and moderation queues.",
 };
 
 export default function AdminPage() {
-  return <AdminView />;
+  return <AdminOverview />;
 }
