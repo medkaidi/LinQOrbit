@@ -7,7 +7,7 @@ Everything else asks for a model through `get_model()`, so the provider
 import logging
 from functools import lru_cache
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
 from app.core.config import settings
 
@@ -37,6 +37,27 @@ def get_model(temperature: float | None = None) -> ChatGoogleGenerativeAI:
     )
 
 
+@lru_cache(maxsize=1)
+def get_embeddings() -> GoogleGenerativeAIEmbeddings:
+    """Return the process-wide embedding model (same provider, same credentials).
+
+    One instance for both sides of the screening (candidate and offer fiches):
+    the same model and task type put them in the same vector space (§8.4.5).
+    """
+    logger.info(
+        "Embedding model initialized : model=%s, dimensions=%d",
+        settings.embedding_model,
+        settings.embedding_dimensions,
+    )
+    return GoogleGenerativeAIEmbeddings(
+        model=settings.embedding_model,
+        google_api_key=settings.google_api_key or None,
+        output_dimensionality=settings.embedding_dimensions,
+        task_type="SEMANTIC_SIMILARITY",
+    )
+
+
 def reset_model_cache() -> None:
-    """Testing hook: drop the cached instance after changing settings or env."""
+    """Testing hook: drop the cached instances after changing settings or env."""
     get_model.cache_clear()
+    get_embeddings.cache_clear()

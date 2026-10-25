@@ -32,5 +32,11 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 120.0
     llm_max_retries: int = 2
 
+    # Embeddings (screening, SPEC §8.4 / D55) — consumed by app.llm.client.get_embeddings.
+    # The dimension is a consequence of the model (MRL truncation); the backend
+    # column is vector(1536), so a different value is rejected at the route.
+    embedding_model: str = "gemini-embedding-2"
+    embedding_dimensions: int = 1536
+
 
 settings = Settings()
