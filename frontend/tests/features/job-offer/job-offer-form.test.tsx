@@ -293,6 +293,7 @@ describe("JobOfferForm", () => {
         normalizationInProgress: false,
         normalizationFailed: false,
         analysisOutdated: false,
+        screening: null,
         skills: [
           {
             skillId: "a0000000-0000-4000-8000-000000000001",

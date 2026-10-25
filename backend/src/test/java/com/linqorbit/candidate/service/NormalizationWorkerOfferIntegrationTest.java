@@ -2,6 +2,11 @@ package com.linqorbit.candidate.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -14,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterEach;
@@ -28,6 +34,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import com.linqorbit.embedding.service.EmbeddingService;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -71,6 +79,9 @@ class NormalizationWorkerOfferIntegrationTest {
     private ThreadPoolTaskExecutor normalizationExecutor;
     @MockitoBean(name = "normalizationTaskScheduler")
     private TaskScheduler normalizationTaskScheduler;
+    /** Inerte : l'embedding est couvert par EmbeddingIntegrationTest, ici aucune ligne embedding_job ne doit naître. */
+    @MockitoBean
+    private EmbeddingService embeddingService;
 
     private final List<UUID> createdUserIds = new ArrayList<>();
     private final List<UUID> createdCompanyIds = new ArrayList<>();
@@ -83,6 +94,8 @@ class NormalizationWorkerOfferIntegrationTest {
                     DELETE FROM normalization_job j
                     USING normalized_profile_job_offer npo
                     WHERE npo.normalized_profile_id = j.job_id AND npo.job_offer_id = ?""", offerId);
+            // La publication crée un job de screening (FK vers la fiche, T-101) : à retirer avant les fiches.
+            jdbcTemplate.update("DELETE FROM screening_job WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("DELETE FROM normalized_profile_job_offer WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("""
                     DELETE FROM normalized_profile np
@@ -363,6 +376,67 @@ class NormalizationWorkerOfferIntegrationTest {
         assertThat(versionCount(validatedId)).isEqualTo(1);
     }
 
+    @Test
+    void offrePublieeSansFicheEstSignaleeObsoletePuisSaFicheEstGenereeParRevalidate() throws Exception {
+        // T-88 : offre PUBLISHED sans aucune fiche (legacy / corruption).
+        String token = signup();
+        becomeRecruiter(token);
+        UUID companyId = createCompany(token);
+        UUID offerId = createOffer(token, companyId);
+        createdOfferIds.add(offerId);
+        when(jobOfferNormalizeClient.normalize(any())).thenReturn(CANONICAL_OFFER_JSON);
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/validate").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        normalizationWorker.executeJob(latestOfferJobId(offerId));
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/publish").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        // Suppression de la fiche de cette offre seulement.
+        UUID sheetId = latestOfferJobId(offerId);
+        jdbcTemplate.update("DELETE FROM normalization_job WHERE job_id = ?", sheetId);
+        jdbcTemplate.update("DELETE FROM screening_job WHERE offer_normalized_profile_id = ?", sheetId);
+        jdbcTemplate.update("DELETE FROM normalized_profile_job_offer WHERE normalized_profile_id = ?", sheetId);
+        jdbcTemplate.update("DELETE FROM normalized_profile WHERE normalized_profile_id = ?", sheetId);
+        assertThat(versionCount(offerId)).isZero();
+
+        mockMvc.perform(get("/api/v1/job-offers").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == '%s')].analysisOutdated".formatted(offerId))
+                        .value(Matchers.contains(true)));
+        expectOfferSignals(token, offerId, false, true);
+        Map<String, Object> lifecycle = offerLifecycle(offerId);
+
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/revalidate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        assertThat(versionCount(offerId)).isEqualTo(1);
+        UUID generatedSheet = latestOfferJobId(offerId);
+        Map<String, Object> sheet = jdbcTemplate.queryForMap("""
+                SELECT np.version, np.schema_version, np.content, j.status FROM normalized_profile np
+                JOIN normalization_job j ON j.job_id = np.normalized_profile_id
+                WHERE np.normalized_profile_id = ?""", generatedSheet);
+        assertThat(((Number) sheet.get("version")).intValue()).isEqualTo(1);
+        assertThat(sheet.get("schema_version")).isEqualTo("2");
+        assertThat(sheet.get("content")).isNull();
+        assertThat(NormalizationJobStatus.fromCode(((Number) sheet.get("status")).shortValue()))
+                .isEqualTo(NormalizationJobStatus.PENDING);
+        assertThat(offerLifecycle(offerId)).isEqualTo(lifecycle);
+        expectOfferSignals(token, offerId, true, false);
+
+        // Second appel pendant l'analyse : no-op.
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/revalidate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        assertThat(versionCount(offerId)).isEqualTo(1);
+
+        normalizationWorker.executeJob(generatedSheet);
+        assertThat(String.valueOf(jdbcTemplate.queryForObject(
+                "SELECT content FROM normalized_profile WHERE normalized_profile_id = ?", String.class,
+                generatedSheet))).contains("\"schemaVersion\": \"2\"");
+        expectOfferSignals(token, offerId, false, false);
+        assertThat(offerLifecycle(offerId)).isEqualTo(lifecycle);
+    }
+
     // --- D64 : flux SSE du statut de normalisation de l'offre -----------------
 
     @Test
@@ -459,6 +533,79 @@ class NormalizationWorkerOfferIntegrationTest {
         MvcResult stream = openOfferStream(token, offerId);
         mockMvc.perform(asyncDispatch(stream)).andExpect(status().isOk());
         assertThat(stream.getResponse().getContentAsString()).contains("\"status\":\"none\"");
+    }
+
+    // --- T-64 : déclencheur de l'embedding après le DONE ----------------------
+
+    @Test
+    void uneNormalisationReussieDeclencheLEmbeddingDeLOffreUneFoisEtApresLeDone() throws Exception {
+        UUID offerId = validatedOffer();
+        UUID jobId = latestOfferJobId(offerId);
+        when(jobOfferNormalizeClient.normalize(any())).thenReturn(CANONICAL_OFFER_JSON);
+        AtomicReference<Map<String, Object>> rowAtTrigger = new AtomicReference<>();
+        doAnswer(invocation -> {
+            rowAtTrigger.set(jobWithContent(jobId));
+            return null;
+        }).when(embeddingService).enqueueAndDispatch(jobId);
+
+        normalizationWorker.executeJob(jobId);
+
+        verify(embeddingService, times(1)).enqueueAndDispatch(jobId);
+        // Déclenché une fois la tx « content + DONE » commitée : jamais sur une fiche sans contenu.
+        assertThat(NormalizationJobStatus.fromCode(((Number) rowAtTrigger.get().get("status")).shortValue()))
+                .isEqualTo(NormalizationJobStatus.DONE);
+        assertThat(rowAtTrigger.get().get("content")).isNotNull();
+    }
+
+    @Test
+    void unEchecIaOuUneFicheRefuseeNeDeclencheJamaisLEmbeddingDeLOffre() throws Exception {
+        UUID offerId = validatedOffer();
+        UUID jobId = latestOfferJobId(offerId);
+        when(jobOfferNormalizeClient.normalize(any()))
+                .thenThrow(new AiServiceException(HttpStatus.BAD_GATEWAY, "The AI service call failed."))
+                .thenReturn("{\"schemaVersion\": \"3\", \"title\": \"X\"}");
+
+        normalizationWorker.executeJob(jobId);
+        normalizationWorker.executeJob(jobId);
+
+        verify(embeddingService, never()).enqueueAndDispatch(jobId);
+    }
+
+    @Test
+    void uneErreurDeLEmbeddingNeFaitJamaisPerdreLaNormalisationValideDeLOffre() throws Exception {
+        UUID offerId = validatedOffer();
+        UUID jobId = latestOfferJobId(offerId);
+        when(jobOfferNormalizeClient.normalize(any())).thenReturn(CANONICAL_OFFER_JSON);
+        doThrow(new IllegalStateException("embedding indisponible")).when(embeddingService)
+                .enqueueAndDispatch(jobId);
+
+        normalizationWorker.executeJob(jobId);
+
+        Map<String, Object> row = jobWithContent(jobId);
+        assertThat(NormalizationJobStatus.fromCode(((Number) row.get("status")).shortValue()))
+                .isEqualTo(NormalizationJobStatus.DONE);
+        assertThat(row.get("content")).isNotNull();
+        assertThat(((Number) row.get("attempts")).intValue()).isZero();
+        verify(jobOfferNormalizeClient, times(1)).normalize(any());
+    }
+
+    /** Offre créée puis validée : son job de normalisation est PENDING (exécuteur inerte). */
+    private UUID validatedOffer() throws Exception {
+        String token = signup();
+        becomeRecruiter(token);
+        UUID offerId = createOffer(token, createCompany(token));
+        createdOfferIds.add(offerId);
+        mockMvc.perform(post("/api/v1/job-offers/" + offerId + "/validate")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+        return offerId;
+    }
+
+    private Map<String, Object> jobWithContent(UUID jobId) {
+        return jdbcTemplate.queryForMap(
+                "SELECT j.status, j.attempts, np.content FROM normalization_job j"
+                        + " JOIN normalized_profile np ON np.normalized_profile_id = j.job_id"
+                        + " WHERE j.job_id = ?", jobId);
     }
 
     private MvcResult openOfferStream(String token, UUID offerId) throws Exception {

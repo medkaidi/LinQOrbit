@@ -8,9 +8,11 @@ import {
   getReferenceLanguages,
   getReferenceSkills,
   getReferenceStudyFields,
+  getVisibilityConsent,
   listCvs,
   parseCv,
   setCurrentCv,
+  setVisibilityConsent,
   updateAbout,
   updateDiplomas,
   updateExperiences,
@@ -402,5 +404,20 @@ describe("candidate.api", () => {
     expect(createObjectURL).toHaveBeenCalledWith(blob);
     expect(clickedDownload).toBe("cv.pdf");
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock");
+  });
+
+  it("reads the recruiter-visibility consent without any parameter", async () => {
+    mockedGet.mockResolvedValueOnce({ data: { consented: false, consentedAt: null } });
+
+    await expect(getVisibilityConsent()).resolves.toEqual({ consented: false, consentedAt: null });
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/candidates/me/visibility");
+  });
+
+  it.each([true, false])("sends only the boolean when setting the consent to %s", async (consent) => {
+    mockedPut.mockResolvedValueOnce({ data: { consented: consent, consentedAt: null } });
+
+    await setVisibilityConsent(consent);
+
+    expect(mockedPut).toHaveBeenCalledWith("/api/v1/candidates/me/visibility", { consent });
   });
 });

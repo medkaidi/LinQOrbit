@@ -17,6 +17,13 @@ const useContractTypesMock = vi.hoisted(() => vi.fn());
 const useEmploymentTypesMock = vi.hoisted(() => vi.fn());
 const useWorkModesMock = vi.hoisted(() => vi.fn());
 const useOfferNormalizationStreamMock = vi.hoisted(() => vi.fn());
+const useScreeningStreamMock = vi.hoisted(() => vi.fn());
+const useRetryScreeningMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/hooks/use-invitations", () => ({
+  useScreeningStream: useScreeningStreamMock,
+  useRetryScreening: useRetryScreeningMock,
+}));
 
 vi.mock("@/hooks/use-normalization-stream", () => ({
   useOfferNormalizationStream: useOfferNormalizationStreamMock,
@@ -59,6 +66,7 @@ function draftOffer(overrides: Partial<JobOfferListItem> = {}): JobOfferListItem
     normalizationInProgress: false,
     normalizationFailed: false,
     analysisOutdated: false,
+    screening: null,
     readyToPublish: true,
     applicationCount: 0,
     createdAt: "2026-01-01T00:00:00Z",
@@ -121,6 +129,8 @@ describe("JobOffersSection", () => {
   beforeEach(() => {
     useInfiniteJobOffersMock.mockReturnValue(infiniteResult([], { unloaded: true, isLoading: true }));
     useJobOfferTransitionMock.mockReturnValue(mutation());
+    useRetryScreeningMock.mockReturnValue(mutation());
+    useScreeningStreamMock.mockReset();
     useDeleteJobOfferMock.mockReturnValue(mutation());
     useDuplicateJobOfferMock.mockReturnValue(mutation());
     useContractTypesMock.mockReturnValue({
@@ -947,5 +957,110 @@ describe("JobOffersSection", () => {
 
     expect(screen.queryByText("Analysis outdated")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+  });
+
+  // --- T-101 : recherche automatique de candidats à la publication ---
+
+  it("shows the screening state on a published offer, and links the list only when candidates were found", () => {
+    renderOffers([
+      draftOffer({ id: "o1", status: "published", screening: { status: "done", candidateCount: 10 } }),
+      draftOffer({
+        id: "o2",
+        title: "Data Engineer",
+        status: "published",
+        screening: { status: "done", candidateCount: 0 },
+      }),
+    ]);
+
+    expect(screen.getByText("10 candidates found")).toBeInTheDocument();
+    expect(screen.getByText("No candidates found")).toBeInTheDocument();
+    const links = screen.getAllByRole("link", { name: /View candidates/ });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "/recruiter/offers/o1/suggestions");
+  });
+
+  it("shows the search in progress and a failed search with its retry", () => {
+    renderOffers([
+      draftOffer({ id: "o1", status: "published", screening: { status: "running", candidateCount: null } }),
+      draftOffer({
+        id: "o2",
+        title: "Data Engineer",
+        status: "published",
+        screening: { status: "failed", candidateCount: null },
+      }),
+    ]);
+
+    expect(screen.getByText("Searching candidates…")).toBeInTheDocument();
+    expect(screen.getByText("Search failed")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Retry search/ })).toHaveLength(1);
+  });
+
+  it("shows nothing without a search, or on an offer that is not open (draft, validated, closed, expired)", () => {
+    const done = { status: "done" as const, candidateCount: 3 };
+    renderOffers([
+      draftOffer({ id: "o1", status: "published", screening: null }),
+      draftOffer({ id: "o2", status: "draft", screening: done }),
+      draftOffer({ id: "o3", status: "validated", screening: done }),
+      draftOffer({ id: "o4", status: "closed", screening: done }),
+      draftOffer({ id: "o5", status: "published", expiresAt: "2020-01-01", screening: done }),
+    ]);
+
+    expect(screen.queryByText(/candidates? found/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Searching candidates…")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /View candidates/ })).not.toBeInTheDocument();
+  });
+
+  it("follows the search of an offer once published from the list, and only that one", () => {
+    useScreeningStreamMock.mockClear();
+    useJobOfferTransitionMock.mockReturnValue(
+      mutation({
+        mutate: vi.fn((_variables, options) => {
+          options?.onSuccess?.();
+          options?.onSettled?.();
+        }),
+      }),
+    );
+    const view = renderOffers([
+      draftOffer({ id: "o1", status: "validated", readyToPublish: true }),
+      draftOffer({ id: "o2", title: "Data Engineer", status: "published" }),
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Publish" }));
+
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([
+        draftOffer({ id: "o1", status: "published", screening: { status: "pending", candidateCount: null } }),
+        draftOffer({
+          id: "o2",
+          title: "Data Engineer",
+          status: "published",
+          screening: { status: "pending", candidateCount: null },
+        }),
+      ]),
+    );
+    view.rerender(<JobOffersSection companies={companies} />);
+
+    expect(useScreeningStreamMock).toHaveBeenLastCalledWith("o1", true);
+    expect(useScreeningStreamMock.mock.calls.every(([offerId]) => offerId === "o1")).toBe(true);
+
+    // Recherche terminée : le flux de o1 est désactivé.
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([
+        draftOffer({ id: "o1", status: "published", screening: { status: "done", candidateCount: 4 } }),
+        draftOffer({ id: "o2", title: "Data Engineer", status: "published" }),
+      ]),
+    );
+    view.rerender(<JobOffersSection companies={companies} />);
+    expect(useScreeningStreamMock).toHaveBeenLastCalledWith("o1", false);
+  });
+
+  it("opens no search stream for offers the user did not publish here", () => {
+    useScreeningStreamMock.mockClear();
+    renderOffers([
+      draftOffer({ id: "o1", status: "published", screening: { status: "running", candidateCount: null } }),
+    ]);
+
+    expect(useScreeningStreamMock).not.toHaveBeenCalled();
   });
 });

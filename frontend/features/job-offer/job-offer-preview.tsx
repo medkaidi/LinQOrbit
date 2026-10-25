@@ -14,6 +14,7 @@ import {
   SECTION_HEADER_CLASS,
   SECTION_TITLE_CLASS,
 } from "@/components/ui/section";
+import { isScreeningInProgress, ScreeningBadge } from "@/features/invitation/screening-badge";
 import { PublicJobArticle } from "@/features/job-offer/public-job-article";
 import {
   canRefreshOfferAnalysis,
@@ -33,6 +34,7 @@ import {
   useJobOfferTransition,
   useWorkModes,
 } from "@/hooks/use-job-offers";
+import { useScreeningStream } from "@/hooks/use-invitations";
 import { useOfferNormalizationStream } from "@/hooks/use-normalization-stream";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 
@@ -71,6 +73,8 @@ export function JobOfferPreview({ offerId }: { offerId: string }) {
   // liste et le détail (GET = source de vérité), y compris une analyse déjà en
   // cours à l'ouverture de la page.
   useOfferNormalizationStream(offerId, Boolean(offer.data?.normalizationInProgress));
+  // Idem pour la recherche de candidats lancée à la publication (T-101).
+  useScreeningStream(offerId, isScreeningInProgress(offer.data?.screening));
 
   if (offer.isLoading) {
     return (
@@ -143,6 +147,9 @@ export function JobOfferPreview({ offerId }: { offerId: string }) {
               analysisOutdated={data.analysisOutdated}
               unvalidatedChanges={data.hasUnvalidatedChanges}
             />
+            {data.status === "published" ? (
+              <ScreeningBadge offerId={data.id} screening={data.screening} />
+            ) : null}
           </div>
           <h1 className="font-headline-lg text-headline-lg-mobile lg:text-headline-lg text-text-primary font-bold tracking-tight">
             Offer preview

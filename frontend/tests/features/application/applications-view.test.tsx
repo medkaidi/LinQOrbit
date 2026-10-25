@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { ApplicationsView } from "@/features/application/applications-view";
 import { listMyApplications, withdrawApplication } from "@/lib/api/application.api";
+import { listMyInvitations } from "@/lib/api/invitation.api";
 import { buildApplication } from "@/tests/helpers/application-fixtures";
 import { renderWithQueryClient } from "@/tests/helpers/test-utils";
 
@@ -14,13 +15,20 @@ vi.mock("@/lib/api/application.api", () => ({
   withdrawApplication: vi.fn(),
 }));
 
+vi.mock("@/lib/api/invitation.api", () => ({
+  listMyInvitations: vi.fn(),
+}));
+
 const listMock = vi.mocked(listMyApplications);
+const invitationsMock = vi.mocked(listMyInvitations);
 const withdrawMock = vi.mocked(withdrawApplication);
 
 describe("ApplicationsView", () => {
   beforeEach(() => {
     listMock.mockReset();
     withdrawMock.mockReset();
+    invitationsMock.mockReset();
+    invitationsMock.mockResolvedValue([]);
   });
 
   it("shows the empty state when the candidate has no application", async () => {
@@ -52,6 +60,22 @@ describe("ApplicationsView", () => {
     // Les réponses ne sont plus dépliées par défaut : la carte reste compacte.
     expect(screen.queryByText("Why this role?")).not.toBeInTheDocument();
     expect(screen.queryByText("I love APIs")).not.toBeInTheDocument();
+  });
+
+  it("lays the cards out on two columns from the xl breakpoint, actions kept at the foot of each card", async () => {
+    listMock.mockResolvedValue([
+      buildApplication(),
+      buildApplication({ id: "app-2", status: "draft", cv: null, answers: [] }),
+    ]);
+
+    renderWithQueryClient(<ApplicationsView />);
+
+    await screen.findByText("2 applications");
+    const [first, second] = screen.getAllByRole("listitem");
+    expect(first.parentElement).toHaveClass("grid", "grid-cols-1", "xl:grid-cols-2");
+    // Retrait / reprise du brouillon : poussés en pied de carte (mt-auto), même si la carte voisine est plus haute.
+    expect(within(first).getByRole("button", { name: "Withdraw" }).closest(".mt-auto")).not.toBeNull();
+    expect(within(second).getByRole("link", { name: "Continue application" }).closest(".mt-auto")).not.toBeNull();
   });
 
   it("keeps every answer behind an accessible disclosure", async () => {
@@ -201,5 +225,34 @@ describe("ApplicationsView", () => {
     );
 
     expect(await screen.findByText("Could not load your applications")).toBeInTheDocument();
+  });
+
+  it("puts the invitations section above the applications when the candidate was invited", async () => {
+    listMock.mockResolvedValue([buildApplication()]);
+    invitationsMock.mockResolvedValue([
+      {
+        id: "i1",
+        invitedAt: "2026-10-20T10:00:00",
+        job: { publicId: "abcdefghijkl", slug: "data-engineer", title: "Data Engineer", companyName: null },
+      },
+    ]);
+
+    renderWithQueryClient(<ApplicationsView />);
+
+    const invitations = await screen.findByRole("heading", { name: "Invitations" });
+    const applications = await screen.findByRole("heading", { name: "Your applications" });
+    expect(
+      invitations.compareDocumentPosition(applications) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows no invitations section without invitation, and keeps the applications list", async () => {
+    listMock.mockResolvedValue([buildApplication()]);
+
+    renderWithQueryClient(<ApplicationsView />);
+
+    expect(await screen.findByRole("heading", { name: "Your applications" })).toBeInTheDocument();
+    await waitFor(() => expect(invitationsMock).toHaveBeenCalled());
+    expect(screen.queryByRole("heading", { name: "Invitations" })).not.toBeInTheDocument();
   });
 });

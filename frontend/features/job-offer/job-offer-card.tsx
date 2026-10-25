@@ -104,6 +104,8 @@ type JobOfferCardProps = {
    * en draft, validated et published (revalidable) — jamais sur une offre fermée.
    */
   analysisOutdated?: boolean;
+  /** Signal de la recherche de candidats (T-101) — vue recruteur d'une offre publiée seulement. */
+  screeningBadge?: ReactNode;
   /** Draft incomplet (gate de complétude serveur) : chip « Not ready to publish ». */
   readyToPublish?: boolean;
   /**
@@ -144,6 +146,7 @@ export function JobOfferCard({
   normalization = null,
   unvalidatedChanges = false,
   analysisOutdated = false,
+  screeningBadge = null,
   readyToPublish = true,
   applicationCount = null,
   createdAt,
@@ -240,6 +243,7 @@ export function JobOfferCard({
               analysisOutdated={analysisOutdated}
               unvalidatedChanges={unvalidatedChanges}
             />
+            {screeningBadge}
             {status === "draft" && !readyToPublish ? (
               <Badge tone="neutral">Not ready to publish</Badge>
             ) : null}

@@ -62,6 +62,20 @@ public class Candidate {
     @Column(name = "current_cv_attachment_id")
     private UUID currentCvAttachmentId;
 
+    /**
+     * Consentement à la visibilité du profil complet par les recruteurs (T-102,
+     * D86) : date de l'acte et version du texte accepté, {@code NULL} ensemble
+     * = pas de consentement (V30). Écrits uniquement par UPDATE bulk
+     * ({@code CandidateRepository#updateRecruiterVisibilityConsent}) : un save
+     * d'entité bumperait updated_at (dirty-flag du profil) ; {@code updatable =
+     * false} garantit qu'un save ne les écrase jamais.
+     */
+    @Column(name = "recruiter_visibility_consent_at", updatable = false)
+    private LocalDateTime recruiterVisibilityConsentAt;
+
+    @Column(name = "recruiter_visibility_consent_version", updatable = false)
+    private Short recruiterVisibilityConsentVersion;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

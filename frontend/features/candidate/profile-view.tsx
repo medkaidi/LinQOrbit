@@ -27,6 +27,7 @@ import { useAccount } from "@/hooks/use-account";
 import { useCandidateProfile } from "@/hooks/use-candidate-profile";
 import { ValidateProfileBanner } from "@/features/candidate/validate-profile-banner";
 import { CvSection } from "@/features/candidate/cv-section";
+import { VisibilityConsentCard } from "@/features/candidate/visibility-consent-card";
 import { Icon } from "@/components/ui/icon";
 import { IndexBadge } from "@/components/ui/index-badge";
 import { NavPill } from "@/components/ui/nav-pill";
@@ -198,12 +199,16 @@ function LinkInfoBox({ linkType, links }: { linkType: string; links: LinkItem[] 
   );
 }
 
+/** Valeur affichée à la place de l'e-mail et du téléphone dans la vue recruteur. */
+const CONTACT_UNAVAILABLE = "Not available";
+
 function AboutSection({
   about,
   links,
   account,
   editable,
   compact = false,
+  contactUnavailable = false,
 }: {
   about: CandidateProfile["about"];
   links: LinkItem[];
@@ -211,6 +216,8 @@ function AboutSection({
   editable: boolean;
   /** Variante compacte (source derrière le drawer admin, D39) : une seule colonne — les placements `lg:col-start-*` cassent à mi-largeur. */
   compact?: boolean;
+  /** Vue recruteur (T-102, D86) : e-mail et téléphone ne sont jamais exposés ; les cellules restent pour garder la mise en page et affichent « Not available ». */
+  contactUnavailable?: boolean;
 }) {
   const statusLabels = SEARCH_STATUS_LABELS as Record<string, string | undefined>;
   const statusLabel = about.searchStatus ? statusLabels[about.searchStatus] : null;
@@ -258,12 +265,15 @@ function AboutSection({
           </div>
           {account ? (
             <div className={cn(!compact && "lg:col-start-1 lg:row-start-2")}>
-              <InfoBox label="Email" value={account.email} />
+              <InfoBox label="Email" value={contactUnavailable ? CONTACT_UNAVAILABLE : account.email} />
             </div>
           ) : null}
           {account ? (
             <div className={cn(!compact && "lg:col-start-1 lg:row-start-3")}>
-              <InfoBox label="Phone" value={account.phone?.trim() || "Not provided"} />
+              <InfoBox
+                label="Phone"
+                value={contactUnavailable ? CONTACT_UNAVAILABLE : account.phone?.trim() || "Not provided"}
+              />
             </div>
           ) : null}
           {account ? (
@@ -627,6 +637,7 @@ export function ProfileSections({
   account,
   readOnly = false,
   compact = false,
+  contactUnavailable = false,
 }: {
   profile: CandidateProfile;
   account: AuthUser | null;
@@ -637,6 +648,8 @@ export function ProfileSections({
    * ne pilote plus que le repli 1 colonne interne d'`AboutSection`.
    */
   compact?: boolean;
+  /** Vue recruteur d'un candidat suggéré (T-102, D86) : e-mail et téléphone affichés « Not available ». */
+  contactUnavailable?: boolean;
 }) {
   const editable = !readOnly;
   return (
@@ -647,6 +660,7 @@ export function ProfileSections({
         account={account}
         editable={editable}
         compact={compact}
+        contactUnavailable={contactUnavailable}
       />
       <ExperienceSection experiences={profile.experiences} editable={editable} />
       <ProjectsSection projects={profile.projects} editable={editable} />
@@ -689,6 +703,8 @@ export function ProfileView() {
         profile={data}
         action={<NavPill icon="edit" label="Edit profile" href="/profile/edit" />}
       />
+
+      <VisibilityConsentCard />
 
       <CvSection />
 

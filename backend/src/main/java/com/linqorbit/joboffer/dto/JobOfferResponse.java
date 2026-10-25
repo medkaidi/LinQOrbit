@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.linqorbit.screening.dto.ScreeningSignal;
+
 /**
  * Offre vue par un membre de la company : statut portant le cycle de vie
  * DRAFT→VALIDATED→PUBLISHED→CLOSED (D13), {@code hasUnvalidatedChanges} le
@@ -13,7 +15,10 @@ import java.util.UUID;
  * affiche avant la re-validation, {@code normalizationInProgress} et
  * {@code normalizationFailed} les signaux du job de normalisation (miroir
  * candidat, pilotés par la base), {@code analysisOutdated} la fiche de
- * référence sur une version de schéma périmée (D63).
+ * référence sur une version de schéma périmée (D63), {@code screening} la
+ * recherche automatique de candidats lancée à la publication (T-101 : statut
+ * du dernier job + nombre de suggérés une fois terminée, {@code null} sans
+ * recherche).
  */
 public record JobOfferResponse(
         UUID id,
@@ -43,6 +48,7 @@ public record JobOfferResponse(
         boolean normalizationInProgress,
         boolean normalizationFailed,
         boolean analysisOutdated,
+        ScreeningSignal screening,
         List<JobOfferSkillOption> skills,
         List<JobOfferLanguageOption> languages,
         List<UUID> degreeIds,

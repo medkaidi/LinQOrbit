@@ -36,6 +36,8 @@ import com.linqorbit.candidate.dto.SkillRequest;
 import com.linqorbit.candidate.dto.SkillSuggestionRequest;
 import com.linqorbit.candidate.dto.StudyFieldOption;
 import com.linqorbit.candidate.dto.TargetPositionRequest;
+import com.linqorbit.candidate.dto.VisibilityConsentRequest;
+import com.linqorbit.candidate.dto.VisibilityConsentResponse;
 import com.linqorbit.config.OpenApiConfig;
 
 /**
@@ -73,6 +75,27 @@ public interface CandidateApi {
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
     })
     ResponseEntity<Void> updateTargetPosition(@Valid @RequestBody TargetPositionRequest request,
+            Authentication authentication);
+
+    @GetMapping("/me/visibility")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Lire le consentement de visibilité recruteur", description = "Opt-in (T-102, D86) : le candidat consent à ce que les recruteurs dont une offre publiée correspond à son profil consultent son profil complet (nom compris, jamais e-mail ni téléphone) et l'invitent à candidater. Absent par défaut.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "État du consentement"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré")
+    })
+    ResponseEntity<VisibilityConsentResponse> getVisibility(Authentication authentication);
+
+    @PutMapping("/me/visibility")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Accorder ou retirer le consentement de visibilité recruteur", description = "Idempotent. Date et version du texte posées par le serveur. Le retrait masque aussitôt le profil des listes de suggestions déjà calculées. N'est pas une modification du profil (aucun effet sur la validation).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Consentement enregistré"),
+            @ApiResponse(responseCode = "400", description = "Corps invalide"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "409", description = "Aucun profil candidat encore créé")
+    })
+    ResponseEntity<VisibilityConsentResponse> setVisibility(@Valid @RequestBody VisibilityConsentRequest request,
             Authentication authentication);
 
     @PutMapping("/me/profile/experiences")

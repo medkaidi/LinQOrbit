@@ -73,6 +73,8 @@ class JobPublicIntegrationTest {
                     DELETE FROM normalization_job j
                     USING normalized_profile_job_offer npo
                     WHERE npo.normalized_profile_id = j.job_id AND npo.job_offer_id = ?""", offerId);
+            // La publication crée un job de screening (FK vers la fiche, T-101) : à retirer avant les fiches.
+            jdbcTemplate.update("DELETE FROM screening_job WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("DELETE FROM normalized_profile_job_offer WHERE job_offer_id = ?", offerId);
             jdbcTemplate.update("""
                     DELETE FROM normalized_profile np

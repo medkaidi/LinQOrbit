@@ -37,6 +37,7 @@ import com.linqorbit.candidate.repository.NormalizationJobRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileCandidateRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
 import com.linqorbit.common.logging.RequestLoggingFilter;
+import com.linqorbit.embedding.service.EmbeddingService;
 import com.linqorbit.joboffer.client.JobOfferNormalizeClient;
 import com.linqorbit.joboffer.dto.OfferNormalizeRequest;
 import com.linqorbit.joboffer.dto.OfferSnapshot;
@@ -119,6 +120,7 @@ public class NormalizationWorker {
     private final JobOfferNormalizeClient jobOfferNormalizeClient;
     private final ObjectMapper objectMapper;
     private final NormalizationStatusPublisher statusPublisher;
+    private final EmbeddingService embeddingService;
     @Value("${app.normalization.retry-delay-seconds}")
     private final int retryDelaySeconds;
 
@@ -279,6 +281,7 @@ public class NormalizationWorker {
                     NormalizationJobStatus.RUNNING, NormalizationJobStatus.DONE, now);
         });
         statusPublisher.publish(job.getId(), job.getSourceType());
+        triggerEmbedding(job.getId());
         log.info("Profile normalization done : jobId={}, candidateId={}", job.getId(), candidateId);
     }
 
@@ -306,7 +309,23 @@ public class NormalizationWorker {
                     NormalizationJobStatus.RUNNING, NormalizationJobStatus.DONE, now);
         });
         statusPublisher.publish(job.getId(), job.getSourceType());
+        triggerEmbedding(job.getId());
         log.info("Offer normalization done : jobId={}, offerId={}", job.getId(), offerId);
+    }
+
+    /**
+     * Déclenche l'embedding de la fiche qui vient d'être normalisée. La
+     * normalisation est déjà commitée : aucune erreur d'embedding ne doit la
+     * faire passer pour un échec (retry, statut) — le backfill recrée un job
+     * manquant.
+     */
+    private void triggerEmbedding(UUID profileId) {
+        try {
+            embeddingService.enqueueAndDispatch(profileId);
+        } catch (RuntimeException ex) {
+            log.error("Embedding trigger failed : profileId={} — the normalization is kept, the backfill "
+                    + "will recreate the job", profileId, ex);
+        }
     }
 
     /**

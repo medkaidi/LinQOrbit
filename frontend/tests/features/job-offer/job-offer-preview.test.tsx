@@ -16,6 +16,13 @@ const useContractTypesMock = vi.hoisted(() => vi.fn());
 const useEmploymentTypesMock = vi.hoisted(() => vi.fn());
 const useWorkModesMock = vi.hoisted(() => vi.fn());
 const useOfferNormalizationStreamMock = vi.hoisted(() => vi.fn());
+const useScreeningStreamMock = vi.hoisted(() => vi.fn());
+const useRetryScreeningMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/hooks/use-invitations", () => ({
+  useScreeningStream: useScreeningStreamMock,
+  useRetryScreening: useRetryScreeningMock,
+}));
 
 vi.mock("@/hooks/use-job-offers", () => ({
   useJobOffer: useJobOfferMock,
@@ -71,6 +78,7 @@ function validatedOffer(): JobOffer {
     normalizationInProgress: false,
     normalizationFailed: false,
     analysisOutdated: false,
+    screening: null,
     skills: [
       {
         skillId: "s1",
@@ -135,6 +143,8 @@ describe("JobOfferPreview", () => {
   beforeEach(() => {
     pushMock.mockClear();
     useJobOfferTransitionMock.mockReturnValue(mutation());
+    useRetryScreeningMock.mockReturnValue(mutation());
+    useScreeningStreamMock.mockReset();
     useOfferNormalizationStreamMock.mockReset();
   });
 
@@ -404,5 +414,74 @@ describe("JobOfferPreview", () => {
     expect(screen.getByText("Could not load the offer")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Back to offers" }));
     expect(pushMock).toHaveBeenCalledWith("/recruiter");
+  });
+
+  // --- T-101 : recherche automatique de candidats ---
+
+  function publishedWith(screening: JobOffer["screening"], status: JobOffer["status"] = "published") {
+    useJobOfferMock.mockReturnValue({
+      data: { ...validatedOffer(), status, screening },
+      isLoading: false,
+      isError: false,
+    });
+    mockReferences();
+  }
+
+  it.each([
+    [{ status: "pending" as const, candidateCount: null }, true],
+    [{ status: "running" as const, candidateCount: null }, true],
+    [{ status: "done" as const, candidateCount: 10 }, false],
+    [{ status: "failed" as const, candidateCount: null }, false],
+    [null, false],
+  ])("follows the search stream only while it is in progress (%j → %s)", (screening, active) => {
+    publishedWith(screening);
+
+    render(<JobOfferPreview offerId="o1" />);
+
+    expect(useScreeningStreamMock).toHaveBeenCalledWith("o1", active);
+  });
+
+  it("opens no search stream while the offer is loading", () => {
+    useJobOfferMock.mockReturnValue({ data: undefined, isLoading: true, isError: false });
+
+    render(<JobOfferPreview offerId="o1" />);
+
+    expect(useScreeningStreamMock).toHaveBeenCalledWith("o1", false);
+  });
+
+  it("shows the result of the search on a published offer, with the link to the candidates", () => {
+    publishedWith({ status: "done", candidateCount: 10 });
+
+    render(<JobOfferPreview offerId="o1" />);
+
+    expect(screen.getByText("10 candidates found")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /View candidates/ })).toHaveAttribute(
+      "href",
+      "/recruiter/offers/o1/suggestions",
+    );
+  });
+
+  it("shows a failed search with its retry, and a search in progress", () => {
+    publishedWith({ status: "failed", candidateCount: null });
+    const failed = render(<JobOfferPreview offerId="o1" />);
+
+    expect(screen.getByText("Search failed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Retry search/ })).toBeInTheDocument();
+    failed.unmount();
+
+    publishedWith({ status: "running", candidateCount: null });
+    render(<JobOfferPreview offerId="o1" />);
+    expect(screen.getByText("Searching candidates…")).toBeInTheDocument();
+  });
+
+  it("shows nothing about the search without one, or before publication", () => {
+    publishedWith(null);
+    const none = render(<JobOfferPreview offerId="o1" />);
+    expect(screen.queryByText(/candidates? found|Searching candidates|Search failed/)).not.toBeInTheDocument();
+    none.unmount();
+
+    publishedWith({ status: "done", candidateCount: 3 }, "validated");
+    render(<JobOfferPreview offerId="o1" />);
+    expect(screen.queryByText(/candidates? found/)).not.toBeInTheDocument();
   });
 });

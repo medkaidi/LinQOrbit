@@ -1,5 +1,8 @@
 package com.linqorbit.candidate.repository;
 
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,4 +37,24 @@ public interface CandidateRepository extends JpaRepository<Candidate, UUID> {
     @Query("update Candidate c set c.currentCvAttachmentId = :attachmentId where c.id = :candidateId")
     int updateCurrentCvAttachmentId(@Param("candidateId") UUID candidateId,
             @Param("attachmentId") UUID attachmentId);
+
+    /**
+     * Consentement à la visibilité recruteur (T-102, D86) — UPDATE bulk pour la
+     * même raison que le CV courant : ne jamais bumper updated_at. Date et
+     * version sont posées ensemble ou retirées ensemble (CHECK V30).
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Candidate c
+            set c.recruiterVisibilityConsentAt = :consentedAt, c.recruiterVisibilityConsentVersion = :version
+            where c.id = :candidateId""")
+    int updateRecruiterVisibilityConsent(@Param("candidateId") UUID candidateId,
+            @Param("consentedAt") LocalDateTime consentedAt, @Param("version") Short version);
+
+    /** Consentement de visibilité recruteur en cours (T-102, D86) : relu à chaque lecture, jamais mis en cache. */
+    boolean existsByIdAndRecruiterVisibilityConsentAtIsNotNull(UUID id);
+
+    /** Parmi ces candidats, ceux qui ont consenti (lecture des listes de suggestions). */
+    @Query("select c.id from Candidate c where c.id in :ids and c.recruiterVisibilityConsentAt is not null")
+    List<UUID> findIdsWithRecruiterVisibilityConsent(@Param("ids") Collection<UUID> ids);
 }

@@ -308,6 +308,45 @@ class JobOfferNormalizationServiceTest {
         verify(normalizedProfileRepository).save(any());
     }
 
+    @Test
+    void onValidatedCreeLaFicheDUneOffrePublieeQuiNEnAAucune() {
+        // T-88 : offre PUBLISHED sans aucune fiche → version 1, comme une première validation.
+        LocalDateTime validatedAt = LocalDateTime.now().minusHours(1);
+        JobOffer published = offer(validatedAt.plusMinutes(10));
+        published.setStatus(JobOfferStatus.PUBLISHED);
+        when(jobOfferRepository.findByIdForUpdate(OFFER_ID)).thenReturn(Optional.of(published));
+        when(normalizedProfileJobOfferRepository.findMaxVersionByOfferId(OFFER_ID)).thenReturn(null);
+        when(normalizedProfileJobOfferRepository.findLatestByOfferId(any(), any(PageRequest.class)))
+                .thenReturn(List.of());
+
+        service.onValidated(OFFER_ID);
+
+        org.mockito.ArgumentCaptor<NormalizedProfile> profile = org.mockito.ArgumentCaptor.forClass(NormalizedProfile.class);
+        verify(normalizedProfileRepository).save(profile.capture());
+        assertThat(profile.getValue().getVersion()).isEqualTo(1);
+        assertThat(profile.getValue().getSchemaVersion()).isEqualTo("2");
+        org.mockito.ArgumentCaptor<NormalizationJob> job = org.mockito.ArgumentCaptor.forClass(NormalizationJob.class);
+        verify(normalizationJobRepository).save(job.capture());
+        assertThat(job.getValue().getStatus()).isEqualTo(NormalizationJobStatus.PENDING);
+        assertThat(job.getValue().getId()).isEqualTo(profile.getValue().getId());
+        verify(eventPublisher).publishEvent(any(JobOfferValidatedEvent.class));
+        assertThat(published.getStatus()).isEqualTo(JobOfferStatus.PUBLISHED);
+    }
+
+    @Test
+    void onValidatedEstNoOpPourUneOffreFermeeSansFiche() {
+        JobOffer closed = offer(LocalDateTime.now());
+        closed.setStatus(JobOfferStatus.CLOSED);
+        when(jobOfferRepository.findByIdForUpdate(OFFER_ID)).thenReturn(Optional.of(closed));
+        when(normalizedProfileJobOfferRepository.findLatestByOfferId(any(), any(PageRequest.class)))
+                .thenReturn(List.of());
+
+        service.onValidated(OFFER_ID);
+
+        verify(normalizedProfileRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
     private void stubCleanOfferWithLatestJob(NormalizationJobStatus status) {
         LocalDateTime validatedAt = LocalDateTime.now().minusHours(1);
         stubOffer(validatedAt.minusMinutes(5));

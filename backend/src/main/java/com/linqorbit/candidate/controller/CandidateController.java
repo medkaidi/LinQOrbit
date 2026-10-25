@@ -24,10 +24,13 @@ import com.linqorbit.candidate.dto.SkillRequest;
 import com.linqorbit.candidate.dto.SkillSuggestionRequest;
 import com.linqorbit.candidate.dto.StudyFieldOption;
 import com.linqorbit.candidate.dto.TargetPositionRequest;
+import com.linqorbit.candidate.dto.VisibilityConsentRequest;
+import com.linqorbit.candidate.dto.VisibilityConsentResponse;
 import com.linqorbit.common.security.CurrentUserId;
 
 import lombok.RequiredArgsConstructor;
 import com.linqorbit.candidate.service.CandidateService;
+import com.linqorbit.candidate.service.CandidateVisibilityService;
 import com.linqorbit.candidate.service.CvParseService;
 import com.linqorbit.candidate.service.NormalizationService;
 
@@ -39,10 +42,22 @@ public class CandidateController implements CandidateApi {
     private final CandidateService candidateService;
     private final CvParseService cvParseService;
     private final NormalizationService normalizationService;
+    private final CandidateVisibilityService visibilityService;
 
     @Override
     public ResponseEntity<CandidateProfileResponse> getProfile(Authentication authentication) {
         return ResponseEntity.ok(candidateService.getProfile(CurrentUserId.from(authentication)));
+    }
+
+    @Override
+    public ResponseEntity<VisibilityConsentResponse> getVisibility(Authentication authentication) {
+        return ResponseEntity.ok(visibilityService.get(CurrentUserId.from(authentication)));
+    }
+
+    @Override
+    public ResponseEntity<VisibilityConsentResponse> setVisibility(VisibilityConsentRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(visibilityService.set(CurrentUserId.from(authentication), request.consent()));
     }
 
     @Override

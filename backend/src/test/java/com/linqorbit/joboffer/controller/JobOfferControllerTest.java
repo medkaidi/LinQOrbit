@@ -588,7 +588,7 @@ class JobOfferControllerTest {
                 "abcdefghijkl", "backend-engineer", null,
                 null, null, null, null, null, null, null, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year", 3,
-                false, false, false, false, List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
+                false, false, false, false, null, List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
     }
 
     private JobOfferListItem draftListItem() {
@@ -597,6 +597,6 @@ class JobOfferControllerTest {
                 "abcdefghijkl", "backend-engineer",
                 null, null, null, null, null, null, null,
                 new BigDecimal("50000"), new BigDecimal("70000"), "EUR", "year",
-                false, false, false, false, false, 0, null, null);
+                false, false, false, false, null, false, 0, null, null);
     }
 }

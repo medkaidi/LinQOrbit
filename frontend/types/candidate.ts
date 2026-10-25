@@ -87,6 +87,15 @@ export type CandidateProfile = {
   analysisOutdated: boolean;
 };
 
+/**
+ * Consentement à la visibilité du profil complet par les recruteurs (T-102, D86) :
+ * opt-in, absent par défaut ; `consentedAt` est null sans consentement.
+ */
+export type VisibilityConsent = {
+  consented: boolean;
+  consentedAt: string | null;
+};
+
 /** Pièce jointe du candidat (CV) renvoyée par /api/v1/candidates/me/attachments. */
 export type CvAttachment = {
   id: string;

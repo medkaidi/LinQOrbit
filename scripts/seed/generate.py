@@ -11,6 +11,10 @@ fixed RNG seed: reruns are reproducible, and --down emits the cleanup.
 Usage:
   python scripts/seed/generate.py > seed.sql
   python scripts/seed/generate.py --down > cleanup.sql
+  python scripts/seed/generate.py --upgrade > seed_upgrade.sql   # additive: fiches at the current schemas
+  python scripts/seed/generate.py --truth > truth.json           # screening ground truth (archetypes)
+  python scripts/seed/generate.py --consent > seed_consent.sql   # grant the recruiter-visibility consent of already-seeded accounts
+(On Windows set PYTHONIOENCODING=utf-8 before redirecting stdout.)
 
 All seeded accounts share password `seed1234` (email domain seed.linqorbit.dev).
 """
@@ -742,8 +746,8 @@ def emit_candidate(c: dict, rng: random.Random) -> list[str]:
         f"({q(uid_)}, {q(c['email'])}, {q(BCRYPT_HASH)}, {q(c['first'])}, {q(c['last'])}, NULL, 1, {ts(c['created'])}, {ts(c['profile_updated'])}, {c['sex']}, {q(c['country'])}, {q(c['city'])}, {q(c['country'])});"
     )
     lines.append(
-        f"INSERT INTO candidates (id, created_at, updated_at, title, bio, years_of_experience, search_status, target_position) VALUES "
-        f"({q(uid_)}, {ts(c['created'])}, {ts(c['profile_updated'])}, {q(c['title'])}, {q(c['bio'])}, {c['years']}, {c['search_status']}, {q(c['target'])});"
+        f"INSERT INTO candidates (id, created_at, updated_at, title, bio, years_of_experience, search_status, target_position, recruiter_visibility_consent_at, recruiter_visibility_consent_version) VALUES "
+        f"({q(uid_)}, {ts(c['created'])}, {ts(c['profile_updated'])}, {q(c['title'])}, {q(c['bio'])}, {c['years']}, {c['search_status']}, {q(c['target'])}, {ts(c['validated'])}, 3);"
     )
 
     for k, exp in enumerate(c["experiences"]):
@@ -1174,6 +1178,190 @@ def build_offer_np(off: dict) -> dict:
     }
 
 
+# --- schema alignment + ground truth (T-64 / T-65) ---------------------------------
+#
+# The base seed above is frozen at candidate v2 / offer v1 (the schemas of its
+# day). Matching and screening read the CURRENT schemas (candidate v3, offer
+# v2, backend NormalizedProfileSchemaVersions). `--upgrade` brings the seeded
+# fiches up to date WITHOUT touching or deleting anything: it only INSERTs a
+# new normalized_profile per candidate/offer, at MAX(version)+1 (the "latest fiche
+# with content" rule makes it the reference one; the old rows stay as history).
+# Idempotent (ON CONFLICT DO NOTHING). `--truth` emits the screening ground
+# truth: the archetype of every seeded candidate and offer.
+
+CANDIDATE_CURRENT_SCHEMA = "3"
+OFFER_CURRENT_SCHEMA = "2"
+
+
+def current_np_id(kind: str, n: int) -> str:
+    """Deterministic id of the aligned fiche (version 2) of candidate/offer n."""
+    return uid("np", kind, n, "current")
+
+
+def upgrade_candidate_np(c: dict) -> dict:
+    """Candidate v2 content -> v3: languages, diplomas and certifications carry origin + evidence."""
+    content = build_candidate_np(c)
+    content["schemaVersion"] = CANDIDATE_CURRENT_SCHEMA
+    for section in ("languages", "diplomas", "certifications"):
+        content[section] = [
+            {**entry, "origin": "declared", "evidence": []} for entry in content.get(section, [])
+        ]
+    return content
+
+
+def upgrade_offer_np(off: dict) -> dict:
+    """Offer v1 content -> v2: weights on every criterion, mined requirements, language origin."""
+    content = build_offer_np(off)
+    content["schemaVersion"] = OFFER_CURRENT_SCHEMA
+    for k, responsibility in enumerate(content["responsibilities"]):
+        responsibility["weight"] = 1 if responsibility["importance"] == "optional" else 5 - (k % 3)
+    for k, skill in enumerate(content["requiredSkills"]):
+        skill["weight"] = 5 - k % 3  # same declared weights as the stored criteria (emit_offer)
+        skill["minYearsSource"] = "declared" if skill["minYears"] is not None else None
+    for k, skill in enumerate(content["preferredSkills"]):
+        skill["weight"] = max(1, 3 - k % 2)
+        skill["minYearsSource"] = None
+    content["requiredYears"] = SENIORITY_MIN_YEARS[off["seniority"]]
+    content["requiredYearsSource"] = "declared"
+    content["requiredDegrees"] = (
+        [{"label": off["degree_label"], "source": "declared"}] if off["degree_label"] else []
+    )
+    content["requiredStudyFields"] = (
+        [{"label": off["field_label"], "source": "declared"}] if off["field_label"] else []
+    )
+    content["languages"] = [{**entry, "origin": "declared"} for entry in content["languages"]]
+    content["certifications"] = []
+    return content
+
+
+def emit_upgrade(candidates: list[dict], offers: list[dict]) -> str:
+    """Additive SQL aligning the seeded fiches on the current schemas.
+
+    Per candidate/offer, ONE new fiche is inserted at ``MAX(version) + 1`` (never a
+    version that already exists: the service numbers versions under a lock, there is
+    no UNIQUE(owner, version) to protect a collision), and only when the owner has no
+    fiche with content at the current schema yet — a user who already re-validated a
+    seeded account keeps their own fiche as the current one. Nothing is updated or
+    deleted; re-running is a no-op (deterministic ids, ON CONFLICT DO NOTHING).
+    """
+    lines = [
+        "-- LinQOrbit dev seed — fiche alignment (SIMULATION, additive only: INSERT ... ON CONFLICT DO NOTHING)",
+        f"-- Adds one normalized_profile at MAX(version)+1 at the current schemas (candidate v{CANDIDATE_CURRENT_SCHEMA},"
+        f" offer v{OFFER_CURRENT_SCHEMA}) for owners not yet aligned; nothing is updated or deleted.",
+        "BEGIN;",
+    ]
+    for c in candidates:
+        np_id = current_np_id("cand", c["i"])
+        owner = q(c["user_id"])
+        at = c["validated"] + timedelta(hours=1)
+        owned = (
+            "FROM normalized_profile np JOIN normalized_profile_candidate l "
+            f"ON l.normalized_profile_id = np.normalized_profile_id WHERE l.candidate_id = {owner}"
+        )
+        lines.append(
+            "INSERT INTO normalized_profile (normalized_profile_id, version, schema_version, content, validated_at, created_at, updated_at) "
+            f"SELECT {q(np_id)}, COALESCE((SELECT MAX(np.version) {owned}), 0) + 1, {q(CANDIDATE_CURRENT_SCHEMA)}, "
+            f"{j(upgrade_candidate_np(c))}, {ts(at)}, {ts(at)}, {ts(at)} "
+            f"WHERE EXISTS (SELECT 1 FROM candidates WHERE id = {owner}) "
+            f"AND NOT EXISTS (SELECT 1 {owned} AND np.schema_version = {q(CANDIDATE_CURRENT_SCHEMA)} AND np.content IS NOT NULL) "
+            "ON CONFLICT DO NOTHING;"
+        )
+        lines.append(
+            "INSERT INTO normalized_profile_candidate (normalized_profile_id, candidate_id) "
+            f"SELECT {q(np_id)}, {owner} WHERE EXISTS (SELECT 1 FROM normalized_profile WHERE normalized_profile_id = {q(np_id)}) "
+            "ON CONFLICT DO NOTHING;"
+        )
+        lines.append(
+            "INSERT INTO normalization_job (job_id, status, source_type, attempts, next_attempt_at, error, created_at, started_at, completed_at) "
+            f"SELECT {q(np_id)}, 3, 1, 0, {ts(at)}, NULL, {ts(at - timedelta(minutes=4))}, {ts(at - timedelta(minutes=4))}, {ts(at)} "
+            f"WHERE EXISTS (SELECT 1 FROM normalized_profile WHERE normalized_profile_id = {q(np_id)}) "
+            "ON CONFLICT DO NOTHING;"
+        )
+    for off in offers:
+        np_id = current_np_id("offer", off["o"])
+        owner = q(off["offer_id"])
+        at = (off["validated"] or off["created"]) + timedelta(hours=1)
+        owned = (
+            "FROM normalized_profile np JOIN normalized_profile_job_offer l "
+            f"ON l.normalized_profile_id = np.normalized_profile_id WHERE l.job_offer_id = {owner}"
+        )
+        lines.append(
+            "INSERT INTO normalized_profile (normalized_profile_id, version, schema_version, content, validated_at, created_at, updated_at) "
+            f"SELECT {q(np_id)}, COALESCE((SELECT MAX(np.version) {owned}), 0) + 1, {q(OFFER_CURRENT_SCHEMA)}, "
+            f"{j(upgrade_offer_np(off))}, {ts(at)}, {ts(at)}, {ts(at)} "
+            f"WHERE EXISTS (SELECT 1 FROM job_offer WHERE id = {owner}) "
+            f"AND NOT EXISTS (SELECT 1 {owned} AND np.schema_version = {q(OFFER_CURRENT_SCHEMA)} AND np.content IS NOT NULL) "
+            "ON CONFLICT DO NOTHING;"
+        )
+        lines.append(
+            "INSERT INTO normalized_profile_job_offer (normalized_profile_id, job_offer_id) "
+            f"SELECT {q(np_id)}, {owner} WHERE EXISTS (SELECT 1 FROM normalized_profile WHERE normalized_profile_id = {q(np_id)}) "
+            "ON CONFLICT DO NOTHING;"
+        )
+        lines.append(
+            "INSERT INTO normalization_job (job_id, status, source_type, attempts, next_attempt_at, error, created_at, started_at, completed_at) "
+            f"SELECT {q(np_id)}, 3, 2, 0, {ts(at)}, NULL, {ts(at - timedelta(minutes=3))}, {ts(at - timedelta(minutes=3))}, {ts(at)} "
+            f"WHERE EXISTS (SELECT 1 FROM normalized_profile WHERE normalized_profile_id = {q(np_id)}) "
+            "ON CONFLICT DO NOTHING;"
+        )
+    lines.extend(["COMMIT;", ""])
+    return "\n".join(lines)
+
+
+def emit_consent(candidates: list[dict]) -> str:
+    """SQL granting the recruiter-visibility consent (T-102, D86) of already-seeded accounts.
+
+    The base seed now inserts candidates WITH the consent; accounts seeded before
+    T-102 have none, so the screening (which only proposes consenting candidates)
+    would find nobody. Only rows whose consent is still NULL are touched, nothing
+    is deleted. Explicit, not part of --upgrade: re-running it re-grants the consent
+    of a seeded account that withdrew it, so it is a deliberate dev-time action.
+    """
+    ids = ",".join(q(c["user_id"]) for c in candidates)
+    at = max(c["validated"] for c in candidates)
+    return "\n".join(
+        [
+            "-- LinQOrbit dev seed — recruiter-visibility consent (SIMULATION, UPDATE of NULL consents only, no deletion)",
+            "BEGIN;",
+            f"UPDATE candidates SET recruiter_visibility_consent_at = {ts(at)}, recruiter_visibility_consent_version = 3 "
+            f"WHERE id IN ({ids}) AND recruiter_visibility_consent_at IS NULL;",
+            "COMMIT;",
+            "",
+        ]
+    )
+
+
+def emit_truth(candidates: list[dict], offers: list[dict]) -> str:
+    """Screening ground truth: the archetype of every seeded candidate and offer.
+
+    ``aligned`` offers draw their whole tech pool from their own archetype; the
+    others deliberately mix in a second one (generate_offer), so their "right"
+    candidates are ambiguous and the recall report keeps them apart.
+    """
+    keys = [a["key"] for a in ARCHETYPES]
+    truth = {
+        "archetypes": keys,
+        "candidates": [
+            {
+                "candidateId": c["user_id"],
+                "archetype": c["arch"]["key"],
+                "searchStatus": c["search_status_str"],
+            }
+            for c in candidates
+        ],
+        "offers": [
+            {
+                "offerId": off["offer_id"],
+                "title": off["title"],
+                "archetype": off["arch"]["key"],
+                "aligned": off["aligned"],
+            }
+            for off in offers
+        ],
+    }
+    return json.dumps(truth, ensure_ascii=False, indent=2) + "\n"
+
+
 # --- main -------------------------------------------------------------------------
 
 
@@ -1207,14 +1395,24 @@ def emit_seed(candidates: list[dict], recruiters: list[dict], offers: list[dict]
 
 def emit_down(candidates: list[dict], recruiters: list[dict], offers: list[dict]) -> str:
     cand_ids = ",".join(q(c["user_id"]) for c in candidates)
+    # Both generations of fiches: the base seed (v1) and the aligned ones (--upgrade).
     np_cand = ",".join(q(c["np_id"]) for c in candidates)
+    np_cand += "," + ",".join(q(current_np_id("cand", c["i"])) for c in candidates)
     np_off = ",".join(q(off["np_id"]) for off in offers)
+    np_off += "," + ",".join(q(current_np_id("offer", off["o"])) for off in offers)
     offer_ids = ",".join(q(off["offer_id"]) for off in offers)
     rec_ids = ",".join(q(rc["user_id"]) for rc in recruiters)
     comp_ids = ",".join(q(rc["company_id"]) for rc in recruiters)
     lines = [
         "-- LinQOrbit dev seed cleanup (deterministic ids from generate.py)",
         "BEGIN;",
+        # Suggested candidates and the screening jobs of published seed offers (T-101) reference
+        # offers, candidates and fiches (FK NO ACTION on the fiches): they go before everything else.
+        f"DELETE FROM offer_candidate WHERE job_offer_id IN ({offer_ids}) OR candidate_id IN ({cand_ids});",
+        f"DELETE FROM screening_job WHERE job_offer_id IN ({offer_ids});",
+        # Embeddings and their jobs reference the fiches (FK NO ACTION): they go first.
+        f"DELETE FROM profile_embedding WHERE normalized_profile_id IN ({np_cand}) OR normalized_profile_id IN ({np_off});",
+        f"DELETE FROM embedding_job WHERE normalized_profile_id IN ({np_cand}) OR normalized_profile_id IN ({np_off});",
         f"DELETE FROM normalization_job WHERE job_id IN ({np_cand}) OR job_id IN ({np_off});",
         f"DELETE FROM normalized_profile_candidate WHERE normalized_profile_id IN ({np_cand});",
         f"DELETE FROM normalized_profile_job_offer WHERE normalized_profile_id IN ({np_off});",
@@ -1244,11 +1442,28 @@ def emit_down(candidates: list[dict], recruiters: list[dict], offers: list[dict]
 def main() -> None:
     parser = argparse.ArgumentParser(description="LinQOrbit dev seed generator (simulation only)")
     parser.add_argument("--down", action="store_true", help="emit cleanup SQL instead of seed SQL")
+    parser.add_argument(
+        "--upgrade",
+        action="store_true",
+        help="emit the additive SQL that aligns the seeded fiches on the current schemas (candidate v3, offer v2)",
+    )
+    parser.add_argument("--truth", action="store_true", help="emit the screening ground truth (JSON)")
+    parser.add_argument(
+        "--consent",
+        action="store_true",
+        help="emit the SQL granting the recruiter-visibility consent of already-seeded candidates",
+    )
     args = parser.parse_args()
 
     candidates, recruiters, offers = generate_all()
     if args.down:
         sys.stdout.write(emit_down(candidates, recruiters, offers))
+    elif args.upgrade:
+        sys.stdout.write(emit_upgrade(candidates, offers))
+    elif args.truth:
+        sys.stdout.write(emit_truth(candidates, offers))
+    elif args.consent:
+        sys.stdout.write(emit_consent(candidates))
     else:
         sys.stdout.write(emit_seed(candidates, recruiters, offers))
 

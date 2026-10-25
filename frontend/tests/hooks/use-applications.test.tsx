@@ -70,7 +70,7 @@ describe("use-applications", () => {
       pending = result.current.mutateAsync({ jobPublicId: PUBLIC_ID, answers: [] });
     });
 
-    await vi.waitFor(() => expect(releases).toHaveLength(2));
+    await vi.waitFor(() => expect(releases).toHaveLength(3));
     expect(result.current.isPending).toBe(true);
     await act(async () => {
       releases.forEach((release) => release());
@@ -79,7 +79,7 @@ describe("use-applications", () => {
     await vi.waitFor(() => expect(result.current.isPending).toBe(false));
   });
 
-  it("invalidates the list and the context of the offer after a draft save", async () => {
+  it("invalidates the list, the invitations and the context of the offer after a draft save", async () => {
     const { invalidate, wrapper } = setup();
     saveMock.mockResolvedValue(buildApplication({ status: "draft" }));
     const { result } = renderHook(() => useSaveApplicationDraft(), { wrapper });
@@ -88,6 +88,7 @@ describe("use-applications", () => {
 
     expect(invalidatedKeys(invalidate)).toEqual([
       queryKeys.applications.mine,
+      queryKeys.invitations.mine,
       queryKeys.applications.context(PUBLIC_ID),
     ]);
   });
@@ -124,6 +125,7 @@ describe("use-applications", () => {
     expect(client.getQueryData(queryKeys.matching.current(PUBLIC_ID))).toBeUndefined();
     expect(invalidatedKeys(invalidate)).toEqual([
       queryKeys.applications.mine,
+      queryKeys.invitations.mine,
       queryKeys.applications.context(PUBLIC_ID),
     ]);
   });
@@ -164,6 +166,7 @@ describe("use-applications", () => {
     expect(client.getQueryData(queryKeys.matching.current(PUBLIC_ID))).toEqual({ matchingId: "m-1" });
     expect(invalidatedKeys(invalidate)).toEqual([
       queryKeys.applications.mine,
+      queryKeys.invitations.mine,
       queryKeys.applications.context(PUBLIC_ID),
     ]);
   });

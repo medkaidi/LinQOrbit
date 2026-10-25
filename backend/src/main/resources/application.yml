@@ -39,6 +39,26 @@ app:
   matching:
     retry-delay-seconds: ${MATCHING_RETRY_DELAY_SECONDS:60}
     threads: ${MATCHING_THREADS:2}
+  embedding:
+    # Couple actif (D55) : doit désigner le modèle réellement appelé par le
+    # service IA (EMBEDDING_MODEL côté ai-service) — vérifié à chaque réponse.
+    model-name: ${EMBEDDING_MODEL_NAME:gemini-embedding-2}
+    model-version: ${EMBEDDING_MODEL_VERSION:1}
+    threads: ${EMBEDDING_THREADS:1}
+    retry-delay-seconds: ${EMBEDDING_RETRY_DELAY_SECONDS:60}
+    quota-retry-delay-seconds: ${EMBEDDING_QUOTA_RETRY_DELAY_SECONDS:300}
+    # Pause après chaque appel au fournisseur (quota du palier gratuit).
+    min-interval-ms: ${EMBEDDING_MIN_INTERVAL_MS:1000}
+    # Backfill des fiches déjà validées : explicite (jamais par défaut, un
+    # démarrage de test ne doit pas appeler le fournisseur sur la base partagée).
+    backfill-on-boot: ${EMBEDDING_BACKFILL_ON_BOOT:false}
+    backfill-batch-size: ${EMBEDDING_BACKFILL_BATCH_SIZE:100}
+  screening:
+    # Taille du Top N (valeur expérimentale, SPEC §8.4.2) ; bornée par le service.
+    top-n: ${SCREENING_TOP_N:10}
+    # Recherche automatique à la publication (T-101) : un thread, retry one-shot après échec.
+    threads: ${SCREENING_THREADS:1}
+    retry-delay-seconds: ${SCREENING_RETRY_DELAY_SECONDS:30}
   attachments:
     storage-root: ${APP_ATTACHMENTS_ROOT:./data/attachments}
   admin:

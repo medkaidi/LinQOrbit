@@ -7,6 +7,7 @@ vi.mock("@/lib/api/candidate.api", async (importOriginal) => {
   return {
     ...actual,
     getProfile: vi.fn(),
+    getVisibilityConsent: vi.fn(),
     getReferenceSkills: vi.fn(),
     getReferenceLanguages: vi.fn(),
     getReferenceDegrees: vi.fn(),
@@ -31,6 +32,7 @@ import {
   getReferenceLanguages,
   getReferenceSkills,
   getReferenceStudyFields,
+  getVisibilityConsent,
   listCvs,
   validateProfile,
 } from "@/lib/api/candidate.api";
@@ -42,6 +44,7 @@ import { ProfileSections, ProfileView } from "@/features/candidate/profile-view"
 const mockedGetProfile = vi.mocked(getProfile);
 const mockedValidateProfile = vi.mocked(validateProfile);
 const mockedListCvs = vi.mocked(listCvs);
+const mockedVisibility = vi.mocked(getVisibilityConsent);
 const mockedMe = vi.mocked(me);
 const mockedReferenceQueries = [
   vi.mocked(getReferenceSkills),
@@ -154,6 +157,8 @@ describe("ProfileView", () => {
     mockedValidateProfile.mockResolvedValue(undefined);
     mockedListCvs.mockReset();
     mockedListCvs.mockResolvedValue([]);
+    mockedVisibility.mockReset();
+    mockedVisibility.mockResolvedValue({ consented: false, consentedAt: null });
     mockedMe.mockReset();
     mockedMe.mockRejectedValue(new Error("no account in this test"));
     mockedReferenceQueries.forEach((query) => {
@@ -252,6 +257,13 @@ describe("ProfileView", () => {
       "Not provided",
     );
     expect(within(about).getByText("Phone").parentElement).toHaveTextContent("Not provided");
+  });
+
+  it("shows the recruiter-visibility consent card, unchecked by default", async () => {
+    renderProfile();
+
+    expect(await screen.findByRole("heading", { name: "Visibility to recruiters" })).toBeInTheDocument();
+    expect(await screen.findByRole("checkbox")).not.toBeChecked();
   });
 
   it("offers an edit action that points at the editor", async () => {
@@ -358,5 +370,32 @@ describe("ProfileSections compact (D39, retours UI 2026-10-15)", () => {
     expect(container.querySelector('[class*="@2xl:grid-cols-2"]')).toBeNull();
     // La grille About garde son placement explicite 2 colonnes.
     expect(container.querySelector('[class*="lg:col-start"]')).not.toBeNull();
+  });
+});
+
+describe("ProfileSections contactUnavailable (T-102, D86)", () => {
+  it("shows Not available in the Email and Phone cells instead of the account's contact details", () => {
+    render(
+      <ProfileSections
+        profile={filledProfile}
+        account={accountUser}
+        readOnly
+        contactUnavailable
+      />,
+    );
+
+    expect(screen.getByText("Email")).toBeInTheDocument();
+    expect(screen.getByText("Phone")).toBeInTheDocument();
+    expect(screen.getAllByText("Not available")).toHaveLength(2);
+    expect(screen.queryByText("ada@example.com")).not.toBeInTheDocument();
+    expect(screen.queryByText("+1 555 000 0000")).not.toBeInTheDocument();
+  });
+
+  it("keeps the account's email and phone by default", () => {
+    render(<ProfileSections profile={filledProfile} account={accountUser} readOnly />);
+
+    expect(screen.getByText("ada@example.com")).toBeInTheDocument();
+    expect(screen.getByText("+1 555 000 0000")).toBeInTheDocument();
+    expect(screen.queryByText("Not available")).not.toBeInTheDocument();
   });
 });

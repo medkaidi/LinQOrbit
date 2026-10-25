@@ -1,3 +1,5 @@
+import type { ScreeningSignal } from "@/types/invitation";
+
 /** Profil recruteur (D10) renvoyé par /api/v1/recruiters/me. */
 export type RecruiterProfile = {
   id: string;
@@ -91,6 +93,8 @@ export type JobOffer = {
   normalizationFailed: boolean;
   /** Fiche de référence produite sous une version de schéma périmée (D63) : « Validate again ». */
   analysisOutdated: boolean;
+  /** Recherche automatique de candidats (T-101, D85) : null tant qu'aucune n'a été demandée. */
+  screening: ScreeningSignal | null;
   skills: JobOfferSkillOption[];
   languages: JobOfferLanguageOption[];
   degreeIds: string[];
@@ -136,6 +140,8 @@ export type JobOfferListItem = {
   normalizationFailed: boolean;
   /** Fiche de référence produite sous une version de schéma périmée (D63) : « Validate again ». */
   analysisOutdated: boolean;
+  /** Recherche automatique de candidats (T-101, D85) : null tant qu'aucune n'a été demandée. */
+  screening: ScreeningSignal | null;
   /** Gate de complétude calculé serveur (description, pays, type d'emploi, ≥ 1 skill). */
   readyToPublish: boolean;
   /**

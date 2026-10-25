@@ -39,8 +39,10 @@ import com.linqorbit.candidate.exception.AiServiceException;
 import com.linqorbit.candidate.exception.EmptyProfileException;
 import com.linqorbit.candidate.exception.InvalidProfileSectionException;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
+import com.linqorbit.candidate.exception.VisibilityConsentException;
 import com.linqorbit.company.exception.CompanyAccessDeniedException;
 import com.linqorbit.company.exception.CompanyNotFoundException;
+import com.linqorbit.invitation.exception.InvalidInvitationException;
 import com.linqorbit.joboffer.exception.InvalidJobOfferException;
 import com.linqorbit.joboffer.exception.InvalidJobOfferStatusException;
 import com.linqorbit.joboffer.exception.JobOfferAccessDeniedException;
@@ -50,6 +52,7 @@ import com.linqorbit.matching.exception.InvalidMatchingException;
 import com.linqorbit.matching.exception.MatchingNotFoundException;
 import com.linqorbit.recruiter.exception.RecruiterAlreadyExistsException;
 import com.linqorbit.recruiter.exception.RecruiterNotFoundException;
+import com.linqorbit.screening.exception.InvalidScreeningException;
 
 /**
  * Gestion centralisée minimale des erreurs REST (format ProblemDetail / RFC 7807).
@@ -125,6 +128,14 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(VisibilityConsentException.class)
+    public ProblemDetail handleVisibilityConsent(VisibilityConsentException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setTitle("Profile required");
+        problem.setDetail(ex.getMessage());
+        return problem;
+    }
+
     @ExceptionHandler(ReferenceNotFoundException.class)
     public ProblemDetail handleReferenceNotFound(ReferenceNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
@@ -175,6 +186,26 @@ public class GlobalExceptionHandler {
         problem.setTitle("Application operation failed");
         problem.setDetail(ex.getMessage());
         log.warn("Application operation rejected : {} {}", ex.getStatus().value(), ex.getMessage());
+        return problem;
+    }
+
+    /** Suggestion ou invitation rejetée (T-101) : statut (404, 409) porté par l'exception. */
+    @ExceptionHandler(InvalidInvitationException.class)
+    public ProblemDetail handleInvalidInvitation(InvalidInvitationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(ex.getStatus());
+        problem.setTitle("Invitation operation failed");
+        problem.setDetail(ex.getMessage());
+        log.warn("Invitation operation rejected : {} {}", ex.getStatus().value(), ex.getMessage());
+        return problem;
+    }
+
+    /** Relance de recherche refusée (T-101) : statut (409) porté par l'exception. */
+    @ExceptionHandler(InvalidScreeningException.class)
+    public ProblemDetail handleInvalidScreening(InvalidScreeningException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(ex.getStatus());
+        problem.setTitle("Candidate search operation failed");
+        problem.setDetail(ex.getMessage());
+        log.warn("Screening operation rejected : {} {}", ex.getStatus().value(), ex.getMessage());
         return problem;
     }
 

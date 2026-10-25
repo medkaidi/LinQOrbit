@@ -4,11 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   getProfile,
+  getVisibilityConsent,
   getReferenceDegrees,
   getReferenceLanguages,
   getReferenceSkills,
   getReferenceStudyFields,
   parseCv,
+  setVisibilityConsent,
   suggestSkills,
   updateAbout,
   updateDiplomas,
@@ -37,6 +39,27 @@ export function useCandidateProfile() {
     queryKey: queryKeys.candidate.profile,
     queryFn: getProfile,
     staleTime: 30_000,
+  });
+}
+
+/** Consentement à la visibilité recruteur (T-102, D86) : opt-in, absent par défaut. */
+export function useVisibilityConsent() {
+  return useQuery({
+    queryKey: queryKeys.candidate.visibility,
+    queryFn: getVisibilityConsent,
+  });
+}
+
+/**
+ * Accord / retrait du consentement. Le serveur répond avec l'état enregistré :
+ * il remplace le cache sans relecture. Ce n'est pas une modification du profil
+ * (aucune invalidation du profil, donc aucun faux « changements non validés »).
+ */
+export function useSetVisibilityConsent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (consent: boolean) => setVisibilityConsent(consent),
+    onSuccess: (state) => queryClient.setQueryData(queryKeys.candidate.visibility, state),
   });
 }
 

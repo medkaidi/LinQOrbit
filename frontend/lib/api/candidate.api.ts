@@ -16,12 +16,25 @@ import type {
   LabelReference,
   ParsedCv,
   SkillReference,
+  VisibilityConsent,
 } from "@/types/candidate";
 
 const BASE = "/api/v1/candidates";
 
 export async function getProfile(): Promise<CandidateProfile> {
   const response = await api.get<CandidateProfile>(`${BASE}/me/profile`);
+  return response.data;
+}
+
+/** Consentement à la visibilité recruteur (T-102, D86) : absent par défaut. */
+export async function getVisibilityConsent(): Promise<VisibilityConsent> {
+  const response = await api.get<VisibilityConsent>(`${BASE}/me/visibility`);
+  return response.data;
+}
+
+/** Accorde ou retire le consentement (idempotent) ; date et version posées par le serveur. */
+export async function setVisibilityConsent(consent: boolean): Promise<VisibilityConsent> {
+  const response = await api.put<VisibilityConsent>(`${BASE}/me/visibility`, { consent });
   return response.data;
 }
 

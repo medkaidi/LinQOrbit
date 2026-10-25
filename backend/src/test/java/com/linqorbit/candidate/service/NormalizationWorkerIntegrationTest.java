@@ -3,6 +3,7 @@ package com.linqorbit.candidate.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +35,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import com.linqorbit.embedding.service.EmbeddingService;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -75,6 +79,9 @@ class NormalizationWorkerIntegrationTest {
     private ThreadPoolTaskExecutor normalizationExecutor;
     @MockitoBean(name = "normalizationTaskScheduler")
     private TaskScheduler normalizationTaskScheduler;
+    /** Inerte : l'embedding est couvert par EmbeddingIntegrationTest, ici aucune ligne embedding_job ne doit naître. */
+    @MockitoBean
+    private EmbeddingService embeddingService;
 
     private final ArgumentCaptor<Runnable> dispatchCaptor = ArgumentCaptor.forClass(Runnable.class);
     private final ArgumentCaptor<Runnable> scheduleCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -330,6 +337,83 @@ class NormalizationWorkerIntegrationTest {
         assertThat(row.get("error")).isEqualTo(expectedError);
         assertThat(row.get("content")).isNull();
         assertThat(row.get("completed_at")).isNull();
+    }
+
+    // --- T-64 : déclencheur de l'embedding après le DONE ----------------------
+
+    @Test
+    void uneNormalisationReussieDeclencheLEmbeddingUneFoisEtApresLeDone() throws Exception {
+        UUID jobId = seedValidatedCandidate();
+        AtomicReference<Map<String, Object>> rowAtTrigger = new AtomicReference<>();
+        doAnswer(invocation -> {
+            rowAtTrigger.set(jobRowWithContent(jobId));
+            return null;
+        }).when(embeddingService).enqueueAndDispatch(jobId);
+
+        normalizationWorker.executeJob(jobId);
+
+        verify(embeddingService, times(1)).enqueueAndDispatch(jobId);
+        // Déclenché une fois la tx « content + DONE » commitée : jamais sur une fiche sans contenu.
+        assertThat(statusOf(rowAtTrigger.get())).isEqualTo(NormalizationJobStatus.DONE);
+        assertThat(rowAtTrigger.get().get("content")).isNotNull();
+    }
+
+    @Test
+    void unEchecIaNeDeclencheJamaisLEmbeddingPuisLeSuccesLeDeclencheUneSeuleFois() throws Exception {
+        UUID jobId = seedValidatedCandidate();
+        clearInvocations(normalizationExecutor);
+        when(profileNormalizeClient.normalize(any()))
+                .thenThrow(new AiServiceException(HttpStatus.BAD_GATEWAY, "The AI service call failed."))
+                .thenReturn(CANONICAL_JSON);
+
+        normalizationWorker.executeJob(jobId);
+        verify(embeddingService, never()).enqueueAndDispatch(jobId);
+
+        runScheduledToCompletion();
+        assertThat(statusOf(jobRow(jobId))).isEqualTo(NormalizationJobStatus.DONE);
+        verify(embeddingService, times(1)).enqueueAndDispatch(jobId);
+    }
+
+    @Test
+    void uneFicheRefuseeOuAbandonneeNeDeclencheJamaisLEmbedding() throws Exception {
+        UUID rejected = seedValidatedCandidate();
+        when(profileNormalizeClient.normalize(any())).thenReturn("{\"schemaVersion\": \"1\"}");
+        clearInvocations(normalizationExecutor);
+
+        normalizationWorker.executeJob(rejected);
+        runScheduledToCompletion();
+        runScheduledToCompletion();
+
+        assertThat(statusOf(jobRow(rejected))).isEqualTo(NormalizationJobStatus.FAILED);
+        verify(embeddingService, never()).enqueueAndDispatch(rejected);
+    }
+
+    @Test
+    void unJobSupersedeNeDeclencheJamaisLEmbedding() throws Exception {
+        UUID jobId = seedValidatedCandidate();
+        jdbcTemplate.update("UPDATE normalization_job SET status = 5 WHERE job_id = ?", jobId);
+
+        normalizationWorker.executeJob(jobId);
+
+        verify(embeddingService, never()).enqueueAndDispatch(jobId);
+    }
+
+    @Test
+    void uneErreurDeLEmbeddingNeFaitJamaisPerdreLaNormalisationValide() throws Exception {
+        UUID jobId = seedValidatedCandidate();
+        doThrow(new IllegalStateException("embedding indisponible")).when(embeddingService)
+                .enqueueAndDispatch(jobId);
+
+        normalizationWorker.executeJob(jobId);
+
+        Map<String, Object> row = jobRowWithContent(jobId);
+        assertThat(statusOf(row)).isEqualTo(NormalizationJobStatus.DONE);
+        assertThat(row.get("content")).isNotNull();
+        assertThat((Integer) row.get("attempts")).isZero();
+        assertThat(row.get("error")).isNull();
+        // Aucun retry de la normalisation n'est planifié à cause de l'embedding.
+        verify(profileNormalizeClient, times(1)).normalize(any());
+        verify(normalizationTaskScheduler, never()).schedule(any(Runnable.class), any(Instant.class));
     }
 
     private Runnable takeDispatched() {

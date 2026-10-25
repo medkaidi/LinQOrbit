@@ -23,6 +23,8 @@ export const queryKeys = {
   candidate: {
     profile: ["candidate", "profile"] as const,
     cvs: ["candidate", "cvs"] as const,
+    /** Consentement à la visibilité recruteur (T-102, D86). */
+    visibility: ["candidate", "visibility"] as const,
     reference: ["candidate", "reference"] as const,
     referenceSkills: ["candidate", "reference", "skills"] as const,
     referenceLanguages: ["candidate", "reference", "languages"] as const,
@@ -96,6 +98,18 @@ export const queryKeys = {
     offer: (offerId: string) => ["recruiter-applications", "list", offerId] as const,
     detail: (offerId: string, applicationId: string) =>
       ["recruiter-applications", "detail", offerId, applicationId] as const,
+  },
+  /** Candidats suggérés (ayant consenti) d'une offre publiée — T-101, D85 ; profil complet T-102, D86. */
+  recruiterSuggestions: {
+    list: (offerId: string) => ["recruiter-suggestions", offerId, "list"] as const,
+    profile: (offerId: string, suggestionId: string) =>
+      ["recruiter-suggestions", offerId, "profile", suggestionId] as const,
+    /** Toute la famille d'une offre (liste + profils) : après une invitation. */
+    offer: (offerId: string) => ["recruiter-suggestions", offerId] as const,
+  },
+  /** Invitations à candidater reçues par le candidat connecté — T-101, D85. */
+  invitations: {
+    mine: ["invitations", "mine"] as const,
   },
   matching: {
     /** Matching courant du couple pour la fiche courante du candidat (D58). */

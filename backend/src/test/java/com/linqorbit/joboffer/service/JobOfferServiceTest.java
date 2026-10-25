@@ -79,6 +79,8 @@ import com.linqorbit.joboffer.repository.NormalizedProfileJobOfferRepository;
 import com.linqorbit.joboffer.repository.WorkModeRepository;
 import com.linqorbit.recruiter.exception.RecruiterNotFoundException;
 import com.linqorbit.recruiter.repository.RecruiterRepository;
+import com.linqorbit.screening.service.ScreeningJobService;
+import com.linqorbit.screening.service.ScreeningSignals;
 
 /**
  * Logique métier des offres (D12–D14) : permissions coarse (membre = lecture +
@@ -123,6 +125,7 @@ class JobOfferServiceTest {
     private WorkModeRepository workModeRepository;
     private JobOfferService jobOfferService;
     private JobOfferNormalizationService jobOfferNormalizationService;
+    private ScreeningJobService screeningJobService;
 
     @BeforeEach
     void setUp() {
@@ -144,6 +147,7 @@ class JobOfferServiceTest {
         employmentTypeRepository = mock(EmploymentTypeRepository.class);
         workModeRepository = mock(WorkModeRepository.class);
         jobOfferNormalizationService = mock(JobOfferNormalizationService.class);
+        screeningJobService = mock(ScreeningJobService.class);
         jobOfferService = new JobOfferService(
                 jobOfferRepository, jobOfferSkillRepository, jobOfferLanguageRepository,
                 jobOfferDegreeRepository, jobOfferStudyFieldRepository,
@@ -153,7 +157,9 @@ class JobOfferServiceTest {
                 studyFieldRepository, contractTypeRepository, employmentTypeRepository, workModeRepository,
                 mock(NormalizedProfileJobOfferRepository.class),
                 jobOfferNormalizationService,
-                mock(ApplicationRepository.class));
+                mock(ApplicationRepository.class),
+                screeningJobService,
+                mock(ScreeningSignals.class));
 
         lenient().when(jobOfferSkillRepository.findByJobOfferIdIn(any())).thenReturn(List.of());
         lenient().when(jobOfferLanguageRepository.findByJobOfferIdIn(any())).thenReturn(List.of());
@@ -486,6 +492,23 @@ class JobOfferServiceTest {
     }
 
     @Test
+    void publishLanceLaRechercheDeCandidatsUneSeuleFoisEtSeulementSiLaTransitionReussit() {
+        JobOffer offer = draftOffer();
+        stubManagement(offer, RECRUITER_ID, false);
+
+        assertThatThrownBy(() -> jobOfferService.publish(RECRUITER_ID, OFFER_ID))
+                .isInstanceOf(InvalidJobOfferStatusException.class);
+        verify(screeningJobService, never()).onPublished(any());
+
+        offer.setStatus(JobOfferStatus.VALIDATED);
+        jobOfferService.publish(RECRUITER_ID, OFFER_ID);
+
+        verify(screeningJobService).onPublished(OFFER_ID);
+        jobOfferService.close(RECRUITER_ID, OFFER_ID);
+        verify(screeningJobService).onPublished(any());
+    }
+
+    @Test
     void publishExigeValidatedEtCloseExigeValidatedOuPublished() {
         JobOffer offer = draftOffer();
         stubManagement(offer, RECRUITER_ID, false);
@@ -554,6 +577,32 @@ class JobOfferServiceTest {
         verify(jobOfferLanguageRepository, never()).findByJobOfferIdIn(any());
         verify(jobOfferDegreeRepository, never()).findByJobOfferIdIn(any());
         verify(jobOfferStudyFieldRepository, never()).findByJobOfferIdIn(any());
+    }
+
+    @Test
+    void listMineSignaleObsoleteUneOffrePublieeSansFicheSeulement() {
+        // T-88 : aucune fiche (aucun job) → analysisOutdated sur PUBLISHED uniquement.
+        stubRecruiter(true);
+        stubMembership(RECRUITER_ID, false);
+        List<JobOffer> offers = new ArrayList<>();
+        for (JobOfferStatus status : JobOfferStatus.values()) {
+            offers.add(JobOffer.builder().id(UUID.randomUUID()).companyId(COMPANY_ID).recruiterId(RECRUITER_ID)
+                    .status(status).title("Offer " + status).build());
+        }
+        when(jobOfferRepository.findByCompanyIdIn(eq(List.of(COMPANY_ID)), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(offers, PageRequest.of(0, 20), offers.size()));
+
+        JobOfferPageResponse response = jobOfferService.listMine(RECRUITER_ID, null, null);
+
+        assertThat(response.items()).allSatisfy(item -> assertThat(item.analysisOutdated())
+                .as(item.status()).isEqualTo("published".equals(item.status())));
+    }
+
+    @Test
+    void getSignaleObsoleteUneOffrePublieeSansFiche() {
+        stubManagement(publishedOffer(), RECRUITER_ID, false);
+
+        assertThat(jobOfferService.get(RECRUITER_ID, OFFER_ID).analysisOutdated()).isTrue();
     }
 
     @Test

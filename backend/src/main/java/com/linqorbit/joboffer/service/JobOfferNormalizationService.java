@@ -114,7 +114,9 @@ public class JobOfferNormalizationService {
         boolean outdated = latestStatus != NormalizationJobStatus.PENDING
                 && latestStatus != NormalizationJobStatus.RUNNING
                 && findOutdatedOfferIds(List.of(offerId)).contains(offerId);
-        if (!dirty && !outdated && !failed) {
+        // T-88 : une offre PUBLISHED sans aucune fiche reçoit la sienne par revalidate.
+        boolean missing = offer.getStatus() == JobOfferStatus.PUBLISHED && latestStatus == null;
+        if (!dirty && !outdated && !failed && !missing) {
             log.info("Job offer normalization skipped : no change since last validation,"
                     + " offerId={}, latestStatus={}", offerId, latestStatus);
             return;
@@ -149,8 +151,8 @@ public class JobOfferNormalizationService {
                 .build());
 
         log.info("Job offer normalization registered : offerId={}, version={}, dirty={}, outdated={}, failed={},"
-                + " supersededPending={}, jobId={}",
-                offerId, version, dirty, outdated, failed, superseded, profileId);
+                + " missing={}, supersededPending={}, jobId={}",
+                offerId, version, dirty, outdated, failed, missing, superseded, profileId);
         eventPublisher.publishEvent(new JobOfferValidatedEvent(profileId));
     }
 

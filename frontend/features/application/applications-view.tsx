@@ -26,6 +26,7 @@ import {
   SECTION_HEADER_CLASS,
   SECTION_TITLE_CLASS,
 } from "@/components/ui/section";
+import { InvitationsSection } from "@/features/invitation/invitations-section";
 import { companyInitials } from "@/features/job-offer/job-offer-shared";
 import { useMyApplications, useWithdrawApplication } from "@/hooks/use-applications";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
@@ -79,7 +80,7 @@ function ApplicationCard({
   ].filter((item): item is string => item !== null);
 
   return (
-    <li className="rounded-2xl border border-slate-border bg-canvas-white p-5">
+    <li className="flex flex-col rounded-2xl border border-slate-border bg-canvas-white p-5">
       <div className="flex items-start gap-4">
         <span
           aria-hidden="true"
@@ -100,7 +101,7 @@ function ApplicationCard({
                 {application.job.title}
               </Link>
               {application.job.companyName ? (
-                <p className="font-label-md text-label-md text-primary uppercase font-bold">
+                <p className="truncate font-label-md text-label-md uppercase tracking-wider text-text-secondary">
                   {application.job.companyName}
                 </p>
               ) : null}
@@ -149,16 +150,19 @@ function ApplicationCard({
       ) : null}
 
       {isDraft || application.status === "submitted" ? (
-        <div className="mt-4 border-t border-slate-border pt-4 flex justify-end">
-          {isDraft ? (
-            <ButtonLink variant="outline-sm" href={`${jobPath}/apply`}>
-              Continue application
-            </ButtonLink>
-          ) : (
-            <CtaButton tone="danger" icon="undo" onClick={() => onWithdraw(application.id)}>
-              Withdraw
-            </CtaButton>
-          )}
+        // mt-auto : en grille deux colonnes, l'action reste en pied de carte quelle que soit la hauteur voisine.
+        <div className="mt-auto pt-4">
+          <div className="border-t border-slate-border pt-4 flex justify-end">
+            {isDraft ? (
+              <ButtonLink variant="outline-sm" href={`${jobPath}/apply`}>
+                Continue application
+              </ButtonLink>
+            ) : (
+              <CtaButton tone="danger" icon="undo" onClick={() => onWithdraw(application.id)}>
+                Withdraw
+              </CtaButton>
+            )}
+          </div>
         </div>
       ) : null}
     </li>
@@ -184,6 +188,8 @@ export function ApplicationsView() {
   return (
     <div className="flex flex-col gap-6">
       <Header />
+
+      <InvitationsSection />
 
       <section className={SECTION_CARD_CLASS}>
         <header className={SECTION_HEADER_CLASS}>
@@ -221,7 +227,7 @@ export function ApplicationsView() {
           ) : null}
 
           {items.length > 0 ? (
-            <ul className="flex flex-col gap-3">
+            <ul className="grid grid-cols-1 gap-3 xl:grid-cols-2">
               {items.map((application) => (
                 <ApplicationCard
                   key={application.id}

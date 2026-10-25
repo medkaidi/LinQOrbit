@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.linqorbit.screening.dto.ScreeningSignal;
+
 /**
  * Ligne de la liste des offres d'un recruteur (D34) : vue légère — la
  * description et les listes enfants (skills, langues, diplômes, domaines)
@@ -36,6 +38,12 @@ public record JobOfferListItem(
         boolean normalizationInProgress,
         boolean normalizationFailed,
         boolean analysisOutdated,
+        /**
+         * Recherche automatique de candidats (T-101) : statut du dernier job et
+         * nombre de suggérés une fois terminée ; {@code null} tant qu'aucune
+         * recherche n'a été lancée (offre non publiée).
+         */
+        ScreeningSignal screening,
         boolean readyToPublish,
         /**
          * Nombre de candidatures visibles de l'offre (transmises, acceptées,

@@ -251,6 +251,28 @@ class OpenApiDocsTest {
     }
 
     @Test
+    void exposeLesEndpointsDesCandidatsSuggeresEtDeLaRechercheAutomatique() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/suggested-candidates'].get.summary")
+                        .value("Lister les candidats suggérés d'une offre"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/suggested-candidates/{suggestionId}/profile'].get.summary")
+                        .value("Lire le profil complet d'un candidat suggéré"))
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/visibility'].get.summary")
+                        .value("Lire le consentement de visibilité recruteur"))
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/visibility'].put.summary")
+                        .value("Accorder ou retirer le consentement de visibilité recruteur"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/suggested-candidates/{suggestionId}/invitations'].post.summary")
+                        .value("Inviter un candidat suggéré à candidater"))
+                .andExpect(jsonPath("$.paths['/api/v1/candidates/me/invitations'].get.summary")
+                        .value("Mes invitations à candidater"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/screening/events'].get.summary")
+                        .value("Suivre la recherche de candidats d'une offre (SSE)"))
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/screening/retry'].post.summary")
+                        .value("Relancer une recherche de candidats échouée"));
+    }
+
+    @Test
     void exposeSwaggerUi() throws Exception {
         MvcResult result = mockMvc.perform(get("/swagger-ui.html")).andReturn();
         assertThat(result.getResponse().getStatus()).isBetween(200, 399);

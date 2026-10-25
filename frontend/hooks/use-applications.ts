@@ -39,6 +39,8 @@ export function useMyApplications() {
 function invalidateApplication(queryClient: QueryClient, publicId: string): Promise<unknown> {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.applications.mine }),
+    // Toute candidature (même brouillon) retire l'invitation correspondante (T-101).
+    queryClient.invalidateQueries({ queryKey: queryKeys.invitations.mine }),
     queryClient.invalidateQueries({ queryKey: queryKeys.applications.context(publicId) }),
   ]);
 }

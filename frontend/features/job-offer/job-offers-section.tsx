@@ -20,11 +20,13 @@ import {
   useJobOfferTransition,
   useWorkModes,
 } from "@/hooks/use-job-offers";
+import { useScreeningStream } from "@/hooks/use-invitations";
 import { useOfferNormalizationStream } from "@/hooks/use-normalization-stream";
 import { SECTION_HEADER_CLASS, SECTION_TITLE_CLASS } from "@/components/ui/section";
 import { getApiErrorMessage } from "@/lib/utils/api-error";
 import type { Company, JobOfferListItem } from "@/types/recruiter";
 import { CopyPublicLinkButton } from "@/features/job-offer/copy-public-link-button";
+import { isScreeningInProgress, ScreeningBadge } from "@/features/invitation/screening-badge";
 import { JobOfferCard } from "@/features/job-offer/job-offer-card";
 import {
   canRefreshOfferAnalysis,
@@ -303,6 +305,11 @@ function OfferRow({
       }
       unvalidatedChanges={offer.hasUnvalidatedChanges}
       analysisOutdated={offer.analysisOutdated}
+      screeningBadge={
+        offer.status === "published" && !isOfferExpired(offer) ? (
+          <ScreeningBadge offerId={offer.id} screening={offer.screening} />
+        ) : null
+      }
       readyToPublish={offer.readyToPublish}
       applicationCount={offer.applicationCount}
       createdAt={offer.createdAt}
@@ -328,6 +335,16 @@ function OfferRow({
  */
 function OfferNormalizationWatcher({ offerId, active }: { offerId: string; active: boolean }) {
   useOfferNormalizationStream(offerId, active);
+  return null;
+}
+
+/**
+ * Suit en SSE (T-101) la recherche de candidats d'une offre que l'utilisateur
+ * vient de publier : sans rendu, il relit la liste et le détail à chaque
+ * transition tant que la recherche est en cours.
+ */
+function OfferScreeningWatcher({ offerId, active }: { offerId: string; active: boolean }) {
+  useScreeningStream(offerId, active);
   return null;
 }
 
@@ -470,6 +487,13 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
             active={offer.normalizationInProgress}
           />
         ))}
+        {watchedOffers.map((offer) => (
+          <OfferScreeningWatcher
+            key={`screening-${offer.id}`}
+            offerId={offer.id}
+            active={isScreeningInProgress(offer.screening)}
+          />
+        ))}
         {dialog?.kind === "transition" ? (
           <ConfirmDialog
             title={OFFER_TRANSITION_CONFIRM[dialog.action].title}
@@ -487,9 +511,8 @@ export function JobOffersSection({ companies }: { companies: Company[] }) {
                 { offerId: offer.id, action },
                 {
                   onSuccess: () => {
-                    if (action !== "publish") {
-                      setWatchedOfferIds((ids) => (ids.includes(offer.id) ? ids : [...ids, offer.id]));
-                    }
+                    // La publication lance la recherche de candidats (T-101) : suivie aussi.
+                    setWatchedOfferIds((ids) => (ids.includes(offer.id) ? ids : [...ids, offer.id]));
                   },
                   onSettled: () => setDialog(null),
                 },

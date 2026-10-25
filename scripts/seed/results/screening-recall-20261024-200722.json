@@ -1,0 +1,1569 @@
+{
+  "generatedAt" : "2026-10-24T20:07:22.937906400",
+  "protocol" : "ground truth = same job archetype (seeds), candidates reachable (not not_looking) and vectorized; recall@N = |TopN ∩ relevant| / |relevant| — proxy of a proxy, not the matching top K (SPEC §8.4.8)",
+  "model" : "gemini-embedding-2/1",
+  "strategy" : "text-1",
+  "vectorizedCandidates" : 101,
+  "offersTotal" : 100,
+  "offersUnmeasured" : 0,
+  "alignedOffers" : {
+    "N=5" : {
+      "offers" : 60,
+      "meanRecall" : 0.8744444444444445,
+      "minRecall" : 0.6666666666666666,
+      "hitRate" : 1.0
+    },
+    "N=10" : {
+      "offers" : 60,
+      "meanRecall" : 1.0,
+      "minRecall" : 1.0,
+      "hitRate" : 1.0
+    },
+    "N=20" : {
+      "offers" : 60,
+      "meanRecall" : 1.0,
+      "minRecall" : 1.0,
+      "hitRate" : 1.0
+    },
+    "N=30" : {
+      "offers" : 60,
+      "meanRecall" : 1.0,
+      "minRecall" : 1.0,
+      "hitRate" : 1.0
+    },
+    "N=50" : {
+      "offers" : 60,
+      "meanRecall" : 1.0,
+      "minRecall" : 1.0,
+      "hitRate" : 1.0
+    }
+  },
+  "misalignedOffers(ambiguous truth)" : {
+    "N=5" : {
+      "offers" : 40,
+      "meanRecall" : 0.8916666666666666,
+      "minRecall" : 0.7142857142857143
+    },
+    "N=10" : {
+      "offers" : 40,
+      "meanRecall" : 1.0,
+      "minRecall" : 1.0
+    },
+    "N=20" : {
+      "offers" : 40,
+      "meanRecall" : 1.0,
+      "minRecall" : 1.0
+    },
+    "N=30" : {
+      "offers" : 40,
+      "meanRecall" : 1.0,
+      "minRecall" : 1.0
+    },
+    "N=50" : {
+      "offers" : 40,
+      "meanRecall" : 1.0,
+      "minRecall" : 1.0
+    }
+  },
+  "offers" : [ {
+    "offerId" : "9b423531-a21c-569a-8f8a-8eeb61c56478",
+    "title" : "Senior Java Backend Engineer",
+    "archetype" : "java-backend",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "28c73908-d686-5103-af73-5d9f1429ae0e",
+    "title" : "Senior React Frontend Engineer",
+    "archetype" : "frontend-react",
+    "aligned" : true,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "2104df1e-a343-5fa3-9d1b-6f24e7aef34a",
+    "title" : "Senior Full-Stack Developer",
+    "archetype" : "fullstack",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "a3845633-3281-5d6f-837b-d3cf826cbf66",
+    "title" : "Senior DevOps Engineer",
+    "archetype" : "devops",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "fa571923-97b7-5d17-a5ba-c247db39043f",
+    "title" : "Principal Data Scientist",
+    "archetype" : "data-scientist",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "bb4d9b20-7885-5ecc-a209-2e4b3924812e",
+    "title" : "Data Engineer",
+    "archetype" : "data-engineer",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "ba037365-58b9-562e-a271-538efbe0f712",
+    "title" : "Mobile Developer",
+    "archetype" : "mobile",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "78110bb6-1988-5011-a41a-f0b3574de783",
+    "title" : "Senior UX Designer",
+    "archetype" : "ux-designer",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "1cd4c5de-4681-56f0-bc5f-318c04085b02",
+    "title" : "Senior Product Manager",
+    "archetype" : "product-manager",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "f3923665-2ba0-557a-b2a1-73441c5c6d40",
+    "title" : "Junior QA Automation Engineer",
+    "archetype" : "qa-engineer",
+    "aligned" : false,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "fd015a8b-eb29-5ec1-bf92-9e711d59e682",
+    "title" : "Digital Marketing Manager",
+    "archetype" : "marketing",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "4d328543-b116-54b3-8ecc-f511aad0996f",
+    "title" : "Senior B2B Account Executive",
+    "archetype" : "sales",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "731747b7-3320-586c-866b-d1da000bb4f5",
+    "title" : "Senior PHP / Laravel Developer",
+    "archetype" : "php-backend",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "e8d4e4e7-9d15-51a7-8e70-9c815d0fdaf9",
+    "title" : "Senior Go Backend Engineer",
+    "archetype" : "go-backend",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "d5a166c2-7003-5b80-8f76-0c2c69d43713",
+    "title" : "Senior .NET Developer",
+    "archetype" : "dotnet",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "aec3716e-0e98-530d-b396-0aed824b940b",
+    "title" : "Senior Java Backend Engineer",
+    "archetype" : "java-backend",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "1f44fa33-c62f-55d3-83a4-3f851407817c",
+    "title" : "React Frontend Engineer",
+    "archetype" : "frontend-react",
+    "aligned" : false,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "0306f87b-ceef-5f75-ae52-68befd145209",
+    "title" : "Principal Full-Stack Developer",
+    "archetype" : "fullstack",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "9eb03e3e-fbaa-5e8f-be8a-3f1f3dda18f8",
+    "title" : "Senior DevOps Engineer",
+    "archetype" : "devops",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "b5703719-cf74-59fb-9ee9-13a7a8a80f8a",
+    "title" : "Data Scientist",
+    "archetype" : "data-scientist",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "4676e108-b2b6-56a3-922a-f724d32766dc",
+    "title" : "Data Engineer",
+    "archetype" : "data-engineer",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "e87be8a5-ef1d-5f18-b463-55dc0977db3f",
+    "title" : "Mobile Developer",
+    "archetype" : "mobile",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "67818327-c860-5e1d-ac3a-20182f3b282b",
+    "title" : "Lead UX Designer",
+    "archetype" : "ux-designer",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "34807453-dfec-5982-857a-b76813461ad1",
+    "title" : "Lead Product Manager",
+    "archetype" : "product-manager",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "8fade3ca-3414-5533-bebb-79509aa8f40f",
+    "title" : "Senior QA Automation Engineer",
+    "archetype" : "qa-engineer",
+    "aligned" : true,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "a92e0135-0e71-5096-9ce3-6fb097d64b72",
+    "title" : "Junior Digital Marketing Manager",
+    "archetype" : "marketing",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "eb68f985-55a8-5d13-b1d7-17bc45489fa4",
+    "title" : "Senior B2B Account Executive",
+    "archetype" : "sales",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "ef53835b-e36e-56cf-8ce7-5aee610b9926",
+    "title" : "Senior PHP / Laravel Developer",
+    "archetype" : "php-backend",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "f58a843f-1665-57e4-b4e3-407f48e9f128",
+    "title" : "Senior Go Backend Engineer",
+    "archetype" : "go-backend",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "736eeca1-c62b-5907-a978-e188f34eb2dc",
+    "title" : ".NET Developer",
+    "archetype" : "dotnet",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "fca40e0d-2019-5601-97c5-2cf8f4be3a50",
+    "title" : "Lead Java Backend Engineer",
+    "archetype" : "java-backend",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "ec74c64d-be29-5d0c-ab69-fef0273496f3",
+    "title" : "Junior React Frontend Engineer",
+    "archetype" : "frontend-react",
+    "aligned" : true,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "3a683a3c-32bb-5ae1-9315-8e981efaea7e",
+    "title" : "Full-Stack Developer",
+    "archetype" : "fullstack",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "5b544fd6-98fa-5021-bd73-c15baf853a8c",
+    "title" : "DevOps Engineer",
+    "archetype" : "devops",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "6be112f1-d75c-589b-a927-4e6c1250f2a9",
+    "title" : "Senior Data Scientist",
+    "archetype" : "data-scientist",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "2532eb64-49d3-5d0e-99b9-f50d5546731c",
+    "title" : "Data Engineer",
+    "archetype" : "data-engineer",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "ef2f33c1-27e9-585b-a37b-4a08716bd60c",
+    "title" : "Senior Mobile Developer",
+    "archetype" : "mobile",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "7ee404dd-ae3d-54f1-bd8c-87644dd5f3cc",
+    "title" : "Senior UX Designer",
+    "archetype" : "ux-designer",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "6f1c7b7a-5a13-5d52-ae0f-aeaf2dcdc86a",
+    "title" : "Senior Product Manager",
+    "archetype" : "product-manager",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "56d541e4-1453-5183-b094-6a3969aa6ea2",
+    "title" : "Junior QA Automation Engineer",
+    "archetype" : "qa-engineer",
+    "aligned" : false,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "bf9834de-74ef-586c-b49f-b458bb749501",
+    "title" : "Lead Digital Marketing Manager",
+    "archetype" : "marketing",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "251baaa4-4a22-5bb5-9d28-2423f30ca535",
+    "title" : "Lead B2B Account Executive",
+    "archetype" : "sales",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "9387deae-2190-58cb-92eb-a777490f3556",
+    "title" : "Lead PHP / Laravel Developer",
+    "archetype" : "php-backend",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "79e41f66-6f91-5bfa-8bf8-aabc45e5aad4",
+    "title" : "Go Backend Engineer",
+    "archetype" : "go-backend",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "36066d42-076d-5d13-bcdc-2ead9957e315",
+    "title" : "Lead .NET Developer",
+    "archetype" : "dotnet",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "bd44005c-cd3f-5240-9df6-22b48d18c499",
+    "title" : "Java Backend Engineer",
+    "archetype" : "java-backend",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "4b8b137a-6ac5-501e-9832-bca8ac117fc2",
+    "title" : "Junior React Frontend Engineer",
+    "archetype" : "frontend-react",
+    "aligned" : false,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "fd0bd2d5-3d8d-55a4-bc48-352e775bdefb",
+    "title" : "Senior Full-Stack Developer",
+    "archetype" : "fullstack",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "14f9fccc-d810-5831-97a6-8e864f9f5d8a",
+    "title" : "DevOps Engineer",
+    "archetype" : "devops",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "f00c3f2c-df4e-5d6b-ac81-4a62f747f828",
+    "title" : "Data Scientist",
+    "archetype" : "data-scientist",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "1a029814-ce4a-5d24-a84d-292134c5e09f",
+    "title" : "Data Engineer",
+    "archetype" : "data-engineer",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "f88b8282-2d93-5ef4-98cc-4631fae39854",
+    "title" : "Mobile Developer",
+    "archetype" : "mobile",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "c557ea98-b831-5f4c-bdf4-461e67baf3d3",
+    "title" : "UX Designer",
+    "archetype" : "ux-designer",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "379a62d6-283f-5853-aca0-4b2e9b51d77e",
+    "title" : "Product Manager",
+    "archetype" : "product-manager",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "d4863f05-415e-51c6-aaf3-671b83ed2ab4",
+    "title" : "Junior QA Automation Engineer",
+    "archetype" : "qa-engineer",
+    "aligned" : true,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "e092caeb-dbfb-539b-bc51-8f193a7b95f8",
+    "title" : "Senior Digital Marketing Manager",
+    "archetype" : "marketing",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "a7c7f45b-d42e-5134-a4f0-0a9afd3f7015",
+    "title" : "B2B Account Executive",
+    "archetype" : "sales",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "98b64b74-e627-5a15-a84b-2596614e7b2d",
+    "title" : "Senior PHP / Laravel Developer",
+    "archetype" : "php-backend",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "e18b494d-63bd-5ab7-ad1f-ba026f0b0859",
+    "title" : "Senior Go Backend Engineer",
+    "archetype" : "go-backend",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "18089dd5-10c4-5a6c-9754-844f1fe6a541",
+    "title" : "Senior .NET Developer",
+    "archetype" : "dotnet",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "88f0ccbf-b56b-513e-ba18-cd451475d469",
+    "title" : "Senior Java Backend Engineer",
+    "archetype" : "java-backend",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "184301bc-afb7-5efd-a6ce-d216975dd80e",
+    "title" : "Junior React Frontend Engineer",
+    "archetype" : "frontend-react",
+    "aligned" : true,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "a568827b-5a93-525e-87db-147516fe4934",
+    "title" : "Principal Full-Stack Developer",
+    "archetype" : "fullstack",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "e8deeb2b-ba49-520d-bcc1-d733ceefa880",
+    "title" : "DevOps Engineer",
+    "archetype" : "devops",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "1054c727-7443-525a-8654-3416483f79df",
+    "title" : "Data Scientist",
+    "archetype" : "data-scientist",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "235c4d20-3355-52fa-a8ac-86434fff6928",
+    "title" : "Lead Data Engineer",
+    "archetype" : "data-engineer",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "52f65839-6a1f-58f3-be5f-6f4835b64cd3",
+    "title" : "Mobile Developer",
+    "archetype" : "mobile",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "ae141c4b-457c-5da0-b3e2-2ba6c266d862",
+    "title" : "UX Designer",
+    "archetype" : "ux-designer",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "d7323998-be7d-57b1-b70c-29871c77e5b1",
+    "title" : "Product Manager",
+    "archetype" : "product-manager",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "bbfa6cd5-a21b-5c74-9f83-413eb1f5aedd",
+    "title" : "QA Automation Engineer",
+    "archetype" : "qa-engineer",
+    "aligned" : false,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "5ca9ac70-dc3c-5826-9643-b6600fb5bf16",
+    "title" : "Senior Digital Marketing Manager",
+    "archetype" : "marketing",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "71bd7393-69a9-5de8-954e-3f51c3700c8d",
+    "title" : "Lead B2B Account Executive",
+    "archetype" : "sales",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "b863c6ee-b81d-521c-bece-ec4d5cf5a39e",
+    "title" : "Senior PHP / Laravel Developer",
+    "archetype" : "php-backend",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "46cafae9-cba5-5620-8af9-82ff4e10b989",
+    "title" : "Senior Go Backend Engineer",
+    "archetype" : "go-backend",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "d20b3f14-9942-53be-b5d5-ca6ac42f4b4f",
+    "title" : "Senior .NET Developer",
+    "archetype" : "dotnet",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "b8e1a885-f12a-56ca-b68b-41d065ddae21",
+    "title" : "Java Backend Engineer",
+    "archetype" : "java-backend",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "b93b6d12-5a0d-58ff-bbe0-7d80b7bb8b3a",
+    "title" : "Senior React Frontend Engineer",
+    "archetype" : "frontend-react",
+    "aligned" : false,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "07536d9b-f657-5bdf-8a5c-4894034753dd",
+    "title" : "Senior Full-Stack Developer",
+    "archetype" : "fullstack",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "f73ccab8-ba6b-5ed8-b8d8-2b29f7b612ae",
+    "title" : "Junior DevOps Engineer",
+    "archetype" : "devops",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "c009752e-8cf4-5b79-9769-b0cf60e572a9",
+    "title" : "Senior Data Scientist",
+    "archetype" : "data-scientist",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "a1b22d09-9175-5fa1-b90a-384949635184",
+    "title" : "Junior Data Engineer",
+    "archetype" : "data-engineer",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.6666666666666666,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "ed4f0139-65ff-5e1b-9e32-5c68cfe99ad2",
+    "title" : "Junior Mobile Developer",
+    "archetype" : "mobile",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "bcdd9d69-6399-52f2-9c84-fe6e07fd2aa4",
+    "title" : "UX Designer",
+    "archetype" : "ux-designer",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "c580f565-082d-56ef-9f3e-2d298c6f29b4",
+    "title" : "Lead Product Manager",
+    "archetype" : "product-manager",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "bfd48ff9-d115-5f53-950f-fa9f60f8fb5b",
+    "title" : "Senior QA Automation Engineer",
+    "archetype" : "qa-engineer",
+    "aligned" : true,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "6cb97559-b7e2-54ba-a715-67cc3b48426a",
+    "title" : "Digital Marketing Manager",
+    "archetype" : "marketing",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "d1aeb8fa-8b18-59dd-9fa3-ab1fa2e1e499",
+    "title" : "Junior B2B Account Executive",
+    "archetype" : "sales",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "65d28d8c-dfc1-5c01-870c-8e8f6a3af073",
+    "title" : "PHP / Laravel Developer",
+    "archetype" : "php-backend",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "d1ee477a-f0fa-57f9-900b-9e02bf397e58",
+    "title" : "Go Backend Engineer",
+    "archetype" : "go-backend",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "c44ba088-be3d-59fc-86f9-b9589bf02b1c",
+    "title" : "Junior .NET Developer",
+    "archetype" : "dotnet",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "54bdf2fb-0716-5427-b680-ea9c4ddc953c",
+    "title" : "Java Backend Engineer",
+    "archetype" : "java-backend",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "23663525-2b61-5498-8f90-f6f121f903e4",
+    "title" : "React Frontend Engineer",
+    "archetype" : "frontend-react",
+    "aligned" : true,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "1ee40480-4d0a-5d5d-9afa-02c971000ec0",
+    "title" : "Senior Full-Stack Developer",
+    "archetype" : "fullstack",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "1ba701a4-ebb7-58fe-be69-8358c3b8f529",
+    "title" : "Junior DevOps Engineer",
+    "archetype" : "devops",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "dc24cdfa-ee15-5853-a679-654fd4e15694",
+    "title" : "Senior Data Scientist",
+    "archetype" : "data-scientist",
+    "aligned" : true,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "44dc02d3-b421-5fdc-9f40-0721bb04c4b5",
+    "title" : "Senior Data Engineer",
+    "archetype" : "data-engineer",
+    "aligned" : true,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "9c70f983-d028-5315-a1b4-93c06a064552",
+    "title" : "Lead Mobile Developer",
+    "archetype" : "mobile",
+    "aligned" : false,
+    "relevantCount" : 5,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 1.0,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "97af791a-449a-520e-ac3c-51b04d9c9e6f",
+    "title" : "Junior UX Designer",
+    "archetype" : "ux-designer",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "ae2efda1-eeb7-5b2c-a873-00b0f978254f",
+    "title" : "Lead Product Manager",
+    "archetype" : "product-manager",
+    "aligned" : false,
+    "relevantCount" : 6,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.8333333333333334,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  }, {
+    "offerId" : "67a334a9-106d-536e-aa71-f6e1ed037905",
+    "title" : "QA Automation Engineer",
+    "archetype" : "qa-engineer",
+    "aligned" : false,
+    "relevantCount" : 7,
+    "returned" : 50,
+    "measurable" : true,
+    "recall" : {
+      "recall@5" : 0.7142857142857143,
+      "recall@10" : 1.0,
+      "recall@20" : 1.0,
+      "recall@30" : 1.0,
+      "recall@50" : 1.0
+    }
+  } ]
+}

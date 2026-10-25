@@ -44,7 +44,9 @@ import com.linqorbit.candidate.exception.EmptyProfileException;
 import com.linqorbit.candidate.exception.InvalidProfileSectionException;
 import com.linqorbit.candidate.exception.ReferenceNotFoundException;
 import com.linqorbit.config.SecurityConfig;
+import com.linqorbit.candidate.dto.VisibilityConsentResponse;
 import com.linqorbit.candidate.service.CandidateService;
+import com.linqorbit.candidate.service.CandidateVisibilityService;
 import com.linqorbit.candidate.service.CvParseService;
 import com.linqorbit.candidate.service.NormalizationService;
 
@@ -67,6 +69,9 @@ class CandidateControllerTest {
 
     @MockitoBean
     private CandidateService candidateService;
+
+    @MockitoBean
+    private CandidateVisibilityService visibilityService;
 
     @MockitoBean
     private CvParseService cvParseService;
@@ -242,6 +247,40 @@ class CandidateControllerTest {
                 .andExpect(status().isNoContent());
 
         verify(normalizationService).validateProfile(userId);
+    }
+
+    @Test
+    void visibilityPutDelegueLeBooleenSeulEtRenvoieLEtatEnregistre() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(visibilityService.set(userId, true))
+                .thenReturn(new VisibilityConsentResponse(true, java.time.LocalDateTime.parse("2026-10-25T10:00:00")));
+
+        mockMvc.perform(put("/api/v1/candidates/me/visibility")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(userId.toString())))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"consent\":true,\"consentedAt\":\"2000-01-01T00:00:00\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.consented").value(true))
+                .andExpect(jsonPath("$.consentedAt").value("2026-10-25T10:00:00"));
+        verify(visibilityService).set(userId, true);
+    }
+
+    @Test
+    void visibilityPutRefuseUnCorpsSansBooleen() throws Exception {
+        mockMvc.perform(put("/api/v1/candidates/me/visibility")
+                        .with(SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(UUID.randomUUID().toString())))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void visibilityGetEtPutRenvoient401SansJeton() throws Exception {
+        mockMvc.perform(get("/api/v1/candidates/me/visibility")).andExpect(status().isUnauthorized());
+        mockMvc.perform(put("/api/v1/candidates/me/visibility")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"consent\":true}"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
