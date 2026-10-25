@@ -4,7 +4,7 @@ import { AdminView } from "@/features/admin/admin-page";
 
 export const metadata: Metadata = {
   title: "Accounts — Administration — LinQOrbit",
-  description: "Accounts and skill suggestion review for administrators.",
+  description: "Account management for administrators.",
 };
 
 export default function AdminAccountsPage() {

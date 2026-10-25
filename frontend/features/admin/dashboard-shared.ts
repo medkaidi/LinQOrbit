@@ -76,7 +76,7 @@ export function attentionSteps(moderation: AdminDashboard["moderation"]): NextSt
       icon: "lightbulb",
       title: `Review ${count(moderation.skillSuggestions, "skill suggestion")}`,
       detail: "Candidates proposed skills missing from the catalogue.",
-      href: "/admin/accounts",
+      href: "/admin/suggestions",
     });
   }
   if (moderation.reportsAwaitingMyReview > 0) {

@@ -13,7 +13,6 @@ import {
 } from "@/components/layout/page-header";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { InfiniteList } from "@/components/ui/infinite-list";
 import { SegmentedControl, type SegmentedOption } from "@/components/ui/segmented-control";
 import { Spinner } from "@/components/ui/spinner";
@@ -26,18 +25,12 @@ import {
 } from "@/components/ui/section";
 import { ACCOUNT_STATUS_TONES, AccountBadges } from "@/features/admin/account-badges";
 import { RetryButton } from "@/features/admin/retry-button";
-import { SuggestionReviewDialog } from "@/features/admin/suggestion-review-dialog";
-import {
-  useInfiniteAdminUsers,
-  useRejectSkillSuggestion,
-  useSkillSuggestions,
-  useUpdateUserStatus
-} from "@/hooks/use-admin";
+import { useInfiniteAdminUsers, useUpdateUserStatus } from "@/hooks/use-admin";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useHeaderSearch } from "@/hooks/use-header-search";
 import { useAuthStore } from "@/stores/auth-store";
 import type { HeaderSearchRole } from "@/stores/header-search-store";
-import type { AdminSkillSuggestion, AdminUser } from "@/types/admin";
+import type { AdminUser } from "@/types/admin";
 
 
 type StatusFilter = "all" | "active" | "inactive";
@@ -75,7 +68,7 @@ function Header() {
           <BreadcrumbCurrent>Accounts</BreadcrumbCurrent>
         </Breadcrumb>
       }
-      title="Accounts & suggestions"
+      title="Accounts"
     />
   );
 }
@@ -237,119 +230,12 @@ function AccountsSection() {
   );
 }
 
-function SuggestionsSection() {
-  const { data, isLoading, isError, refetch } = useSkillSuggestions();
-  const rejectMutation = useRejectSkillSuggestion();
-  const [reviewing, setReviewing] = useState<AdminSkillSuggestion | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<AdminSkillSuggestion | null>(null);
-
-  return (
-    <section className="bg-canvas-white rounded-2xl shadow-sm">
-      <header className={SECTION_HEADER_CLASS}>
-        <h2 className={SECTION_TITLE_CLASS}>Skill suggestions</h2>
-        {data && (
-          <span className={`${MUTED_TEXT_CLASS} shrink-0`}>{data.length} pending</span>
-        )}
-      </header>
-      <div className="px-6 pt-5 pb-6 flex flex-col gap-3">
-        {rejectMutation.isError && (
-          <Alert variant="error" title="Unable to reject the suggestion">
-            The suggestion is still in the queue.{" "}
-            <RetryButton
-              onRetry={() => rejectMutation.reset()}
-              label="Dismiss"
-            />
-          </Alert>
-        )}
-        {isLoading && <p className={MUTED_TEXT_CLASS}>Loading suggestions…</p>}
-        {isError && (
-          <Alert variant="error" title="Unable to load suggestions">
-            <RetryButton onRetry={() => void refetch()} label="Try again" />
-          </Alert>
-        )}
-        {data && data.length === 0 && (
-          <p className={MUTED_TEXT_CLASS}>
-            No suggestions yet — proposed skills appear here for review.
-          </p>
-        )}
-        {data?.map((suggestion) => {
-          const author = [
-            suggestion.candidateFirstName,
-            suggestion.candidateLastName
-          ]
-            .filter(Boolean)
-            .join(" ");
-          return (
-            <li
-              key={suggestion.id}
-              className={`${ITEM_CARD_CLASS} flex flex-wrap items-center justify-between gap-4`}
-            >
-              <div className="min-w-0">
-                <p className="text-body-md font-body-md text-text-primary font-semibold truncate">
-                  {suggestion.name}
-                </p>
-                <p className={`${MUTED_TEXT_CLASS} truncate`}>
-                  by {author || "Unknown candidate"}
-                  {suggestion.candidateEmail
-                    ? ` · ${suggestion.candidateEmail}`
-                    : ""}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className={`${MUTED_TEXT_CLASS}`}>
-                  {suggestion.createdAt.slice(0, 10)}
-                </span>
-                <Button
-                  variant="outline-sm"
-                  disabled={rejectMutation.isPending}
-                  onClick={() => setReviewing(suggestion)}
-                >
-                  Review
-                </Button>
-                <Button
-                  variant="outline-sm"
-                  onClick={() => setRejectTarget(suggestion)}
-                >
-                  Reject
-                </Button>
-              </div>
-            </li>
-          );
-        })}
-      </div>
-      {reviewing && (
-        <SuggestionReviewDialog
-          suggestion={reviewing}
-          onClose={() => setReviewing(null)}
-        />
-      )}
-      {rejectTarget && (
-        <ConfirmDialog
-          title="Reject this suggestion?"
-          message="The candidate is not notified and the skill stays out of the catalog."
-          confirmLabel="Reject"
-          tone="danger"
-          icon="delete"
-          busy={rejectMutation.isPending}
-          onConfirm={() =>
-            rejectMutation.mutate(rejectTarget.id, {
-              onSettled: () => setRejectTarget(null),
-            })
-          }
-          onCancel={() => setRejectTarget(null)}
-        />
-      )}
-    </section>
-  );
-}
-
-/** Administration : comptes (activation / désactivation) + suggestions de compétences. */
+/** Administration : comptes (activation / désactivation). Les suggestions de compétences ont leur page (T-111). */
 export function AdminView() {
   return (
     <div className="flex flex-col gap-6">
       <Header />
       <AccountsSection />
-      <SuggestionsSection />
     </div>
   );
 }

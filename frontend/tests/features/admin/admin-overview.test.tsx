@@ -116,7 +116,7 @@ describe("AdminOverview", () => {
       const region = await screen.findByRole("region", { name: "Needs your attention" });
       expect(await within(region).findByRole("link", { name: /Review 4 skill suggestions/ })).toHaveAttribute(
         "href",
-        "/admin/accounts",
+        "/admin/suggestions",
       );
       expect(within(region).getByRole("link", { name: /Review 2 AI reports/ })).toHaveAttribute(
         "href",

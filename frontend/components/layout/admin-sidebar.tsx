@@ -14,7 +14,7 @@ import { useAdminSidebarStore } from "@/stores/admin-sidebar-store";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Chrome admin (D33) : rubriques Overview, Accounts & suggestions, Offers et
+ * Chrome admin (D33) : rubriques Overview, Accounts, Skill suggestions, Offers et
  * AI reports, retour au dashboard — volontairement distinct du chrome
  * candidat/recruteur (DashboardSidebar). Le menu utilisateur n'est plus en
  * pied : il vit en haut à droite, dans `AdminHeader` (D93). Repliable en rail
@@ -80,8 +80,15 @@ export function AdminSidebar() {
           <SidebarLink
             href="/admin/accounts"
             icon="group"
-            label="Accounts & suggestions"
+            label="Accounts"
             active={pathname.startsWith("/admin/accounts")}
+            collapsed={collapsed}
+          />
+          <SidebarLink
+            href="/admin/suggestions"
+            icon="lightbulb"
+            label="Skill suggestions"
+            active={pathname.startsWith("/admin/suggestions")}
             collapsed={collapsed}
           />
           <SidebarLink

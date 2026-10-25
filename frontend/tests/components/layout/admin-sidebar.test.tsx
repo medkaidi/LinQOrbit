@@ -30,18 +30,18 @@ describe("AdminSidebar", () => {
     const overview = screen.getByRole("link", { name: /^overview$/i });
     expect(overview).toHaveAttribute("href", "/admin");
     expect(overview).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: /accounts & suggestions/i })).not.toHaveAttribute(
+    expect(screen.getByRole("link", { name: /^accounts$/i })).not.toHaveAttribute(
       "aria-current",
       "page",
     );
   });
 
-  it("links Accounts & suggestions to /admin/accounts and keeps Overview inactive there", () => {
+  it("links Accounts to /admin/accounts and keeps Overview inactive there", () => {
     pathnameMock.mockReturnValue("/admin/accounts");
 
     render(<AdminSidebar />);
 
-    const accounts = screen.getByRole("link", { name: /accounts & suggestions/i });
+    const accounts = screen.getByRole("link", { name: /^accounts$/i });
     expect(accounts).toHaveAttribute("href", "/admin/accounts");
     expect(accounts).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: /^overview$/i })).not.toHaveAttribute(
@@ -70,10 +70,30 @@ describe("AdminSidebar", () => {
     const offers = screen.getByRole("link", { name: /^offers$/i });
     expect(offers).toHaveAttribute("href", "/admin/offers");
     expect(offers).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: /accounts & suggestions/i })).not.toHaveAttribute(
+    expect(screen.getByRole("link", { name: /^accounts$/i })).not.toHaveAttribute(
       "aria-current",
       "page",
     );
+  });
+
+  it("links Skill suggestions to its own page, active there only", () => {
+    pathnameMock.mockReturnValue("/admin/suggestions");
+
+    render(<AdminSidebar />);
+
+    const suggestions = screen.getByRole("link", { name: "Skill suggestions" });
+    expect(suggestions).toHaveAttribute("href", "/admin/suggestions");
+    expect(suggestions).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /^accounts$/i })).not.toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /^overview$/i })).not.toHaveAttribute("aria-current", "page");
+  });
+
+  it("keeps Skill suggestions inactive on the accounts page", () => {
+    pathnameMock.mockReturnValue("/admin/accounts");
+
+    render(<AdminSidebar />);
+
+    expect(screen.getByRole("link", { name: "Skill suggestions" })).not.toHaveAttribute("aria-current", "page");
   });
 
   it("links Back to dashboard to /dashboard and never marks it active", () => {
@@ -121,7 +141,7 @@ describe("AdminSidebar", () => {
       "title",
       "Offers",
     );
-    expect(screen.getByRole("link", { name: "Accounts & suggestions" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Accounts" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Overview" })).toBeInTheDocument();
     const aside = screen.getByRole("complementary");
     expect(aside).toHaveClass("lg:w-20");

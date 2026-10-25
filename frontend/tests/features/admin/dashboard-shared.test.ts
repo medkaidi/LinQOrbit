@@ -82,7 +82,7 @@ describe("attentionSteps", () => {
     const steps = attentionSteps({ skillSuggestions: 3, reportsAwaitingMyReview: 1, reportsTotal: 4 });
 
     expect(steps.map((step) => step.id)).toEqual(["skill-suggestions", "ai-reports"]);
-    expect(steps[0]).toMatchObject({ title: "Review 3 skill suggestions", href: "/admin/accounts" });
+    expect(steps[0]).toMatchObject({ title: "Review 3 skill suggestions", href: "/admin/suggestions" });
     expect(steps[1]).toMatchObject({ title: "Review 1 AI report", href: "/admin/reports" });
   });
 
