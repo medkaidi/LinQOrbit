@@ -55,6 +55,11 @@ class EmbeddingIntegrationTest extends EmbeddingIntegrationTestSupport {
 
     private EmbeddingTestData data;
 
+    /** Reprise bornée au couple de test : la base de dev est partagée, jamais une ligne réelle touchée. */
+    private void recoverTestPair() {
+        embeddingWorker.recoverOrphanJobs(EmbeddingTestData.TEST_MODEL, "1", ProfileTextRenderer.STRATEGY_VERSION);
+    }
+
     @BeforeEach
     void setUp() {
         data = new EmbeddingTestData(jdbc);
@@ -403,7 +408,7 @@ class EmbeddingIntegrationTest extends EmbeddingIntegrationTestSupport {
         insertJob(failed, FAILED, 3, "now() - interval '1 day'", null);
         insertJob(due, PENDING, 0, "now() - interval '1 minute'", null);
 
-        embeddingWorker.recoverOrphanJobs();
+        recoverTestPair();
 
         assertThat(status(stale)).isEqualTo(PENDING);
         assertThat(attempts(stale)).isEqualTo(1);
@@ -421,7 +426,7 @@ class EmbeddingIntegrationTest extends EmbeddingIntegrationTestSupport {
         run(notRenderable);
         assertThat(status(notRenderable)).isEqualTo(FAILED);
 
-        embeddingWorker.recoverOrphanJobs();
+        recoverTestPair();
 
         // Rendu déterministe : un échec définitif (1 tentative) ne repart pas à chaque démarrage.
         assertThat(status(notRenderable)).isEqualTo(FAILED);
@@ -435,7 +440,7 @@ class EmbeddingIntegrationTest extends EmbeddingIntegrationTestSupport {
         insertJob(done, DONE, 0, "now()", null);
         insertJob(superseded, SUPERSEDED, 0, "now()", null);
 
-        embeddingWorker.recoverOrphanJobs();
+        recoverTestPair();
 
         assertThat(status(done)).isEqualTo(DONE);
         assertThat(status(superseded)).isEqualTo(SUPERSEDED);

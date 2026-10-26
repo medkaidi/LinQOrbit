@@ -63,6 +63,11 @@ class EmbeddingResilienceIntegrationTest extends EmbeddingIntegrationTestSupport
 
     private EmbeddingTestData data;
 
+    /** Reprise bornée au couple de test : la base de dev est partagée, jamais une ligne réelle touchée. */
+    private void recoverTestPair() {
+        embeddingWorker.recoverOrphanJobs(EmbeddingTestData.TEST_MODEL, "1", ProfileTextRenderer.STRATEGY_VERSION);
+    }
+
     @BeforeEach
     void setUp() {
         data = new EmbeddingTestData(jdbc);
@@ -324,7 +329,7 @@ class EmbeddingResilienceIntegrationTest extends EmbeddingIntegrationTestSupport
         insertJob(profileId, PENDING, 1, "now() + interval '30 minutes'", null);
         Instant before = Instant.now();
 
-        embeddingWorker.recoverOrphanJobs();
+        recoverTestPair();
 
         ArgumentCaptor<Instant> at = ArgumentCaptor.forClass(Instant.class);
         verify(embeddingTaskScheduler, atLeastOnce()).schedule(any(Runnable.class), at.capture());
@@ -339,7 +344,7 @@ class EmbeddingResilienceIntegrationTest extends EmbeddingIntegrationTestSupport
         UUID profileId = candidateFiche();
         insertJob(profileId, RUNNING, 2, "now() - interval '1 hour'", "now() - interval '30 minutes'");
 
-        embeddingWorker.recoverOrphanJobs();
+        recoverTestPair();
 
         // 3ᵉ échec cumulé → FAILED, qui relève de la politique du démarrage (FAILED à 3 tentatives
         // relancé, tentatives remises à zéro) : une seule fois par démarrage, jamais en boucle.
@@ -355,7 +360,7 @@ class EmbeddingResilienceIntegrationTest extends EmbeddingIntegrationTestSupport
         UUID profileId = candidateFiche();
         insertJob(profileId, RUNNING, 0, "now()", "now() - interval '2 minutes'");
 
-        embeddingWorker.recoverOrphanJobs();
+        recoverTestPair();
 
         assertThat(status(profileId)).isEqualTo(RUNNING);
         assertThat(attempts(profileId)).isZero();
@@ -366,7 +371,7 @@ class EmbeddingResilienceIntegrationTest extends EmbeddingIntegrationTestSupport
         UUID profileId = candidateFiche();
         insertJob(profileId, FAILED, 1, "now()", null);
 
-        embeddingWorker.recoverOrphanJobs();
+        recoverTestPair();
 
         assertThat(status(profileId)).isEqualTo(FAILED);
         assertThat(attempts(profileId)).isEqualTo(1);
@@ -378,7 +383,7 @@ class EmbeddingResilienceIntegrationTest extends EmbeddingIntegrationTestSupport
         insertJob(profileId, FAILED, 3, "now() - interval '1 day'", null);
         UUID jobId = jobId(profileId);
 
-        embeddingWorker.recoverOrphanJobs();
+        recoverTestPair();
         embeddingWorker.executeJob(jobId);
 
         assertThat(status(profileId)).isEqualTo(DONE);

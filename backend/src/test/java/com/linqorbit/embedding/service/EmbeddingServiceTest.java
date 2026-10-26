@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -19,6 +20,7 @@ import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.linqorbit.embedding.entity.EmbeddingJob;
+import com.linqorbit.embedding.entity.EmbeddingJobStatus;
 import com.linqorbit.embedding.repository.EmbeddingJobRepository;
 
 /**
@@ -32,7 +34,7 @@ class EmbeddingServiceTest {
     private final EmbeddingWorker worker = mock(EmbeddingWorker.class);
     private final TransactionTemplate transactionTemplate = mock(TransactionTemplate.class);
     private final EmbeddingService service =
-            new EmbeddingService(jobRepository, settings, worker, transactionTemplate, 2, false);
+            new EmbeddingService(jobRepository, settings, worker, transactionTemplate, 2, false, true);
 
     @SuppressWarnings("unchecked")
     private void transactionsRunInline() {
@@ -119,6 +121,107 @@ class EmbeddingServiceTest {
         assertThat(service.backfillMissingJobs()).isZero();
     }
 
+    // --- audit T-64 A3 : un job SUPERSEDED d'un couple redevenu actif --------------------------
+
+    private EmbeddingJob job(UUID id, EmbeddingJobStatus status) {
+        return EmbeddingJob.builder().id(id).status(status).build();
+    }
+
+    private void theExistingJobIs(UUID profileId, EmbeddingJob existing) {
+        when(jobRepository.findByNormalizedProfileIdAndModelNameAndModelVersionAndStrategyVersion(
+                profileId, "model", "1", ProfileTextRenderer.STRATEGY_VERSION)).thenReturn(Optional.of(existing));
+    }
+
+    @Test
+    void backfillRequeuesASupersededJobInsteadOfCreatingASecondOne() {
+        transactionsRunInline();
+        UUID profileId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        when(jobRepository.findCurrentProfileIdsWithoutJob(anyString(), anyString(), anyString(), anyInt()))
+                .thenReturn(List.of(profileId)).thenReturn(List.of());
+        theExistingJobIs(profileId, job(jobId, EmbeddingJobStatus.SUPERSEDED));
+        when(jobRepository.casRequeue(eq(jobId), eq(EmbeddingJobStatus.SUPERSEDED), eq(EmbeddingJobStatus.PENDING),
+                any())).thenReturn(1);
+
+        assertThat(service.backfillMissingJobs()).isEqualTo(1);
+
+        verify(worker).dispatch(jobId);
+    }
+
+    @Test
+    void backfillDoesNotDispatchASupersededJobWhoseRequeueLostTheRace() {
+        transactionsRunInline();
+        UUID profileId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        when(jobRepository.findCurrentProfileIdsWithoutJob(anyString(), anyString(), anyString(), anyInt()))
+                .thenReturn(List.of(profileId));
+        theExistingJobIs(profileId, job(jobId, EmbeddingJobStatus.SUPERSEDED));
+        when(jobRepository.casRequeue(any(), any(), any(), any())).thenReturn(0);
+
+        assertThat(service.backfillMissingJobs()).isZero();
+
+        verify(worker, never()).dispatch(any());
+    }
+
+    @Test
+    void backfillNeverRequeuesAJobThatIsNotSuperseded() {
+        transactionsRunInline();
+        UUID profileId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        when(jobRepository.findCurrentProfileIdsWithoutJob(anyString(), anyString(), anyString(), anyInt()))
+                .thenReturn(List.of(profileId)).thenReturn(List.of());
+        theExistingJobIs(profileId, job(jobId, EmbeddingJobStatus.FAILED));
+
+        service.backfillMissingJobs();
+
+        verify(jobRepository, never()).casRequeue(any(), any(), any(), any());
+    }
+
+    @Test
+    void theNormalizationTriggerNeverRevivesASupersededJob() {
+        transactionsRunInline();
+        UUID profileId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        theExistingJobIs(profileId, job(jobId, EmbeddingJobStatus.SUPERSEDED));
+
+        service.enqueueAndDispatch(profileId);
+
+        verify(jobRepository, never()).casRequeue(any(), any(), any(), any());
+    }
+
+    @Test
+    void aFreshlyInsertedJobIsNeverRequeued() {
+        transactionsRunInline();
+        UUID profileId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        when(jobRepository.findCurrentProfileIdsWithoutJob(anyString(), anyString(), anyString(), anyInt()))
+                .thenReturn(List.of(profileId)).thenReturn(List.of());
+        when(jobRepository.insertPendingIfAbsent(any(), eq(profileId), anyString(), anyString(), anyString(), any()))
+                .thenReturn(1);
+        theExistingJobIs(profileId, job(jobId, EmbeddingJobStatus.PENDING));
+
+        assertThat(service.backfillMissingJobs()).isEqualTo(1);
+
+        verify(jobRepository, never()).casRequeue(any(), any(), any(), any());
+        verify(worker).dispatch(jobId);
+    }
+
+    @Test
+    void backfillTreatsAFicheOnlyOncePerCallEvenIfTheQueryKeepsReturningIt() {
+        transactionsRunInline();
+        UUID profileId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        when(jobRepository.findCurrentProfileIdsWithoutJob(anyString(), anyString(), anyString(), anyInt()))
+                .thenReturn(List.of(profileId));
+        theExistingJobIs(profileId, job(jobId, EmbeddingJobStatus.SUPERSEDED));
+        when(jobRepository.casRequeue(any(), any(), any(), any())).thenReturn(1);
+
+        // Un worker qui re-supersède aussitôt (course) ferait revenir la même fiche : la boucle doit se clore.
+        assertThat(service.backfillMissingJobs()).isEqualTo(1);
+
+        verify(worker, org.mockito.Mockito.times(1)).dispatch(jobId);
+    }
+
     // --- démarrage -----------------------------------------------------------
 
     @Test
@@ -131,9 +234,35 @@ class EmbeddingServiceTest {
     }
 
     @Test
+    void bootNeverRecoversWhenTheRecoveryFlagIsOff() {
+        EmbeddingService noRecovery =
+                new EmbeddingService(jobRepository, settings, worker, transactionTemplate, 2, false, false);
+
+        noRecovery.onStartup();
+
+        verify(worker, never()).recoverOrphanJobs();
+        verify(worker, never()).recoverOrphanJobs(anyString(), anyString(), anyString());
+        verify(jobRepository, never()).findCurrentProfileIdsWithoutJob(anyString(), anyString(), anyString(),
+                anyInt());
+    }
+
+    @Test
+    void theRecoveryFlagDoesNotDisableTheBackfill() {
+        EmbeddingService backfillOnly =
+                new EmbeddingService(jobRepository, settings, worker, transactionTemplate, 2, true, false);
+        when(jobRepository.findCurrentProfileIdsWithoutJob(anyString(), anyString(), anyString(), anyInt()))
+                .thenReturn(List.of());
+
+        backfillOnly.onStartup();
+
+        verify(worker, never()).recoverOrphanJobs();
+        verify(jobRepository).findCurrentProfileIdsWithoutJob("model", "1", ProfileTextRenderer.STRATEGY_VERSION, 2);
+    }
+
+    @Test
     void bootBackfillsOnlyWhenTheFlagIsOnAndAfterTheRecovery() {
         EmbeddingService withBackfill =
-                new EmbeddingService(jobRepository, settings, worker, transactionTemplate, 2, true);
+                new EmbeddingService(jobRepository, settings, worker, transactionTemplate, 2, true, true);
         when(jobRepository.findCurrentProfileIdsWithoutJob(anyString(), anyString(), anyString(), anyInt()))
                 .thenReturn(List.of());
 
@@ -148,7 +277,7 @@ class EmbeddingServiceTest {
     @Test
     void aFailingBootRecoveryNeverStopsTheApplicationStartup() {
         EmbeddingService withBackfill =
-                new EmbeddingService(jobRepository, settings, worker, transactionTemplate, 2, true);
+                new EmbeddingService(jobRepository, settings, worker, transactionTemplate, 2, true, true);
         org.mockito.Mockito.doThrow(new IllegalStateException("db down")).when(worker).recoverOrphanJobs();
 
         assertThatCode(withBackfill::onStartup).doesNotThrowAnyException();
@@ -157,7 +286,7 @@ class EmbeddingServiceTest {
     @Test
     void aFailingBackfillAtBootNeverStopsTheApplicationStartup() {
         EmbeddingService withBackfill =
-                new EmbeddingService(jobRepository, settings, worker, transactionTemplate, 2, true);
+                new EmbeddingService(jobRepository, settings, worker, transactionTemplate, 2, true, true);
         when(jobRepository.findCurrentProfileIdsWithoutJob(anyString(), anyString(), anyString(), anyInt()))
                 .thenThrow(new IllegalStateException("db down"));
 

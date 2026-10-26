@@ -52,6 +52,9 @@ app:
     # Backfill des fiches déjà validées : explicite (jamais par défaut, un
     # démarrage de test ne doit pas appeler le fournisseur sur la base partagée).
     backfill-on-boot: ${EMBEDDING_BACKFILL_ON_BOOT:false}
+    # Reprise des jobs orphelins au démarrage (RUNNING périmés, PENDING, FAILED du couple actif) : active
+    # par défaut ; désactivée dans les tests (src/test/resources/application.properties).
+    recovery-on-boot: ${EMBEDDING_RECOVERY_ON_BOOT:true}
     backfill-batch-size: ${EMBEDDING_BACKFILL_BATCH_SIZE:100}
   screening:
     # Taille du Top N (valeur expérimentale, SPEC §8.4.2) ; bornée par le service.

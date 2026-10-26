@@ -74,7 +74,10 @@ public interface EmbeddingJobRepository extends JpaRepository<EmbeddingJob, UUID
     int casFail(UUID jobId, EmbeddingJobStatus expected, EmbeddingJobStatus target,
             int attempts, LocalDateTime now, String error);
 
-    /** FAILED → PENDING : relance explicite, tentatives remises à zéro (jamais une 2ᵉ ligne). */
+    /**
+     * FAILED → PENDING (relance au démarrage) ou SUPERSEDED → PENDING (backfill d'un couple redevenu actif) :
+     * tentatives remises à zéro, jamais une 2ᵉ ligne.
+     */
     @Modifying(clearAutomatically = true)
     @Query("""
             update EmbeddingJob j
@@ -121,9 +124,18 @@ public interface EmbeddingJobRepository extends JpaRepository<EmbeddingJob, UUID
     boolean isCurrentProfile(UUID profileId);
 
     /**
-     * Fiches courantes (candidats puis offres) sans job pour le couple
-     * modèle/version/stratégie actif — backfill des fiches déjà validées et
-     * régénération après changement de modèle ou de stratégie (SPEC §8.4.10).
+     * Fiches courantes (candidats puis offres) à qui il manque un embedding pour le
+     * couple modèle/version/stratégie actif — backfill des fiches déjà validées et
+     * régénération après changement de modèle ou de stratégie (SPEC §8.4.10) :
+     * <ul>
+     *   <li>aucun job pour le couple ;</li>
+     *   <li>ou un job {@code SUPERSEDED} (statut 5) <b>sans vecteur</b> pour le couple : il a été écarté
+     *       quand la configuration (ou la fiche) n'était plus active, puis la configuration est
+     *       redevenue active — l'unicité du couple interdit un second job, le backfill relance
+     *       celui-là ({@code casRequeue}). Un vecteur déjà écrit exclut la fiche.</li>
+     * </ul>
+     * Jamais un job {@code PENDING}/{@code RUNNING}/{@code DONE}/{@code FAILED} : la reprise au
+     * démarrage ou la relance explicite s'en charge.
      */
     @Query(value = """
             select id from (
@@ -145,11 +157,22 @@ public interface EmbeddingJobRepository extends JpaRepository<EmbeddingJob, UUID
                                       on o2.normalized_profile_id = np2.normalized_profile_id
                                     where o2.job_offer_id = o.job_offer_id and np2.content is not null)
             ) current_profile
-            where not exists (select 1 from embedding_job j
-                              where j.normalized_profile_id = current_profile.id
-                                and j.model_name = :modelName
-                                and j.model_version = :modelVersion
-                                and j.strategy_version = :strategyVersion)
+            where (not exists (select 1 from embedding_job j
+                               where j.normalized_profile_id = current_profile.id
+                                 and j.model_name = :modelName
+                                 and j.model_version = :modelVersion
+                                 and j.strategy_version = :strategyVersion)
+                   or (exists (select 1 from embedding_job j
+                               where j.normalized_profile_id = current_profile.id
+                                 and j.model_name = :modelName
+                                 and j.model_version = :modelVersion
+                                 and j.strategy_version = :strategyVersion
+                                 and j.status = 5)
+                       and not exists (select 1 from profile_embedding pe
+                                       where pe.normalized_profile_id = current_profile.id
+                                         and pe.model_name = :modelName
+                                         and pe.model_version = :modelVersion
+                                         and pe.strategy_version = :strategyVersion)))
             order by validated_at, id
             limit :limit""", nativeQuery = true)
     List<UUID> findCurrentProfileIdsWithoutJob(String modelName, String modelVersion, String strategyVersion,

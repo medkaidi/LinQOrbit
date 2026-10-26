@@ -7,6 +7,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -52,8 +54,8 @@ import lombok.extern.slf4j.Slf4j;
  * total puis {@code FAILED} ; un 429 de quota diffère le retry
  * ({@code quota-retry-delay-seconds}) ; une fiche non représentable échoue
  * tout de suite (déterministe). Un {@code FAILED} est relancé au prochain
- * démarrage ({@link #recoverOrphanJobs}) s'il a épuisé ses 3 exécutions — jamais
- * un échec définitif de rendu. Le modèle déclaré par le service
+ * démarrage ({@link #recoverOrphanJobs}) s'il est du couple actif et a épuisé ses
+ * 3 exécutions — jamais un échec définitif de rendu. Le modèle déclaré par le service
  * IA doit être le modèle actif et la dimension celle de la colonne : sinon
  * échec, aucun vecteur mal étiqueté n'est écrit.</p>
  */
@@ -91,14 +93,33 @@ public class EmbeddingWorker {
 
     /**
      * Récupération au démarrage : RUNNING périmés → replanifiés ; PENDING dûs →
-     * exécutés, non échus → planifiés à leur échéance ; FAILED → relancés
-     * (tentatives remises à zéro). Les DONE et SUPERSEDED ne sont jamais touchés.
+     * exécutés, non échus → planifiés à leur échéance ; FAILED du <b>couple actif</b> →
+     * relancés (tentatives remises à zéro). Un FAILED d'un autre couple est
+     * structurellement mort (il passerait SUPERSEDED à la première exécution) : jamais
+     * relancé. Les DONE et SUPERSEDED ne sont jamais touchés.
      */
     void recoverOrphanJobs() {
+        recover(job -> true, settings::isActive);
+    }
+
+    /**
+     * Même récupération, bornée aux jobs d'un seul couple modèle / version / stratégie :
+     * les tests d'intégration partagent la base de dev, ils ne doivent jamais modifier
+     * une ligne qu'ils n'ont pas créée.
+     */
+    void recoverOrphanJobs(String modelName, String modelVersion, String strategyVersion) {
+        Predicate<EmbeddingJob> pair = job -> modelName.equals(job.getModelName())
+                && modelVersion.equals(job.getModelVersion())
+                && strategyVersion.equals(job.getStrategyVersion());
+        recover(pair, pair);
+    }
+
+    private void recover(Predicate<EmbeddingJob> inScope, Predicate<EmbeddingJob> failedInScope) {
         Set<UUID> handled = new HashSet<>();
         LocalDateTime now = LocalDateTime.now();
         List<EmbeddingJob> stale = embeddingJobRepository.findByStatusAndStartedAtLessThanEqual(
-                EmbeddingJobStatus.RUNNING, now.minusMinutes(STALE_RUNNING_MINUTES));
+                EmbeddingJobStatus.RUNNING, now.minusMinutes(STALE_RUNNING_MINUTES)).stream()
+                .filter(inScope).toList();
         for (EmbeddingJob job : stale) {
             log.warn("Recovering stale RUNNING embedding job : jobId={}, startedAt={}", job.getId(),
                     job.getStartedAt());
@@ -106,7 +127,7 @@ public class EmbeddingWorker {
             handled.add(job.getId());
         }
         for (EmbeddingJob job : embeddingJobRepository.findByStatus(EmbeddingJobStatus.PENDING)) {
-            if (handled.contains(job.getId())) {
+            if (handled.contains(job.getId()) || !inScope.test(job)) {
                 continue;
             }
             if (job.getNextAttemptAt().isAfter(now)) {
@@ -116,8 +137,7 @@ public class EmbeddingWorker {
             }
         }
         for (EmbeddingJob job : embeddingJobRepository.findByStatus(EmbeddingJobStatus.FAILED)) {
-            if (job.getAttempts() < MAX_ATTEMPTS) {
-                // Échec définitif (fiche non représentable) : le rendu est déterministe, rejouer ne change rien.
+            if (!failedInScope.test(job) || !isRetryableFailure(job)) {
                 continue;
             }
             int requeued = transactionTemplate.execute(status -> embeddingJobRepository.casRequeue(job.getId(),
@@ -126,6 +146,33 @@ public class EmbeddingWorker {
                 log.info("Requeued failed embedding job : jobId={}", job.getId());
                 dispatch(job.getId());
             }
+        }
+    }
+
+    /**
+     * Un {@code FAILED} n'est relancé au démarrage que s'il vient d'un fournisseur
+     * épuisé. Un échec de rendu est déterministe : rejouer ne change rien. Sous
+     * {@link #MAX_ATTEMPTS} c'est donc un échec définitif ; au-delà, le compteur ne
+     * distingue plus un fournisseur épuisé d'un rendu raté après des échecs
+     * techniques, alors la fiche est rendue de nouveau (local, aucun appel au
+     * fournisseur) : non représentable, le job reste {@code FAILED}.
+     */
+    private boolean isRetryableFailure(EmbeddingJob job) {
+        if (job.getAttempts() < MAX_ATTEMPTS) {
+            return false;
+        }
+        try {
+            NormalizedProfile profile = normalizedProfileRepository.findById(job.getNormalizedProfileId())
+                    .orElseThrow(() -> new IllegalStateException("Job without normalized profile"));
+            profileTextRenderer.render(profile.getContent(), sourceOf(profile));
+            return true;
+        } catch (EmbeddingNotRenderableException ex) {
+            log.info("Failed embedding job not requeued, its fiche is not renderable : jobId={}", job.getId());
+            return false;
+        } catch (RuntimeException ex) {
+            log.error("Failed embedding job not requeued, its fiche could not be checked : jobId={}",
+                    job.getId(), ex);
+            return false;
         }
     }
 
@@ -154,20 +201,28 @@ public class EmbeddingWorker {
 
     /** Claim CAS puis exécution : appel IA hors tx, fin de vie en txs courtes. */
     void executeJob(UUID jobId) {
+        EmbeddingJob job;
         try {
-            EmbeddingJob job = claim(jobId);
-            if (job == null) {
-                return;
-            }
+            job = claim(jobId);
+        } catch (RuntimeException ex) {
+            // Panne avant un CAS abouti (base indisponible…) : le job reste PENDING, une re-soumission
+            // one-shot le reprend sans attendre le prochain démarrage ; le CAS garde l'exclusivité.
+            log.error("Embedding claim failed, scheduling a re-submission : jobId={}", jobId, ex);
+            scheduleAt(jobId, LocalDateTime.now().plusSeconds(retryDelaySeconds));
+            return;
+        }
+        if (job == null) {
+            return;
+        }
+        AtomicBoolean providerCalled = new AtomicBoolean();
+        try {
             MDC.put(RequestLoggingFilter.CORRELATION_ID, jobId.toString());
-            boolean providerCalled = false;
             try {
-                providerCalled = run(job);
+                run(job, providerCalled);
             } catch (EmbeddingNotRenderableException ex) {
                 log.warn("Embedding job not renderable : jobId={}, detail={}", job.getId(), ex.getMessage());
                 fail(job, ex.getMessage());
             } catch (AiServiceException ex) {
-                providerCalled = true;
                 log.warn("Embedding failed : jobId={}, status={}, detail={}", job.getId(), ex.getStatus(),
                         ex.getMessage());
                 retryOrFail(job, ex.getMessage(), ex.getStatus() == HttpStatus.TOO_MANY_REQUESTS);
@@ -177,11 +232,17 @@ public class EmbeddingWorker {
             } finally {
                 MDC.remove(RequestLoggingFilter.CORRELATION_ID);
             }
-            if (providerCalled) {
+        } catch (Exception ex) {
+            // La transition post-appel elle-même a échoué (base indisponible) : le job reste RUNNING, le
+            // recovery des RUNNING périmés le reprendra ; rien ne sort de l'exécution.
+            log.error("Embedding job execution failed unexpectedly : jobId={}", jobId, ex);
+        } finally {
+            // Dès que le fournisseur a été appelé, quelle que soit la suite (réponse refusée, écriture ou
+            // transition de retry en échec…), le débit reste borné avant le job suivant ; jamais sans appel
+            // (claim raté, rendu impossible, SUPERSEDED).
+            if (providerCalled.get()) {
                 pauseBeforeNextCall();
             }
-        } catch (Exception ex) {
-            log.error("Embedding job execution failed unexpectedly : jobId={}", jobId, ex);
         }
     }
 
@@ -198,24 +259,22 @@ public class EmbeddingWorker {
         });
     }
 
-    /** Renvoie vrai si le fournisseur a été appelé (le débit est alors temporisé). */
-    private boolean run(EmbeddingJob job) {
+    /** Lève {@code providerCalled} juste avant l'appel au fournisseur (le débit est alors temporisé). */
+    private void run(EmbeddingJob job, AtomicBoolean providerCalled) {
         if (!settings.isActive(job)) {
             supersede(job, "configuration no longer active");
-            return false;
+            return;
         }
         if (!embeddingJobRepository.isCurrentProfile(job.getNormalizedProfileId())) {
             supersede(job, "profile no longer current");
-            return false;
+            return;
         }
         NormalizedProfile profile = normalizedProfileRepository.findById(job.getNormalizedProfileId())
                 .orElseThrow(() -> new IllegalStateException("Job without normalized profile"));
-        NormalizationSourceType source = normalizedProfileCandidateRepository
-                .findCandidateIdByNormalizedProfileId(profile.getId()).isPresent()
-                        ? NormalizationSourceType.CANDIDATE
-                        : NormalizationSourceType.OFFER;
+        NormalizationSourceType source = sourceOf(profile);
         String text = profileTextRenderer.render(profile.getContent(), source);
 
+        providerCalled.set(true);
         EmbedResponse response = embedClient.embed(List.of(text));
         String vector = toVectorLiteral(requireVector(response));
 
@@ -235,18 +294,30 @@ public class EmbeddingWorker {
             // T-101 : le vecteur de l'offre débloque (ou crée) sa recherche de candidats. N'échoue jamais.
             screeningJobService.onOfferEmbeddingDone(job.getNormalizedProfileId());
         }
-        return true;
+    }
+
+    /** Source de la fiche : liée à un candidat, sinon une offre. */
+    private NormalizationSourceType sourceOf(NormalizedProfile profile) {
+        return normalizedProfileCandidateRepository.findCandidateIdByNormalizedProfileId(profile.getId())
+                .isPresent() ? NormalizationSourceType.CANDIDATE : NormalizationSourceType.OFFER;
     }
 
     /**
-     * Le service IA doit avoir appelé le modèle actif et renvoyé exactement un
-     * vecteur de la dimension de la colonne, sans valeur non finie : sinon
+     * Le service IA doit avoir appelé le modèle actif, déclaré la dimension de la
+     * colonne et renvoyé exactement un vecteur de cette longueur, sans valeur non
+     * finie et de norme non nulle (métadonnée et longueur réelle sont vérifiées
+     * toutes deux) : sinon
      * échec courant (retry puis {@code FAILED}), jamais un vecteur mal étiqueté.
      */
     private float[] requireVector(EmbedResponse response) {
         if (!settings.getModelName().equals(response.model())) {
             throw new AiServiceException(HttpStatus.BAD_GATEWAY, "The AI service embedded with model "
                     + response.model() + ", expected " + settings.getModelName() + ".");
+        }
+        if (response.dimensions() != EmbeddingSettings.DIMENSIONS) {
+            throw new AiServiceException(HttpStatus.BAD_GATEWAY, "The AI service declared "
+                    + response.dimensions() + " embedding dimensions, expected "
+                    + EmbeddingSettings.DIMENSIONS + ".");
         }
         List<float[]> embeddings = response.embeddings();
         if (embeddings.size() != 1 || embeddings.get(0) == null
@@ -255,11 +326,19 @@ public class EmbeddingWorker {
                     "The AI service returned an unexpected embedding shape.");
         }
         float[] vector = embeddings.get(0);
+        double squares = 0;
         for (float value : vector) {
             if (!Float.isFinite(value)) {
                 throw new AiServiceException(HttpStatus.BAD_GATEWAY,
                         "The AI service returned a non-finite embedding value.");
             }
+            squares += (double) value * value;
+        }
+        // Un vecteur nul rend la distance cosinus NaN en pgvector et pollue le classement du screening.
+        double norm = Math.sqrt(squares);
+        if (norm == 0 || !Double.isFinite(norm)) {
+            throw new AiServiceException(HttpStatus.BAD_GATEWAY,
+                    "The AI service returned a null or non-normalizable embedding vector.");
         }
         return vector;
     }

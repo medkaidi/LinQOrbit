@@ -27,6 +27,7 @@ import com.linqorbit.candidate.entity.NormalizedProfile;
 import com.linqorbit.candidate.exception.AiServiceException;
 import com.linqorbit.candidate.repository.NormalizedProfileCandidateRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
+import com.linqorbit.embedding.EmbeddingTestData;
 import com.linqorbit.embedding.client.EmbedClient;
 import com.linqorbit.embedding.dto.EmbedResponse;
 import com.linqorbit.embedding.entity.EmbeddingJob;
@@ -78,7 +79,9 @@ class EmbeddingWorkerThrottleTest {
     }
 
     private void theProviderAnswers() {
-        when(embedClient.embed(anyList())).thenReturn(new EmbedResponse(MODEL, 1536, List.of(new float[1536])));
+        // Un vecteur non nul : un vecteur nul est refusé par le worker (T-64, norme nulle).
+        when(embedClient.embed(anyList())).thenReturn(
+                new EmbedResponse(MODEL, 1536, List.of(EmbeddingTestData.vector(1f))));
     }
 
     private long elapsedMsOf(Runnable action) {
