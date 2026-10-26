@@ -51,10 +51,22 @@ public interface ScreeningRepository extends Repository<ProfileEmbedding, UUID> 
      * <p><b>Un candidat n'apparaît qu'une fois</b>, même si deux de ses fiches
      * portent la même « dernière version » : les versions sont numérotées par
      * le service sous verrou, mais aucune contrainte {@code UNIQUE(propriétaire,
-     * version)} ne protège la base (V9) et des doublons existent. On garde alors
-     * la fiche la plus proche ; côté offre, la fiche la plus récemment validée.
+     * version)} ne protège la base (V9) et des doublons existent. On garde alors,
+     * des deux côtés, la fiche la <b>plus récemment validée</b> ({@code validated_at
+     * desc}, puis id) : c'est la règle canonique du reste de l'application
+     * ({@code NormalizedProfileRepository.findCurrentSheetsByCandidateIds} : version
+     * décroissante puis validation décroissante, la version étant déjà contrainte à
+     * la dernière) — la distance porte donc sur la fiche que la carte et le matching
+     * affichent, jamais sur une autre fiche choisie parce qu'elle est plus proche.
      * Sans cela un candidat dupliqué réduirait silencieusement le Top N effectif
      * et serait évalué deux fois par le matching.</p>
+     *
+     * <p>Garde de norme nulle : un vecteur de norme nulle (offre ou candidat) donne
+     * une distance cosinus {@code NaN} en pgvector, qui fausserait le tri. Il n'est
+     * jamais comparé : un candidat à vecteur nul n'est pas retourné, une offre à
+     * vecteur nul donne un Top N vide. {@link #existsCurrentOfferVector} n'a pas
+     * cette garde : le job de l'offre doit se terminer (Top N vide, {@code DONE} à 0)
+     * au lieu de rester en attente d'un embedding qui ne viendra pas.</p>
      */
     @Query(value = """
             with offer_vector as (
@@ -71,6 +83,7 @@ public interface ScreeningRepository extends Repository<ProfileEmbedding, UUID> 
                   and oe.model_name = :modelName
                   and oe.model_version = :modelVersion
                   and oe.strategy_version = :strategyVersion
+                  and vector_norm(oe.embedding) > 0
                 order by onp.validated_at desc, oe.id
                 limit 1
             )
@@ -93,13 +106,14 @@ public interface ScreeningRepository extends Repository<ProfileEmbedding, UUID> 
                   and e.model_name = :modelName
                   and e.model_version = :modelVersion
                   and e.strategy_version = :strategyVersion
+                  and vector_norm(e.embedding) > 0
                   and c.recruiter_visibility_consent_at is not null
                   and c.search_status is distinct from :excludedSearchStatus
                   and not exists (select 1 from application a
                                   where a.candidate_id = c.id and a.job_offer_id = :offerId)
                   and not exists (select 1 from offer_candidate oc
                                   where oc.candidate_id = c.id and oc.job_offer_id = :offerId)
-                order by l.candidate_id, "distance", np.normalized_profile_id
+                order by l.candidate_id, np.validated_at desc, np.normalized_profile_id
             ) best
             order by best."distance", best."candidateId"
             limit :limit""", nativeQuery = true)

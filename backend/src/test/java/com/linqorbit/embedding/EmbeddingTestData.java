@@ -1,6 +1,7 @@
 package com.linqorbit.embedding;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -177,14 +178,24 @@ public final class EmbeddingTestData {
 
     /** Fiche candidat ; {@code content} null = analyse en cours ou échouée. */
     public UUID candidateFiche(UUID candidateId, int version, String content) {
-        UUID profileId = fiche(version, "3", content);
+        return candidateFiche(candidateId, version, content, LocalDateTime.now());
+    }
+
+    /** Fiche candidat validée à l'instant donné (départage deux fiches de même version). */
+    public UUID candidateFiche(UUID candidateId, int version, String content, LocalDateTime validatedAt) {
+        UUID profileId = fiche(version, "3", content, validatedAt);
         jdbc.update("INSERT INTO normalized_profile_candidate (normalized_profile_id, candidate_id) VALUES (?, ?)",
                 profileId, candidateId);
         return profileId;
     }
 
     public UUID offerFiche(UUID offerId, int version, String content) {
-        UUID profileId = fiche(version, "2", content);
+        return offerFiche(offerId, version, content, LocalDateTime.now());
+    }
+
+    /** Fiche d'offre validée à l'instant donné (départage deux fiches de même version). */
+    public UUID offerFiche(UUID offerId, int version, String content, LocalDateTime validatedAt) {
+        UUID profileId = fiche(version, "2", content, validatedAt);
         jdbc.update("INSERT INTO normalized_profile_job_offer (normalized_profile_id, job_offer_id) VALUES (?, ?)",
                 profileId, offerId);
         return profileId;
@@ -250,11 +261,16 @@ public final class EmbeddingTestData {
 
     /** Vecteur du couple donné, écrit tel quel (hors du worker). */
     public void embedding(UUID profileId, String model, String strategy, float... leading) {
+        embedding(profileId, model, MODEL_VERSION, strategy, leading);
+    }
+
+    /** Vecteur du triplet complet (modèle, version du modèle, stratégie), écrit tel quel. */
+    public void embedding(UUID profileId, String model, String modelVersion, String strategy, float... leading) {
         jdbc.update("""
                 INSERT INTO profile_embedding
                     (id, normalized_profile_id, embedding, model_name, model_version, strategy_version, created_at)
                 VALUES (?, ?, CAST(? AS vector), ?, ?, ?, now())""",
-                UUID.randomUUID(), profileId, vectorLiteral(leading), model, MODEL_VERSION, strategy);
+                UUID.randomUUID(), profileId, vectorLiteral(leading), model, modelVersion, strategy);
     }
 
     /** Vecteur du couple actif des ITs. */
@@ -350,14 +366,14 @@ public final class EmbeddingTestData {
         return id;
     }
 
-    private UUID fiche(int version, String schemaVersion, String content) {
+    private UUID fiche(int version, String schemaVersion, String content, LocalDateTime validatedAt) {
         UUID profileId = UUID.randomUUID();
         profileIds.add(profileId);
         jdbc.update("""
                 INSERT INTO normalized_profile
                     (normalized_profile_id, version, schema_version, content, validated_at, created_at, updated_at)
-                VALUES (?, ?, ?, CAST(? AS jsonb), now(), now(), now())""",
-                profileId, version, schemaVersion, content);
+                VALUES (?, ?, ?, CAST(? AS jsonb), ?, now(), now())""",
+                profileId, version, schemaVersion, content, validatedAt);
         return profileId;
     }
 }

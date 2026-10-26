@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -14,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.linqorbit.candidate.entity.SearchStatus;
 import com.linqorbit.embedding.EmbeddingIntegrationTestSupport;
 import com.linqorbit.embedding.EmbeddingTestData;
 import com.linqorbit.screening.dto.ScreenedCandidate;
@@ -166,19 +169,56 @@ class ScreeningIntegrationTest extends EmbeddingIntegrationTestSupport {
     }
 
     @Test
-    void aCandidateWhoseTwoFichesShareTheLatestVersionAppearsOnlyOnce() {
+    void aCandidateWhoseTwoFichesShareTheLatestVersionAppearsOnlyOnceOnTheMostRecentlyValidatedFiche() {
         // Aucune contrainte UNIQUE(candidat, version) en base (V9) : des doublons existent réellement.
+        // La fiche comparée est la plus récemment validée (règle canonique, celle de la carte et du
+        // matching) — jamais la plus proche : ici la plus récente est la plus ÉLOIGNÉE.
+        LocalDateTime now = LocalDateTime.now();
         UUID candidateId = data.candidate(null);
-        UUID closer = data.candidateFiche(candidateId, 1, CANDIDATE_CONTENT);
-        UUID farther = data.candidateFiche(candidateId, 1, CANDIDATE_CONTENT);
-        data.embedding(closer, 1f, 0.1f);
-        data.embedding(farther, 0f, 1f);
+        UUID closerButOlder = data.candidateFiche(candidateId, 1, CANDIDATE_CONTENT, now.minusDays(1));
+        UUID fartherButNewer = data.candidateFiche(candidateId, 1, CANDIDATE_CONTENT, now);
+        data.embedding(closerButOlder, 1f, 0.1f);
+        data.embedding(fartherButNewer, 0f, 1f);
         UUID other = candidateAt(null, 1f, 1f);
 
         List<ScreenedCandidate> top = screeningService.topCandidates(offerId, 10);
 
-        assertThat(ids(top)).containsExactly(candidateId, other);
-        assertThat(top.get(0).normalizedProfileId()).isEqualTo(closer);
+        assertThat(ids(top)).containsExactly(other, candidateId);
+        ScreenedCandidate duplicated = top.get(1);
+        assertThat(duplicated.normalizedProfileId()).isEqualTo(fartherButNewer);
+        assertThat(duplicated.distance()).isCloseTo(1.0, within(1e-4));
+    }
+
+    @Test
+    void theMostRecentlyValidatedFicheWinsWhateverTheInsertionOrder() {
+        // Même règle quand la fiche la plus récente a été insérée en premier (l'id ne décide pas).
+        LocalDateTime now = LocalDateTime.now();
+        UUID candidateId = data.candidate(null);
+        UUID newer = data.candidateFiche(candidateId, 1, CANDIDATE_CONTENT, now);
+        UUID older = data.candidateFiche(candidateId, 1, CANDIDATE_CONTENT, now.minusDays(1));
+        data.embedding(older, 1f, 0f);
+        data.embedding(newer, 0f, 1f);
+
+        List<ScreenedCandidate> top = screeningService.topCandidates(offerId, 10);
+
+        assertThat(top).singleElement().satisfies(match -> {
+            assertThat(match.candidateId()).isEqualTo(candidateId);
+            assertThat(match.normalizedProfileId()).isEqualTo(newer);
+        });
+    }
+
+    @Test
+    void aHigherVersionStillBeatsAMoreRecentlyValidatedLowerVersion() {
+        // « version desc, validated_at desc » : la version prime sur la date de validation.
+        LocalDateTime now = LocalDateTime.now();
+        UUID candidateId = data.candidate(null);
+        UUID lowerButRecent = data.candidateFiche(candidateId, 1, CANDIDATE_CONTENT, now);
+        UUID higherButOlder = data.candidateFiche(candidateId, 2, CANDIDATE_CONTENT, now.minusDays(1));
+        data.embedding(lowerButRecent, 1f, 0f);
+        data.embedding(higherButOlder, 0f, 1f);
+
+        assertThat(screeningService.topCandidates(offerId, 10)).singleElement()
+                .satisfies(match -> assertThat(match.normalizedProfileId()).isEqualTo(higherButOlder));
     }
 
     @Test
@@ -384,5 +424,200 @@ class ScreeningIntegrationTest extends EmbeddingIntegrationTestSupport {
         data.offerFiche(reanalysing, 2, null);
 
         assertThat(ids(screeningService.topCandidates(reanalysing, 1))).containsExactly(horizontal);
+    }
+
+    // --- hasCurrentOfferVector : décide si le screening part tout de suite ou attend l'embedding ------
+
+    @Test
+    void anOfferWhoseCurrentFicheHasAVectorOfTheActivePairHasACurrentOfferVector() {
+        assertThat(screeningService.hasCurrentOfferVector(offerId)).isTrue();
+    }
+
+    @Test
+    void anOfferWithoutAnyVectorHasNoCurrentOfferVector() {
+        UUID noVector = data.offer();
+        data.offerFiche(noVector, 1, OFFER_CONTENT);
+
+        assertThat(screeningService.hasCurrentOfferVector(noVector)).isFalse();
+    }
+
+    @Test
+    void aVectorOfAnotherModelStrategyOrModelVersionIsNotACurrentOfferVector() {
+        UUID otherModel = data.offer();
+        data.embedding(data.offerFiche(otherModel, 1, OFFER_CONTENT), "legacy-model", EmbeddingTestData.STRATEGY,
+                1f, 0f);
+        UUID otherStrategy = data.offer();
+        data.embedding(data.offerFiche(otherStrategy, 1, OFFER_CONTENT), EmbeddingTestData.TEST_MODEL, "text-0",
+                1f, 0f);
+        UUID otherModelVersion = data.offer();
+        data.embedding(data.offerFiche(otherModelVersion, 1, OFFER_CONTENT), EmbeddingTestData.TEST_MODEL, "2",
+                EmbeddingTestData.STRATEGY, 1f, 0f);
+
+        assertThat(screeningService.hasCurrentOfferVector(otherModel)).isFalse();
+        assertThat(screeningService.hasCurrentOfferVector(otherStrategy)).isFalse();
+        assertThat(screeningService.hasCurrentOfferVector(otherModelVersion)).isFalse();
+    }
+
+    @Test
+    void anOfferWithoutFicheOrUnknownHasNoCurrentOfferVector() {
+        UUID noFiche = data.offer();
+
+        assertThat(screeningService.hasCurrentOfferVector(noFiche)).isFalse();
+        assertThat(screeningService.hasCurrentOfferVector(UUID.randomUUID())).isFalse();
+    }
+
+    @Test
+    void aNewFicheStillAnalysingKeepsTheCurrentOnesVectorAsTheCurrentOfferVector() {
+        // La fiche qui compte est la fiche COURANTE (dernière version avec contenu) : la v2 en analyse
+        // ne masque pas la v1 vectorisée.
+        UUID reanalysing = data.offer();
+        data.embedding(data.offerFiche(reanalysing, 1, OFFER_CONTENT), 1f, 0f);
+        data.offerFiche(reanalysing, 2, null);
+
+        assertThat(screeningService.hasCurrentOfferVector(reanalysing)).isTrue();
+    }
+
+    @Test
+    void aCurrentFicheWithoutVectorIsNotRescuedByAStaleVectorOfAnOlderVersion() {
+        UUID rewritten = data.offer();
+        data.embedding(data.offerFiche(rewritten, 1, OFFER_CONTENT), 1f, 0f);
+        data.offerFiche(rewritten, 2, OFFER_CONTENT);
+
+        assertThat(screeningService.hasCurrentOfferVector(rewritten)).isFalse();
+    }
+
+    // --- version du modèle (le couple actif est modèle + version + stratégie) --------------------------
+
+    @Test
+    void aCandidateVectorOfAnotherModelVersionIsNeverCaught() {
+        UUID otherVersion = data.candidate(null);
+        data.embedding(data.candidateFiche(otherVersion, 1, CANDIDATE_CONTENT), EmbeddingTestData.TEST_MODEL, "2",
+                EmbeddingTestData.STRATEGY, 1f, 0f);
+        UUID active = candidateAt(null, 0f, 1f);
+
+        assertThat(ids(screeningService.topCandidates(offerId, 10))).containsExactly(active);
+    }
+
+    @Test
+    void anOfferVectorOfAnotherModelVersionGivesAnEmptyList() {
+        candidateAt(null, 1f, 0f);
+        UUID otherVersionOnly = data.offer();
+        data.embedding(data.offerFiche(otherVersionOnly, 1, OFFER_CONTENT), EmbeddingTestData.TEST_MODEL, "2",
+                EmbeddingTestData.STRATEGY, 1f, 0f);
+
+        assertThat(screeningService.topCandidates(otherVersionOnly, 10)).isEmpty();
+    }
+
+    // --- garde de norme nulle : jamais une distance NaN -------------------------------------------------
+
+    @Test
+    void aCandidateWithAZeroVectorIsNeverReturnedAndNoDistanceIsNaN() {
+        UUID zero = data.candidate(null);
+        data.embedding(data.candidateFiche(zero, 1, CANDIDATE_CONTENT), 0f);
+        UUID near = candidateAt(null, 1f, 0.1f);
+        UUID far = candidateAt(null, 0f, 1f);
+
+        List<ScreenedCandidate> top = screeningService.topCandidates(offerId, 10);
+
+        assertThat(ids(top)).containsExactly(near, far).doesNotContain(zero);
+        assertThat(top).allSatisfy(match -> assertThat(Double.isFinite(match.distance())).isTrue());
+    }
+
+    @Test
+    void aZeroVectorCandidateDoesNotTakeASlotOfTheLimit() {
+        UUID zero = data.candidate(null);
+        data.embedding(data.candidateFiche(zero, 1, CANDIDATE_CONTENT), 0f);
+        UUID only = candidateAt(null, 0f, 1f);
+
+        assertThat(ids(screeningService.topCandidates(offerId, 1))).containsExactly(only);
+    }
+
+    @Test
+    void anOfferWithAZeroVectorGivesAnEmptyListWhileItsVectorStillCounts() {
+        candidateAt(null, 1f, 0f);
+        UUID zeroOffer = data.offer();
+        data.embedding(data.offerFiche(zeroOffer, 1, OFFER_CONTENT), 0f);
+
+        assertThat(screeningService.topCandidates(zeroOffer, 10)).isEmpty();
+        // Volontaire : hasCurrentOfferVector ne porte pas la garde — le job doit se terminer (Top N vide,
+        // DONE à 0), pas attendre indéfiniment un embedding qui ne viendra pas.
+        assertThat(screeningService.hasCurrentOfferVector(zeroOffer)).isTrue();
+    }
+
+    @Test
+    void aZeroVectorSiblingFicheFallsBackToTheSiblingThatHasAUsableVector() {
+        LocalDateTime now = LocalDateTime.now();
+        UUID candidateId = data.candidate(null);
+        UUID usable = data.candidateFiche(candidateId, 1, CANDIDATE_CONTENT, now.minusDays(1));
+        UUID zeroButNewer = data.candidateFiche(candidateId, 1, CANDIDATE_CONTENT, now);
+        data.embedding(usable, 1f, 0f);
+        data.embedding(zeroButNewer, 0f);
+
+        assertThat(screeningService.topCandidates(offerId, 10)).singleElement().satisfies(match -> {
+            assertThat(match.normalizedProfileId()).isEqualTo(usable);
+            assertThat(match.distance()).isCloseTo(0.0, within(1e-6));
+        });
+    }
+
+    // --- équivalence population éligible ↔ production (garde-fou du protocole de mesure) ---------------
+
+    private void markAsSuggested(UUID candidateId, UUID candidateFicheId) {
+        UUID jobId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO screening_job (job_id, job_offer_id, offer_normalized_profile_id, status, attempts,
+                                           next_attempt_at, candidate_count, created_at, completed_at)
+                SELECT ?, ?, normalized_profile_id, 3, 1, now(), 1, now(), now()
+                FROM normalized_profile_job_offer WHERE job_offer_id = ?""", jobId, offerId, offerId);
+        jdbc.update("""
+                INSERT INTO offer_candidate (id, job_offer_id, candidate_id, candidate_normalized_profile_id,
+                                             screening_job_id, rank, distance, status, created_at)
+                VALUES (?, ?, ?, ?, ?, 1, 0.1, 1, now())""", UUID.randomUUID(), offerId, candidateId, candidateFicheId,
+                jobId);
+    }
+
+    @Test
+    void theEligiblePopulationOfTheMeasureEqualsWhatTheProductionQueryCanReturn() {
+        // Une offre et des candidats de toutes les natures : le protocole de mesure du rappel
+        // (ScreeningEligiblePopulation) ne doit pas dériver de la requête de production.
+        UUID eligibleA = candidateAt(null, 1f, 0.1f);
+        UUID eligibleB = candidateAt(1, 0f, 1f);
+        UUID eligibleC = candidateAt(2, -1f, 0f);
+        UUID noConsent = data.candidateWithoutConsent(null);
+        data.embedding(data.candidateFiche(noConsent, 1, CANDIDATE_CONTENT), 1f, 0f);
+        UUID applied = candidateAt(null, 1f, 0.2f);
+        data.application(applied, offerId, 2);
+        UUID suggested = data.candidate(null);
+        UUID suggestedFiche = data.candidateFiche(suggested, 1, CANDIDATE_CONTENT);
+        data.embedding(suggestedFiche, 1f, 0.3f);
+        markAsSuggested(suggested, suggestedFiche);
+        UUID notLooking = candidateAt(EmbeddingTestData.NOT_LOOKING, 1f, 0f);
+        UUID otherModel = data.candidate(null);
+        data.embedding(data.candidateFiche(otherModel, 1, CANDIDATE_CONTENT), "legacy-model",
+                EmbeddingTestData.STRATEGY, 1f, 0f);
+        UUID otherModelVersion = data.candidate(null);
+        data.embedding(data.candidateFiche(otherModelVersion, 1, CANDIDATE_CONTENT), EmbeddingTestData.TEST_MODEL,
+                "2", EmbeddingTestData.STRATEGY, 1f, 0f);
+        UUID zero = data.candidate(null);
+        data.embedding(data.candidateFiche(zero, 1, CANDIDATE_CONTENT), 0f);
+        UUID withoutVector = data.candidate(null);
+        data.candidateFiche(withoutVector, 1, CANDIDATE_CONTENT);
+        UUID staleOnly = data.candidate(null);
+        data.embedding(data.candidateFiche(staleOnly, 1, CANDIDATE_CONTENT), 1f, 0f);
+        data.candidateFiche(staleOnly, 2, CANDIDATE_CONTENT); // fiche courante sans vecteur
+        UUID duplicated = data.candidate(null);
+        LocalDateTime now = LocalDateTime.now();
+        data.embedding(data.candidateFiche(duplicated, 1, CANDIDATE_CONTENT, now.minusDays(1)), 1f, 0f);
+        data.embedding(data.candidateFiche(duplicated, 1, CANDIDATE_CONTENT, now), 0f, 1f);
+
+        Set<UUID> expected = Set.of(eligibleA, eligibleB, eligibleC, duplicated);
+        Set<UUID> measured = ScreeningEligiblePopulation.eligibleCandidates(jdbc, offerId,
+                EmbeddingTestData.TEST_MODEL, EmbeddingTestData.MODEL_VERSION, EmbeddingTestData.STRATEGY,
+                SearchStatus.NOT_LOOKING.getCode());
+        Set<UUID> returned = Set.copyOf(ids(screeningService.topCandidates(offerId, ScreeningService.MAX_TOP_N)));
+
+        assertThat(measured).isEqualTo(expected);
+        assertThat(returned).isEqualTo(measured);
+        assertThat(returned).doesNotContain(noConsent, applied, suggested, notLooking, otherModel, otherModelVersion,
+                zero, withoutVector, staleOnly);
     }
 }

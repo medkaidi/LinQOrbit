@@ -1,11 +1,12 @@
 {
-  "generatedAt" : "2026-10-24T20:07:22.937906400",
-  "protocol" : "ground truth = same job archetype (seeds), candidates reachable (not not_looking) and vectorized; recall@N = |TopN ∩ relevant| / |relevant| — proxy of a proxy, not the matching top K (SPEC §8.4.8)",
+  "generatedAt" : "2026-10-26T02:02:38.649629200",
+  "protocol" : "ground truth = same job archetype (seeds), candidates reachable (not not_looking) and vectorized; relevant = ground truth ∩ eligible population of the offer (recruiter-visibility consent, no application to the offer, not already suggested — same WHERE as the production query); an offer without eligible relevant candidate is not measurable; recall@N = |TopN ∩ relevant| / |relevant| — proxy of a proxy, not the matching top K (SPEC §8.4.8)",
   "model" : "gemini-embedding-2/1",
   "strategy" : "text-1",
   "vectorizedCandidates" : 101,
   "offersTotal" : 100,
-  "offersUnmeasured" : 0,
+  "offersUnmeasured" : 1,
+  "offersWithoutEligibleRelevant" : 1,
   "alignedOffers" : {
     "N=5" : {
       "offers" : 60,
@@ -40,27 +41,27 @@
   },
   "misalignedOffers(ambiguous truth)" : {
     "N=5" : {
-      "offers" : 40,
-      "meanRecall" : 0.8916666666666666,
+      "offers" : 39,
+      "meanRecall" : 0.8888888888888888,
       "minRecall" : 0.7142857142857143
     },
     "N=10" : {
-      "offers" : 40,
+      "offers" : 39,
       "meanRecall" : 1.0,
       "minRecall" : 1.0
     },
     "N=20" : {
-      "offers" : 40,
+      "offers" : 39,
       "meanRecall" : 1.0,
       "minRecall" : 1.0
     },
     "N=30" : {
-      "offers" : 40,
+      "offers" : 39,
       "meanRecall" : 1.0,
       "minRecall" : 1.0
     },
     "N=50" : {
-      "offers" : 40,
+      "offers" : 39,
       "meanRecall" : 1.0,
       "minRecall" : 1.0
     }
@@ -71,6 +72,7 @@
     "archetype" : "java-backend",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -86,6 +88,7 @@
     "archetype" : "frontend-react",
     "aligned" : true,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -101,6 +104,7 @@
     "archetype" : "fullstack",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -116,6 +120,7 @@
     "archetype" : "devops",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -131,6 +136,7 @@
     "archetype" : "data-scientist",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -146,6 +152,7 @@
     "archetype" : "data-engineer",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -161,6 +168,7 @@
     "archetype" : "mobile",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -176,6 +184,7 @@
     "archetype" : "ux-designer",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -191,6 +200,7 @@
     "archetype" : "product-manager",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -206,6 +216,7 @@
     "archetype" : "qa-engineer",
     "aligned" : false,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -221,6 +232,7 @@
     "archetype" : "marketing",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -236,6 +248,7 @@
     "archetype" : "sales",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -251,6 +264,7 @@
     "archetype" : "php-backend",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -266,6 +280,7 @@
     "archetype" : "go-backend",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -281,6 +296,7 @@
     "archetype" : "dotnet",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -296,6 +312,7 @@
     "archetype" : "java-backend",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -311,6 +328,7 @@
     "archetype" : "frontend-react",
     "aligned" : false,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -326,6 +344,7 @@
     "archetype" : "fullstack",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -341,6 +360,7 @@
     "archetype" : "devops",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -356,6 +376,7 @@
     "archetype" : "data-scientist",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -371,6 +392,7 @@
     "archetype" : "data-engineer",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -386,6 +408,7 @@
     "archetype" : "mobile",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -401,6 +424,7 @@
     "archetype" : "ux-designer",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -416,6 +440,7 @@
     "archetype" : "product-manager",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -431,6 +456,7 @@
     "archetype" : "qa-engineer",
     "aligned" : true,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -446,6 +472,7 @@
     "archetype" : "marketing",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -461,6 +488,7 @@
     "archetype" : "sales",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -476,6 +504,7 @@
     "archetype" : "php-backend",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -491,6 +520,7 @@
     "archetype" : "go-backend",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -506,6 +536,7 @@
     "archetype" : "dotnet",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -521,6 +552,7 @@
     "archetype" : "java-backend",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -536,6 +568,7 @@
     "archetype" : "frontend-react",
     "aligned" : true,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -551,6 +584,7 @@
     "archetype" : "fullstack",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -566,6 +600,7 @@
     "archetype" : "devops",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -581,6 +616,7 @@
     "archetype" : "data-scientist",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -596,6 +632,7 @@
     "archetype" : "data-engineer",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -611,6 +648,7 @@
     "archetype" : "mobile",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -626,6 +664,7 @@
     "archetype" : "ux-designer",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -641,6 +680,7 @@
     "archetype" : "product-manager",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -656,6 +696,7 @@
     "archetype" : "qa-engineer",
     "aligned" : false,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -671,6 +712,7 @@
     "archetype" : "marketing",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -686,6 +728,7 @@
     "archetype" : "sales",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -701,6 +744,7 @@
     "archetype" : "php-backend",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -716,6 +760,7 @@
     "archetype" : "go-backend",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -731,6 +776,7 @@
     "archetype" : "dotnet",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -746,6 +792,7 @@
     "archetype" : "java-backend",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -761,6 +808,7 @@
     "archetype" : "frontend-react",
     "aligned" : false,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -776,6 +824,7 @@
     "archetype" : "fullstack",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -791,6 +840,7 @@
     "archetype" : "devops",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -806,6 +856,7 @@
     "archetype" : "data-scientist",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -821,6 +872,7 @@
     "archetype" : "data-engineer",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -836,6 +888,7 @@
     "archetype" : "mobile",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -851,6 +904,7 @@
     "archetype" : "ux-designer",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -866,6 +920,7 @@
     "archetype" : "product-manager",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -881,6 +936,7 @@
     "archetype" : "qa-engineer",
     "aligned" : true,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -896,6 +952,7 @@
     "archetype" : "marketing",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -911,6 +968,7 @@
     "archetype" : "sales",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -926,6 +984,7 @@
     "archetype" : "php-backend",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -941,6 +1000,7 @@
     "archetype" : "go-backend",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -956,6 +1016,7 @@
     "archetype" : "dotnet",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -971,6 +1032,7 @@
     "archetype" : "java-backend",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -986,6 +1048,7 @@
     "archetype" : "frontend-react",
     "aligned" : true,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1001,6 +1064,7 @@
     "archetype" : "fullstack",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1016,6 +1080,7 @@
     "archetype" : "devops",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1031,6 +1096,7 @@
     "archetype" : "data-scientist",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1046,6 +1112,7 @@
     "archetype" : "data-engineer",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1061,6 +1128,7 @@
     "archetype" : "mobile",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1076,6 +1144,7 @@
     "archetype" : "ux-designer",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1091,6 +1160,7 @@
     "archetype" : "product-manager",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1106,6 +1176,7 @@
     "archetype" : "qa-engineer",
     "aligned" : false,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1121,6 +1192,7 @@
     "archetype" : "marketing",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1136,6 +1208,7 @@
     "archetype" : "sales",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1151,6 +1224,7 @@
     "archetype" : "php-backend",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1166,6 +1240,7 @@
     "archetype" : "go-backend",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1181,6 +1256,7 @@
     "archetype" : "dotnet",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1196,6 +1272,7 @@
     "archetype" : "java-backend",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1211,6 +1288,7 @@
     "archetype" : "frontend-react",
     "aligned" : false,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1225,22 +1303,17 @@
     "title" : "Senior Full-Stack Developer",
     "archetype" : "fullstack",
     "aligned" : false,
-    "relevantCount" : 5,
+    "relevantCount" : 0,
+    "excludedByRules" : 5,
     "returned" : 50,
-    "measurable" : true,
-    "recall" : {
-      "recall@5" : 1.0,
-      "recall@10" : 1.0,
-      "recall@20" : 1.0,
-      "recall@30" : 1.0,
-      "recall@50" : 1.0
-    }
+    "measurable" : false
   }, {
     "offerId" : "f73ccab8-ba6b-5ed8-b8d8-2b29f7b612ae",
     "title" : "Junior DevOps Engineer",
     "archetype" : "devops",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1256,6 +1329,7 @@
     "archetype" : "data-scientist",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1271,6 +1345,7 @@
     "archetype" : "data-engineer",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1286,6 +1361,7 @@
     "archetype" : "mobile",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1301,6 +1377,7 @@
     "archetype" : "ux-designer",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1316,6 +1393,7 @@
     "archetype" : "product-manager",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1331,6 +1409,7 @@
     "archetype" : "qa-engineer",
     "aligned" : true,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1346,6 +1425,7 @@
     "archetype" : "marketing",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1361,6 +1441,7 @@
     "archetype" : "sales",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1376,6 +1457,7 @@
     "archetype" : "php-backend",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1391,6 +1473,7 @@
     "archetype" : "go-backend",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1406,6 +1489,7 @@
     "archetype" : "dotnet",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1421,6 +1505,7 @@
     "archetype" : "java-backend",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1436,6 +1521,7 @@
     "archetype" : "frontend-react",
     "aligned" : true,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1451,6 +1537,7 @@
     "archetype" : "fullstack",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1466,6 +1553,7 @@
     "archetype" : "devops",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1481,6 +1569,7 @@
     "archetype" : "data-scientist",
     "aligned" : true,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1496,6 +1585,7 @@
     "archetype" : "data-engineer",
     "aligned" : true,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1511,6 +1601,7 @@
     "archetype" : "mobile",
     "aligned" : false,
     "relevantCount" : 5,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1526,6 +1617,7 @@
     "archetype" : "ux-designer",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1541,6 +1633,7 @@
     "archetype" : "product-manager",
     "aligned" : false,
     "relevantCount" : 6,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {
@@ -1556,6 +1649,7 @@
     "archetype" : "qa-engineer",
     "aligned" : false,
     "relevantCount" : 7,
+    "excludedByRules" : 0,
     "returned" : 50,
     "measurable" : true,
     "recall" : {

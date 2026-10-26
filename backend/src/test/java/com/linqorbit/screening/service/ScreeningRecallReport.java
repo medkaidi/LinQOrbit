@@ -26,6 +26,7 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import com.linqorbit.candidate.entity.SearchStatus;
 import com.linqorbit.embedding.service.EmbeddingSettings;
 import com.linqorbit.screening.dto.ScreenedCandidate;
 
@@ -47,15 +48,21 @@ import tools.jackson.databind.ObjectMapper;
  * ./mvnw test -Dtest=ScreeningRecallReport -Dscreening.recall.truth=../truth.json
  * </pre>
  *
- * <p><b>Protocole (vérité terrain = archétype de poste)</b> : pour une offre, les
- * candidats pertinents sont ceux du <b>même archétype</b> (15 archétypes
- * déterministes), joignables (hors {@code not_looking}) et présents dans la
- * population vectorisée. Le rappel@N est la part des pertinents contenue dans
- * le Top N. C'est un <b>proxy de proxy</b> : il mesure la cohérence sémantique
- * de la recherche, pas le top K du matching détaillé — le rappel contre le
- * matching réel est reporté au lot de chaînage. Les offres « non alignées »
- * (leur panier de compétences mélange deux archétypes) sont rapportées à part :
- * leur vérité terrain est ambiguë.</p>
+ * <p><b>Protocole (vérité terrain = archétype de poste, population éligible)</b> :
+ * pour une offre, la vérité terrain est l'ensemble des candidats du <b>même
+ * archétype</b> (15 archétypes déterministes), joignables (hors {@code not_looking})
+ * et vectorisés. Les candidats <b>pertinents</b> sont ceux de cette vérité qui sont
+ * aussi <b>éligibles</b> pour l'offre selon la requête de production
+ * ({@link ScreeningEligiblePopulation} : consentement à la visibilité recruteur,
+ * pas de candidature à l'offre, pas déjà suggéré) — un candidat que la requête
+ * exclut par règle ne peut pas être « manqué » par le Top N. Les exclus par règle
+ * sont publiés ({@code excludedByRules}) ; une offre sans aucun pertinent éligible
+ * est <b>non mesurable</b> (jamais un rappel de 0). Le rappel@N est la part des
+ * pertinents contenue dans le Top N. C'est un <b>proxy de proxy</b> : il mesure la
+ * cohérence sémantique de la recherche, pas le top K du matching détaillé. Les
+ * offres « non alignées » (leur panier de compétences mélange deux archétypes) sont
+ * rapportées à part : leur vérité terrain est ambiguë. Le rapport est en
+ * <b>lecture seule</b> sur la base.</p>
  */
 @SpringBootTest(properties = "app.embedding.min-interval-ms=0")
 @EnabledIfSystemProperty(named = "screening.recall.truth", matches = ".+")
@@ -99,9 +106,16 @@ class ScreeningRecallReport {
         Map<Integer, List<Double>> misaligned = new LinkedHashMap<>();
         Map<Integer, List<Double>> alignedHits = new LinkedHashMap<>();
         int unmeasured = 0;
+        int withoutEligibleRelevant = 0;
         for (JsonNode offer : truth.get("offers")) {
             UUID offerId = UUID.fromString(offer.get("offerId").asString());
-            Set<UUID> relevant = relevantByArchetype.getOrDefault(offer.get("archetype").asString(), Set.of());
+            Set<UUID> groundTruth = relevantByArchetype.getOrDefault(offer.get("archetype").asString(), Set.of());
+            Set<UUID> eligible = ScreeningEligiblePopulation.eligibleCandidates(jdbc, offerId,
+                    settings.getModelName(), settings.getModelVersion(), settings.getStrategyVersion(),
+                    SearchStatus.NOT_LOOKING.getCode());
+            Set<UUID> relevant = new HashSet<>(groundTruth);
+            relevant.retainAll(eligible);
+            int excludedByRules = groundTruth.size() - relevant.size();
             List<UUID> ranked = screeningService.topCandidates(offerId, MAX_N).stream()
                     .map(ScreenedCandidate::candidateId).toList();
             boolean isAligned = offer.get("aligned").asBoolean();
@@ -111,7 +125,16 @@ class ScreeningRecallReport {
             entry.put("archetype", offer.get("archetype").asString());
             entry.put("aligned", isAligned);
             entry.put("relevantCount", relevant.size());
+            entry.put("excludedByRules", excludedByRules);
             entry.put("returned", ranked.size());
+            if (relevant.isEmpty()) {
+                // Aucun pertinent éligible (déjà suggérés, sans consentement…) : non mesurable, jamais un 0.
+                unmeasured++;
+                withoutEligibleRelevant++;
+                entry.put("measurable", false);
+                offers.add(entry);
+                continue;
+            }
             if (ranked.isEmpty()) {
                 // Offre sans vecteur (brouillon non embeddé…) : non mesurable, signalé.
                 unmeasured++;
@@ -137,13 +160,16 @@ class ScreeningRecallReport {
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("generatedAt", LocalDateTime.now().toString());
         report.put("protocol", "ground truth = same job archetype (seeds), candidates reachable (not not_looking) "
-                + "and vectorized; recall@N = |TopN ∩ relevant| / |relevant| — proxy of a proxy, not the matching "
-                + "top K (SPEC §8.4.8)");
+                + "and vectorized; relevant = ground truth ∩ eligible population of the offer (recruiter-visibility "
+                + "consent, no application to the offer, not already suggested — same WHERE as the production query); "
+                + "an offer without eligible relevant candidate is not measurable; recall@N = |TopN ∩ relevant| / "
+                + "|relevant| — proxy of a proxy, not the matching top K (SPEC §8.4.8)");
         report.put("model", settings.getModelName() + "/" + settings.getModelVersion());
         report.put("strategy", settings.getStrategyVersion());
         report.put("vectorizedCandidates", vectorized.size());
         report.put("offersTotal", offers.size());
         report.put("offersUnmeasured", unmeasured);
+        report.put("offersWithoutEligibleRelevant", withoutEligibleRelevant);
         report.put("alignedOffers", summary(aligned, alignedHits));
         report.put("misalignedOffers(ambiguous truth)", summary(misaligned, Map.of()));
         report.put("offers", offers);
@@ -175,16 +201,21 @@ class ScreeningRecallReport {
                 settings.getModelName(), settings.getModelVersion(), settings.getStrategyVersion()));
     }
 
+    /** Aucun NaN dans le JSON : un groupe sans offre mesurable publie {@code null}. */
+    private static Double finiteOrNull(double value) {
+        return Double.isNaN(value) ? null : value;
+    }
+
     private static Map<String, Object> summary(Map<Integer, List<Double>> recalls, Map<Integer, List<Double>> hits) {
         Map<String, Object> out = new LinkedHashMap<>();
         for (int n : NS) {
             List<Double> values = recalls.getOrDefault(n, List.of());
             Map<String, Object> stat = new LinkedHashMap<>();
             stat.put("offers", values.size());
-            stat.put("meanRecall", ScreeningRecall.mean(values));
-            stat.put("minRecall", ScreeningRecall.min(values));
+            stat.put("meanRecall", finiteOrNull(ScreeningRecall.mean(values)));
+            stat.put("minRecall", finiteOrNull(ScreeningRecall.min(values)));
             if (hits.containsKey(n)) {
-                stat.put("hitRate", ScreeningRecall.mean(hits.get(n)));
+                stat.put("hitRate", finiteOrNull(ScreeningRecall.mean(hits.get(n))));
             }
             out.put("N=" + n, stat);
         }
