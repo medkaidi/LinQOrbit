@@ -20,11 +20,11 @@ describe("HomePage", () => {
     expect(screen.getByPlaceholderText("City, region or remote")).toBeInTheDocument();
   });
 
-  it("affiche la photo de vitrine avec son overlay", () => {
+  it("affiche l'illustration orbite avec son overlay", () => {
     render(<HomePage />);
 
     expect(
-      screen.getByRole("img", { name: "Bright modern workspace for a tech recruitment platform" }),
+      screen.getByRole("img", { name: "LinQOrbit connects candidates with the right opportunities" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Verified opportunities, refreshed weekly")).toBeInTheDocument();
     expect(screen.getByText("Real-time match scoring by your AI agents.")).toBeInTheDocument();

@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { Icon } from "@/components/ui/icon";
+import { OrbitIllustration } from "@/features/marketing/orbit-illustration";
 
 const SUGGESTIONS = ["Tech & Dev", "Product Design", "AI Engineering", "Data", "Fully remote"];
 
@@ -75,14 +75,14 @@ export function MarketingHome() {
       </section>
 
       <section className="max-w-7xl mx-auto px-gutter py-space-md">
-        <div className="relative w-full h-[360px] sm:h-[460px] rounded-xl overflow-hidden border border-slate-border shadow-sm">
-          <Image
-            src="/images/home-workspace.png"
-            alt="Bright modern workspace for a tech recruitment platform"
-            fill
-            sizes="(max-width: 1280px) 100vw, 1280px"
-            className="object-cover"
+        <div className="relative w-full h-[360px] sm:h-[460px] rounded-xl overflow-hidden border border-slate-border shadow-sm bg-item-surface">
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 bg-[radial-gradient(var(--color-slate-border-strong)_1px,transparent_1.5px)] bg-size-[22px_22px] [mask-image:radial-gradient(ellipse_at_center,transparent_25%,black_80%)]"
           />
+          <div className="absolute inset-0 px-4 pt-4 pb-32 xl:pb-4 @container-[size] flex items-center justify-center">
+            <OrbitIllustration className="shrink-0 w-[min(100cqw,150cqh)] xl:translate-x-[12%]" />
+          </div>
           <div className="absolute bottom-6 left-6 right-6 sm:right-auto bg-canvas-white/95 backdrop-blur-md border border-slate-border rounded-lg p-space-md shadow-sm flex items-center gap-space-md">
             <div className="w-10 h-10 rounded-full bg-orange-subtle flex items-center justify-center text-orange-deep shrink-0">
               <Icon name="verified" className="text-[24px]" />
