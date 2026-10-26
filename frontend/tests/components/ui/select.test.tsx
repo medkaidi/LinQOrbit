@@ -284,6 +284,55 @@ describe("Select (compact menu width)", () => {
     expect(screen.getByRole("listbox")).toHaveClass("right-0");
   });
 
+  /** Place à droite du déclencheur : la fenêtre moins sa position gauche, via un rect simulé. */
+  function renderWithRoomOnTheRight(room: number) {
+    const { container } = render(<Select label="Filter" options={long} value="" compact />);
+    const left = window.innerWidth - room;
+    vi.spyOn(container.firstElementChild as HTMLElement, "getBoundingClientRect").mockReturnValue({
+      left,
+      top: 0,
+      bottom: 36,
+      right: left + 100,
+      width: 100,
+      height: 36,
+      x: left,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Filter" }));
+    return screen.getByRole("listbox");
+  }
+
+  it("opens towards the left when the room on the right is between 320 and 384 px", () => {
+    // Le menu peut atteindre 24 rem (384 px) : 350 px de place ne suffisent pas, il déborderait.
+    expect(renderWithRoomOnTheRight(350)).toHaveClass("right-0");
+  });
+
+  it("opens towards the left one pixel short of the widest menu", () => {
+    expect(renderWithRoomOnTheRight(383)).toHaveClass("right-0");
+  });
+
+  it("opens from the left edge when the room on the right equals the widest menu", () => {
+    expect(renderWithRoomOnTheRight(384)).not.toHaveClass("right-0");
+  });
+
+  it("keeps the widest menu within 24 rem and the screen, in the class the alignment relies on", () => {
+    const list = renderWithRoomOnTheRight(350);
+
+    expect(list.className).toContain("max-w-[min(24rem,calc(100vw-2rem))]");
+  });
+
+  it("does not flip a trigger to the right on a phone where the menu still fits", () => {
+    const original = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
+    try {
+      // Menu plafonné à 375 − 32 = 343 px ; 359 px de place suffisent.
+      expect(renderWithRoomOnTheRight(359)).not.toHaveClass("right-0");
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: original });
+    }
+  });
+
   it("opens from the left edge of the trigger when there is room", () => {
     const { container } = render(<Select label="Filter" options={long} value="" compact />);
     vi.spyOn(container.firstElementChild as HTMLElement, "getBoundingClientRect").mockReturnValue({

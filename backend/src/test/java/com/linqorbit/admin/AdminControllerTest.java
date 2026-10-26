@@ -418,7 +418,7 @@ class AdminControllerTest {
                                 java.time.LocalDateTime.of(2026, 10, 1, 9, 0),
                                 java.time.LocalDate.of(2026, 12, 31),
                                 java.time.LocalDateTime.of(2026, 10, 1, 10, 0),
-                                "mid", "Paris", "FR", null, null,
+                                "mid", "Paris", "FR", null, null, employmentTypeId,
                                 new java.math.BigDecimal("50000"), new java.math.BigDecimal("70000"),
                                 "EUR", "year", false, "done")),
                         1, 10, 42));
@@ -434,6 +434,7 @@ class AdminControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].title").value("Dev Java"))
                 .andExpect(jsonPath("$.items[0].companyName").value("Acme"))
+                .andExpect(jsonPath("$.items[0].employmentTypeId").value(employmentTypeId.toString()))
                 .andExpect(jsonPath("$.items[0].normalizationJobStatus").value("done"))
                 .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.size").value(10))

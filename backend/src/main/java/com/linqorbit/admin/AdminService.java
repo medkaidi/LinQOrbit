@@ -527,6 +527,7 @@ public class AdminService {
                         offer.country(),
                         offer.contractTypeId(),
                         offer.workModeId(),
+                        offer.employmentTypeId(),
                         offer.salaryMin(),
                         offer.salaryMax(),
                         offer.salaryCurrency(),

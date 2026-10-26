@@ -49,6 +49,7 @@ function makeOffer(overrides: Partial<AdminJobOfferListItem> = {}): AdminJobOffe
     country: null,
     contractTypeId: null,
     workModeId: null,
+    employmentTypeId: null,
     salaryMin: null,
     salaryMax: null,
     salaryCurrency: null,
@@ -173,6 +174,47 @@ describe("AdminOffersSection", () => {
     const viewLinks = screen.getAllByRole("link", { name: "View" });
     expect(viewLinks).toHaveLength(2);
     expect(viewLinks[0]).toHaveAttribute("href", "/admin/offers/offer-1");
+  });
+
+  describe("employment type chip (T-110)", () => {
+    it("shows the resolved employment type on the card of an offer that carries it", async () => {
+      mockedListAllJobOffers.mockResolvedValue(makePage([makeOffer({ employmentTypeId: "et1" })]));
+
+      renderSection();
+
+      await screen.findByText("Backend Engineer");
+      expect(screen.getByText("Full-time")).toBeInTheDocument();
+    });
+
+    it("shows no employment chip when the offer has none, or one the vocabulary does not know", async () => {
+      mockedListAllJobOffers.mockResolvedValue(
+        makePage([
+          makeOffer({ employmentTypeId: null }),
+          makeOffer({ id: "offer-2", title: "Frontend Engineer", employmentTypeId: "unknown" }),
+        ]),
+      );
+
+      renderSection();
+
+      await screen.findByText("Frontend Engineer");
+      expect(screen.queryByText("Full-time")).not.toBeInTheDocument();
+      expect(screen.queryByText("unknown")).not.toBeInTheDocument();
+    });
+
+    it("shows no employment chip while the vocabulary is still loading", async () => {
+      useEmploymentTypesMock.mockReturnValue({
+        data: undefined,
+        isLoading: true,
+        isError: false,
+        refetch: vi.fn(),
+      });
+      mockedListAllJobOffers.mockResolvedValue(makePage([makeOffer({ employmentTypeId: "et1" })]));
+
+      renderSection();
+
+      await screen.findByText("Backend Engineer");
+      expect(screen.queryByText("Full-time")).not.toBeInTheDocument();
+    });
   });
 
   describe("search lives in the header", () => {

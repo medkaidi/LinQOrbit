@@ -49,10 +49,12 @@ const ADMIN_OFFERS_SEARCH_ROLE: HeaderSearchRole = {
 function OfferRow({
   offer,
   contractTypeLabel,
+  employmentTypeLabel,
   workModeLabel,
 }: {
   offer: AdminJobOfferListItem;
   contractTypeLabel: string | null;
+  employmentTypeLabel: string | null;
   workModeLabel: string | null;
 }) {
   return (
@@ -66,6 +68,7 @@ function OfferRow({
       country={offer.country}
       workModeLabel={workModeLabel}
       contractTypeLabel={contractTypeLabel}
+      employmentTypeLabel={employmentTypeLabel}
       salaryMin={offer.salaryMin}
       salaryMax={offer.salaryMax}
       salaryCurrency={offer.salaryCurrency}
@@ -119,6 +122,9 @@ export function AdminOffersSection() {
   const total = offers.data?.pages[0]?.total ?? 0;
   const contractLabels = new Map(
     (contractTypes.data ?? []).map((option) => [option.id, option.label] as const),
+  );
+  const employmentLabels = new Map(
+    (employmentTypes.data ?? []).map((option) => [option.id, option.label] as const),
   );
   const workModeLabels = new Map(
     (workModes.data ?? []).map((option) => [option.id, option.label] as const),
@@ -215,6 +221,11 @@ export function AdminOffersSection() {
                 offer={offer}
                 contractTypeLabel={
                   offer.contractTypeId ? contractLabels.get(offer.contractTypeId) ?? null : null
+                }
+                employmentTypeLabel={
+                  offer.employmentTypeId
+                    ? employmentLabels.get(offer.employmentTypeId) ?? null
+                    : null
                 }
                 workModeLabel={
                   offer.workModeId ? workModeLabels.get(offer.workModeId) ?? null : null

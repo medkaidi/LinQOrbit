@@ -22,6 +22,18 @@ describe("useHeaderSearch", () => {
     expect(useHeaderSearchStore.getState().role).toBeNull();
   });
 
+  it("keeps the role and the text of the page that took over when the previous page unmounts late", () => {
+    // Course de navigation : la nouvelle page déclare son rôle AVANT que l'ancienne se démonte.
+    const previous = renderHook(() => useHeaderSearch(board));
+    act(() => useHeaderSearchStore.getState().register(other));
+    act(() => useHeaderSearchStore.getState().setQuery("typed on the new page"));
+
+    previous.unmount();
+
+    expect(useHeaderSearchStore.getState().role).toBe(other);
+    expect(useHeaderSearchStore.getState().query).toBe("typed on the new page");
+  });
+
   it("returns what is typed in the header, and lets the page clear it", () => {
     const { result } = renderHook(() => useHeaderSearch(board));
     expect(result.current[0]).toBe("");

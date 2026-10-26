@@ -24,10 +24,26 @@ export function filterOptions(options: SelectOption[], query: string): SelectOpt
   return options.filter((option) => option.label.toLowerCase().includes(needle));
 }
 
-/** Menu compact : largeur de la plus longue option, bornée à 24 rem (ou à l'écran). */
+/**
+ * Menu compact : largeur de la plus longue option, bornée à 24 rem (ou à l'écran).
+ * La classe reste LITTÉRALE (le scanner de Tailwind v4 ne voit pas une classe construite par
+ * interpolation) ; son plafond de 24 rem et {@link COMPACT_LIST_ROOM} décrivent la même géométrie.
+ */
 const COMPACT_LIST_CLASS = "min-w-full w-max max-w-[min(24rem,calc(100vw-2rem))]";
-/** Place minimale à droite du déclencheur (px) en deçà de laquelle le menu compact s'aligne à droite. */
-const COMPACT_LIST_ROOM = 320;
+/**
+ * Place nécessaire à droite du déclencheur (px) : la largeur maximale du menu, soit les 24 rem (384 px)
+ * de {@link COMPACT_LIST_CLASS}. En deçà, le menu s'aligne à droite plutôt que de déborder de l'écran.
+ * Sur un écran plus étroit que 24 rem + marges, le plafond du menu devient 100vw − 2 rem (voir
+ * {@link compactRoomNeeded}) : sinon tout déclencheur s'alignerait à droite sur un téléphone.
+ */
+const COMPACT_LIST_ROOM = 384;
+/** Marges latérales (px) de {@code calc(100vw-2rem)} dans {@link COMPACT_LIST_CLASS}. */
+const COMPACT_LIST_GUTTERS = 32;
+
+/** Largeur maximale réelle du menu compact (px) pour une fenêtre de cette largeur. */
+function compactRoomNeeded(viewportWidth: number): number {
+  return Math.min(COMPACT_LIST_ROOM, viewportWidth - COMPACT_LIST_GUTTERS);
+}
 
 type SelectProps = {
   label: string;
@@ -119,7 +135,7 @@ export function Select({
       const spaceBelow = window.innerHeight - rect.bottom;
       setUpward(spaceBelow < 240 && rect.top >= 240);
       // Menu compact plus large que son déclencheur : près du bord droit, il s'ouvre vers la gauche.
-      setAlignEnd(compact && window.innerWidth - rect.left < COMPACT_LIST_ROOM);
+      setAlignEnd(compact && window.innerWidth - rect.left < compactRoomNeeded(window.innerWidth));
     }
     if (searchable) setQuery("");
     setHighlight(index);

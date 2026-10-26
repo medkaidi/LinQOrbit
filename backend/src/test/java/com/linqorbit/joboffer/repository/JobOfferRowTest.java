@@ -22,4 +22,14 @@ class JobOfferRowTest {
 
         assertThat(components).doesNotContain("description", "skills", "languages", "degrees", "studyFields");
     }
+
+    /** Toute colonne ajoutée doit être utilisée par la carte : le type d'emploi (un UUID) l'est (T-110). */
+    @Test
+    void lAjoutDuTypeDEmploiEstAssumeCarLaCarteLAffiche() {
+        String[] components = Arrays.stream(JobOfferRow.class.getRecordComponents())
+                .map(RecordComponent::getName)
+                .toArray(String[]::new);
+
+        assertThat(components).contains("employmentTypeId");
+    }
 }

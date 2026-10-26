@@ -32,6 +32,7 @@ public record JobOfferRow(
         String country,
         UUID contractTypeId,
         UUID workModeId,
+        UUID employmentTypeId,
         BigDecimal salaryMin,
         BigDecimal salaryMax,
         String salaryCurrency,

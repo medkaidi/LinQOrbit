@@ -1020,9 +1020,11 @@ class AdminServiceTest {
         return new JobOfferRow(id, companyId, "Dev Java", status, "abc123", "dev-java",
                 LocalDateTime.of(2026, 10, 1, 8, 0), LocalDateTime.of(2026, 10, 1, 9, 0),
                 LocalDate.of(2026, 12, 31), LocalDateTime.of(2026, 10, 1, 10, 0), null, Seniority.MID,
-                "Paris", "FR", null, null, new BigDecimal("50000"), new BigDecimal("70000"), "EUR",
-                SalaryPeriod.YEAR);
+                "Paris", "FR", null, null, ROW_EMPLOYMENT_TYPE_ID, new BigDecimal("50000"),
+                new BigDecimal("70000"), "EUR", SalaryPeriod.YEAR);
     }
+
+    private static final UUID ROW_EMPLOYMENT_TYPE_ID = UUID.fromString("00000000-0000-0000-0000-0000000000e1");
 
     private static Page<JobOfferRow> rows(Pageable pageable, long total, JobOfferRow... rows) {
         return new PageImpl<>(List.of(rows), pageable, total);
@@ -1065,6 +1067,7 @@ class AdminServiceTest {
         assertThat(item.seniority()).isEqualTo("mid");
         assertThat(item.city()).isEqualTo("Paris");
         assertThat(item.country()).isEqualTo("FR");
+        assertThat(item.employmentTypeId()).isEqualTo(ROW_EMPLOYMENT_TYPE_ID);
         assertThat(item.salaryMin()).isEqualByComparingTo("50000");
         assertThat(item.salaryMax()).isEqualByComparingTo("70000");
         assertThat(item.salaryCurrency()).isEqualTo("EUR");
@@ -1100,13 +1103,13 @@ class AdminServiceTest {
         UUID offerId = UUID.randomUUID();
         JobOfferRow dirty = new JobOfferRow(offerId, UUID.randomUUID(), "Dev Java", JobOfferStatus.VALIDATED,
                 "abc123", "dev-java", null, LocalDateTime.of(2026, 10, 2, 8, 0), null, null,
-                LocalDateTime.of(2026, 10, 1, 8, 0), null, null, null, null, null, null, null, null, null);
+                LocalDateTime.of(2026, 10, 1, 8, 0), null, null, null, null, null, null, null, null, null, null);
         JobOfferRow published = new JobOfferRow(UUID.randomUUID(), UUID.randomUUID(), "Dev Java",
                 JobOfferStatus.PUBLISHED, "abc124", "dev-java", null, LocalDateTime.of(2026, 10, 2, 8, 0), null,
-                null, LocalDateTime.of(2026, 10, 1, 8, 0), null, null, null, null, null, null, null, null, null);
+                null, LocalDateTime.of(2026, 10, 1, 8, 0), null, null, null, null, null, null, null, null, null, null);
         JobOfferRow neverValidated = new JobOfferRow(UUID.randomUUID(), UUID.randomUUID(), "Dev Java",
                 JobOfferStatus.DRAFT, "abc125", "dev-java", null, LocalDateTime.of(2026, 10, 2, 8, 0), null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
         when(jobOfferSearchRepository.searchRows(any(JobOfferSearch.class), any(Pageable.class)))
                 .thenReturn(rows(PageRequest.of(0, 20), 3, dirty, published, neverValidated));
 

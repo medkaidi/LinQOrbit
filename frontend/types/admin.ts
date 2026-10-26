@@ -99,6 +99,7 @@ export type AdminJobOfferListItem = {
   country: string | null;
   contractTypeId: string | null;
   workModeId: string | null;
+  employmentTypeId: string | null;
   salaryMin: number | null;
   salaryMax: number | null;
   salaryCurrency: string | null;

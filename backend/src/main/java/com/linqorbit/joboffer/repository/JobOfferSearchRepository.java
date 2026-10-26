@@ -59,7 +59,7 @@ public class JobOfferSearchRepository {
                 "select new com.linqorbit.joboffer.repository.JobOfferRow(o.id, o.companyId, o.title, o.status,"
                         + " o.publicId, o.slug, o.createdAt, o.updatedAt, o.expiresAt, o.publishedAt,"
                         + " o.validatedAt, o.seniority, o.city, o.country, o.contractTypeId, o.workModeId,"
-                        + " o.salaryMin, o.salaryMax, o.salaryCurrency, o.salaryPeriod)"
+                        + " o.employmentTypeId, o.salaryMin, o.salaryMax, o.salaryCurrency, o.salaryPeriod)"
                         + " from JobOffer o" + where.clause() + " order by " + search.order().clause(),
                 JobOfferRow.class);
         where.params().forEach(pageQuery::setParameter);

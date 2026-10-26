@@ -8,7 +8,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -180,6 +182,30 @@ class AdminJobOfferFiltersIntegrationTest extends JobOfferSearchTestSupport {
         assertThat(first.get("status").asText()).isEqualTo("published");
         assertThat(first.get("seniority").asText()).isEqualTo("senior");
         assertThat(first.get("workModeId").asText()).isEqualTo(REMOTE.toString());
+    }
+
+    /**
+     * T-110 : la carte admin affiche le type d'emploi qu'on vient de filtrer. La colonne est facultative en
+     * base : renseignée → l'UUID du vocabulaire, absente → {@code null} explicite (la clé reste présente).
+     */
+    @Test
+    void laLignePorteLeTypeDEmploiRenseigneOuNullSelonLOffre() throws Exception {
+        jdbcTemplate.update("UPDATE job_offer SET employment_type_id = NULL WHERE title = ? AND company_id = ?",
+                data, companyA);
+
+        JsonNode page = list("q", token);
+
+        Map<String, JsonNode> byTitle = new HashMap<>();
+        page.get("items").forEach(item -> byTitle.put(item.get("title").asText(), item));
+        assertThat(byTitle.get(frontend).get("employmentTypeId").asText()).isEqualTo(PART_TIME.toString());
+        assertThat(byTitle.get(ops).get("employmentTypeId").asText()).isEqualTo(PART_TIME.toString());
+        assertThat(byTitle.get(backend).get("employmentTypeId").asText()).isEqualTo(FULL_TIME.toString());
+        JsonNode without = byTitle.get(data);
+        assertThat(without.has("employmentTypeId")).isTrue();
+        assertThat(without.get("employmentTypeId").isNull()).isTrue();
+        // Le filtre existant reste inchangé : il ne retient que le type demandé, jamais une ligne sans type.
+        assertThat(scoped("employmentTypeId", PART_TIME.toString())).containsExactly(ops, frontend);
+        assertThat(scoped("employmentTypeId", FULL_TIME.toString())).doesNotContain(data, ops, frontend);
     }
 
     // --- chaque filtre ---------------------------------------------------------------------------
