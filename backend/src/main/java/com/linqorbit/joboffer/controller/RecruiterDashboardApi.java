@@ -23,7 +23,7 @@ public interface RecruiterDashboardApi {
     @GetMapping
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Tableau de bord du recruteur",
-            description = "Offres par statut, offres ouvertes (publiées non expirées), offres proches de l'échéance (30 jours), candidatures à examiner / acceptées / refusées (brouillons et retraits exclus), candidats à inviter / invités (parmi les candidats ayant consenti, sur les offres ouvertes), recherches de candidats en échec et jusqu'à 5 offres demandant une action. Périmètre : les offres des sociétés dont le compte est membre. Un recruteur sans société obtient des zéros et une liste vide.")
+            description = "Offres par statut, offres ouvertes (publiées non expirées), offres proches de l'échéance (30 jours), candidatures à examiner / acceptées / refusées (brouillons et retraits exclus), candidats à inviter / invités (sur les offres ouvertes, parmi les candidats ayant consenti et encore en recherche active — un candidat passé not_looking sort des deux compteurs), recherches de candidats en échec et jusqu'à 5 offres demandant une action. Périmètre : les offres des sociétés dont le compte est membre. Un recruteur sans société obtient des zéros et une liste vide.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Chiffres renvoyés (éventuellement tous à zéro)"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),

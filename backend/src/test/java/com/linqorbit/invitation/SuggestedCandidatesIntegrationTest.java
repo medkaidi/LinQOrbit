@@ -134,6 +134,11 @@ class SuggestedCandidatesIntegrationTest extends EmbeddingIntegrationTestSupport
                 offer.creatorId(), suggestion.id());
     }
 
+    /** Statut de recherche du candidat (SMALLINT) ; {@code null} = jamais renseigné. */
+    private void setSearchStatus(Suggestion suggestion, Integer searchStatus) {
+        jdbc.update("UPDATE candidates SET search_status = ? WHERE id = ?", searchStatus, suggestion.candidateId());
+    }
+
     private String storedStatus(UUID suggestionId) {
         return jdbc.queryForObject("SELECT status FROM offer_candidate WHERE id = ?", String.class, suggestionId);
     }
@@ -287,6 +292,122 @@ class SuggestedCandidatesIntegrationTest extends EmbeddingIntegrationTestSupport
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isArray())
                 .andExpect(jsonPath("$.items").isEmpty());
+    }
+
+    // --- visibilité : consentement ET recherche active (D98) ------------------------------------------------
+
+    @Test
+    void aCandidateWhoIsNotLookingIsNoLongerListedWhileTheOthersStillAre() throws Exception {
+        Suggestion first = suggest(RICH_CONTENT);
+        Suggestion hidden = suggest(RICH_CONTENT);
+        Suggestion third = suggest(RICH_CONTENT);
+        mockMvc.perform(get(SUGGESTED, offerId).with(as(offer.creatorId())))
+                .andExpect(jsonPath("$.items.length()").value(3));
+
+        // Le candidat passe en « not_looking » après le calcul du Top N : l'instantané ne bouge pas,
+        // la lecture ne le montre plus (un candidat qui consent mais ne cherche plus n'est pas proposé).
+        setSearchStatus(hidden, 3);
+
+        mockMvc.perform(get(SUGGESTED, offerId).with(as(offer.creatorId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].id").value(first.id().toString()))
+                .andExpect(jsonPath("$.items[1].id").value(third.id().toString()));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM offer_candidate WHERE id = ?", Integer.class,
+                hidden.id())).isEqualTo(1);
+    }
+
+    @Test
+    void anUnsetOpenOrSelectiveSearchStatusStaysListedAndNotLookingComesBackWhenTheCandidateSearchesAgain()
+            throws Exception {
+        Suggestion unset = suggest(RICH_CONTENT);
+        Suggestion open = suggest(RICH_CONTENT);
+        Suggestion selective = suggest(RICH_CONTENT);
+        Suggestion notLooking = suggest(RICH_CONTENT);
+        setSearchStatus(unset, null);
+        setSearchStatus(open, 1);
+        setSearchStatus(selective, 2);
+        setSearchStatus(notLooking, 3);
+
+        mockMvc.perform(get(SUGGESTED, offerId).with(as(offer.creatorId())))
+                .andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.items[0].id").value(unset.id().toString()))
+                .andExpect(jsonPath("$.items[1].id").value(open.id().toString()))
+                .andExpect(jsonPath("$.items[2].id").value(selective.id().toString()));
+
+        // Réversible : la visibilité est le présent, jamais un état mémorisé.
+        setSearchStatus(notLooking, 2);
+        mockMvc.perform(get(SUGGESTED, offerId).with(as(offer.creatorId())))
+                .andExpect(jsonPath("$.items.length()").value(4))
+                .andExpect(jsonPath("$.items[3].id").value(notLooking.id().toString()));
+    }
+
+    @Test
+    void aNotLookingCandidateWithoutConsentIsAlsoHiddenAndTheQueryCountStaysConstant() throws Exception {
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.setStatisticsEnabled(true);
+        try {
+            suggest(RICH_CONTENT);
+            suggest(RICH_CONTENT);
+            list(offer.creatorId());
+            long withTwo = queriesForOneList(statistics);
+
+            for (int i = 0; i < 6; i++) {
+                setSearchStatus(suggest(RICH_CONTENT), i % 2 == 0 ? 3 : 2);
+            }
+            Suggestion withdrawn = suggest(RICH_CONTENT);
+            data.setConsent(withdrawn.candidateId(), false);
+            long withNine = queriesForOneList(statistics);
+
+            assertThat(withNine).isEqualTo(withTwo);
+        } finally {
+            statistics.setStatisticsEnabled(false);
+        }
+        mockMvc.perform(get(SUGGESTED, offerId).with(as(offer.creatorId())))
+                .andExpect(jsonPath("$.items.length()").value(5));
+    }
+
+    // --- repères de la carte : la fiche courante (D98) --------------------------------------------------------
+
+    @Test
+    void theCardCarriesTheCurrentFicheNotTheOneComparedByTheScreeningAndKeepsTheSnapshotRank()
+            throws Exception {
+        Suggestion suggestion = suggest("""
+                {"schemaVersion":"3","title":"Old Title","seniority":"junior","yearsOfExperience":1,
+                 "location":{"country":"Spain"},"skills":[{"name":"Cobol","category":"hard_skill","level":2}]}""");
+        UUID current = data.candidateFiche(suggestion.candidateId(), 2, """
+                {"schemaVersion":"3","title":"New Title","seniority":"senior","yearsOfExperience":9,
+                 "location":{"country":"France"},"skills":[{"name":"Rust","category":"hard_skill","level":5}]}""");
+
+        String body = list(offer.creatorId());
+
+        mockMvc.perform(get(SUGGESTED, offerId).with(as(offer.creatorId())))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(suggestion.id().toString()))
+                .andExpect(jsonPath("$.items[0].rank").value(1))
+                .andExpect(jsonPath("$.items[0].title").value("New Title"))
+                .andExpect(jsonPath("$.items[0].seniority").value("senior"))
+                .andExpect(jsonPath("$.items[0].yearsOfExperience").value(9))
+                .andExpect(jsonPath("$.items[0].country").value("France"))
+                .andExpect(jsonPath("$.items[0].skills[0].name").value("Rust"));
+        assertThat(body).doesNotContain("Old Title", "Cobol", "Spain");
+        // La traçabilité de la fiche comparée n'est pas touchée : seul l'affichage a changé de source.
+        assertThat(jdbc.queryForObject(
+                "SELECT candidate_normalized_profile_id FROM offer_candidate WHERE id = ?", UUID.class,
+                suggestion.id())).isEqualTo(suggestion.ficheId()).isNotEqualTo(current);
+    }
+
+    @Test
+    void theCardKeepsReadingTheCurrentFicheWhenTheNewestVersionIsStillBeingAnalysed() throws Exception {
+        Suggestion suggestion = suggest("""
+                {"schemaVersion":"3","title":"Stable Title","seniority":"mid"}""");
+        // Version 2 en cours d'analyse (contenu pas encore écrit) : la fiche courante reste la v1.
+        UUID analysing = data.candidateFiche(suggestion.candidateId(), 2, null);
+        assertThat(analysing).isNotNull();
+
+        mockMvc.perform(get(SUGGESTED, offerId).with(as(offer.creatorId())))
+                .andExpect(jsonPath("$.items[0].title").value("Stable Title"))
+                .andExpect(jsonPath("$.items[0].seniority").value("mid"));
     }
 
     @Test

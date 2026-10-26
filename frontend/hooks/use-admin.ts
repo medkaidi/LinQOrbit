@@ -51,6 +51,7 @@ export function useAdminDashboard() {
     queryKey: queryKeys.admin.dashboardFor(adminId ?? ""),
     queryFn: getAdminDashboard,
     staleTime: 30_000,
+    enabled: Boolean(adminId),
   });
 }
 

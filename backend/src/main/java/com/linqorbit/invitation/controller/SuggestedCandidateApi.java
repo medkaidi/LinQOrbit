@@ -23,13 +23,13 @@ import com.linqorbit.invitation.dto.SuggestedCandidatesResponse;
  * Contrat d'API des candidats suggérés d'une offre publiée et de leur
  * invitation (T-101, D85). Implémenté par {@link SuggestedCandidateController}.
  */
-@Tag(name = "Suggested candidates", description = "Candidats suggérés (ayant consenti à la visibilité de leur profil) par la recherche automatique d'une offre, profil complet et invitation à candidater")
+@Tag(name = "Suggested candidates", description = "Candidats suggérés (consentement et recherche active, D98) par la recherche automatique d'une offre, profil complet et invitation à candidater")
 public interface SuggestedCandidateApi {
 
     @GetMapping
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
     @Operation(summary = "Lister les candidats suggérés d'une offre",
-            description = "Membre de la company de l'offre. Résultat figé de la recherche faite à la publication, dans l'ordre du screening, en cartes (nom, poste, séniorité, années, pays, compétences) — uniquement les candidats qui ont consenti (relu à chaque lecture : un retrait masque aussitôt la carte), jamais d'identifiant de candidat, d'e-mail ni de téléphone. canInvite = droit de gestion D12. Statut d'une carte : suggested, invited ou applied (candidature existante).")
+            description = "Membre de la company de l'offre. Résultat figé de la recherche faite à la publication, dans l'ordre du screening, en cartes (nom, poste, séniorité, années, pays, compétences) — uniquement les candidats visibles (consentement en cours et recherche active, relus à chaque lecture : un retrait de consentement ou un passage en not_looking masque aussitôt la carte), jamais d'identifiant de candidat, d'e-mail ni de téléphone. canInvite = droit de gestion D12. Statut d'une carte : suggested, invited ou applied (candidature existante).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Liste renvoyée (éventuellement vide)"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
@@ -40,7 +40,7 @@ public interface SuggestedCandidateApi {
 
     @GetMapping("/{suggestionId}/profile")
     @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
-    @Operation(summary = "Lire le profil complet d'un candidat suggéré", description = "Membre de la company de l'offre. Profil professionnel complet et nom du candidat qui a consenti (T-102, D86) ; jamais d'e-mail ni de téléphone (le contact passe par l'invitation). canInvite = droit de gestion D12. Consentement retiré : 404.")
+    @Operation(summary = "Lire le profil complet d'un candidat suggéré", description = "Membre de la company de l'offre. Profil professionnel complet et nom du candidat visible (T-102, D86, D98 : consentement et recherche active) ; jamais d'e-mail ni de téléphone (le contact passe par l'invitation). canInvite = droit de gestion D12. Consentement retiré ou candidat passé en not_looking : 404.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Profil renvoyé"),
             @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),

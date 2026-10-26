@@ -175,6 +175,20 @@ export function CandidateDashboard() {
           onRetry={() => void profile.refetch()}
         />
       ) : null}
+      {consent.isError ? (
+        <LoadError
+          title="Could not load your visibility consent"
+          error={consent.error}
+          onRetry={() => void consent.refetch()}
+        />
+      ) : null}
+      {cvs.isError ? (
+        <LoadError
+          title="Could not load your CVs"
+          error={cvs.error}
+          onRetry={() => void cvs.refetch()}
+        />
+      ) : null}
 
       <section
         className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"

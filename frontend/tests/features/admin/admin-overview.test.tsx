@@ -49,7 +49,22 @@ describe("AdminOverview", () => {
   beforeEach(() => {
     dashboardMock.mockReset();
     dashboardMock.mockResolvedValue(populated);
-    useAuthStore.getState().clearAuth();
+    // Le hook est inactif sans admin (A6) : la vue se rend sous une session admin.
+    useAuthStore.getState().setAuth({
+      token: "jwt-token",
+      user: {
+        id: "admin-1",
+        email: "admin@linqorbit.local",
+        firstName: "Ada",
+        lastName: "Lovelace",
+        sex: null,
+        phone: null,
+        homeCountry: null,
+        currentCity: null,
+        currentCountry: null,
+        roles: [1],
+      },
+    });
   });
 
   it("introduces the page like the other admin views", async () => {

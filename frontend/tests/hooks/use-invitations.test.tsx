@@ -106,7 +106,7 @@ describe("useSuggestedCandidates", () => {
 });
 
 describe("useInviteCandidate", () => {
-  it("re-reads the suggestions of that offer after an invitation", async () => {
+  it("re-reads the suggestions of that offer and the recruiter dashboard after an invitation", async () => {
     const client = new QueryClient();
     const invalidate = vi.spyOn(client, "invalidateQueries");
     inviteMock.mockResolvedValue({
@@ -128,10 +128,13 @@ describe("useInviteCandidate", () => {
     });
 
     expect(inviteMock).toHaveBeenCalledWith("o1", "s1");
-    expect(invalidatedKeys(invalidate)).toEqual([queryKeys.recruiterSuggestions.offer("o1")]);
+    expect(invalidatedKeys(invalidate)).toEqual([
+      queryKeys.recruiterSuggestions.offer("o1"),
+      queryKeys.jobOffers.dashboard,
+    ]);
   });
 
-  it("re-reads the list and the profiles on a 404 too: the consent was withdrawn", async () => {
+  it("re-reads the list, the profiles and the dashboard on a 404 too: the consent was withdrawn", async () => {
     const client = new QueryClient();
     const invalidate = vi.spyOn(client, "invalidateQueries");
     inviteMock.mockRejectedValue(notFound());
@@ -141,7 +144,10 @@ describe("useInviteCandidate", () => {
       await result.current.mutateAsync("s1").catch(() => undefined);
     });
 
-    expect(invalidatedKeys(invalidate)).toEqual([queryKeys.recruiterSuggestions.offer("o1")]);
+    expect(invalidatedKeys(invalidate)).toEqual([
+      queryKeys.recruiterSuggestions.offer("o1"),
+      queryKeys.jobOffers.dashboard,
+    ]);
   });
 
   it("the offer family covers the list and every profile of that offer only", () => {
@@ -151,7 +157,7 @@ describe("useInviteCandidate", () => {
     expect(queryKeys.recruiterSuggestions.list("o2").slice(0, family.length)).not.toEqual(family);
   });
 
-  it("re-reads the list on a 409 too: the real state wins over the error", async () => {
+  it("re-reads the list and the dashboard on a 409 too: the real state wins over the error", async () => {
     const client = new QueryClient();
     const invalidate = vi.spyOn(client, "invalidateQueries");
     inviteMock.mockRejectedValue(conflict());
@@ -161,7 +167,10 @@ describe("useInviteCandidate", () => {
       await result.current.mutateAsync("s1").catch(() => undefined);
     });
 
-    expect(invalidatedKeys(invalidate)).toEqual([queryKeys.recruiterSuggestions.offer("o1")]);
+    expect(invalidatedKeys(invalidate)).toEqual([
+      queryKeys.recruiterSuggestions.offer("o1"),
+      queryKeys.jobOffers.dashboard,
+    ]);
   });
 
   it("leaves the list alone on any other failure", async () => {

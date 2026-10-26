@@ -429,6 +429,31 @@ class RecruiterDashboardIntegrationTest extends EmbeddingIntegrationTestSupport 
     }
 
     @Test
+    void aNotLookingCandidateIsNeitherToInviteNorInvitedAndTheCountsStayEqualToTheLists() throws Exception {
+        OfferFixture open = offer(PUBLISHED, null);
+        // Visibles : statut jamais renseigné (NULL), open_to_work (1), selective (2).
+        suggest(open, data.candidate(null), 1);
+        suggest(open, data.candidate(1), 1);
+        suggest(open, data.candidate(2), 1);
+        suggest(open, data.candidate(null), 2);
+        // Masqués : not_looking (3), suggéré comme invité — la visibilité est relue à chaque lecture.
+        suggest(open, data.candidate(3), 1);
+        suggest(open, data.candidate(3), 2);
+        UUID wentNotLooking = data.candidate(2);
+        suggest(open, wentNotLooking, 1);
+        jdbc.update("UPDATE candidates SET search_status = 3 WHERE id = ?", wentNotLooking);
+
+        JsonNode candidates = dashboard().get("candidates");
+
+        assertThat(candidates.get("toInvite").asLong()).isEqualTo(3);
+        assertThat(candidates.get("invited").asLong()).isEqualTo(1);
+        JsonNode cards = suggestions(open);
+        assertThat(cards.size()).isEqualTo(4);
+        assertThat(candidates.get("toInvite").asLong()).isEqualTo(cardsWithStatus(cards, "suggested"));
+        assertThat(candidates.get("invited").asLong()).isEqualTo(cardsWithStatus(cards, "invited"));
+    }
+
+    @Test
     void aSuggestedCandidateWhoAppliedIsNotToInviteButAnInvitedOneStaysInvited() throws Exception {
         OfferFixture open = offer(PUBLISHED, null);
         UUID appliedSuggested = data.candidate(null);

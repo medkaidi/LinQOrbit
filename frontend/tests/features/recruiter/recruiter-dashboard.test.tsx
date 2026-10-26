@@ -267,7 +267,7 @@ describe("RecruiterDashboard", () => {
   });
 
   describe("account without recruiter profile or company", () => {
-    it("renders nothing and never calls the dashboard when the account has no recruiter profile", async () => {
+    it("renders nothing and never calls the dashboard when the profile is missing (404) although companies exist", async () => {
       profileMock.mockRejectedValue(NOT_FOUND);
 
       const { container } = renderDashboard();
@@ -276,6 +276,21 @@ describe("RecruiterDashboard", () => {
       await waitFor(() => expect(companiesMock).toHaveBeenCalled());
       expect(container).toBeEmptyDOMElement();
       expect(dashboardMock).not.toHaveBeenCalled();
+    });
+
+    it("renders nothing, no alert and no Retry when the account has no recruiter profile at all (profile and companies both 404)", async () => {
+      profileMock.mockRejectedValue(NOT_FOUND);
+      companiesMock.mockRejectedValue(NOT_FOUND);
+
+      const { container } = renderDashboard();
+
+      await waitFor(() => expect(profileMock).toHaveBeenCalled());
+      await waitFor(() => expect(companiesMock).toHaveBeenCalled());
+      expect(container).toBeEmptyDOMElement();
+      expect(dashboardMock).not.toHaveBeenCalled();
+      expect(screen.queryByText("Could not load your recruiter account")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
     it("renders nothing and never calls the dashboard when the recruiter has no company", async () => {
@@ -299,6 +314,18 @@ describe("RecruiterDashboard", () => {
       expect(screen.queryByRole("link")).not.toBeInTheDocument();
       expect(screen.queryByRole("region")).not.toBeInTheDocument();
       expect(screen.queryByText(/company|set up|get started|welcome/i)).not.toBeInTheDocument();
+    });
+
+    it("still reports a companies read that fails for another reason than a 404", async () => {
+      companiesMock.mockRejectedValue(
+        Object.assign(new Error("Server error"), { isAxiosError: true, response: { status: 500 } }),
+      );
+
+      renderDashboard();
+
+      expect(await screen.findByText("Could not load your recruiter account")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+      expect(dashboardMock).not.toHaveBeenCalled();
     });
 
     it("shows nothing while the profile is still loading, never zeros", () => {

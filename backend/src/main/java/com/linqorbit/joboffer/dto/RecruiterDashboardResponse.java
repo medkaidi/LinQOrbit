@@ -39,7 +39,8 @@ public record RecruiterDashboardResponse(
     }
 
     /**
-     * Sur les offres ouvertes, parmi les candidats ayant consenti : {@code toInvite} = suggérés, pas encore
+     * Sur les offres ouvertes, parmi les candidats ayant consenti et encore en recherche active (D98) : un
+     * candidat passé {@code not_looking} sort des deux compteurs. {@code toInvite} = suggérés, pas encore
      * invités ni candidats ; {@code invited} = invités ; {@code searchesFailed} = offres dont la dernière
      * recherche de candidats a échoué.
      */

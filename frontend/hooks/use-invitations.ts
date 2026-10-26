@@ -50,7 +50,10 @@ export function useSuggestedCandidateProfile(offerId: string, suggestionId: stri
 export function useInviteCandidate(offerId: string) {
   const queryClient = useQueryClient();
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: queryKeys.recruiterSuggestions.offer(offerId) });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.recruiterSuggestions.offer(offerId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.jobOffers.dashboard }),
+    ]);
   return useMutation({
     mutationFn: (suggestionId: string) => inviteSuggestedCandidate(offerId, suggestionId),
     onSuccess: refresh,

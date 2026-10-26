@@ -75,6 +75,7 @@ export function useDecideRecruiterApplication(offerId: string, applicationId: st
         queryClient.invalidateQueries({
           queryKey: queryKeys.recruiterApplications.detail(offerId, applicationId),
         }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.jobOffers.dashboard }),
       ]),
     onError: (error) => {
       // 409 = course avec un autre onglet : l'état réel se relit.

@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.linqorbit.application.entity.ApplicationStatus;
 import com.linqorbit.application.repository.ApplicationRepository;
+import com.linqorbit.candidate.entity.SearchStatus;
 import com.linqorbit.company.entity.CompanyMember;
 import com.linqorbit.company.repository.CompanyMemberRepository;
 import com.linqorbit.invitation.entity.OfferCandidateStatus;
@@ -134,7 +135,7 @@ public class RecruiterDashboardService {
     private CandidateCounts candidateCounts(List<UUID> companyIds, LocalDate today) {
         Object[] row = offerCandidateRepository.countToInviteAndInvited(companyIds,
                 (short) OfferCandidateStatus.SUGGESTED.getCode(), (short) OfferCandidateStatus.INVITED.getCode(),
-                (short) JobOfferStatus.PUBLISHED.getCode(), today).get(0);
+                (short) JobOfferStatus.PUBLISHED.getCode(), today, SearchStatus.NOT_LOOKING.getCode()).get(0);
         long searchesFailed = screeningJobRepository.countLatestFailedOnOpenOffers(companyIds,
                 JobOfferStatus.PUBLISHED, today, ScreeningJobStatus.FAILED, ScreeningJobStatus.SUPERSEDED);
         return new CandidateCounts(((Number) row[0]).longValue(), ((Number) row[1]).longValue(), searchesFailed);

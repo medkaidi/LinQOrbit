@@ -302,5 +302,45 @@ describe("CandidateDashboard", () => {
       expect(card("Profile").getByText("Unavailable")).toBeInTheDocument();
       expect(await card("Invitations").findByText("2")).toBeInTheDocument();
     });
+
+    it("flags a visibility consent that cannot be read, offers a Retry and keeps the other sources", async () => {
+      consentMock.mockRejectedValueOnce(new Error("boom")).mockResolvedValue({
+        consented: true,
+        consentedAt: "2026-10-01T10:00:00",
+      });
+
+      renderDashboard();
+
+      expect(await screen.findByText("Could not load your visibility consent")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+      // Les autres sources restent rendues : bandeau Profile et cartes d'activité.
+      expect(await card("Profile").findByText("82%")).toBeInTheDocument();
+      expect(await card("Applications").findByText("9")).toBeInTheDocument();
+      expect(screen.queryByText("Could not load your CVs")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+      await waitFor(() =>
+        expect(screen.queryByText("Could not load your visibility consent")).not.toBeInTheDocument(),
+      );
+      expect(consentMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("flags a CV list that cannot be read, offers a Retry and keeps the other sources", async () => {
+      cvsMock.mockRejectedValueOnce(new Error("boom")).mockResolvedValue([buildCvAttachment()]);
+
+      renderDashboard();
+
+      expect(await screen.findByText("Could not load your CVs")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+      expect(await card("Profile").findByText("82%")).toBeInTheDocument();
+      expect(await card("Applications").findByText("9")).toBeInTheDocument();
+      expect(screen.queryByText("Could not load your visibility consent")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+      await waitFor(() => expect(screen.queryByText("Could not load your CVs")).not.toBeInTheDocument());
+      expect(cvsMock).toHaveBeenCalledTimes(2);
+    });
   });
 });

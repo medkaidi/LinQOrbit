@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.linqorbit.application.repository.ApplicationRepository;
+import com.linqorbit.candidate.entity.SearchStatus;
 import com.linqorbit.invitation.dto.SuggestedCandidateCard;
 import com.linqorbit.invitation.entity.OfferCandidate;
 import com.linqorbit.invitation.entity.OfferCandidateStatus;
@@ -29,7 +30,10 @@ import lombok.extern.slf4j.Slf4j;
  * celui-ci ne démarre que lorsque le candidat candidate lui-même (D58/D59).
  * Passage {@code SUGGESTED → INVITED} par UPDATE conditionnel : deux
  * recruteurs qui invitent en même temps n'ont qu'un vainqueur, l'autre reçoit
- * un 409 (jamais une 500).</p>
+ * un 409 (jamais une 500). La <b>visibilité du candidat</b> (consentement et
+ * recherche active, D98) est contrôlée dans ce même UPDATE : une invitation
+ * n'est jamais écrite pour une personne déjà invisible, et un CAS refusé est
+ * ensuite qualifié par sa vraie cause (404 si plus visible, 409 sinon).</p>
  */
 @Slf4j
 @Service
@@ -57,13 +61,29 @@ public class InvitationService {
         }
         LocalDateTime now = LocalDateTime.now();
         int invited = offerCandidateRepository.casInvite(suggestionId, offerId, userId,
-                OfferCandidateStatus.SUGGESTED, OfferCandidateStatus.INVITED, now);
+                (short) OfferCandidateStatus.SUGGESTED.getCode(), (short) OfferCandidateStatus.INVITED.getCode(),
+                now, SearchStatus.NOT_LOOKING.getCode());
         if (invited != 1) {
-            throw alreadyInvited(offerId, suggestionId);
+            throw refusedInvitation(userId, offerId, suggestionId);
         }
         log.info("Candidate invited : offerId={}, suggestionId={}, invitedBy={}", offerId, suggestionId, userId);
         row.setStatus(OfferCandidateStatus.INVITED);
         return suggestedCandidateService.card(row, false);
+    }
+
+    /**
+     * Cause réelle d'un CAS qui n'a rien écrit, dans l'ordre : ligne disparue (404), candidat devenu
+     * invisible entre la relecture et l'écriture (404 identique à une suggestion inconnue — jamais le
+     * 409 « already invited »), déjà invité ou autre état concurrent (409).
+     */
+    private InvalidInvitationException refusedInvitation(UUID userId, UUID offerId, UUID suggestionId) {
+        OfferCandidate current = offerCandidateRepository.findByIdAndJobOfferId(suggestionId, offerId).orElse(null);
+        if (current == null || !suggestedCandidateService.isVisible(current)) {
+            log.warn("Invitation rejected : suggestion gone or candidate no longer visible, offerId={}, "
+                    + "suggestionId={}, userId={}", offerId, suggestionId, userId);
+            return new InvalidInvitationException(HttpStatus.NOT_FOUND, SuggestedCandidateService.NOT_FOUND);
+        }
+        return alreadyInvited(offerId, suggestionId);
     }
 
     private static InvalidInvitationException alreadyInvited(UUID offerId, UUID suggestionId) {

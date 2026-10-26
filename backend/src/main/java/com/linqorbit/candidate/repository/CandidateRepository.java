@@ -51,10 +51,26 @@ public interface CandidateRepository extends JpaRepository<Candidate, UUID> {
     int updateRecruiterVisibilityConsent(@Param("candidateId") UUID candidateId,
             @Param("consentedAt") LocalDateTime consentedAt, @Param("version") Short version);
 
-    /** Consentement de visibilité recruteur en cours (T-102, D86) : relu à chaque lecture, jamais mis en cache. */
-    boolean existsByIdAndRecruiterVisibilityConsentAtIsNotNull(UUID id);
+    /**
+     * Parmi ces candidats, ceux qu'un recruteur a le droit de voir (T-101/T-102, D85/D86/D98) :
+     * <b>consentement en cours ET recherche active</b> — le statut {@code excludedSearchStatus}
+     * ({@code not_looking}) masque, un statut jamais renseigné ({@code NULL}) reste visible,
+     * comme au screening. Règle unique relue à chaque lecture, jamais mise en cache : le Top N est
+     * un instantané, la visibilité est le présent. Les ids sont non vides (l'appelant garde le cas).
+     */
+    @Query(value = """
+            select c.id from candidates c
+            where c.id in :ids
+              and c.recruiter_visibility_consent_at is not null
+              and c.search_status is distinct from :excludedSearchStatus""", nativeQuery = true)
+    List<UUID> findIdsVisibleToRecruiters(@Param("ids") Collection<UUID> ids,
+            @Param("excludedSearchStatus") int excludedSearchStatus);
 
-    /** Parmi ces candidats, ceux qui ont consenti (lecture des listes de suggestions). */
-    @Query("select c.id from Candidate c where c.id in :ids and c.recruiterVisibilityConsentAt is not null")
-    List<UUID> findIdsWithRecruiterVisibilityConsent(@Param("ids") Collection<UUID> ids);
+    /** Même règle de visibilité que {@link #findIdsVisibleToRecruiters}, pour un seul candidat. */
+    @Query(value = """
+            select exists (select 1 from candidates c
+                           where c.id = :id
+                             and c.recruiter_visibility_consent_at is not null
+                             and c.search_status is distinct from :excludedSearchStatus)""", nativeQuery = true)
+    boolean existsVisibleToRecruiters(@Param("id") UUID id, @Param("excludedSearchStatus") int excludedSearchStatus);
 }

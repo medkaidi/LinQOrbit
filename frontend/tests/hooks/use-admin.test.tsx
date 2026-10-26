@@ -210,6 +210,19 @@ describe("admin dashboard cache", () => {
     expect(client.getQueryData(queryKeys.admin.dashboardFor(adminId))).toBe(dashboard);
   });
 
+  it("creates no request without an admin session", async () => {
+    const client = newQueryClient();
+    useAuthStore.getState().clearAuth();
+
+    const { result } = renderHook(() => useAdminDashboard(), { wrapper: wrapper(client) });
+
+    // L'entrée de cache d'une requête inactive existe, mais elle ne part jamais : aucun appel, aucune donnée.
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(getAdminDashboard).not.toHaveBeenCalled();
+    expect(client.getQueryData(queryKeys.admin.dashboardFor(""))).toBeUndefined();
+    expect(client.getQueryState(queryKeys.admin.dashboardFor(""))?.dataUpdateCount).toBe(0);
+  });
+
   it("re-reads the figures after an account status change", async () => {
     const client = newQueryClient();
     const mine = seedDashboards(client);

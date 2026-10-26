@@ -35,15 +35,25 @@ public interface OfferCandidateRepository extends JpaRepository<OfferCandidate, 
 
     /**
      * SUGGESTED → INVITED, atomique : un seul vainqueur si deux recruteurs
-     * invitent en même temps (le perdant obtient 0 et reçoit un 409).
+     * invitent en même temps (le perdant obtient 0 et reçoit un 409). La
+     * <b>visibilité du candidat</b> (consentement en cours et recherche active,
+     * D98) est contrôlée dans le même {@code UPDATE} : une invitation n'est jamais
+     * écrite pour une personne déjà invisible au moment de l'écriture (0 ligne,
+     * à l'appelant de distinguer la cause). Un retrait qui se valide pendant
+     * l'instruction est simplement ordonné après l'invitation.
      */
     @Modifying(clearAutomatically = true)
-    @Query("""
-            update OfferCandidate oc
-            set oc.status = :target, oc.invitedByUserId = :userId, oc.invitedAt = :now
-            where oc.id = :id and oc.jobOfferId = :offerId and oc.status = :expected""")
-    int casInvite(UUID id, UUID offerId, UUID userId, OfferCandidateStatus expected, OfferCandidateStatus target,
-            LocalDateTime now);
+    @Query(value = """
+            UPDATE offer_candidate oc
+            SET status = :target, invited_by_user_id = :userId, invited_at = :now
+            WHERE oc.id = :id AND oc.job_offer_id = :offerId AND oc.status = :expected
+              AND EXISTS (SELECT 1 FROM candidates c
+                          WHERE c.id = oc.candidate_id
+                            AND c.recruiter_visibility_consent_at IS NOT NULL
+                            AND c.search_status IS DISTINCT FROM :excludedSearchStatus)""", nativeQuery = true)
+    int casInvite(@Param("id") UUID id, @Param("offerId") UUID offerId, @Param("userId") UUID userId,
+            @Param("expected") short expected, @Param("target") short target, @Param("now") LocalDateTime now,
+            @Param("excludedSearchStatus") int excludedSearchStatus);
 
     /** Parmi ces candidats, ceux qui ont déjà une candidature (tout statut) à l'offre. */
     @Query(value = """
@@ -85,7 +95,8 @@ public interface OfferCandidateRepository extends JpaRepository<OfferCandidate, 
 
     /**
      * Tableau de bord recruteur, sur les offres ouvertes de ces sociétés et parmi les candidats
-     * ayant consenti (relu à chaque lecture, comme la liste des suggestions) : une ligne
+     * visibles — consentement en cours ET recherche active, relus à chaque lecture comme la liste
+     * des suggestions (D98) : une ligne
      * {@code [à inviter, invités]}. À inviter = suggérés qui n'ont pas candidaté (le
      * {@code canInvite} de la liste) ; invités = lignes INVITED, candidature ou non.
      */
@@ -102,8 +113,10 @@ public interface OfferCandidateRepository extends JpaRepository<OfferCandidate, 
               AND o.status = :published
               AND (o.expires_at IS NULL OR o.expires_at >= :today)
               AND c.recruiter_visibility_consent_at IS NOT NULL
+              AND c.search_status IS DISTINCT FROM :excludedSearchStatus
             """, nativeQuery = true)
     List<Object[]> countToInviteAndInvited(@Param("companyIds") Collection<UUID> companyIds,
             @Param("suggested") short suggested, @Param("invited") short invited,
-            @Param("published") short published, @Param("today") LocalDate today);
+            @Param("published") short published, @Param("today") LocalDate today,
+            @Param("excludedSearchStatus") int excludedSearchStatus);
 }

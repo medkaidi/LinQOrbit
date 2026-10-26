@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -16,17 +17,24 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import com.linqorbit.candidate.entity.SearchStatus;
 import com.linqorbit.embedding.EmbeddingIntegrationTestSupport;
 import com.linqorbit.embedding.EmbeddingTestData;
 import com.linqorbit.embedding.EmbeddingTestData.OfferFixture;
+import com.linqorbit.invitation.entity.OfferCandidateStatus;
+import com.linqorbit.invitation.repository.OfferCandidateRepository;
 
 /**
  * Profil complet d'un candidat suggéré et effet du retrait de consentement
  * (T-102, D86) sur PostgreSQL réel : le détail porte nom et profil, jamais
  * e-mail ni téléphone ; un retrait après le calcul du Top N masque aussitôt la
  * carte, le détail et l'invitation sans toucher à l'instantané ; un candidat
- * déjà invité garde son invitation côté candidat.
+ * déjà invité garde son invitation côté candidat. Un candidat {@code not_looking}
+ * est masqué de la même façon (D98), la carte du détail vient de la fiche
+ * courante, et l'écriture de l'invitation contrôle elle-même la visibilité.
  */
 class SuggestedCandidateProfileIntegrationTest extends EmbeddingIntegrationTestSupport {
 
@@ -42,6 +50,12 @@ class SuggestedCandidateProfileIntegrationTest extends EmbeddingIntegrationTestS
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private OfferCandidateRepository offerCandidateRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private EmbeddingTestData data;
     private OfferFixture offer;
@@ -212,6 +226,98 @@ class SuggestedCandidateProfileIntegrationTest extends EmbeddingIntegrationTestS
                 .andExpect(status().isNotFound());
         assertThat(jdbc.queryForObject("SELECT status FROM offer_candidate WHERE id = ?", String.class,
                 suggestionId)).isEqualTo("1");
+    }
+
+    // --- recherche active et fiche courante (D98) -----------------------------------------------
+
+    @Test
+    void aNotLookingCandidateMakesTheDetailAndTheInvitationNotFoundExactlyLikeAnUnknownSuggestion()
+            throws Exception {
+        jdbc.update("UPDATE candidates SET search_status = ? WHERE id = ?", SearchStatus.NOT_LOOKING.getCode(),
+                candidateId);
+
+        mockMvc.perform(get(PROFILE, offerId, suggestionId).with(as(offer.creatorId())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Suggested candidate not found."));
+        mockMvc.perform(get(PROFILE, offerId, UUID.randomUUID()).with(as(offer.creatorId())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Suggested candidate not found."));
+        mockMvc.perform(post(INVITE, offerId, suggestionId).with(as(offer.creatorId())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Suggested candidate not found."));
+        mockMvc.perform(post(INVITE, offerId, UUID.randomUUID()).with(as(offer.creatorId())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Suggested candidate not found."));
+        assertThat(storedStatus()).isEqualTo("1");
+        assertThat(jdbc.queryForObject("SELECT invited_by_user_id FROM offer_candidate WHERE id = ?", UUID.class,
+                suggestionId)).isNull();
+
+        // Un candidat qui cherche de nouveau redevient visible, tel quel.
+        jdbc.update("UPDATE candidates SET search_status = ? WHERE id = ?", SearchStatus.SELECTIVE.getCode(),
+                candidateId);
+        mockMvc.perform(get(PROFILE, offerId, suggestionId).with(as(offer.creatorId())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void theCardOfTheDetailCarriesTheCurrentFicheNotTheOneComparedByTheScreening() throws Exception {
+        data.candidateFiche(candidateId, 2, """
+                {"schemaVersion":"3","title":"Principal Engineer","seniority":"lead","yearsOfExperience":12,
+                 "location":{"country":"Germany"},"skills":[{"name":"Rust","category":"hard_skill","level":5}]}""");
+
+        mockMvc.perform(get(PROFILE, offerId, suggestionId).with(as(offer.creatorId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.card.id").value(suggestionId.toString()))
+                .andExpect(jsonPath("$.card.rank").value(1))
+                .andExpect(jsonPath("$.card.title").value("Principal Engineer"))
+                .andExpect(jsonPath("$.card.seniority").value("lead"))
+                .andExpect(jsonPath("$.card.yearsOfExperience").value(12))
+                .andExpect(jsonPath("$.card.country").value("Germany"))
+                .andExpect(jsonPath("$.card.skills[0].name").value("Rust"));
+        // L'invitation renvoie la même carte que le détail : une seule source, la fiche courante.
+        mockMvc.perform(post(INVITE, offerId, suggestionId).with(as(offer.creatorId())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.title").value("Principal Engineer"))
+                .andExpect(jsonPath("$.status").value("invited"));
+    }
+
+    @Test
+    void theInvitationWriteItselfRefusesACandidateWhoIsNoLongerVisible() {
+        UUID inviter = offer.creatorId();
+
+        // Consentement retiré : le CAS n'écrit rien, la ligne reste SUGGESTED.
+        data.setConsent(candidateId, false);
+        assertThat(cas(inviter)).isZero();
+        assertThat(storedStatus()).isEqualTo("1");
+
+        // Consentement rendu mais candidat not_looking : refusé aussi.
+        data.setConsent(candidateId, true);
+        jdbc.update("UPDATE candidates SET search_status = 3 WHERE id = ?", candidateId);
+        assertThat(cas(inviter)).isZero();
+        assertThat(storedStatus()).isEqualTo("1");
+        assertThat(jdbc.queryForObject("SELECT invited_at IS NULL FROM offer_candidate WHERE id = ?",
+                Boolean.class, suggestionId)).isTrue();
+
+        // Contrôle positif : statut jamais renseigné (NULL) + consentement -> exactement une ligne écrite.
+        jdbc.update("UPDATE candidates SET search_status = NULL WHERE id = ?", candidateId);
+        assertThat(cas(inviter)).isEqualTo(1);
+        assertThat(storedStatus()).isEqualTo("2");
+        assertThat(jdbc.queryForObject("SELECT invited_by_user_id FROM offer_candidate WHERE id = ?", UUID.class,
+                suggestionId)).isEqualTo(inviter);
+
+        // Déjà invité : le CAS (attend SUGGESTED) n'écrit plus rien, même pour un candidat visible.
+        assertThat(cas(inviter)).isZero();
+    }
+
+    private int cas(UUID invitedBy) {
+        return new TransactionTemplate(transactionManager).execute(status -> offerCandidateRepository.casInvite(
+                suggestionId, offerId, invitedBy, (short) OfferCandidateStatus.SUGGESTED.getCode(),
+                (short) OfferCandidateStatus.INVITED.getCode(), LocalDateTime.now(),
+                SearchStatus.NOT_LOOKING.getCode()));
+    }
+
+    private String storedStatus() {
+        return jdbc.queryForObject("SELECT status FROM offer_candidate WHERE id = ?", String.class, suggestionId);
     }
 
     @Test
