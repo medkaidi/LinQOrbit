@@ -82,6 +82,26 @@ describe("StatusBreakdownCard", () => {
       expect(screen.queryByTestId("breakdown-track")).not.toBeInTheDocument();
     });
 
+    it("draws nothing when only some rows carry a share of the total", () => {
+      const rows = [
+        { id: "a", pill: <span>Draft</span>, value: "1", amount: 1, barClass: "bg-a" },
+        { id: "b", pill: <span>Published</span>, value: "—", amount: undefined, barClass: undefined },
+      ];
+      render(<StatusBreakdownCard title="Offers by status" rows={rows} />);
+
+      expect(screen.queryByTestId("breakdown-track")).not.toBeInTheDocument();
+    });
+
+    it("draws nothing when a row carries an amount but no colour", () => {
+      const rows = [
+        { id: "a", pill: <span>Draft</span>, value: "1", amount: 1, barClass: "bg-a" },
+        { id: "b", pill: <span>Published</span>, value: "2", amount: 2, barClass: undefined },
+      ];
+      render(<StatusBreakdownCard title="Offers by status" rows={rows} />);
+
+      expect(screen.queryByTestId("breakdown-track")).not.toBeInTheDocument();
+    });
+
     it("keeps the bars decorative: the figure stays the accessible value", () => {
       render(<StatusBreakdownCard title="Offers by status" rows={charted} />);
 

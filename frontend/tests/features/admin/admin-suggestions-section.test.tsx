@@ -48,6 +48,16 @@ const suggestion: AdminSkillSuggestion = {
   createdAt: "2026-10-02T10:00:00",
 };
 
+const otherSuggestion: AdminSkillSuggestion = {
+  id: "s2",
+  name: "Elixir",
+  candidateId: "user-3",
+  candidateFirstName: "Grace",
+  candidateLastName: "Hopper",
+  candidateEmail: "grace@example.com",
+  createdAt: "2026-10-03T10:00:00",
+};
+
 const catalogSkill: SkillReference = {
   id: "skill-miro",
   name: "Miro",
@@ -95,6 +105,17 @@ describe("AdminSuggestionsView", () => {
     expect(screen.getByText(/by Ada Lovelace · ada@example.com/)).toBeInTheDocument();
     expect(screen.getByText("2026-10-02")).toBeInTheDocument();
     expect(screen.getByText("1 pending")).toBeInTheDocument();
+  });
+
+  it("lists the suggestions in a real list, so assistive technology announces them as items", async () => {
+    mockedListSkillSuggestions.mockResolvedValue([suggestion]);
+
+    renderView();
+
+    await screen.findByText("Rust");
+    const list = screen.getByRole("list");
+    expect(within(list).getByText("Rust")).toBeInTheDocument();
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
   });
 
   it("falls back to an unknown author when the candidate has no name or email", async () => {
@@ -175,6 +196,26 @@ describe("AdminSuggestionsView", () => {
 
     expect(await screen.findByText("Unable to reject the suggestion")).toBeInTheDocument();
     expect(screen.getByText("Rust")).toBeInTheDocument();
+  });
+
+  it("marks the row being rejected as busy and holds the other rows", async () => {
+    mockedListSkillSuggestions.mockResolvedValue([suggestion, otherSuggestion]);
+    mockedRejectSkillSuggestion.mockReturnValue(new Promise(() => {}));
+
+    renderView();
+
+    const list = await screen.findByRole("list");
+    fireEvent.click(within(list).getAllByRole("button", { name: "Reject" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "Reject this suggestion?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reject" }));
+
+    await waitFor(() => {
+      const buttons = within(screen.getByRole("list")).getAllByRole("button", { name: "Reject" });
+      // Seul le rejet en cours est signalé ; les autres lignes attendent.
+      expect(buttons[0]).toHaveAttribute("aria-busy", "true");
+      expect(buttons[1]).toBeDisabled();
+      expect(buttons[1]).not.toHaveAttribute("aria-busy");
+    });
   });
 
   it("opens the review dialog and approves with a chosen category", async () => {

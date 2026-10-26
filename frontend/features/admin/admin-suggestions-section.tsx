@@ -58,50 +58,61 @@ function SuggestionsSection() {
             No suggestions yet — proposed skills appear here for review.
           </p>
         )}
-        {data?.map((suggestion) => {
-          const author = [
-            suggestion.candidateFirstName,
-            suggestion.candidateLastName
-          ]
-            .filter(Boolean)
-            .join(" ");
-          return (
-            <li
-              key={suggestion.id}
-              className={`${ITEM_CARD_CLASS} flex flex-wrap items-center justify-between gap-4`}
-            >
-              <div className="min-w-0">
-                <p className="text-body-md font-body-md text-text-primary font-semibold truncate">
-                  {suggestion.name}
-                </p>
-                <p className={`${MUTED_TEXT_CLASS} truncate`}>
-                  by {author || "Unknown candidate"}
-                  {suggestion.candidateEmail
-                    ? ` · ${suggestion.candidateEmail}`
-                    : ""}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className={`${MUTED_TEXT_CLASS}`}>
-                  {suggestion.createdAt.slice(0, 10)}
-                </span>
-                <Button
-                  variant="outline-sm"
-                  disabled={rejectMutation.isPending}
-                  onClick={() => setReviewing(suggestion)}
+        {data && data.length > 0 ? (
+          // Une vraie liste : les lignes sont des `li` dans un `ul`, jamais des `li` orphelins
+          // dans un `div` (la sémantique de liste se perd sinon).
+          <ul className="list-none flex flex-col gap-3">
+            {data.map((suggestion) => {
+              const author = [
+                suggestion.candidateFirstName,
+                suggestion.candidateLastName
+              ]
+                .filter(Boolean)
+                .join(" ");
+              // Un seul rejet à la fois : seule la ligne concernée est occupée, les autres attendent.
+              const rejecting =
+                rejectMutation.isPending && rejectMutation.variables === suggestion.id;
+              return (
+                <li
+                  key={suggestion.id}
+                  className={`${ITEM_CARD_CLASS} flex flex-wrap items-center justify-between gap-4`}
                 >
-                  Review
-                </Button>
-                <Button
-                  variant="outline-sm"
-                  onClick={() => setRejectTarget(suggestion)}
-                >
-                  Reject
-                </Button>
-              </div>
-            </li>
-          );
-        })}
+                  <div className="min-w-0">
+                    <p className="text-body-md font-body-md text-text-primary font-semibold truncate">
+                      {suggestion.name}
+                    </p>
+                    <p className={`${MUTED_TEXT_CLASS} truncate`}>
+                      by {author || "Unknown candidate"}
+                      {suggestion.candidateEmail
+                        ? ` · ${suggestion.candidateEmail}`
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className={`${MUTED_TEXT_CLASS}`}>
+                      {suggestion.createdAt.slice(0, 10)}
+                    </span>
+                    <Button
+                      variant="outline-sm"
+                      disabled={rejectMutation.isPending}
+                      onClick={() => setReviewing(suggestion)}
+                    >
+                      Review
+                    </Button>
+                    <Button
+                      variant="outline-sm"
+                      busy={rejecting}
+                      disabled={rejectMutation.isPending}
+                      onClick={() => setRejectTarget(suggestion)}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
       </div>
       {reviewing && (
         <SuggestionReviewDialog

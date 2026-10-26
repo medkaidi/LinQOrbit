@@ -11,7 +11,7 @@ import lombok.Getter;
  * clarifications et de la contestation (T-62/T-63) passe par l'objet
  * {@code assessment} du contexte ({@code matched}, {@code assessmentOpen},
  * {@code assessmentFinished}, {@code contested}), dont le frontend dérive ses quatre étapes visuelles
- * (Recruiter questions, AI clarifications, Candidate review, Summary &amp; apply).
+ * (Recruiter questions, Dynamic Candidate Assessment, Candidate review, Summary &amp; apply).
  * Une offre sans aucune question ouvre directement l'étape {@code MATCHING}.
  */
 @Getter
