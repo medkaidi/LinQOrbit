@@ -24,8 +24,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Vocabulaires d'offre seedés en V12 (D14) : listes complètes sous jeton,
- * 401 sans jeton.
+ * Vocabulaires d'offre seedés en V12 (D14) : listes complètes, en lecture seule.
+ * Publics depuis D100/T-113 (le board public `/public/jobs` doit proposer les
+ * mêmes filtres que le board authentifié, sans compte) ; le reste de la racine
+ * `job-offers` reste authentifié (TD-037).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -95,8 +97,23 @@ class JobOfferReferenceIntegrationTest {
     }
 
     @Test
-    void referencesSontInaccessiblesSansJeton() throws Exception {
-        mockMvc.perform(get(REFERENCE_PATH + "/contract-types"))
+    void referencesSontLisiblesSansJeton() throws Exception {
+        // D100/T-113 : le board public doit proposer les mêmes filtres que le
+        // board authentifié — le vocabulaire est une liste fermée, déjà visible
+        // dans chaque offre publique.
+        MvcResult result = mockMvc.perform(get(REFERENCE_PATH + "/work-modes"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andReturn();
+
+        assertThat(labels(result)).containsExactlyInAnyOrder("Remote", "Hybrid", "On-site");
+    }
+
+    @Test
+    void leResteDeLaRacineJobOffersResteAuthentifie() throws Exception {
+        // La publicsation ne porte que sur `reference/**` : la racine
+        // `job-offers` reste protégée (TD-037).
+        mockMvc.perform(get("/api/v1/job-offers"))
                 .andExpect(status().isUnauthorized());
     }
 

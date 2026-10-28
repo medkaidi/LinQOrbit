@@ -8,8 +8,9 @@ import { OFFER_SEARCH_MAX_LENGTH } from "@/features/job-offer/offer-filter-contr
 import { OrbitIllustration } from "@/features/marketing/orbit-illustration";
 
 /**
- * Page d'accueil publique : la recherche est **réelle** — elle mène au job board
- * public (`/jobs?q=…`), où le champ reprend la saisie (D99).
+ * Page d'accueil publique : la recherche est **réelle** — elle mène à la
+ * vitrine publique des offres (`/public/jobs?q=…`), consultable sans compte,
+ * où le champ reprend la saisie (D99, D100/T-113).
  *
  * Le champ ne porte qu'un critère libre, celui que la recherche publique sait
  * faire : titre **ou** nom de société (`q` côté API, `OfferSearchPattern`).
@@ -23,7 +24,7 @@ export function MarketingHome() {
   const search = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const q = query.trim().slice(0, OFFER_SEARCH_MAX_LENGTH);
-    router.push(q ? `/jobs?q=${encodeURIComponent(q)}` : "/jobs");
+    router.push(q ? `/public/jobs?q=${encodeURIComponent(q)}` : "/public/jobs");
   };
 
   return (
@@ -39,7 +40,8 @@ export function MarketingHome() {
           Find your next professional trajectory
         </h1>
         <p className="mt-space-sm text-text-secondary font-body-lg text-body-lg max-w-2xl">
-          Thousands of high-impact opportunities, continuously analyzed by your AI agents.
+          Browse the job offers published on LinQOrbit — each one structured, analyzed by AI and
+          scored criterion by criterion.
         </p>
 
         <form
@@ -89,11 +91,11 @@ export function MarketingHome() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-headline-sm text-headline-sm text-text-primary font-bold">
-                  Verified opportunities, refreshed weekly
+                  Job offers published by companies
                 </span>
               </div>
               <p className="text-body-sm font-body-sm text-text-secondary mt-0.5">
-                Real-time match scoring by your AI agents.
+                A score for every criterion, computed by the matching engine.
               </p>
             </div>
           </div>

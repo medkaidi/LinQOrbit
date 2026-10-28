@@ -104,7 +104,7 @@ describe("SiteHeader", () => {
     pathnameMock.mockReturnValue("/");
     render(<SiteHeader />);
 
-    for (const name of ["About", "How it works", "FAQ", "Contact"]) {
+    for (const name of ["About", "How it works", "Jobs", "FAQ", "Contact"]) {
       expect(screen.getByRole("link", { name })).not.toHaveAttribute("aria-current");
     }
   });
@@ -118,7 +118,18 @@ describe("SiteHeader", () => {
       "href",
       "/how-it-works",
     );
+    expect(screen.getByRole("link", { name: "Jobs" })).toHaveAttribute("href", "/public/jobs");
     expect(screen.getByRole("link", { name: "FAQ" })).toHaveAttribute("href", "/faq");
     expect(screen.getByRole("link", { name: "Contact" })).toHaveAttribute("href", "/contact");
+  });
+
+  it("garde l'onglet « Jobs » actif sur la fiche d'une offre", () => {
+    // La fiche publique `/public/jobs/{publicId}-{slug}` reste dans la
+    // vitrine : l'onglet doit y rester marqué.
+    pathnameMock.mockReturnValue("/public/jobs/abcdefghijkl-backend-engineer");
+    render(<SiteHeader />);
+
+    expect(screen.getByRole("link", { name: "Jobs" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "FAQ" })).not.toHaveAttribute("aria-current");
   });
 });

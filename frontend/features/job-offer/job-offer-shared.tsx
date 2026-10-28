@@ -141,9 +141,14 @@ export function parsePublicId(param: string): string | null {
   return PUBLIC_ID_PATTERN.test(publicId) ? publicId : null;
 }
 
-/** URL publique (V15) : segment unique `{publicId}-{slug}` — fiche, copie de lien, job board. */
-export function publicJobPath(publicId: string, slug: string): string {
-  return `/jobs/${publicId}-${slug}`;
+/**
+ * URL publique (V15) : segment unique `{publicId}-{slug}` — fiche, copie de
+ * lien, job board. `basePath` distingue les deux boards : `/jobs` (board
+ * authentifié, dans le shell dashboard) et `/public/jobs` (vitrine publique,
+ * D100/T-113) — la fiche elle-même est la même.
+ */
+export function publicJobPath(publicId: string, slug: string, basePath = "/jobs"): string {
+  return `${basePath}/${publicId}-${slug}`;
 }
 
 /** Initiales société (1-2 mots) pour la tuile — repli sur l'icône quand absent. */

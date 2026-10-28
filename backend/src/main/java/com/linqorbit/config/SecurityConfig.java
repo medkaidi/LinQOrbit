@@ -42,6 +42,14 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/candidates/**").authenticated()
                         .requestMatchers("/api/v1/recruiters/**").authenticated()
                         .requestMatchers("/api/v1/companies/**").authenticated()
+                        // Vocabulaires d'offre (D14) : listes de référence fermées,
+                        // en lecture seule, déjà exposées publiquement par les
+                        // offres elles-mêmes (`/api/v1/jobs` résout workMode,
+                        // contractType, employmentType). Rendues lisibles sans
+                        // jeton pour que le board public puisse proposer ses
+                        // filtres (D100, T-113) — déclaré AVANT la racine
+                        // `job-offers`, qui reste authentifiée.
+                        .requestMatchers("/api/v1/job-offers/reference/**").permitAll()
                         .requestMatchers("/api/v1/job-offers/**").authenticated()
                         // Candidatures (V20) : explicitement authentifiées — le
                         // catch-all plus bas rendrait la racine publique (TD-037).

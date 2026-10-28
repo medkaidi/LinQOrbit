@@ -36,7 +36,20 @@ describe("HomePage", () => {
     expect(
       screen.getByRole("img", { name: "LinQOrbit connects candidates with the right opportunities" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Verified opportunities, refreshed weekly")).toBeInTheDocument();
-    expect(screen.getByText("Real-time match scoring by your AI agents.")).toBeInTheDocument();
+    expect(screen.getByText("Job offers published by companies")).toBeInTheDocument();
+    expect(
+      screen.getByText("A score for every criterion, computed by the matching engine."),
+    ).toBeInTheDocument();
+  });
+
+  it("ne promet ni volume d'offres, ni agents autonomes, ni rafraîchissement périodique", () => {
+    // Règle D101 : toute affirmation d'une page publique doit être
+    // vérifiable dans le code (T-114/D101, appliquée au hero par T-113/D100).
+    render(<HomePage />);
+
+    expect(screen.queryByText(/Thousands of/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/AI agents/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/refreshed weekly/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Verified opportunities/)).not.toBeInTheDocument();
   });
 });

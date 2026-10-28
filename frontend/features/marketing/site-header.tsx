@@ -11,6 +11,7 @@ import { useAuthStore } from "@/stores/auth-store";
 const TABS = [
   { href: "/about", label: "About" },
   { href: "/how-it-works", label: "How it works" },
+  { href: "/public/jobs", label: "Jobs" },
   { href: "/faq", label: "FAQ" },
   { href: "/contact", label: "Contact" },
 ] as const;
@@ -34,7 +35,9 @@ export function SiteHeader() {
           </Link>
           <nav className="hidden md:flex items-center gap-space-lg h-16" aria-label="Main">
             {TABS.map((tab) => {
-              const isActive = pathname === tab.href;
+              // L'onglet reste actif sur ses sous-pages (la fiche d'une offre
+              // sous `/public/jobs/{id}-{slug}`).
+              const isActive = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
               return (
                 <Link
                   key={tab.href}

@@ -36,13 +36,13 @@ describe("MarketingHome", () => {
     expect(screen.queryByPlaceholderText(/City|region|remote/i)).not.toBeInTheDocument();
   });
 
-  it("leads to the public job board with the typed query", () => {
+  it("leads to the public offers showcase with the typed query", () => {
     render(<MarketingHome />);
 
     fireEvent.change(searchField(), { target: { value: "backend" } });
     submitSearch();
 
-    expect(pushMock).toHaveBeenCalledWith("/jobs?q=backend");
+    expect(pushMock).toHaveBeenCalledWith("/public/jobs?q=backend");
   });
 
   it("encodes the query", () => {
@@ -51,7 +51,7 @@ describe("MarketingHome", () => {
     fireEvent.change(searchField(), { target: { value: "c++ & java" } });
     submitSearch();
 
-    expect(pushMock).toHaveBeenCalledWith("/jobs?q=c%2B%2B%20%26%20java");
+    expect(pushMock).toHaveBeenCalledWith("/public/jobs?q=c%2B%2B%20%26%20java");
   });
 
   it("trims the query", () => {
@@ -60,18 +60,18 @@ describe("MarketingHome", () => {
     fireEvent.change(searchField(), { target: { value: "  devops  " } });
     submitSearch();
 
-    expect(pushMock).toHaveBeenCalledWith("/jobs?q=devops");
+    expect(pushMock).toHaveBeenCalledWith("/public/jobs?q=devops");
   });
 
-  it("goes to the board without a query when the search is empty or blank", () => {
+  it("goes to the showcase without a query when the search is empty or blank", () => {
     render(<MarketingHome />);
 
     submitSearch();
-    expect(pushMock).toHaveBeenCalledWith("/jobs");
+    expect(pushMock).toHaveBeenCalledWith("/public/jobs");
 
     fireEvent.change(searchField(), { target: { value: "   " } });
     submitSearch();
-    expect(pushMock).toHaveBeenLastCalledWith("/jobs");
+    expect(pushMock).toHaveBeenLastCalledWith("/public/jobs");
   });
 
   it("caps the query at 100 characters", () => {
@@ -80,7 +80,7 @@ describe("MarketingHome", () => {
     fireEvent.change(searchField(), { target: { value: "a".repeat(150) } });
     submitSearch();
 
-    expect(pushMock).toHaveBeenCalledWith(`/jobs?q=${"a".repeat(100)}`);
+    expect(pushMock).toHaveBeenCalledWith(`/public/jobs?q=${"a".repeat(100)}`);
   });
 
   it("submits the form with the search button, without leaving the page", () => {
@@ -92,6 +92,6 @@ describe("MarketingHome", () => {
     fireEvent.change(searchField(), { target: { value: "devops" } });
     fireEvent.click(button);
 
-    expect(pushMock).toHaveBeenCalledWith("/jobs?q=devops");
+    expect(pushMock).toHaveBeenCalledWith("/public/jobs?q=devops");
   });
 });

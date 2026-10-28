@@ -110,12 +110,18 @@ export function PublicJobArticle({
   relatedJobs,
   topBar,
   embedded = false,
+  boardHref = "/jobs",
+  basePath = "/jobs",
 }: {
   article: PublicJobArticleModel;
   applyHref?: string;
   relatedJobs?: RelatedPublicJob[];
   topBar?: ReactNode;
   embedded?: boolean;
+  /** Liste vers laquelle renvoie « Browse all offers » (board authentifié ou vitrine publique). */
+  boardHref?: string;
+  /** Base des liens vers les autres offres de la société. */
+  basePath?: string;
 }) {
   const posted = article.publishedAt ? relativeTimeLabel(article.publishedAt) : null;
   const expiry = article.expiresAt ? expiryCountdown(article.expiresAt) : null;
@@ -335,7 +341,7 @@ export function PublicJobArticle({
                     {relatedJobs.map((job) => (
                       <li key={job.publicId} className="py-3">
                         <Link
-                          href={publicJobPath(job.publicId, job.slug)}
+                          href={publicJobPath(job.publicId, job.slug, basePath)}
                           className="group block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-deep"
                         >
                           <p className="font-body-md text-body-md font-semibold text-text-primary group-hover:text-orange-deep transition-colors">
@@ -351,7 +357,7 @@ export function PublicJobArticle({
                     ))}
                   </ul>
                   <Link
-                    href="/jobs"
+                    href={boardHref}
                     className="inline-flex items-center gap-1 font-body-sm text-body-sm font-semibold text-orange-deep hover:underline"
                   >
                     Browse all offers
