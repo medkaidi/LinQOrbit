@@ -2,54 +2,64 @@ import Link from "next/link";
 import { Icon } from "@/components/ui/icon";
 import { PageHero } from "@/features/marketing/page-hero";
 
+/**
+ * Les quatre principes non négociables du produit (SPEC §1.2). Le contenu de
+ * cette page ne décrit que ce qui est implémenté : aucun chiffre inventé,
+ * aucun agent fictif, aucune promesse commerciale.
+ */
 const PILLARS = [
   {
-    icon: "center_focus_strong",
-    num: "Pillar 01",
-    title: "Precision over Volume",
-    body: "Deep semantic code and skill architecture analysis rather than basic keyword scanning. We measure production velocity, repo commit depth, and architectural scalability.",
-    tag: "Semantic Verification",
+    icon: "account_balance",
+    num: "Principle 01",
+    title: "The AI does not decide",
+    body: "LinQOrbit never states that a candidate is the right one. It produces verifiable observations — “Java: detected”, “Experience Java: 5 years declared”, “Match Java: 95 %” — and the recruiter decides.",
+    tag: "Human decision",
   },
   {
-    icon: "balance",
-    num: "Pillar 02",
-    title: "Unbiased Intelligence",
-    body: "Anonymized initial screening that evaluates pure merit and trajectory. Identifying exceptional talent regardless of background, pedigree, or zip code.",
-    tag: "Pedigree-Blind Vectors",
+    icon: "visibility",
+    num: "Principle 02",
+    title: "Transparency",
+    body: "The candidate sees how their profile was interpreted: the criteria evaluated, the match for each one, the clarifications requested — and can contest a score or report a misreading.",
+    tag: "Contestable scores",
   },
   {
-    icon: "travel_explore",
-    num: "Pillar 03",
-    title: "Continuous Sourcing Velocity",
-    body: "Autonomous agents (Orion, Vega, Nova, Hermes) working 24/7 across GitHub, technical papers, arXiv releases, and global repositories to discover passive masters.",
-    tag: "24/7 Agent Telemetry",
+    icon: "hub",
+    num: "Principle 03",
+    title: "One engine, three uses",
+    body: "Candidate → offers, offer → candidates, offer ↔ candidate: the same comparison engine, always applied to normalized profiles and offers. No screen has its own algorithm.",
+    tag: "Single matching engine",
   },
   {
-    icon: "handshake",
-    num: "Pillar 04",
-    title: "Human in the Orbit",
-    body: "AI generates multi-layered dossier telemetry; hiring managers and founders make the final decisions. We amplify human judgment, never replace it.",
-    tag: "Augmented Decision Making",
+    icon: "description",
+    num: "Principle 04",
+    title: "A normalized sheet as common language",
+    body: "Profiles and job offers are normalized into a structured sheet before any comparison, so every search and every match rests on the same data.",
+    tag: "Shared structure",
   },
 ] as const;
 
-const SCORES = [
-  { label: "Distributed Systems Mastery", value: 96 },
-  { label: "Production Latency Optimization", value: 94 },
-  { label: "Leadership Velocity & Mentorship", value: 89 },
-  { label: "Algorithmic Innovation Index", value: 98 },
+/**
+ * Illustration d'une évaluation réelle : les exemples de score viennent de la
+ * fiche produit (SPEC §1.2 et §8.2), y compris la catégorie « informations
+ * insuffisantes » — un silence n'est jamais transformé en négatif.
+ */
+const EVALUATIONS = [
+  { label: "Java", detail: "detected", value: 95 },
+  { label: "Experience Java", detail: "5 years declared", value: 94 },
+  { label: "Spring Boot", detail: "insufficient information", value: null },
+  { label: "React", detail: "declared", value: 72 },
 ] as const;
 
 const CAPABILITIES = [
   {
-    icon: "insights",
-    title: "Velocity Vectors",
-    body: "Calculates compound skill acceleration across open source contributions and production codebases.",
+    icon: "scale",
+    title: "Mandatory and preferred, weighted separately",
+    body: "A weakness on a mandatory criterion is not compensated by strong preferred criteria: each set is scored on its own 100 % scale.",
   },
   {
-    icon: "hub",
-    title: "Cultural Gravity Matching",
-    body: "Evaluates alignment with high-speed autonomous engineering organizations.",
+    icon: "help",
+    title: "Insufficient information is not “not possessed”",
+    body: "When a profile carries no usable information on a criterion, the evaluation says so — a missing answer is never read as a negative.",
   },
 ] as const;
 
@@ -60,17 +70,17 @@ export function About() {
         eyebrow="Our Mission & Vision"
         title={
           <>
-            Aligning Exceptional Talents with{" "}
-            <span className="text-primary-container">Transformative</span> Trajectories
+            Matching Job Offers and Candidate Profiles,{" "}
+            <span className="text-primary-container">Criterion by Criterion</span>
           </>
         }
-        lede="LinQOrbit was founded on a simple premise: traditional hiring is broken by noise, bias, and latency. We build autonomous AI agents that analyze real engineering depth and cultural velocity."
+        lede="LinQOrbit structures, analyses and matches job offers and candidate profiles with AI. The AI produces verifiable observations, criterion by criterion; the recruiter makes the final decision."
         actions={
           <Link
             href="/contact"
             className="inline-flex items-center justify-center px-7 py-3 rounded-full bg-primary-container hover:bg-orange-deep text-on-primary font-label-lg text-label-lg transition-colors duration-150"
           >
-            Book Enterprise Demo
+            Contact us
             <Icon name="arrow_forward" className="ml-2 text-[18px]" />
           </Link>
         }
@@ -84,12 +94,12 @@ export function About() {
                 Guiding Philosophy
               </div>
               <h2 className="font-headline-lg text-headline-lg text-text-primary tracking-tight">
-                Architected to Eliminate Friction and Subconscious Bias
+                Four Non-Negotiable Principles
               </h2>
             </div>
             <p className="font-body-md text-body-md text-text-secondary max-w-md">
-              Every layer of LinQOrbit is designed with mathematical integrity, prioritizing
-              tangible execution over superficial pedigree.
+              Every layer of LinQOrbit follows the same rule: the AI observes and explains, the
+              human decides.
             </p>
           </div>
 
@@ -130,15 +140,15 @@ export function About() {
               <div className="lg:col-span-5 space-y-6">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-subtle text-orange-deep font-label-md text-label-md">
                   <span className="w-2 h-2 rounded-full bg-primary-container" />
-                  Orion Engine
+                  Matching engine
                 </div>
                 <h2 className="font-headline-lg text-headline-lg text-text-primary tracking-tight">
-                  Multidimensional Talent Trajectory Modeling
+                  Criterion-by-Criterion Evaluation
                 </h2>
                 <p className="font-body-md text-body-md text-text-secondary">
-                  Unlike legacy keyword scanners that score resumes by keyword frequency,
-                  LinQOrbit models career trajectories like orbital flight paths. We predict
-                  future capability growth over a 3-year horizon.
+                  An offer is broken into weighted criteria, and each one is compared with the
+                  profile on its own terms. The platform computes the scores; the language model
+                  reads and interprets the texts.
                 </p>
                 <div className="space-y-4 pt-2">
                   {CAPABILITIES.map((capability) => (
@@ -164,35 +174,44 @@ export function About() {
                 <div className="bg-canvas-white rounded-xl p-6 lg:p-8 shadow-sm">
                   <div className="flex items-center justify-between gap-3 pb-6 mb-6 bg-canvas-subtle p-4 rounded-lg">
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="w-3 h-3 rounded-full bg-tertiary-container animate-pulse motion-reduce:animate-none shrink-0" />
+                      <span className="w-3 h-3 rounded-full bg-tertiary-container shrink-0" />
                       <div className="min-w-0">
                         <div className="font-headline-sm text-headline-sm text-text-primary truncate">
-                          Autonomous Agent Cluster: Orion
+                          Example — candidate evaluation
                         </div>
                         <div className="font-body-sm text-body-sm text-text-tertiary truncate">
-                          Real-time repository graph analysis
+                          One score per criterion, never a single global score
                         </div>
                       </div>
                     </div>
                     <span className="px-3 py-1 rounded-full bg-orange-subtle text-orange-deep font-label-md text-label-md shrink-0">
-                      98.7% Vector Match
+                      Mandatory 92 % · Preferred 68 %
                     </span>
                   </div>
 
                   <div className="space-y-5">
-                    {SCORES.map((score) => (
-                      <div key={score.label}>
+                    {EVALUATIONS.map((evaluation) => (
+                      <div key={evaluation.label}>
                         <div className="flex justify-between font-label-md text-label-md mb-2 gap-3">
-                          <span className="text-text-primary">{score.label}</span>
-                          <span className="text-primary font-bold shrink-0">
-                            {score.value} / 100
+                          <span className="text-text-primary">
+                            {evaluation.label}
+                            <span className="ml-2 text-text-tertiary">{evaluation.detail}</span>
                           </span>
+                          {evaluation.value === null ? (
+                            <span className="text-text-tertiary font-bold shrink-0">—</span>
+                          ) : (
+                            <span className="text-primary font-bold shrink-0">
+                              {evaluation.value} / 100
+                            </span>
+                          )}
                         </div>
                         <div className="w-full h-2.5 bg-surface-container rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary-container rounded-full"
-                            style={{ width: `${score.value}%` }}
-                          />
+                          {evaluation.value === null ? null : (
+                            <div
+                              className="h-full bg-primary-container rounded-full"
+                              style={{ width: `${evaluation.value}%` }}
+                            />
+                          )}
                         </div>
                       </div>
                     ))}
@@ -200,20 +219,20 @@ export function About() {
 
                   <div className="mt-8 pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-canvas-subtle p-4 rounded-lg">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center font-bold text-on-primary-fixed shrink-0">
-                        LX
+                      <div className="w-10 h-10 rounded-full bg-orange-subtle text-orange-deep flex items-center justify-center shrink-0">
+                        <Icon name="person" className="text-[20px]" />
                       </div>
                       <div className="min-w-0">
                         <span className="font-headline-sm text-headline-sm text-text-primary block truncate">
-                          Candidate #8492-Orbit
+                          Example application
                         </span>
                         <span className="font-body-sm text-body-sm text-text-secondary truncate block">
-                          Current trajectory: Principal Staff Architect
+                          Senior backend engineer · criteria evaluated one by one
                         </span>
                       </div>
                     </div>
                     <span className="px-3 py-1 rounded-full bg-success-surface text-success-text font-label-md text-label-md shrink-0 self-start sm:self-auto">
-                      Verified Fit
+                      Scores contestable
                     </span>
                   </div>
                 </div>

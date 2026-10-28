@@ -33,7 +33,7 @@ export function FaqExplorer({ faqs }: FaqExplorerProps) {
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search keywords (e.g. agents, matching, launch)..."
+            placeholder="Search keywords (e.g. matching, profile, free)..."
             aria-label="Search frequently asked questions"
             className="w-full bg-transparent font-body-md text-body-md text-text-primary placeholder:text-text-tertiary focus:outline-none"
           />

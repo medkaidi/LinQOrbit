@@ -12,12 +12,12 @@ const PAGES = [
   {
     name: "About",
     Component: About,
-    heading: "Aligning Exceptional Talents with Transformative Trajectories",
+    heading: "Matching Job Offers and Candidate Profiles, Criterion by Criterion",
   },
   {
     name: "How it works",
     Component: HowItWorks,
-    heading: "From Talent Sourcing to Day One in Four Intelligent Steps",
+    heading: "From a Job Description to a Decision, in Four Steps",
   },
   { name: "FAQ", Component: Faq, heading: "Frequently Asked Questions" },
   { name: "Contact", Component: Contact, heading: "Let's Connect and Propel Your Recruitment" },
@@ -99,11 +99,20 @@ describe("FAQ", () => {
     render(<Faq />);
 
     fireEvent.change(screen.getByLabelText("Search frequently asked questions"), {
-      target: { value: "launch" },
+      target: { value: "available" },
     });
 
-    expect(screen.getByText("When does it launch?")).toBeInTheDocument();
+    expect(screen.getByText("Is LinQOrbit available now?")).toBeInTheDocument();
     expect(screen.queryByText("What is LinQOrbit?")).toBeNull();
+  });
+
+  it("ne promet ni prix, ni délai de réponse, ni agent autonome", () => {
+    render(<Faq />);
+
+    expect(screen.queryByText(/Pricing will be announced/)).toBeNull();
+    expect(screen.queryByText(/within two business days/)).toBeNull();
+    expect(screen.queryByText(/autonomous AI agents/)).toBeNull();
+    expect(screen.queryByText(/early access/)).toBeNull();
   });
 
   it("affiche un état vide puis permet de réinitialiser la recherche", () => {
@@ -123,18 +132,31 @@ describe("FAQ", () => {
 });
 
 describe("How it works", () => {
-  it("conserve la trajectoire en 4 étapes et le CTA à 30 jours", () => {
+  it("décrit le parcours réel en 4 étapes et un CTA sans essai payant", () => {
     render(<HowItWorks />);
 
-    expect(screen.getByText("Requirement Synthesis")).toBeInTheDocument();
-    expect(screen.getByText("Autonomous Discovery")).toBeInTheDocument();
-    expect(screen.getByText("Technical Vetting")).toBeInTheDocument();
-    expect(screen.getByText("High-Conversion Outreach")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Start Free 30-Day Trial/ })).toHaveAttribute(
+    expect(screen.getByText("Offer definition")).toBeInTheDocument();
+    expect(screen.getByText("Offer analysis")).toBeInTheDocument();
+    expect(screen.getByText("Candidate search")).toBeInTheDocument();
+    expect(screen.getByText("Application")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Create your account/ })).toHaveAttribute(
       "href",
       "/signup",
     );
-    expect(screen.getByText("30-day full access")).toBeInTheDocument();
+    expect(screen.getByText("No subscription")).toBeInTheDocument();
+  });
+
+  it("ne promet ni essai payant, ni agents autonomes, ni télémétrie inventée", () => {
+    render(<HowItWorks />);
+
+    expect(screen.queryByText(/30-day full access/)).toBeNull();
+    expect(screen.queryByText(/Start Free 30-Day Trial/)).toBeNull();
+    expect(screen.queryByText(/ATS integration ready/)).toBeNull();
+    expect(screen.queryByText(/Cancel anytime/)).toBeNull();
+    expect(screen.queryByText(/Scanning 14\.8k PRs\/sec/)).toBeNull();
+    expect(screen.queryByText(/Agent Orion/)).toBeNull();
+    expect(screen.queryByText(/Agent Vega/)).toBeNull();
+    expect(screen.queryByText(/Agent Hermes/)).toBeNull();
   });
 
   it("ne contient plus les sections retirées", () => {
@@ -148,15 +170,25 @@ describe("How it works", () => {
 });
 
 describe("About", () => {
-  it("conserve les piliers, le showcase et le CTA contact", () => {
+  it("conserve les principes, le showcase et le CTA contact", () => {
     render(<About />);
 
-    expect(screen.getByText("Precision over Volume")).toBeInTheDocument();
-    expect(screen.getByText("Multidimensional Talent Trajectory Modeling")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Book Enterprise Demo/ })).toHaveAttribute(
-      "href",
-      "/contact",
-    );
+    expect(screen.getByText("The AI does not decide")).toBeInTheDocument();
+    expect(screen.getByText("Criterion-by-Criterion Evaluation")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Contact us/ })).toHaveAttribute("href", "/contact");
+  });
+
+  it("ne promet ni agents fictifs, ni analyse de code, ni scores inventés", () => {
+    render(<About />);
+
+    expect(screen.queryByText(/Book Enterprise Demo/)).toBeNull();
+    expect(screen.queryByText(/Orion/)).toBeNull();
+    expect(screen.queryByText(/Vega/)).toBeNull();
+    expect(screen.queryByText(/Nova/)).toBeNull();
+    expect(screen.queryByText(/Hermes/)).toBeNull();
+    expect(screen.queryByText(/GitHub/)).toBeNull();
+    expect(screen.queryByText(/Vector Match/)).toBeNull();
+    expect(screen.queryByText(/Candidate #/)).toBeNull();
   });
 
   it("ne contient plus la photo, l'équipe ni les badges de conformité", () => {

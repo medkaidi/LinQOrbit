@@ -2,42 +2,59 @@ import { Icon } from "@/components/ui/icon";
 import { PageHero } from "@/features/marketing/page-hero";
 import { FaqExplorer } from "@/features/marketing/faq-explorer";
 
+/**
+ * Les réponses ne décrivent que des faits implémentés (SPEC §1, §7, §8, §10,
+ * §11) : pas d'agent autonome, pas de promesse de prix, pas de délai de
+ * réponse promis.
+ */
 const FAQS = [
   {
     icon: "hub",
     question: "What is LinQOrbit?",
     answer:
-      "LinQOrbit is an AI-powered recruitment platform. AI agents analyze the job market continuously and match candidates with offers — and recruiters with candidates — using transparent match scores.",
+      "LinQOrbit is a recruitment platform that structures, analyses and matches job offers and candidate profiles with AI. Profiles and offers are normalized into a structured sheet, then compared criterion by criterion. The recruiter makes the final decision.",
   },
   {
     icon: "groups",
     question: "Who is it for?",
     answer:
-      "Both sides of the market: candidates looking for their next role, and recruiters looking for people who genuinely fit their openings.",
+      "Both sides of the market: candidates building a professional profile and looking for their next role, and recruiters publishing offers and reviewing applications. The same comparison engine serves both.",
   },
   {
     icon: "psychology",
     question: "How does the AI matching work?",
     answer:
-      "Your agents compare profiles and opportunities against real criteria — skills, location, seniority, expectations — and produce a match score together with the reasons behind it. No black boxes.",
+      "An offer is broken into weighted criteria — mandatory and preferred, weighted separately. The platform compares each criterion with the profile, including semantic comparison (a profile mentioning PostgreSQL can match a requirement written as “relational databases”). Scores are computed criterion by criterion, and the candidate sees each of them.",
+  },
+  {
+    icon: "rule",
+    question: "What does the AI not do?",
+    answer:
+      "It does not read your code, scan GitHub or build a profile from public repositories. LinQOrbit works from the information you enter in your profile, and from your CV if you choose to import it. It also does not decide: a recruiter accepts or rejects an application.",
+  },
+  {
+    icon: "shield",
+    question: "Who can see my profile?",
+    answer:
+      "Recruiter visibility is opt-in: you give your consent from your profile, and you can withdraw it at any time. Candidates who are not looking for opportunities are not suggested to recruiters either.",
   },
   {
     icon: "sell",
     question: "Is LinQOrbit free?",
     answer:
-      "Core access will be free during the early phase. Pricing will be announced publicly before any paid plan goes live — no surprises.",
+      "Access is free: there is no subscription, no paid plan, and no card is ever collected. A recruiter account publishes offers and reviews applications; a candidate account builds a profile and applies.",
   },
   {
     icon: "rocket_launch",
-    question: "When does it launch?",
+    question: "Is LinQOrbit available now?",
     answer:
-      "The platform is in active development. Create an account to follow progress and get early access.",
+      "Yes. You can create an account, complete a professional profile, publish a job offer and apply to one. Some features are still being developed.",
   },
   {
     icon: "mail",
     question: "How can I get in touch?",
     answer:
-      "Write to us at contact@linqorbit.com from the Contact page — we usually reply within two business days.",
+      "Write to contact@linqorbit.com — the Contact page also offers a form to describe your needs and your company context.",
   },
 ] as const;
 
@@ -51,7 +68,7 @@ export function Faq() {
             Frequently Asked <span className="text-orange-deep">Questions</span>
           </>
         }
-        lede="Everything you need to know about our autonomous AI agents, candidate matching algorithms, and data practices."
+        lede="What LinQOrbit does, what the AI does and does not do, and the practicalities of using the platform."
       />
 
       <FaqExplorer faqs={FAQS} />
@@ -66,7 +83,7 @@ export function Faq() {
               Still have unanswered questions?
             </h2>
             <p className="mt-2 font-body-md text-body-md text-text-secondary">
-              Write to us anytime — we usually reply within two business days.
+              Write to us about the platform, matching, or your account.
             </p>
           </div>
           <div className="max-w-md mx-auto">
