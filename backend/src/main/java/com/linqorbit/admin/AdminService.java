@@ -2,6 +2,7 @@ package com.linqorbit.admin;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -243,6 +244,10 @@ public class AdminService {
      * Approbation : crée la compétence au catalogue (sauf si le nom y est déjà),
      * l'insère au profil (niveau 1) de chaque auteur du groupe homonyme et retire
      * tout le groupe de la file.
+     *
+     * L'ajout touche le profil : la ligne candidates est bumper (heartbeat) pour
+     * que le candidat voie « Validate again » et que la fiche normalisée soit
+     * régénérée (voir {@link #touchGrantedCandidates}).
      */
     @Transactional
     public void approveSuggestion(UUID suggestionId, String category, String skillType, UUID adminId) {
@@ -264,16 +269,20 @@ public class AdminService {
         } else {
             log.warn("Admin suggestion approved : already in catalogue, skillId={}, name={}", skill.getId(), name);
         }
-        int granted = grantSkillToAuthors(group, skill);
+        List<UUID> granted = grantSkillToAuthors(group, skill);
         skillSuggestionRepository.deleteAll(group);
+        touchGrantedCandidates(granted);
         log.info("Admin suggestion approved : suggestionId={}, name={}, resolved={}, granted={}, adminId={}",
-                suggestionId, name, group.size(), granted, adminId);
+                suggestionId, name, group.size(), granted.size(), adminId);
     }
 
     /**
      * Lien : branche le skill catalogue choisi dans le profil (niveau 1) de chaque
      * auteur du groupe homonyme et retire le groupe de la file — ni création ni
      * suppression dans le catalogue.
+     *
+     * Comme l'approbation, l'ajout touche le profil : heartbeat des candidats
+     * réellement modifiés (voir {@link #touchGrantedCandidates}).
      */
     @Transactional
     public void linkSuggestion(UUID suggestionId, UUID skillId, UUID adminId) {
@@ -286,10 +295,11 @@ public class AdminService {
             return new ReferenceNotFoundException("Skill", skillId);
         });
         List<SkillSuggestion> group = skillSuggestionRepository.findAllByNameIgnoreCase(name);
-        int granted = grantSkillToAuthors(group, skill);
+        List<UUID> granted = grantSkillToAuthors(group, skill);
         skillSuggestionRepository.deleteAll(group);
+        touchGrantedCandidates(granted);
         log.info("Admin suggestion linked : suggestionId={}, name={}, skillId={}, resolved={}, granted={}, adminId={}",
-                suggestionId, name, skillId, group.size(), granted, adminId);
+                suggestionId, name, skillId, group.size(), granted.size(), adminId);
     }
 
     /** Rejet : retire de la file le groupe homonyme, sans toucher aux profils. */
@@ -333,12 +343,17 @@ public class AdminService {
         return normalized;
     }
 
-    /** Insère la compétence au profil de chaque auteur (unicité du couple, niveau 1). */
-    private int grantSkillToAuthors(List<SkillSuggestion> group, Skill skill) {
+    /**
+     * Insère la compétence au profil de chaque auteur (unicité du couple, niveau 1)
+     * et renvoie les ids des candidats <b>réellement modifiés</b> : un doublon
+     * ignoré n'y figure pas — le profil de ce candidat n'a pas changé, donc son
+     * heartbeat ne doit pas bouger (sinon un « Validate again » inutile).
+     */
+    private List<UUID> grantSkillToAuthors(List<SkillSuggestion> group, Skill skill) {
         Set<UUID> candidateIds = group.stream()
                 .map(SkillSuggestion::getCandidateId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        int granted = 0;
+        List<UUID> granted = new ArrayList<>();
         for (UUID candidateId : candidateIds) {
             if (candidateSkillRepository.existsByCandidateIdAndSkillId(candidateId, skill.getId())) {
                 log.info("Admin suggestion grant skipped : already in profile, candidateId={}, skillId={}",
@@ -356,9 +371,31 @@ public class AdminService {
                     .level(DEFAULT_SKILL_LEVEL)
                     .yearsExperience(null)
                     .build());
-            granted++;
+            granted.add(candidateId);
         }
         return granted;
+    }
+
+    /**
+     * Heartbeat des profils modifiés par l'admin : l'ajout d'une compétence au
+     * profil est une modification du profil, au même titre qu'une section écrite
+     * par le candidat — la ligne candidates doit donc être bumper
+     * ({@code candidates.updated_at}), sinon le signal « modifications non
+     * validées » reste faux, la fiche normalisée n'est pas régénérée et le
+     * matching/screening ignorent la compétence.
+     *
+     * UPDATE bulk ciblé (comme le consentement, mais dans l'autre sens : ici on
+     * veut explicitement toucher updated_at) : un seul UPDATE pour tout le
+     * groupe, posé <b>après</b> l'insertion des compétences et la suppression
+     * des suggestions — le bulk vide le contexte de persistance
+     * ({@code clearAutomatically}), plus rien ne doit suivre dans la tx.
+     */
+    private void touchGrantedCandidates(List<UUID> candidateIds) {
+        if (candidateIds.isEmpty()) {
+            return;
+        }
+        int touched = candidateRepository.touchUpdatedAtForCandidates(candidateIds, LocalDateTime.now());
+        log.info("Admin suggestion grant heartbeat : candidates={}, touched={}", candidateIds.size(), touched);
     }
 
     /**

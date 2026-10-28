@@ -368,6 +368,10 @@ class AdminServiceTest {
                 .extracting(grant -> grant.getCandidate().getId())
                 .containsExactlyInAnyOrder(adaId, bobId);
         verify(skillSuggestionRepository).deleteAll(List.of(clicked, twin));
+        // Le profil a changé : la ligne candidates est bumper (heartbeat) pour
+        // les deux auteurs — sinon « Validate again » n'apparaît pas et la
+        // fiche normalisée n'est pas régénérée.
+        verify(candidateRepository).touchUpdatedAtForCandidates(eq(List.of(adaId, bobId)), any(LocalDateTime.class));
     }
 
     @Test
@@ -392,6 +396,7 @@ class AdminServiceTest {
         verify(skillRepository, never()).save(any(Skill.class));
         verify(candidateSkillRepository).save(any(CandidateSkill.class));
         verify(skillSuggestionRepository).deleteAll(List.of(clicked));
+        verify(candidateRepository).touchUpdatedAtForCandidates(eq(List.of(adaId)), any(LocalDateTime.class));
     }
 
     @Test
@@ -414,6 +419,9 @@ class AdminServiceTest {
 
         verify(candidateSkillRepository, never()).save(any(CandidateSkill.class));
         verify(skillSuggestionRepository).deleteAll(List.of(clicked));
+        // Doublon ignoré : le profil n'a pas changé, aucun heartbeat — un
+        // « Validate again » serait inutile.
+        verify(candidateRepository, never()).touchUpdatedAtForCandidates(any(), any());
     }
 
     @Test
@@ -471,6 +479,8 @@ class AdminServiceTest {
         assertThat(grantCaptor.getValue().getSkill()).isSameAs(react);
         assertThat(grantCaptor.getValue().getLevel()).isEqualTo(1);
         verify(skillSuggestionRepository).deleteAll(List.of(clicked));
+        // Le rattachement touche le profil comme l'approbation : heartbeat.
+        verify(candidateRepository).touchUpdatedAtForCandidates(eq(List.of(adaId)), any(LocalDateTime.class));
     }
 
     @Test
@@ -504,6 +514,8 @@ class AdminServiceTest {
         verify(skillSuggestionRepository).deleteAll(List.of(clicked, twin));
         verify(candidateSkillRepository, never()).save(any(CandidateSkill.class));
         verify(skillRepository, never()).save(any(Skill.class));
+        // Rejet : aucun profil touché, donc aucun heartbeat.
+        verify(candidateRepository, never()).touchUpdatedAtForCandidates(any(), any());
     }
 
     @Test

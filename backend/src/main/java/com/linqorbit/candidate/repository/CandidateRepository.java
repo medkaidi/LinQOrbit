@@ -39,6 +39,21 @@ public interface CandidateRepository extends JpaRepository<Candidate, UUID> {
             @Param("attachmentId") UUID attachmentId);
 
     /**
+     * Heartbeat admin — l'ajout d'une compétence au profil par l'admin
+     * <b>modifie</b> le profil : la ligne candidates doit être touchée
+     * (updated_at) pour que le signal « modifications non validées » apparaisse,
+     * que la fiche normalisée soit régénérée et que le matching/screening
+     * voient la compétence. UPDATE bulk : {@code @UpdateTimestamp} ne
+     * s'applique pas à un bulk JPQL, la date est donc posée explicitement.
+     * clearAutomatically : le contexte est vidé après le bulk — le bulk est le
+     * dernier écrit de la transaction, plus rien ne doit suivre.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update Candidate c set c.updatedAt = :now where c.id in :candidateIds")
+    int touchUpdatedAtForCandidates(@Param("candidateIds") Collection<UUID> candidateIds,
+            @Param("now") LocalDateTime now);
+
+    /**
      * Consentement à la visibilité recruteur (T-102, D86) — UPDATE bulk pour la
      * même raison que le CV courant : ne jamais bumper updated_at. Date et
      * version sont posées ensemble ou retirées ensemble (CHECK V30).
