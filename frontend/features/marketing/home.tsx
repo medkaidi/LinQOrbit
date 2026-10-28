@@ -1,11 +1,31 @@
-import Link from "next/link";
+"use client";
+
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 
 import { Icon } from "@/components/ui/icon";
+import { OFFER_SEARCH_MAX_LENGTH } from "@/features/job-offer/offer-filter-controls";
 import { OrbitIllustration } from "@/features/marketing/orbit-illustration";
 
-const SUGGESTIONS = ["Tech & Dev", "Product Design", "AI Engineering", "Data", "Fully remote"];
-
+/**
+ * Page d'accueil publique : la recherche est **réelle** — elle mène au job board
+ * public (`/jobs?q=…`), où le champ reprend la saisie (D99).
+ *
+ * Le champ ne porte qu'un critère libre, celui que la recherche publique sait
+ * faire : titre **ou** nom de société (`q` côté API, `OfferSearchPattern`).
+ * Le placeholder le dit — ni les compétences ni le lieu ne sont cherchés : ce
+ * serait promettre un filtre que le backend n'expose pas.
+ */
 export function MarketingHome() {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+
+  const search = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const q = query.trim().slice(0, OFFER_SEARCH_MAX_LENGTH);
+    router.push(q ? `/jobs?q=${encodeURIComponent(q)}` : "/jobs");
+  };
+
   return (
     <div className="w-full bg-canvas-white">
       <section className="max-w-7xl mx-auto px-gutter pt-space-xl pb-space-lg flex flex-col items-center text-center">
@@ -22,56 +42,35 @@ export function MarketingHome() {
           Thousands of high-impact opportunities, continuously analyzed by your AI agents.
         </p>
 
-        <div className="w-full max-w-4xl mt-space-lg bg-canvas-white border border-slate-border rounded-full p-2 flex flex-col md:flex-row items-stretch md:items-center shadow-sm gap-2">
+        <form
+          onSubmit={search}
+          className="w-full max-w-4xl mt-space-lg bg-canvas-white border border-slate-border rounded-full p-2 flex flex-col md:flex-row items-stretch md:items-center shadow-sm gap-2"
+        >
           <div className="flex-1 flex items-center px-4 py-2 gap-3">
             <Icon name="search" className="text-text-tertiary text-[22px]" />
             <div className="flex-1 text-left">
-              <label htmlFor="hero-search-role" className="sr-only">
-                Role, skill or keyword
+              <label htmlFor="hero-search" className="sr-only">
+                Job title or company
               </label>
               <input
-                id="hero-search-role"
+                id="hero-search"
                 type="text"
-                placeholder="Job title, skills, stack..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                maxLength={OFFER_SEARCH_MAX_LENGTH}
+                placeholder="Job title or company"
                 className="w-full bg-transparent font-headline-sm text-headline-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
               />
             </div>
           </div>
-          <div className="hidden md:block w-px h-8 bg-slate-border my-auto" />
-          <div className="flex-1 flex items-center px-4 py-2 gap-3">
-            <Icon name="location_on" className="text-text-tertiary text-[22px]" />
-            <div className="flex-1 text-left">
-              <label htmlFor="hero-search-loc" className="sr-only">
-                City, region or remote
-              </label>
-              <input
-                id="hero-search-loc"
-                type="text"
-                placeholder="City, region or remote"
-                className="w-full bg-transparent font-headline-sm text-headline-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
-              />
-            </div>
-          </div>
-          <Link
-            href="/signup"
+          <button
+            type="submit"
             className="bg-primary-container hover:bg-orange-deep text-canvas-white font-label-lg text-label-lg px-space-xl py-3 rounded-full inline-flex items-center justify-center gap-2 transition-colors shrink-0"
           >
             <Icon name="arrow_forward" className="text-[20px]" />
             <span>Search jobs</span>
-          </Link>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-space-md">
-          <span className="font-label-md text-label-md text-text-tertiary mr-1">Suggestions:</span>
-          {SUGGESTIONS.map((suggestion) => (
-            <span
-              key={suggestion}
-              className="px-3 py-1 rounded-full bg-surface-container-low text-text-secondary text-body-sm font-body-sm"
-            >
-              {suggestion}
-            </span>
-          ))}
-        </div>
+          </button>
+        </form>
       </section>
 
       <section className="max-w-7xl mx-auto px-gutter py-space-md">

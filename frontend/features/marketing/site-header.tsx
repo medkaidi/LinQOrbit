@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/brand/logo";
 import { Wordmark } from "@/components/brand/wordmark";
+import { useMounted } from "@/hooks/use-mounted";
+import { useAuthStore } from "@/stores/auth-store";
 
 const TABS = [
   { href: "/about", label: "About" },
@@ -15,6 +17,12 @@ const TABS = [
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const token = useAuthStore((state) => state.token);
+  const mounted = useMounted();
+  // La session n'est lue qu'après l'hydratation : le jeton vit dans un store
+  // persisté, le HTML prérendu ne le connaît pas — le lire au premier
+  // rendu créerait une divergence d'hydratation.
+  const signedIn = mounted && Boolean(token);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-canvas-white/95 backdrop-blur-md border-b border-slate-border">
@@ -32,10 +40,10 @@ export function SiteHeader() {
                   key={tab.href}
                   href={tab.href}
                   aria-current={isActive ? "page" : undefined}
-                  className={`h-full inline-flex items-center transition-colors px-space-xs font-label-lg text-label-lg ${
+                  className={`h-full inline-flex items-center transition-colors px-space-xs font-label-lg text-label-lg tracking-tight ${
                     isActive
-                      ? "text-text-primary font-bold border-b-2 border-primary-container"
-                      : "text-on-surface-variant hover:text-on-surface"
+                      ? "text-slate-ink font-semibold border-b-[1.5px] border-primary-container"
+                      : "text-text-secondary hover:text-slate-ink font-medium"
                   }`}
                 >
                   {tab.label}
@@ -45,18 +53,29 @@ export function SiteHeader() {
           </nav>
         </div>
         <div className="flex items-center gap-space-md">
-          <Link
-            href="/login"
-            className="font-label-lg text-label-lg text-on-surface-variant hover:text-on-surface transition-colors px-space-sm py-2"
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/signup"
-            className="bg-primary-container hover:bg-orange-deep text-canvas-white font-label-lg text-label-lg px-5 py-2 rounded-full inline-flex items-center gap-2 transition-colors"
-          >
-            Get started
-          </Link>
+          {signedIn ? (
+            <Link
+              href="/dashboard"
+              className="font-label-lg text-label-lg text-text-secondary hover:text-slate-ink font-medium tracking-tight transition-colors px-space-sm py-2"
+            >
+              Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="font-label-lg text-label-lg text-text-secondary hover:text-slate-ink font-medium tracking-tight transition-colors px-space-sm py-2"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="bg-primary-container hover:bg-orange-deep text-canvas-white font-label-lg text-label-lg px-5 py-2 rounded-full inline-flex items-center gap-2 transition-colors"
+              >
+                Get started
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>
