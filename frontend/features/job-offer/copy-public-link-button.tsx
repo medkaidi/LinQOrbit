@@ -9,15 +9,20 @@ import { publicJobPath } from "@/features/job-offer/job-offer-shared";
  * Copie l'URL publique absolue dans le presse-papiers, avec retour visuel
  * « Copied » (2 s). `basePath` distingue la fiche du board authentifié
  * (`/jobs`) de celle de la vitrine publique (`/public/jobs`, D100/T-113).
+ *
+ * `basePath` est **obligatoire** : les deux bases mènent à deux coquilles
+ * différentes (shell dashboard vs shell public), et l'oublier ouvrait ou
+ * copiait la fiche **authentifiée** là où il fallait la page **publique**.
  */
 export function CopyPublicLinkButton({
   publicId,
   slug,
-  basePath = "/jobs",
+  basePath,
 }: {
   publicId: string;
   slug: string;
-  basePath?: string;
+  /** Base de l'URL copiée : `/public/jobs` (vitrine) ou `/jobs` (board authentifié). */
+  basePath: string;
 }) {
   const [copied, setCopied] = useState(false);
 

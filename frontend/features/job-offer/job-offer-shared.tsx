@@ -142,10 +142,24 @@ export function parsePublicId(param: string): string | null {
 }
 
 /**
- * URL publique (V15) : segment unique `{publicId}-{slug}` — fiche, copie de
+ * Base de l'URL **publique** d'une offre — la vitrine consultable **sans
+ * compte** (`/public/jobs`, D100/T-113). À distinguer de `/jobs`, la fiche
+ * du board **authentifié** : les deux rendent le même article, mais dans deux
+ * coquilles différentes (shell public vs shell dashboard).
+ */
+export const PUBLIC_JOB_BASE_PATH = "/public/jobs";
+
+/**
+ * URL d'une offre (V15) : segment unique `{publicId}-{slug}` — fiche, copie de
  * lien, job board. `basePath` distingue les deux boards : `/jobs` (board
  * authentifié, dans le shell dashboard) et `/public/jobs` (vitrine publique,
  * D100/T-113) — la fiche elle-même est la même.
+ *
+ * **Le défaut `/jobs` est volontaire** : c'est le board authentifié, et le
+ * parcours de candidature (`/jobs/{id}-{slug}/apply`) **reste authentifié**
+ * (D100). Pour un lien réellement **public** — bouton « View public page » ou
+ * « Copy link » du recruteur — passer explicitement
+ * {@link PUBLIC_JOB_BASE_PATH}.
  */
 export function publicJobPath(publicId: string, slug: string, basePath = "/jobs"): string {
   return `${basePath}/${publicId}-${slug}`;

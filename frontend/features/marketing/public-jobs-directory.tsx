@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 import { Icon } from "@/components/ui/icon";
-import { publicJobPath } from "@/features/job-offer/job-offer-shared";
+import { PUBLIC_JOB_BASE_PATH, publicJobPath } from "@/features/job-offer/job-offer-shared";
 import { OFFER_SEARCH_MAX_LENGTH } from "@/features/job-offer/offer-filter-controls";
 import {
   type BoardSelection,
@@ -17,9 +17,6 @@ import { PageHero } from "@/features/marketing/page-hero";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useInfinitePublicJobs } from "@/hooks/use-public-jobs";
 import type { PublicJobSort } from "@/types/public-job";
-
-/** Base de la fiche dans la vitrine publique (le board authentifié garde `/jobs`). */
-const JOB_BASE_PATH = "/public/jobs";
 
 /**
  * Vitrine publique des offres (D100/T-113) : la même liste que le board
@@ -135,7 +132,7 @@ export function PublicJobsDirectory({ initialQuery }: { initialQuery: string }) 
             hasNextPage={query.hasNextPage}
             isFetchingNextPage={query.isFetchingNextPage}
             fetchNextPage={query.fetchNextPage}
-            jobPath={(job) => publicJobPath(job.publicId, job.slug, JOB_BASE_PATH)}
+            jobPath={(job) => publicJobPath(job.publicId, job.slug, PUBLIC_JOB_BASE_PATH)}
             applyPath={(job) => `${publicJobPath(job.publicId, job.slug)}/apply`}
           />
         </div>

@@ -498,8 +498,11 @@ describe("JobOffersSection", () => {
     render(<JobOffersSection companies={companies} />);
     fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
 
+    // URL **exacte** de la vitrine publique : un `stringContaining` ne
+    // distinguerait pas `/public/jobs/…` de `/jobs/…` (la première contient
+    // la seconde en sous-chaîne) — le lien copié doit s'ouvrir sans compte.
     expect(writeText).toHaveBeenCalledWith(
-      expect.stringContaining("/jobs/abcdefghijkl-backend-engineer"),
+      `${window.location.origin}/public/jobs/abcdefghijkl-backend-engineer`,
     );
     expect(await screen.findByRole("button", { name: "Link copied" })).toBeInTheDocument();
   });
@@ -512,8 +515,22 @@ describe("JobOffersSection", () => {
     render(<JobOffersSection companies={companies} />);
 
     const link = screen.getByRole("link", { name: /view public page/i });
-    expect(link).toHaveAttribute("href", "/jobs/abcdefghijkl-backend-engineer");
+    expect(link).toHaveAttribute("href", "/public/jobs/abcdefghijkl-backend-engineer");
     expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("never points the public controls at the authenticated board", () => {
+    useInfiniteJobOffersMock.mockReturnValue(
+      infiniteResult([draftOffer({ status: "published" })]),
+    );
+
+    render(<JobOffersSection companies={companies} />);
+
+    // Garde-fou : `/jobs/[job]` est la fiche du board **authentifié**
+    // (shell dashboard, sidebar visible) — le recruteur doit voir la page
+    // **publique**, pas celle du dashboard.
+    const link = screen.getByRole("link", { name: /view public page/i });
+    expect(link.getAttribute("href")).not.toMatch(/^\/jobs\//);
   });
 
   it("shows no public link controls on a draft offer", () => {

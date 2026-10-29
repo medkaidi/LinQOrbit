@@ -48,6 +48,7 @@ import {
   isOfferExpired,
   OFFER_INCOMPLETE_TOOLTIP,
   OFFER_TRANSITION_CONFIRM,
+  PUBLIC_JOB_BASE_PATH,
   publicJobPath,
   validateConfirmMessage,
   type ConfirmedTransition,
@@ -236,9 +237,18 @@ function OfferActions({
             <Icon name="inbox" className="text-[14px]" />
             Applications
           </ButtonLink>
-          <CopyPublicLinkButton publicId={offer.publicId} slug={offer.slug} />
+          {/* Les deux contrôles « public » pointent sur la vitrine **sans
+              compte** (`/public/jobs`) — pas sur la fiche `/jobs/[job]` du
+              board authentifié, qui se rend dans le shell dashboard
+              (sidebar visible). Le recruteur doit voir ce que voit un
+              visiteur, et le lien copié doit s'ouvrir sans compte. */}
+          <CopyPublicLinkButton
+            publicId={offer.publicId}
+            slug={offer.slug}
+            basePath={PUBLIC_JOB_BASE_PATH}
+          />
           <ButtonLink
-            href={publicJobPath(offer.publicId, offer.slug)}
+            href={publicJobPath(offer.publicId, offer.slug, PUBLIC_JOB_BASE_PATH)}
             variant="outline-sm"
             target="_blank"
             rel="noopener noreferrer"
