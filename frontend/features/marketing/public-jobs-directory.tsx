@@ -90,10 +90,13 @@ export function PublicJobsDirectory({ initialQuery }: { initialQuery: string }) 
           <form
             onSubmit={submit}
             role="search"
-            className="w-full bg-canvas-white border border-slate-border rounded-full p-2 flex items-center shadow-sm"
+            className="w-full bg-canvas-white border border-slate-border rounded-full p-2 flex items-center shadow-sm focus-within:border-primary-container transition-[border-color] duration-150 ease-out"
           >
-            <div className="flex-1 flex items-center px-4 py-2 gap-3">
-              <Icon name="search" className="text-text-tertiary text-[22px]" />
+            <div className="flex-1 flex items-center px-4 py-2 gap-3 group">
+              <Icon
+                name="search"
+                className="text-text-tertiary group-focus-within:text-primary-container text-[22px]"
+              />
               <div className="flex-1 text-left">
                 <label htmlFor="public-jobs-search" className="sr-only">
                   Search by job title or company

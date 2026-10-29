@@ -46,10 +46,13 @@ export function MarketingHome() {
 
         <form
           onSubmit={search}
-          className="w-full max-w-4xl mt-space-lg bg-canvas-white border border-slate-border rounded-full p-2 flex flex-col md:flex-row items-stretch md:items-center shadow-sm gap-2"
+          className="w-full max-w-4xl mt-space-lg bg-canvas-white border border-slate-border rounded-full p-2 flex flex-col md:flex-row items-stretch md:items-center shadow-sm gap-2 focus-within:border-primary-container transition-[border-color] duration-150 ease-out"
         >
-          <div className="flex-1 flex items-center px-4 py-2 gap-3">
-            <Icon name="search" className="text-text-tertiary text-[22px]" />
+          <div className="flex-1 flex items-center px-4 py-2 gap-3 group">
+            <Icon
+              name="search"
+              className="text-text-tertiary group-focus-within:text-primary-container text-[22px]"
+            />
             <div className="flex-1 text-left">
               <label htmlFor="hero-search" className="sr-only">
                 Job title or company
@@ -67,7 +70,7 @@ export function MarketingHome() {
           </div>
           <button
             type="submit"
-            className="bg-primary-container hover:bg-orange-deep text-canvas-white font-label-lg text-label-lg px-space-xl py-3 rounded-full inline-flex items-center justify-center gap-2 transition-colors shrink-0"
+            className="bg-primary-container hover:bg-orange-deep text-canvas-white font-label-lg text-label-lg px-space-xl py-3 rounded-full inline-flex items-center justify-center gap-2 transition-colors shrink-0 cursor-pointer"
           >
             <Icon name="arrow_forward" className="text-[20px]" />
             <span>Search jobs</span>
