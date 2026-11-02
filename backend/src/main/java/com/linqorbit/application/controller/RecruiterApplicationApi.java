@@ -23,6 +23,7 @@ import jakarta.validation.Valid;
 import com.linqorbit.application.dto.CriterionReportRequest;
 import com.linqorbit.application.dto.RecruiterApplicationDetail;
 import com.linqorbit.application.dto.RecruiterApplicationPageResponse;
+import com.linqorbit.application.dto.RecruiterCandidateProfile;
 import com.linqorbit.application.dto.RecruiterDecisionRequest;
 import com.linqorbit.config.OpenApiConfig;
 
@@ -66,6 +67,22 @@ public interface RecruiterApplicationApi {
             @ApiResponse(responseCode = "404", description = "Candidature inconnue, brouillon ou retirée")
     })
     ResponseEntity<RecruiterApplicationDetail> detail(@PathVariable UUID offerId,
+            @PathVariable UUID applicationId, Authentication authentication);
+
+    @GetMapping("/{applicationId}/profile")
+    @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+    @Operation(summary = "Profil complet du candidat d'une candidature",
+            description = "Profil professionnel complet (même source que la vue du candidat) et coordonnées du "
+                    + "candidat : il a candidaté à cette offre, il a donc transmis son CV et ses coordonnées à "
+                    + "cette entreprise (T-125, D107). Sans condition de consentement : le consentement de "
+                    + "visibilité (T-102, D86) governs la surface « candidat suggéré », pas la candidature. "
+                    + "Mêmes droits et mêmes 404 sûrs que le détail.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Profil renvoyé"),
+            @ApiResponse(responseCode = "401", description = "Jeton absent, invalide ou expiré"),
+            @ApiResponse(responseCode = "404", description = "Offre, candidature ou profil introuvable")
+    })
+    ResponseEntity<RecruiterCandidateProfile> profile(@PathVariable UUID offerId,
             @PathVariable UUID applicationId, Authentication authentication);
 
     @GetMapping("/{applicationId}/cv")

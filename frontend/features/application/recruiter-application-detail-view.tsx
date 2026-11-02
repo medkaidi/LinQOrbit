@@ -30,6 +30,7 @@ import {
   gapLabel,
   recruiterAnswerValue,
   recruiterCandidateName,
+  RecruiterContactCard,
   SCORE_UNIT_CLASSES,
   SectionHeader,
   submittedOnLabel,
@@ -424,10 +425,19 @@ export function RecruiterApplicationDetailView({
             : "Application detail"
         }
         action={
-          <ButtonLink href={`/recruiter/offers/${offerId}/applications`} variant="outline-sm">
-            Back to applications
-            <Icon name="arrow_back" className="text-[14px]" />
-          </ButtonLink>
+          <div className="flex flex-wrap items-center gap-2">
+            <ButtonLink
+              href={`/recruiter/offers/${offerId}/applications/${applicationId}/profile`}
+              variant="outline-sm"
+            >
+              View profile
+              <Icon name="person" className="text-[14px]" />
+            </ButtonLink>
+            <ButtonLink href={`/recruiter/offers/${offerId}/applications`} variant="outline-sm">
+              Back to applications
+              <Icon name="arrow_back" className="text-[14px]" />
+            </ButtonLink>
+          </div>
         }
       />
 
@@ -487,6 +497,7 @@ export function RecruiterApplicationDetailView({
               <ClarificationsCard clarifications={data.clarifications} />
             </div>
             <div className="flex flex-col gap-6 xl:col-span-4">
+              <RecruiterContactCard email={data.email} phone={data.phone} />
               <CvCard
                 cv={data.cv}
                 busy={download.isPending}

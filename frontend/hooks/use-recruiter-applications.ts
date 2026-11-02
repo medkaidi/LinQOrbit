@@ -12,6 +12,7 @@ import {
   decideRecruiterApplication,
   downloadRecruiterApplicationCv,
   getRecruiterApplication,
+  getRecruiterApplicationProfile,
   listRecruiterApplications,
   reportCriterion,
   type CriterionReportRequest,
@@ -57,6 +58,21 @@ export function useRecruiterApplication(offerId: string, applicationId: string) 
   return useQuery({
     queryKey: queryKeys.recruiterApplications.detail(offerId, applicationId),
     queryFn: () => getRecruiterApplication(offerId, applicationId),
+    enabled: offerId !== "" && applicationId !== "",
+    retry: false,
+    staleTime: RECRUITER_APPLICATIONS_STALE_TIME,
+  });
+}
+
+/**
+ * Profil complet du candidat d'une candidature (T-125, D107) : profil
+ * professionnel et coordonnées. 404 définitif (brouillon, retrait, hors
+ * company) — aucun retry.
+ */
+export function useRecruiterApplicationProfile(offerId: string, applicationId: string) {
+  return useQuery({
+    queryKey: queryKeys.recruiterApplications.profile(offerId, applicationId),
+    queryFn: () => getRecruiterApplicationProfile(offerId, applicationId),
     enabled: offerId !== "" && applicationId !== "",
     retry: false,
     staleTime: RECRUITER_APPLICATIONS_STALE_TIME,

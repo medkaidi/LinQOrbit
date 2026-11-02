@@ -53,7 +53,7 @@ public final class EmbeddingTestData {
         jdbc.update("""
                 INSERT INTO candidates (id, created_at, updated_at, search_status,
                                         recruiter_visibility_consent_at, recruiter_visibility_consent_version)
-                VALUES (?, now(), now(), ?, CASE WHEN ? THEN now() END, CASE WHEN ? THEN 3 END)""",
+                VALUES (?, now(), now(), ?, CASE WHEN ? THEN now() END, CASE WHEN ? THEN 4 END)""",
                 id, searchStatus, consented, consented);
         return id;
     }
@@ -62,7 +62,7 @@ public final class EmbeddingTestData {
     public void setConsent(UUID candidateId, boolean consented) {
         jdbc.update("""
                 UPDATE candidates SET recruiter_visibility_consent_at = CASE WHEN ? THEN now() END,
-                    recruiter_visibility_consent_version = CASE WHEN ? THEN 3 END
+                    recruiter_visibility_consent_version = CASE WHEN ? THEN 4 END
                 WHERE id = ?""", consented, consented, candidateId);
     }
 

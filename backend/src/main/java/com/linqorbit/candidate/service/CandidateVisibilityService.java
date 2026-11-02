@@ -32,12 +32,26 @@ public class CandidateVisibilityService {
 
     /**
      * Version du texte de consentement affiché ; à incrémenter si le texte change.
-     * 3 : le texte est celui de la version 1 (e-mail et téléphone jamais visibles
-     * du recruteur). La version 2, qui les annonçait, a été abandonnée avant toute
-     * mise en production ; les consentements v2 de la base de dev couvrent un
-     * périmètre plus large que le texte actuel et restent donc valables.
+     * <p>
+     * 4 : le texte borne la promesse « pas d'e-mail ni de téléphone » à la
+     * <b>surface « profil recommandé »</b> (celle que ce consentement gouverne) et
+     * renvoie la candidature à son propre moment de partage — un candidat qui
+     * postule à une offre transmet déjà son CV, qui porte ses coordonnées, et
+     * le recruteur de cette candidature les reçoit (T-125, D107).
+     * <p>
+     * 3 : texte identique à la version 1 (e-mail et téléphone jamais visibles du
+     * recruteur <i>par la recommandation</i>). La version 2, qui les annonçait
+     * sur cette même surface, a été abandonnée avant toute mise en production ;
+     * les consentements v2 de la base de dev couvrent un périmètre plus large que
+     * le texte actuel et restent donc valables.
+     * <p>
+     * Les consentements v3 restent valables : l'accès qu'ils autorisent
+     * (recommandation de leur profil, sans coordonnées) est inchangé — le
+     * partage des coordonnées d'une candidature ne dépend pas de ce
+     * consentement. Seul un consentement dont le périmètre ne couvre pas le texte
+     * courant est annulé (V31 pour la version 1).
      */
-    public static final short CONSENT_VERSION = 3;
+    public static final short CONSENT_VERSION = 4;
 
     static final String NO_PROFILE = "Add some information to your profile before sharing it with recruiters.";
 

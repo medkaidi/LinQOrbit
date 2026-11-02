@@ -119,6 +119,9 @@ export const queryKeys = {
     offer: (offerId: string) => ["recruiter-applications", "list", offerId] as const,
     detail: (offerId: string, applicationId: string) =>
       ["recruiter-applications", "detail", offerId, applicationId] as const,
+    /** Profil complet du candidat d'une candidature + ses coordonnées (T-125, D107). */
+    profile: (offerId: string, applicationId: string) =>
+      ["recruiter-applications", "profile", offerId, applicationId] as const,
   },
   /** Candidats suggérés (ayant consenti) d'une offre publiée — T-101, D85 ; profil complet T-102, D86. */
   recruiterSuggestions: {

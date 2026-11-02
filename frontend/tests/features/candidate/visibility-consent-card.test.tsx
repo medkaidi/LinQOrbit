@@ -48,7 +48,13 @@ describe("VisibilityConsentCard", () => {
     expect(checkbox).not.toBeChecked();
     expect(screen.getByRole("heading", { name: "Visibility to recruiters" })).toBeInTheDocument();
     expect(screen.getByText(/including your name/)).toBeInTheDocument();
-    expect(screen.getByText(/cannot see your email address or phone number/)).toBeInTheDocument();
+    // La promesse « pas d'e-mail ni de téléphone » est **bornée** à cette surface
+    // (D107) : sur une candidature, le candidat a lui-même transmis ses coordonnées.
+    expect(
+      screen.getByText(
+        /Through this listing, they cannot see your email address or phone number/,
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText(/withdraw at any time/)).toBeInTheDocument();
     expect(screen.getByText(/never suggested to recruiters/)).toBeInTheDocument();
     expect(screen.queryByText(/Shared since/)).not.toBeInTheDocument();

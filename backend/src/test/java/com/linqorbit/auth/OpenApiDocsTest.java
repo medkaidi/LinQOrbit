@@ -141,6 +141,16 @@ class OpenApiDocsTest {
     }
 
     @Test
+    void exposeLeDocumentOpenApiAvecLeProfilCandidatDeCandidature() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/applications/{applicationId}/profile'].get")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/job-offers/{offerId}/applications/{applicationId}/profile'].get.summary")
+                        .value("Profil complet du candidat d'une candidature"));
+    }
+
+    @Test
     void exposeLeDocumentOpenApiAvecLesEndpointsCompany() throws Exception {        mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/companies'].post.summary")

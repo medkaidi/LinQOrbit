@@ -11,6 +11,7 @@ import type {
   RecruiterApplicationPage,
   RecruiterApplicationSortValue,
   RecruiterApplicationStatusValue,
+  RecruiterCandidateProfile,
   SaveApplicationDraftRequest,
   SubmitApplicationRequest,
 } from "@/types/application";
@@ -102,6 +103,21 @@ export async function getRecruiterApplication(
 ): Promise<RecruiterApplicationDetail> {
   const { data } = await api.get<RecruiterApplicationDetail>(
     `/api/v1/job-offers/${offerId}/applications/${applicationId}`,
+  );
+  return data;
+}
+
+/**
+ * Profil complet du candidat d'une candidature + ses coordonnées (T-125,
+ * D107) : le candidat a candidaté à cette offre, le recruteur dispose donc de
+ * son profil et de son e-mail / son téléphone pour le joindre.
+ */
+export async function getRecruiterApplicationProfile(
+  offerId: string,
+  applicationId: string,
+): Promise<RecruiterCandidateProfile> {
+  const { data } = await api.get<RecruiterCandidateProfile>(
+    `/api/v1/job-offers/${offerId}/applications/${applicationId}/profile`,
   );
   return data;
 }

@@ -85,6 +85,10 @@ export function SubmitPanel({
           Running the match is optional: you can send your application now. Once sent, your answers
           can no longer be changed.
         </p>
+        <p className={MUTED_TEXT_CLASS}>
+          By submitting your application, the recruiter can see your profile and your contact
+          details (email address and phone number).
+        </p>
 
         {cvs.isLoading ? (
           <span className="flex items-center gap-2 text-body-sm font-body-sm text-text-secondary">

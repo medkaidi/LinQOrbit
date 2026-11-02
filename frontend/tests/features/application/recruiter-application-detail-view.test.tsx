@@ -101,6 +101,40 @@ describe("RecruiterApplicationDetailView", () => {
     );
   });
 
+  it("shows the contact details of the applicant and links to the full profile", async () => {
+    detailMock.mockResolvedValue(buildRecruiterApplicationDetail());
+
+    renderDetail();
+
+    // Le recruteur doit pouvoir joindre le candidat : e-mail et téléphone cliquables.
+    const contact = within(await screen.findByRole("region", { name: "Contact" }));
+    expect(contact.getByText("grace.hopper@example.com").closest("a")).toHaveAttribute(
+      "href",
+      "mailto:grace.hopper@example.com",
+    );
+    expect(contact.getByText("+1 555 000 0000").closest("a")).toHaveAttribute(
+      "href",
+      "tel:+15550000000",
+    );
+
+    // Le profil complet est une page à part entière : un lien, pas un CTA.
+    const profile = screen.getByRole("link", { name: /View profile/ });
+    expect(profile).toHaveAttribute(
+      "href",
+      `/recruiter/offers/${RECRUITER_OFFER_ID}/applications/${RECRUITER_APPLICATION_ID}/profile`,
+    );
+  });
+
+  it("says when the applicant provided no phone number", async () => {
+    detailMock.mockResolvedValue(buildRecruiterApplicationDetail({ phone: null }));
+
+    renderDetail();
+
+    const contact = within(await screen.findByRole("region", { name: "Contact" }));
+    expect(contact.getByText("No phone number provided")).toBeInTheDocument();
+    expect(contact.getByText("grace.hopper@example.com")).toBeInTheDocument();
+  });
+
   it("shows the pinned assessment by section and criterion, with a blue bar per criterion", async () => {
     detailMock.mockResolvedValue(buildRecruiterApplicationDetail());
 

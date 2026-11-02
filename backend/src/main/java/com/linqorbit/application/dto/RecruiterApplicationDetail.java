@@ -13,10 +13,16 @@ import java.util.UUID;
  *                   déduit côté client.
  * @param criterionReports signalements internes de l'évaluation IA posés par
  *                   le lecteur courant (T-86, D66) — jamais ceux des autres.
+ * @param email e-mail du candidat (T-125, D107) : il a candidaté à cette
+ *                   offre, ses coordonnées sont donc connues du recruteur.
+ * @param phone numéro du candidat (T-125, D107), absent s'il ne l'a pas
+ *                   renseigné.
  */
 public record RecruiterApplicationDetail(
         UUID id,
         RecruiterCandidateSummary candidate,
+        String email,
+        String phone,
         String status,
         LocalDateTime submittedAt,
         boolean canDecide,

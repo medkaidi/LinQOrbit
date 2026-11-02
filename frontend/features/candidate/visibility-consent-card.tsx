@@ -30,9 +30,10 @@ export function VisibilityConsentCard() {
       <div className="flex flex-col gap-3">
         <p className="max-w-3xl text-body-sm font-body-sm text-text-secondary">
           When you agree, recruiters whose published job offers match your profile can view your
-          full profile, including your name, and invite you to apply. They cannot see your email
-          address or phone number. You can withdraw at any time — your profile then disappears from their lists.
-          Until you agree, you are never suggested to recruiters.
+          full profile, including your name, and invite you to apply. Through this listing, they
+          cannot see your email address or phone number. You can withdraw at any time — your
+          profile then disappears from their lists. Until you agree, you are never suggested to
+          recruiters.
         </p>
 
         {consent.isLoading ? (

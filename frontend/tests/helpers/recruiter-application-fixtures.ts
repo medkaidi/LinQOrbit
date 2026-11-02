@@ -2,6 +2,7 @@ import type {
   RecruiterApplicationCard,
   RecruiterApplicationDetail,
   RecruiterApplicationPage,
+  RecruiterCandidateProfile,
 } from "@/types/application";
 
 export const RECRUITER_OFFER_ID = "11111111-1111-4111-8111-111111111111";
@@ -73,6 +74,8 @@ export function buildRecruiterApplicationDetail(
   return {
     id: RECRUITER_APPLICATION_ID,
     candidate: { firstName: "Grace", lastName: "Hopper", title: "Senior Backend Engineer" },
+    email: "grace.hopper@example.com",
+    phone: "+1 555 000 0000",
     status: "submitted",
     submittedAt: "2026-10-15T09:30:00",
     canDecide: true,
@@ -184,6 +187,54 @@ export function buildRecruiterApplicationDetail(
       attachmentId: RECRUITER_CV_ID,
       originalName: "grace-hopper-cv.pdf",
       sizeBytes: 24576,
+    },
+    ...overrides,
+  };
+}
+
+/**
+ * Profil complet du candidat d'une candidature (T-125, D107) : profil
+ * professionnel et coordonnées — le candidat a candidaté, le recruteur doit
+ * pouvoir le joindre.
+ */
+export function buildRecruiterCandidateProfile(
+  overrides: Partial<RecruiterCandidateProfile> = {},
+): RecruiterCandidateProfile {
+  return {
+    candidate: { firstName: "Grace", lastName: "Hopper", title: "Senior Backend Engineer" },
+    email: "grace.hopper@example.com",
+    phone: "+1 555 000 0000",
+    currentCity: "Paris",
+    currentCountry: "FR",
+    profile: {
+      about: {
+        title: "Senior Backend Engineer",
+        targetPosition: null,
+        bio: "Builds payment systems",
+        yearsOfExperience: 9,
+        searchStatus: "open_to_work",
+      },
+      experiences: [
+        {
+          id: "experience-1",
+          positionTitle: "Backend Engineer",
+          description: null,
+          startDate: "2021-01-01",
+          endDate: null,
+          companyName: "Acme Corp",
+          companyCountry: "FR",
+        },
+      ],
+      projects: [],
+      diplomas: [],
+      skills: [{ skillId: "skill-java", name: "Java", skillType: "technical", level: 5, yearsExperience: 9 }],
+      languages: [{ languageId: "lang-en", symbol: "en", name: "English", level: "C1" }],
+      links: [],
+      completionPercentage: 60,
+      hasUnvalidatedChanges: false,
+      normalizationFailed: false,
+      normalizationInProgress: false,
+      analysisOutdated: false,
     },
     ...overrides,
   };

@@ -1,3 +1,4 @@
+import type { CandidateProfile } from "@/types/candidate";
 import type { SuggestedSkill } from "@/types/invitation";
 import type { QuestionTypeValue } from "@/types/recruiter";
 
@@ -306,6 +307,14 @@ export type RecruiterCvSummary = {
 export type RecruiterApplicationDetail = {
   id: string;
   candidate: RecruiterCandidateSummary | null;
+  /**
+   * Coordonnées du candidat (T-125, D107) : il a candidaté à cette offre, il a
+   * donc transmis son CV — qui porte ses coordonnées — à cette entreprise.
+   * L'e-mail est celui du compte ; le téléphone est absent s'il ne l'a pas
+   * renseigné.
+   */
+  email: string | null;
+  phone: string | null;
   status: RecruiterApplicationStatusValue;
   submittedAt: string;
   /** Calculé par le serveur : transmise + droit de gestion D12 (owner ou créateur). */
@@ -330,6 +339,22 @@ export type RecruiterApplicationDetail = {
 };
 
 export type RecruiterApplicationDecision = "accepted" | "rejected";
+
+/**
+ * Profil complet du candidat d'une candidature, vu par un recruteur
+ * (T-125, D107) : profil professionnel (même source que la vue du candidat)
+ * et coordonnées. Sans condition de consentement : le candidat a candidaté à
+ * cette offre, il a donc transmis son CV et ses coordonnées à cette
+ * entreprise. La surface « candidat suggéré » reste, elle, sans coordonnées.
+ */
+export type RecruiterCandidateProfile = {
+  candidate: RecruiterCandidateSummary | null;
+  email: string | null;
+  phone: string | null;
+  currentCity: string | null;
+  currentCountry: string | null;
+  profile: CandidateProfile;
+};
 
 /** Nombre de candidatures par statut (0 quand il n'y en a aucune). */
 export type ApplicationCounts = {

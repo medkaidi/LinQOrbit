@@ -371,6 +371,8 @@ class RecruiterApplicationIntegrationTest extends RecruiterApplicationTestSuppor
                 .andExpect(jsonPath("$.candidate.firstName").value("Grace"))
                 .andExpect(jsonPath("$.candidate.lastName").value("Hopper"))
                 .andExpect(jsonPath("$.candidate.title").value("Senior Backend Engineer"))
+                .andExpect(jsonPath("$.email").value(emailOf(candidate)))
+                .andExpect(jsonPath("$.phone").value("+1 555 000 0000"))
                 .andExpect(jsonPath("$.status").value("submitted"))
                 .andExpect(jsonPath("$.submittedAt").isNotEmpty())
                 .andExpect(jsonPath("$.canDecide").value(true))

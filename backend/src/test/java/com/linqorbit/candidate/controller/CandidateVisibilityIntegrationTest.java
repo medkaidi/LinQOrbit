@@ -89,7 +89,7 @@ class CandidateVisibilityIntegrationTest extends EmbeddingIntegrationTestSupport
                 .andExpect(jsonPath("$.consentedAt").isNotEmpty());
         assertThat(jdbc.queryForObject(
                 "SELECT recruiter_visibility_consent_version FROM candidates WHERE id = ?", Integer.class, candidate))
-                .isEqualTo(3);
+                .isEqualTo(4);
         assertThat(jdbc.queryForObject(
                 "SELECT recruiter_visibility_consent_at IS NOT NULL FROM candidates WHERE id = ?", Boolean.class,
                 candidate)).isTrue();
@@ -112,7 +112,7 @@ class CandidateVisibilityIntegrationTest extends EmbeddingIntegrationTestSupport
 
         assertThat(jdbc.queryForObject(
                 "SELECT recruiter_visibility_consent_version FROM candidates WHERE id = ?", Integer.class, candidate))
-                .isEqualTo(3);
+                .isEqualTo(4);
         assertThat(jdbc.queryForObject(
                 "SELECT recruiter_visibility_consent_at > now() - interval '1 minute' FROM candidates WHERE id = ?",
                 Boolean.class, candidate)).isTrue();

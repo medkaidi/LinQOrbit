@@ -29,6 +29,7 @@ import com.linqorbit.application.dto.RecruiterApplicationDetail;
 import com.linqorbit.application.dto.RecruiterApplicationPageResponse;
 import com.linqorbit.application.dto.RecruiterAssessmentView;
 import com.linqorbit.application.dto.RecruiterCandidateHighlights;
+import com.linqorbit.application.dto.RecruiterCandidateProfile;
 import com.linqorbit.application.dto.RecruiterCandidateSummary;
 import com.linqorbit.application.dto.RecruiterClarificationView;
 import com.linqorbit.application.dto.RecruiterContestationView;
@@ -51,9 +52,11 @@ import com.linqorbit.attachment.entity.Attachment;
 import com.linqorbit.attachment.exception.AttachmentNotFoundException;
 import com.linqorbit.attachment.repository.AttachmentRepository;
 import com.linqorbit.attachment.service.AttachmentService;
+import com.linqorbit.candidate.dto.CandidateProfileResponse;
 import com.linqorbit.candidate.entity.Candidate;
 import com.linqorbit.candidate.repository.CandidateRepository;
 import com.linqorbit.candidate.repository.NormalizedProfileRepository;
+import com.linqorbit.candidate.service.CandidateService;
 import com.linqorbit.common.pagination.PageSizes;
 import com.linqorbit.company.entity.Company;
 import com.linqorbit.company.repository.CompanyRepository;
@@ -123,6 +126,7 @@ public class RecruiterApplicationService {
     private final JobOfferService jobOfferService;
     private final AttachmentService attachmentService;
     private final ApplicationAssessmentReader assessmentReader;
+    private final CandidateService candidateService;
 
     @Transactional(readOnly = true)
     public RecruiterApplicationPageResponse list(UUID userId, UUID offerId, String status, String sort,
@@ -210,9 +214,40 @@ public class RecruiterApplicationService {
         log.info("Recruiter application detail served : userId={}, applicationId={}, status={}, assessment={}",
                 userId, applicationId, application.getStatus().getApiValue(), assessment.available());
         return new RecruiterApplicationDetail(application.getId(), candidate(candidate, candidateProfile),
+                email(candidate), phone(candidate),
                 application.getStatus().getApiValue(), application.getSubmittedAt(), canDecide,
                 jobSummary(offer), answers, assessment, clarifications, contests, gap.averageGap(),
                 criterionReports, cv);
+    }
+
+    /**
+     * Profil complet du candidat d'une candidature (T-125, D107) : même source
+     * que la vue du candidat ({@link CandidateService#getProfile}), lue par un
+     * recruteur. Mêmes droits que le détail (membre de la company, candidature
+     * transmise ou décidée) et mêmes 404 sûrs : un brouillon, un retrait ou une
+     * candidature d'une autre company n'existe pas pour le recruteur.
+     *
+     * <p><b>Sans condition de consentement</b> : le candidat a candidaté à
+     * cette offre, il a donc transmis son CV — qui porte ses coordonnées — à
+     * cette entreprise. Le consentement de visibilité (T-102, D86) governs la
+     * surface « candidat suggéré » (découverte après publication), pas la
+     * candidature. E-mail et téléphone sont donc exposés ici, et seulement
+     * ici.</p>
+     */
+    @Transactional(readOnly = true)
+    public RecruiterCandidateProfile profile(UUID userId, UUID offerId, UUID applicationId) {
+        jobOfferService.getForMember(userId, offerId);
+        Application application = visibleApplication(offerId, applicationId);
+        User candidate = userRepository.findById(application.getCandidateId()).orElse(null);
+        Candidate candidateProfile = candidateRepository.findById(application.getCandidateId()).orElse(null);
+        CandidateProfileResponse profile = candidateService.getProfile(application.getCandidateId());
+        log.info("Recruiter application candidate profile viewed : userId={}, offerId={}, applicationId={}",
+                userId, offerId, applicationId);
+        return new RecruiterCandidateProfile(candidate(candidate, candidateProfile), email(candidate),
+                phone(candidate),
+                candidate == null ? null : blankToNull(candidate.getCurrentCity()),
+                candidate == null ? null : blankToNull(candidate.getCurrentCountry()),
+                profile);
     }
 
     @Transactional(readOnly = true)
@@ -586,6 +621,19 @@ public class RecruiterApplicationService {
         String title = candidate == null ? null : candidate.getTitle();
         return new RecruiterCandidateSummary(user.getFirstName(), user.getLastName(),
                 title == null || title.isBlank() ? null : title.trim());
+    }
+
+    /**
+     * E-mail du candidat (T-125, D107) : connu du recruteur dès la
+     * candidature — le CV transmis porte déjà ces coordonnées.
+     */
+    private static String email(User user) {
+        return user == null ? null : blankToNull(user.getEmail());
+    }
+
+    /** Numéro du candidat (T-125, D107), absent s'il ne l'a pas renseigné. */
+    private static String phone(User user) {
+        return user == null ? null : blankToNull(user.getPhone());
     }
 
     private static ApplicationStatus parseStatus(String status) {

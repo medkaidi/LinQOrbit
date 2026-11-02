@@ -177,6 +177,11 @@ abstract class RecruiterApplicationTestSupport extends ApplicationStorageTestSup
     protected record Account(String token, UUID userId) {
     }
 
+    /** E-mail du compte : le recruteur doit pouvoir joindre le candidat qui a candidaté. */
+    protected String emailOf(Account account) {
+        return jdbcTemplate.queryForObject("SELECT email FROM users WHERE id = ?", String.class, account.userId());
+    }
+
     protected record FeedbackSpec(String key, int selfValue, String comment) {
     }
 

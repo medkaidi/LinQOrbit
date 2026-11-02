@@ -92,6 +92,23 @@ describe("SubmitPanel", () => {
     );
   });
 
+  it("tells the candidate that the recruiter sees the profile and the contact details", async () => {
+    renderWithQueryClient(
+      <SubmitPanel
+        context={draftContext(null)}
+        applicationId={APPLICATION_ID}
+        ensureDraft={ensureDraftMock}
+      />,
+    );
+
+    // Le partage est annoncé au moment du partage : postuler, c'est transmettre.
+    expect(
+      await screen.findByText(
+        /the recruiter can see your profile and your contact details \(email address and phone number\)/,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("requires a CV before the application can be submitted", async () => {
     listCvsMock.mockResolvedValue([]);
     renderWithQueryClient(<SubmitPanel context={draftContext(null)} applicationId={APPLICATION_ID} ensureDraft={ensureDraftMock} />);

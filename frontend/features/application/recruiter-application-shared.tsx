@@ -2,6 +2,7 @@ import { Icon } from "@/components/ui/icon";
 import { IconBadge } from "@/components/ui/icon-badge";
 import {
   MUTED_TEXT_CLASS,
+  SECTION_CARD_CLASS,
   SECTION_HEADER_CLASS,
   SECTION_TITLE_CLASS,
 } from "@/components/ui/section";
@@ -32,6 +33,60 @@ export function SectionHeader({
       </div>
       {aside ? <span className={MUTED_TEXT_CLASS}>{aside}</span> : null}
     </header>
+  );
+}
+
+/**
+ * Coordonnées du candidat d'une candidature (T-125, D107) : e-mail
+ * (`mailto:`) et téléphone (`tel:`) cliquables — sans elles, le recruteur n'a
+ * aucun moyen de le joindre. Elles sont transmises par le candidat au moment
+ * de la candidature (son CV porte déjà ces coordonnées) ; la surface « candidat
+ * suggéré » reste, elle, sans coordonnées (T-102, D86).
+ */
+export function RecruiterContactCard({
+  email,
+  phone,
+}: {
+  email: string | null;
+  phone: string | null;
+}) {
+  return (
+    <section className={SECTION_CARD_CLASS} aria-label="Contact">
+      <div className="px-5 py-4 flex flex-col gap-2.5">
+        <p className="font-label-md text-label-md text-text-secondary">
+          Contact details
+        </p>
+        {email ? (
+          <a
+            href={`mailto:${email}`}
+            className="flex items-center gap-2 text-body-md font-body-md text-text-primary hover:text-orange-deep break-all"
+          >
+            <Icon name="mail" className="text-[16px] text-text-tertiary shrink-0" />
+            {email}
+          </a>
+        ) : (
+          <p className="text-body-md font-body-md text-text-tertiary">
+            No email address provided
+          </p>
+        )}
+        {phone ? (
+          <a
+            href={`tel:${phone.replace(/\s+/g, "")}`}
+            className="flex items-center gap-2 text-body-md font-body-md text-text-primary hover:text-orange-deep"
+          >
+            <Icon name="call" className="text-[16px] text-text-tertiary shrink-0" />
+            {phone}
+          </a>
+        ) : (
+          <p className="text-body-md font-body-md text-text-tertiary">
+            No phone number provided
+          </p>
+        )}
+        <p className="text-body-sm font-body-sm text-text-tertiary">
+          Shared by the candidate with this application.
+        </p>
+      </div>
+    </section>
   );
 }
 

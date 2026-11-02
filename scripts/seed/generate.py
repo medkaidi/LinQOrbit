@@ -747,7 +747,7 @@ def emit_candidate(c: dict, rng: random.Random) -> list[str]:
     )
     lines.append(
         f"INSERT INTO candidates (id, created_at, updated_at, title, bio, years_of_experience, search_status, target_position, recruiter_visibility_consent_at, recruiter_visibility_consent_version) VALUES "
-        f"({q(uid_)}, {ts(c['created'])}, {ts(c['profile_updated'])}, {q(c['title'])}, {q(c['bio'])}, {c['years']}, {c['search_status']}, {q(c['target'])}, {ts(c['validated'])}, 3);"
+        f"({q(uid_)}, {ts(c['created'])}, {ts(c['profile_updated'])}, {q(c['title'])}, {q(c['bio'])}, {c['years']}, {c['search_status']}, {q(c['target'])}, {ts(c['validated'])}, 4);"
     )
 
     for k, exp in enumerate(c["experiences"]):
@@ -1323,7 +1323,7 @@ def emit_consent(candidates: list[dict]) -> str:
         [
             "-- LinQOrbit dev seed — recruiter-visibility consent (SIMULATION, UPDATE of NULL consents only, no deletion)",
             "BEGIN;",
-            f"UPDATE candidates SET recruiter_visibility_consent_at = {ts(at)}, recruiter_visibility_consent_version = 3 "
+            f"UPDATE candidates SET recruiter_visibility_consent_at = {ts(at)}, recruiter_visibility_consent_version = 4 "
             f"WHERE id IN ({ids}) AND recruiter_visibility_consent_at IS NULL;",
             "COMMIT;",
             "",

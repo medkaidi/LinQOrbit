@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import com.linqorbit.application.dto.CriterionReportRequest;
 import com.linqorbit.application.dto.RecruiterApplicationDetail;
 import com.linqorbit.application.dto.RecruiterApplicationPageResponse;
+import com.linqorbit.application.dto.RecruiterCandidateProfile;
 import com.linqorbit.application.dto.RecruiterDecisionRequest;
 import com.linqorbit.application.service.RecruiterApplicationService;
 import com.linqorbit.attachment.dto.AttachmentContent;
@@ -41,6 +42,13 @@ public class RecruiterApplicationController implements RecruiterApplicationApi {
     public ResponseEntity<RecruiterApplicationDetail> detail(UUID offerId, UUID applicationId,
             Authentication authentication) {
         return ResponseEntity.ok(recruiterApplicationService.detail(CurrentUserId.from(authentication), offerId,
+                applicationId));
+    }
+
+    @Override
+    public ResponseEntity<RecruiterCandidateProfile> profile(UUID offerId, UUID applicationId,
+            Authentication authentication) {
+        return ResponseEntity.ok(recruiterApplicationService.profile(CurrentUserId.from(authentication), offerId,
                 applicationId));
     }
 
