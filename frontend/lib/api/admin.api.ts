@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/axios";
+import { sanitizeHtmlOrNull } from "@/lib/utils/sanitize-html";
 import type { CandidateProfile } from "@/types/candidate";
 import type {
   AdminCandidateNormalizedProfile,
@@ -97,9 +98,19 @@ export async function listAllJobOffers(
   return response.data;
 }
 
+/**
+ * Détail d'une offre côté admin (D38). La description est **re-sanitisée à
+ * la lecture** (D108) : la console admin rend la description via
+ * `dangerouslySetInnerHTML` — défense en profondeur, le serveur sanitise
+ * déjà à l'écriture.
+ */
 export async function getAdminJobOffer(offerId: string): Promise<AdminJobOfferDetail> {
   const response = await api.get<AdminJobOfferDetail>(`${BASE}/job-offers/${offerId}`);
-  return response.data;
+  const data = response.data;
+  return {
+    ...data,
+    detail: { ...data.detail, description: sanitizeHtmlOrNull(data.detail.description) },
+  };
 }
 
 export async function getOfferNormalizedProfile(

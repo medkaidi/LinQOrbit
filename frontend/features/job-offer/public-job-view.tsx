@@ -63,9 +63,10 @@ function PublicJobDetail({
 
 /**
  * Fiche publique d'une offre publiée (V15, restylée T-73) : rendue sans
- * authentification. La description est le HTML déjà sanitisé stocké en base
- * (D19) — styles scopés `.job-offer-description`. Les CTA « Apply » mènent au
- * formulaire de candidature (AuthGate → login avec retour si nécessaire).
+ * authentification. La description est le HTML sanitisé par le serveur à
+ * l'écriture (D108) et re-sanitisé à la lecture par la couche API — styles
+ * scopés `.job-offer-description`. Les CTA « Apply » mènent au formulaire de
+ * candidature (AuthGate → login avec retour si nécessaire).
  *
  * `backHref` et `basePath` distinguent les deux boards : `/jobs` (board
  * authentifié) et `/public/jobs` (vitrine publique, D100/T-113) — la fiche

@@ -241,7 +241,8 @@ export function PublicJobArticle({
             <ArticleSection icon="description" title="About the role">
               <div
                 className="job-offer-description text-body-md font-body-md text-text-primary"
-                // HTML déjà sanitisé côté serveur/base (D19) — jamais de HTML cru.
+                // HTML sanitisé côté serveur à l'écriture (D108) et re-sanitisé
+                // à la lecture dans la couche API — jamais de HTML cru.
                 dangerouslySetInnerHTML={{ __html: article.description }}
               />
             </ArticleSection>

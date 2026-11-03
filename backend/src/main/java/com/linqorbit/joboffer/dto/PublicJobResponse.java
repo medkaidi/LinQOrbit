@@ -8,8 +8,9 @@ import java.util.List;
 /**
  * Fiche publique d'une offre publiée (V15) : ce qui mérite d'être vu hors
  * espace recruteur — pas de recruiterId, ni de statut, ni de dirty-flag.
- * Les vocabulaires sont résolus en labels ; la description est le HTML déjà
- * sanitisé stocké en base (D19).
+ * Les vocabulaires sont résolus en labels ; la description est le HTML
+ * sanitisé par le serveur à l'écriture (D108) et re-sanitisé à la lecture
+ * par le frontend — jamais du HTML cru.
  */
 public record PublicJobResponse(
         String publicId,

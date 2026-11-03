@@ -1,21 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  createJobOffer,
+  duplicateJobOffer,
+  getJobOffer,
   getRecruiterDashboard,
   listJobOffers,
   revalidateJobOffer,
   toJobOfferPayload,
+  updateJobOffer,
 } from "@/lib/api/job-offer.api";
 import type { JobOfferValues } from "@/lib/validations/job-offer.schemas";
 
 vi.mock("@/lib/api/axios", () => ({
-  api: { get: vi.fn(), post: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
 
 import { api } from "@/lib/api/axios";
 
 const mockedGet = vi.mocked(api.get);
 const mockedPost = vi.mocked(api.post);
+const mockedPut = vi.mocked(api.put);
 
 const COMPANY_ID = "33333333-3333-4333-8333-333333333333";
 
@@ -268,6 +273,77 @@ describe("revalidateJobOffer", () => {
 
     expect(mockedPost).toHaveBeenCalledTimes(1);
     expect(mockedPost).toHaveBeenCalledWith("/api/v1/job-offers/o1/revalidate");
+  });
+});
+
+/**
+ * D108 — le HTML ne franchit jamais la porte du navigateur en clair :
+ * à l'écriture (payload) et à la lecture (réponse relue par le client).
+ */
+describe("description de l'offre — écriture et lecture", () => {
+  const HOSTILE = '<p>Hi</p><script>alert(1)</script><img src=x onerror="steal()">';
+
+  it("never sends raw HTML to the backend when creating an offer", async () => {
+    mockedPost.mockResolvedValue({ data: { id: "o1", description: null } });
+
+    await createJobOffer({ ...emptyValues, companyId: COMPANY_ID, description: HOSTILE });
+
+    const payload = mockedPost.mock.calls[0][1] as { description: string | null };
+    expect(payload.description).toBe("<p>Hi</p>");
+  });
+
+  it("never sends raw HTML to the backend when updating an offer", async () => {
+    mockedPut.mockResolvedValue({ data: undefined });
+
+    await updateJobOffer("o1", {
+      ...emptyValues,
+      companyId: COMPANY_ID,
+      description: HOSTILE,
+    });
+
+    const payload = mockedPut.mock.calls[0][1] as { description: string | null };
+    expect(payload.description).toBe("<p>Hi</p>");
+  });
+
+  it("re-sanitizes the description of a created offer", async () => {
+    mockedPost.mockResolvedValue({ data: { id: "o1", description: HOSTILE } });
+
+    const result = await createJobOffer({ ...emptyValues, companyId: COMPANY_ID });
+
+    expect(result.description).toBe("<p>Hi</p>");
+  });
+
+  it("re-sanitizes the description of a read offer", async () => {
+    mockedGet.mockResolvedValue({ data: { id: "o1", description: HOSTILE } });
+
+    const result = await getJobOffer("o1");
+
+    expect(result.description).toBe("<p>Hi</p>");
+  });
+
+  it("re-sanitizes the description of a duplicated offer", async () => {
+    mockedPost.mockResolvedValue({ data: { id: "o2", description: HOSTILE } });
+
+    const result = await duplicateJobOffer("o1");
+
+    expect(result.description).toBe("<p>Hi</p>");
+  });
+
+  it("keeps a legitimate description untouched", async () => {
+    const description = '<h2>Role</h2><p>Ship <strong>weekly</strong>.</p>';
+    mockedGet.mockResolvedValue({ data: { id: "o1", description } });
+
+    const result = await getJobOffer("o1");
+
+    expect(result.description).toBe(description);
+  });
+
+  it("turns a description reduced to nothing into null", async () => {
+    mockedGet.mockResolvedValue({ data: { id: "o1", description: "<script>alert(1)</script>" } });
+
+    const result = await getJobOffer("o1");
+
+    expect(result.description).toBeNull();
   });
 });
 

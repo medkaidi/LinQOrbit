@@ -1,5 +1,5 @@
 import { api } from "@/lib/api/axios";
-import { sanitizeHtml } from "@/lib/utils/sanitize-html";
+import { sanitizeHtmlOrNull } from "@/lib/utils/sanitize-html";
 import type {
   CreateJobOfferValues,
   JobOfferValues,
@@ -56,11 +56,24 @@ const numberOrNull = (value: string): number | null =>
 
 const textOrNull = (value: string): string | null => (value === "" ? null : value);
 
-/** Description riche : HTML sanitisé, document vide (`<p></p>` ou blanc) → null. */
-const htmlOrNull = (value: string): string | null => {
-  const clean = sanitizeHtml(value).trim();
-  return clean === "" || clean === "<p></p>" ? null : clean;
-};
+/**
+ * Description d'offre — HTML sanitisé. **Écriture** : le formulaire est
+ * porteur d'HTML brut (éditeur Tiptap), la couche API est la seule porte
+ * d'entrée ; document vide (`<p></p>` ou blanc) → `null`.
+ */
+const htmlOrNull = (value: string): string | null => sanitizeHtmlOrNull(value);
+
+/**
+ * Description d'offre — **lecture** (D108) : re-sanitisation côté client,
+ * défense supplémentaire. Le serveur sanitise déjà à l'écriture ; cette
+ * porte protège aussi les lignes antérieures à D108 et tout futur chemin
+ * d'écriture. Les deux implémentations partagent le même vocabulaire
+ * (`lib/utils/sanitize-html.ts`).
+ */
+const withSanitizedDescription = (offer: JobOffer): JobOffer => ({
+  ...offer,
+  description: sanitizeHtmlOrNull(offer.description),
+});
 
 /**
  * Conversion d'un formulaire (toutes chaînes) vers le corps API. Les lignes
@@ -151,7 +164,7 @@ export async function listJobOffers(
 
 export async function getJobOffer(offerId: string): Promise<JobOffer> {
   const response = await api.get<JobOffer>(`/api/v1/job-offers/${offerId}`);
-  return response.data;
+  return withSanitizedDescription(response.data);
 }
 
 export async function createJobOffer(
@@ -162,7 +175,7 @@ export async function createJobOffer(
     "/api/v1/job-offers",
     toJobOfferPayload(rest, companyId),
   );
-  return response.data;
+  return withSanitizedDescription(response.data);
 }
 
 export async function updateJobOffer(
@@ -199,7 +212,7 @@ export async function closeJobOffer(offerId: string): Promise<void> {
 
 export async function duplicateJobOffer(offerId: string): Promise<JobOffer> {
   const response = await api.post<JobOffer>(`/api/v1/job-offers/${offerId}/duplicate`);
-  return response.data;
+  return withSanitizedDescription(response.data);
 }
 
 export async function listContractTypes(): Promise<JobOfferLabelOption[]> {

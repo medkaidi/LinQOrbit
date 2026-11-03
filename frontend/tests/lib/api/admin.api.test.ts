@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createCriterionReportReview,
   getAdminDashboard,
+  getAdminJobOffer,
   getCriterionReport,
   listAllJobOffers,
   listCriterionReports,
@@ -175,5 +176,27 @@ describe("admin.api", () => {
       "/api/v1/admin/criterion-reports/report-1/reviews",
       payload,
     );
+  });
+
+  it("re-sanitizes the description of an offer detail — the console renders raw HTML", async () => {
+    mockedGet.mockResolvedValue({
+      data: {
+        id: "o1",
+        status: "published",
+        createdAt: "2026-10-23T10:00:00",
+        updatedAt: "2026-10-23T10:00:00",
+        detail: {
+          publicId: "abcdefghijkl",
+          slug: "backend-engineer",
+          title: "Backend Engineer",
+          description: '<p>Hi</p><script>alert(1)</script><img src=x onerror="steal()">',
+        },
+      },
+    });
+
+    const result = await getAdminJobOffer("o1");
+
+    expect(mockedGet).toHaveBeenCalledWith("/api/v1/admin/job-offers/o1");
+    expect(result.detail.description).toBe("<p>Hi</p>");
   });
 });

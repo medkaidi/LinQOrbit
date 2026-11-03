@@ -144,6 +144,7 @@ public class JobOfferService {
     private final ApplicationRepository applicationRepository;
     private final ScreeningJobService screeningJobService;
     private final ScreeningSignals screeningSignals;
+    private final JobOfferDescriptionSanitizer descriptionSanitizer;
 
     @Transactional
     public JobOfferResponse create(UUID userId, CreateJobOfferRequest request) {
@@ -163,7 +164,7 @@ public class JobOfferService {
                 .title(request.title().trim())
                 .publicId(generatePublicId())
                 .slug(slugify(request.title()))
-                .description(trimToNull(request.description()))
+                .description(descriptionSanitizer.sanitize(request.description()))
                 .seniority(parseSeniority(request.seniority()))
                 .requiredExpYear(request.requiredExpYear())
                 .city(trimToNull(request.city()))
@@ -489,7 +490,7 @@ public class JobOfferService {
         // Slug cosmétique dérivé du titre — régénéré à chaque édition
         // (idempotent : un titre inchangé produit le même slug).
         offer.setSlug(slugify(request.title()));
-        offer.setDescription(trimToNull(request.description()));
+        offer.setDescription(descriptionSanitizer.sanitize(request.description()));
         offer.setSeniority(parseSeniority(request.seniority()));
         offer.setRequiredExpYear(request.requiredExpYear());
         offer.setCity(trimToNull(request.city()));
@@ -551,7 +552,7 @@ public class JobOfferService {
                 .title(title)
                 .publicId(generatePublicId())
                 .slug(slugify(title))
-                .description(source.getDescription())
+                .description(descriptionSanitizer.sanitize(source.getDescription()))
                 .seniority(source.getSeniority())
                 .requiredExpYear(source.getRequiredExpYear())
                 .city(source.getCity())
@@ -1204,7 +1205,8 @@ public class JobOfferService {
 
     /**
      * Fiche publique : labels résolus (company, vocabulaires, mentions) — le
-     * HTML de la description est déjà sanitisé en base (D19).
+     * HTML de la description est sanitisé par le serveur à l'écriture
+     * (D108) ; le frontend le re-sanitise à la lecture.
      */
     private PublicJobResponse buildPublicResponse(JobOffer offer) {
         String companyName = companyRepository.findById(offer.getCompanyId())

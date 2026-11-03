@@ -16,7 +16,11 @@ describe("public-jobs.api", () => {
   });
 
   it("reads a published offer through the versioned public endpoint", async () => {
-    const job = { publicId: "abcdefghijkl", title: "Backend Engineer" };
+    const job = {
+      publicId: "abcdefghijkl",
+      title: "Backend Engineer",
+      description: null,
+    };
     mockedGet.mockResolvedValue({ data: job });
 
     const result = await getPublicJob("abcdefghijkl");
@@ -25,6 +29,33 @@ describe("public-jobs.api", () => {
     // → 404 Boot → page publique vide après publication).
     expect(mockedGet).toHaveBeenCalledWith("/api/v1/jobs/abcdefghijkl");
     expect(result).toEqual(job);
+  });
+
+  it("re-sanitizes the description on read — the public sheet renders raw HTML", async () => {
+    mockedGet.mockResolvedValue({
+      data: {
+        publicId: "abcdefghijkl",
+        title: "Backend Engineer",
+        description: '<p>Hi</p><script>alert(1)</script><img src=x onerror="steal()">',
+      },
+    });
+
+    const result = await getPublicJob("abcdefghijkl");
+
+    // Défense en profondeur (D108) : le serveur sanitise déjà à l'écriture,
+    // mais la fiche publique est rendue sans authentification.
+    expect(result.description).toBe("<p>Hi</p>");
+  });
+
+  it("keeps a legitimate description untouched on read", async () => {
+    const description = '<h2>Role</h2><p>Ship <strong>weekly</strong>.</p>';
+    mockedGet.mockResolvedValue({
+      data: { publicId: "abcdefghijkl", title: "Backend Engineer", description },
+    });
+
+    const result = await getPublicJob("abcdefghijkl");
+
+    expect(result.description).toBe(description);
   });
 
   it("lists the job board without any page param by default — size never sent", async () => {

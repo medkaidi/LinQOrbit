@@ -167,7 +167,8 @@ class JobOfferServiceTest {
                 jobOfferNormalizationService,
                 mock(ApplicationRepository.class),
                 screeningJobService,
-                mock(ScreeningSignals.class));
+                mock(ScreeningSignals.class),
+                new JobOfferDescriptionSanitizer());
 
         lenient().when(jobOfferSkillRepository.findByJobOfferIdIn(any())).thenReturn(List.of());
         lenient().when(jobOfferLanguageRepository.findByJobOfferIdIn(any())).thenReturn(List.of());

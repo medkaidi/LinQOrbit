@@ -1,4 +1,5 @@
 import { api } from "@/lib/api/axios";
+import { sanitizeHtmlOrNull } from "@/lib/utils/sanitize-html";
 import type {
   PublicJob,
   PublicJobFilters,
@@ -10,10 +11,14 @@ import type {
  * Lecture publique d'une offre publiée (V15) : sans jeton — le backend
  * répond 404 (détail sûr) sur toute offre inconnue, non publiée, clôturée
  * ou expirée.
+ *
+ * La description est **re-sanitisée à la lecture** (D108) : défense en
+ * profondeur — le serveur sanitise déjà à l'écriture, mais la fiche est
+ * rendue via `dangerouslySetInnerHTML` et **sans authentification**.
  */
 export async function getPublicJob(publicId: string): Promise<PublicJob> {
   const { data } = await api.get<PublicJob>(`/api/v1/jobs/${publicId}`);
-  return data;
+  return { ...data, description: sanitizeHtmlOrNull(data.description) };
 }
 
 /**
