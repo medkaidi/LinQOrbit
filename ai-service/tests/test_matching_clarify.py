@@ -17,6 +17,7 @@ from app.agents.matching_clarify import (
     clarify_matching,
 )
 from app.schemas.matching import ClarificationSuggestion, MatchingClarifyRequest
+from tests.helpers import sent_payload
 
 
 class StubAgent:
@@ -129,7 +130,7 @@ def test_sends_the_whole_context_in_camel_case(monkeypatch):
     clarify_matching(_request(remaining=3, clarifications=[ANSWERED, SKIPPED]))
 
     content = stub.calls[0]["payload"]["messages"][0].content
-    payload = json.loads(content[content.index("{") :])
+    payload = sent_payload(content)
     assert set(payload) == {"criteria", "offer", "candidate", "assessments", "clarifications", "remainingQuestions"}
     assert payload["remainingQuestions"] == 3
     assert payload["assessments"][0] == {

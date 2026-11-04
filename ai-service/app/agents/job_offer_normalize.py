@@ -6,13 +6,14 @@ pipeline is the agent plus one repair turn, mirroring ``profile_normalize``.
 
 from __future__ import annotations
 
-import json
 import logging
 
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
 
+from app.agents.offer_grounding import ground_offer
 from app.graphs.job_offer_normalize_agent import build_job_offer_normalize_agent
+from app.graphs.prompt_guard import wrap_untrusted_content
 from app.schemas.cv import ReferenceContext
 from app.schemas.job_offer import (
     SCHEMA_VERSION,
@@ -63,6 +64,22 @@ def has_content(offer: JobOfferSnapshot) -> bool:
     return any((offer.skills, offer.languages, offer.degree_labels, offer.study_field_labels))
 
 
+def _ground(sheet: NormalizedJobOffer, offer: JobOfferSnapshot) -> NormalizedJobOffer:
+    """Ground the mined facts in the offer's own texts (D109).
+
+    The offer sheet is the grid the candidates are scored against: a fact
+    the offer does not name has no business in it.
+    """
+    grounded, report = ground_offer(sheet, offer)
+    if report.touched:
+        logger.info(
+            "Job offer normalization : ungrounded facts removed : dropped=%d, nullified=%d",
+            report.dropped,
+            report.nullified,
+        )
+    return grounded
+
+
 def normalize_job_offer(
     offer: JobOfferSnapshot,
     context: ReferenceContext | None = None,
@@ -89,7 +106,7 @@ def normalize_job_offer(
                 "messages": [
                     HumanMessage(
                         content="Normalize the following job offer:\n\n"
-                        + json.dumps(payload, ensure_ascii=False)
+                        + wrap_untrusted_content(payload)
                     )
                 ]
             },
@@ -104,7 +121,7 @@ def normalize_job_offer(
     parsed = result.get("structured_response")
     if isinstance(parsed, NormalizedJobOffer):
         parsed.schema_version = SCHEMA_VERSION
-        return parsed
+        return _ground(parsed, offer)
 
     # One repair turn, replaying this run's history explicitly (no checkpointer)
     # so the model sees its own unfinished answer and can submit the schema now.
@@ -131,7 +148,7 @@ def normalize_job_offer(
     if isinstance(parsed, NormalizedJobOffer):
         logger.info("Job offer normalization : repair turn recovered the structured output")
         parsed.schema_version = SCHEMA_VERSION
-        return parsed
+        return _ground(parsed, offer)
 
     raise JobOfferNormalizeError(
         "no_output",

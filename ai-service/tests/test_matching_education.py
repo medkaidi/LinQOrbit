@@ -17,6 +17,7 @@ from app.schemas.matching import (
     MatchingAnalyzeRequest,
     MatchingCriterion,
 )
+from tests.helpers import sent_payload
 
 FIXTURE = Path(__file__).resolve().parents[1] / "scripts" / "golden" / "matching_education_cases.json"
 MASTER_CS = EducationRequirement(degree_levels=("Master's degree",), credentials=(), fields=("Computer Science",))
@@ -321,7 +322,7 @@ def test_the_model_never_sees_the_education_criterion_and_the_results_are_merged
     analysis = analyze_matching(_request())
 
     content = stub.calls[0]["messages"][0].content
-    sent = json.loads(content[content.index("{") :])
+    sent = sent_payload(content)
     assert [criterion["key"] for criterion in sent["criteria"]] == ["skill:java", "certification:aws"]
     assert EDUCATION_CRITERION_KEY not in content
     assert "degreeLevels" not in content
@@ -355,7 +356,7 @@ def test_previous_assessments_sent_to_the_model_leave_out_education_and_clarific
     )
 
     content = stub.calls[0]["messages"][0].content
-    sent = json.loads(content[content.index("{") :])
+    sent = sent_payload(content)
     assert [assessment["criterionKey"] for assessment in sent["previousAssessments"]] == [
         "skill:java",
         "certification:aws",

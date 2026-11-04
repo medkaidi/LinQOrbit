@@ -1,7 +1,7 @@
 {
-  "date": "2026-10-21T11:34:31+00:00",
+  "date": "2026-11-04T19:17:02+00:00",
   "fixture": "skills",
-  "model": "gemini-3.8-flash",
+  "model": "gemini-3.1-flash-lite",
   "temperature": 0.0,
   "policyVersion": "education-2",
   "analysisPolicyVersions": [
@@ -22,10 +22,9 @@
       },
       "obtained": 75,
       "evidence": [
-        "skill[0]",
-        "experience[0]"
+        "skill[0]"
       ],
-      "rationale": "Java is evaluated at level 3/5 with backend experience, whereas the offer expects level 4/5.",
+      "rationale": "The candidate has Java at level 3/5, while the offer expects level 4/5.",
       "passed": true,
       "detail": "ok"
     },
@@ -39,10 +38,9 @@
       },
       "obtained": 50,
       "evidence": [
-        "skill[1]",
-        "experience[1]"
+        "skill[1]"
       ],
-      "rationale": "Python is evaluated at level 2/5 with internal tooling experience, whereas the offer expects level 4/5.",
+      "rationale": "The candidate has Python at level 2/5, while the offer expects level 4/5.",
       "passed": true,
       "detail": "ok"
     },
@@ -56,10 +54,9 @@
       },
       "obtained": 55,
       "evidence": [
-        "skill[2]",
-        "experience[0]"
+        "skill[2]"
       ],
-      "rationale": "The candidate demonstrates 2 years of experience with Kubernetes, below the 4 years required.",
+      "rationale": "The candidate has 2 years of experience with Kubernetes, while the offer expects at least 4 years.",
       "passed": true,
       "detail": "ok"
     },
@@ -73,10 +70,9 @@
       },
       "obtained": 30,
       "evidence": [
-        "skill[3]",
-        "experience[1]"
+        "skill[3]"
       ],
-      "rationale": "The candidate has 1 year of Terraform experience against the 5 years required.",
+      "rationale": "The candidate has 1 year of experience with Terraform, while the offer expects at least 5 years.",
       "passed": true,
       "detail": "ok"
     },
@@ -89,12 +85,11 @@
         "min": 40,
         "max": 50
       },
-      "obtained": 45,
+      "obtained": 40,
       "evidence": [
-        "skill[4]",
-        "experience[0]"
+        "skill[4]"
       ],
-      "rationale": "PostgreSQL is not mentioned, but the candidate has proven experience with MySQL, a related relational database technology.",
+      "rationale": "The candidate does not list PostgreSQL but has 4 years of experience with MySQL, a related technology.",
       "passed": true,
       "detail": "ok"
     },
@@ -110,7 +105,7 @@
       "evidence": [
         "skill[5]"
       ],
-      "rationale": "Docker is listed among skills with no level specified and no documented project usage.",
+      "rationale": "Docker is listed as a skill but no level or years of experience are provided.",
       "passed": true,
       "detail": "ok"
     },
@@ -125,7 +120,7 @@
       },
       "obtained": 0,
       "evidence": [],
-      "rationale": "Go is not mentioned anywhere in the candidate profile.",
+      "rationale": "The candidate does not mention Go in their profile.",
       "passed": true,
       "detail": "ok"
     },
@@ -141,7 +136,7 @@
       "evidence": [
         "skill[6]"
       ],
-      "rationale": "Redis is declared at level 4/5 with no specific level or duration required by the offer.",
+      "rationale": "The candidate has Redis at level 4/5.",
       "passed": true,
       "detail": "ok"
     },
@@ -158,7 +153,7 @@
       "evidence": [
         "clarification[0]"
       ],
-      "rationale": "The clarification answer confirms 2 years of professional production use of Go; with no level stated, it scores on proven usage.",
+      "rationale": "The candidate confirmed 2 years of professional experience with Go, proving the skill level.",
       "passed": true,
       "detail": "ok"
     }

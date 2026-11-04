@@ -22,6 +22,7 @@ from app.agents.matching_analyze import (
 from app.core.config import settings
 from app.graphs.matching_policy import POLICY_VERSION
 from app.schemas.matching import SCHEMA_VERSION, MatchingAnalysis, MatchingAnalyzeRequest
+from tests.helpers import sent_payload
 
 
 class StubAgent:
@@ -357,7 +358,7 @@ def _request_with_history(clarifications=(), previous=(), sheet=None, keys=("a",
 
 def _sent_payload(stub) -> dict:
     content = stub.calls[0]["payload"]["messages"][0].content
-    return json.loads(content[content.index("{") :])
+    return sent_payload(content)
 
 
 def test_the_initial_analysis_sends_empty_history_arrays(monkeypatch):

@@ -1,5 +1,7 @@
 """Pipeline tests: orchestration and repair turn. The agent is stubbed."""
 
+import logging
+
 import pytest
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
@@ -161,3 +163,57 @@ def test_normalize_job_offer_maps_recursion_during_repair_to_no_output(monkeypat
 
     assert exc.value.code == "no_output"
     assert len(stub.calls) == 2
+
+
+def test_normalize_job_offer_drops_the_facts_the_offer_does_not_name(monkeypatch):
+    sheet = NormalizedJobOffer(
+        required_skills=[
+            {"name": "Java", "category": "programming_language", "weight": 5, "origin": "inferred"},
+            {"name": "Rust", "category": "programming_language", "weight": 5, "origin": "inferred"},
+        ]
+    )
+    stub = StubAgent([{"structured_response": sheet}])
+    monkeypatch.setattr(
+        "app.agents.job_offer_normalize.build_job_offer_normalize_agent", lambda **_: stub
+    )
+    offer = JobOfferSnapshot(
+        title="Senior Backend Engineer", description="You will own the public API built with Java."
+    )
+
+    result = normalize_job_offer(offer)
+
+    assert [skill.name for skill in result.required_skills] == ["Java"]
+
+
+def test_normalize_job_offer_grounds_the_output_of_the_repair_turn(monkeypatch):
+    sheet = NormalizedJobOffer(
+        required_skills=[
+            {"name": "Rust", "category": "programming_language", "weight": 5, "origin": "inferred"},
+        ]
+    )
+    stub = StubAgent([{"messages": []}, {"structured_response": sheet}])
+    monkeypatch.setattr(
+        "app.agents.job_offer_normalize.build_job_offer_normalize_agent", lambda **_: stub
+    )
+
+    result = normalize_job_offer(_offer())
+
+    assert result.required_skills == []
+
+
+def test_normalize_job_offer_logs_the_counts_never_the_content(monkeypatch, caplog):
+    sheet = NormalizedJobOffer(
+        required_skills=[
+            {"name": "Rust", "category": "programming_language", "weight": 5, "origin": "inferred"},
+        ]
+    )
+    stub = StubAgent([{"structured_response": sheet}])
+    monkeypatch.setattr(
+        "app.agents.job_offer_normalize.build_job_offer_normalize_agent", lambda **_: stub
+    )
+
+    with caplog.at_level(logging.INFO, logger="app.agents.job_offer_normalize"):
+        normalize_job_offer(_offer())
+
+    assert "dropped=1, nullified=0" in caplog.text
+    assert "Rust" not in caplog.text

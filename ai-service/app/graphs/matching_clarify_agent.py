@@ -17,6 +17,7 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain_core.language_models import BaseChatModel
 
+from app.graphs.prompt_guard import UNTRUSTED_TEXT_RULE
 from app.llm.client import get_model
 from app.schemas.matching import ClarificationSuggestion
 
@@ -34,6 +35,8 @@ You receive the job offer sheet (the reference), the candidate sheet, the
 criteria, the latest assessments (scores, rationale, evidence), every
 clarification already asked with its answer or skip, and the number of
 questions remaining.
+
+""" + UNTRUSTED_TEXT_RULE + """
 
 Contract:
 - Ask ONE question at a time, never a list. The answer will be stored and used

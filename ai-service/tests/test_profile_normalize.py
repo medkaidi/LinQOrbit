@@ -1,5 +1,7 @@
 """Pipeline tests: orchestration and repair turn. The agent is stubbed."""
 
+import logging
+
 import pytest
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
@@ -164,3 +166,49 @@ def test_normalize_profile_maps_recursion_during_repair_to_no_output(monkeypatch
 
     assert exc.value.code == "no_output"
     assert len(stub.calls) == 2
+
+
+def test_normalize_profile_drops_the_facts_the_profile_does_not_name(monkeypatch):
+    sheet = NormalizedProfile(
+        skills=[
+            {"name": "Java", "category": "programming_language", "origin": "inferred"},
+            {"name": "Rust", "category": "programming_language", "origin": "inferred"},
+        ]
+    )
+    stub = StubAgent([{"structured_response": sheet}])
+    monkeypatch.setattr("app.agents.profile_normalize.build_normalize_agent", lambda **_: stub)
+    profile = CandidateProfile(about=ProfileAbout(title="Dev", bio="Six years of APIs in Java."))
+
+    result = normalize_profile(profile)
+
+    assert [skill.name for skill in result.skills] == ["Java"]
+
+
+def test_normalize_profile_grounds_the_output_of_the_repair_turn(monkeypatch):
+    sheet = NormalizedProfile(
+        skills=[
+            {"name": "Rust", "category": "programming_language", "origin": "inferred"},
+        ]
+    )
+    stub = StubAgent([{"messages": []}, {"structured_response": sheet}])
+    monkeypatch.setattr("app.agents.profile_normalize.build_normalize_agent", lambda **_: stub)
+
+    result = normalize_profile(_profile())
+
+    assert result.skills == []
+
+
+def test_normalize_profile_logs_the_counts_never_the_content(monkeypatch, caplog):
+    sheet = NormalizedProfile(
+        skills=[
+            {"name": "Rust", "category": "programming_language", "origin": "inferred"},
+        ]
+    )
+    stub = StubAgent([{"structured_response": sheet}])
+    monkeypatch.setattr("app.agents.profile_normalize.build_normalize_agent", lambda **_: stub)
+
+    with caplog.at_level(logging.INFO, logger="app.agents.profile_normalize"):
+        normalize_profile(_profile())
+
+    assert "dropped=1, nullified=0" in caplog.text
+    assert "Rust" not in caplog.text

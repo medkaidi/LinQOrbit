@@ -18,6 +18,7 @@ from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain_core.language_models import BaseChatModel
 
 from app.graphs.cv_agent import render_reference
+from app.graphs.prompt_guard import UNTRUSTED_TEXT_RULE
 from app.llm.client import get_model
 from app.schemas.cv import ReferenceContext
 from app.schemas.job_offer import NormalizedJobOffer
@@ -32,6 +33,8 @@ PROMPT_RULES = """You are an experienced HR assistant working for LinQOrbit, a r
 You receive a stored job offer (sections as the recruiter wrote them) and
 you must return the canonical offer in the structured schema provided to
 you (NormalizedJobOffer).
+
+""" + UNTRUSTED_TEXT_RULE + """
 
 Your mission: say what this offer REALLY needs. Mine EVERY free text — the
 description, the company presentation, every stored label — for

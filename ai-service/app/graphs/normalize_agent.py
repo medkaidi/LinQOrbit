@@ -16,6 +16,7 @@ from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain_core.language_models import BaseChatModel
 
 from app.graphs.cv_agent import render_reference
+from app.graphs.prompt_guard import UNTRUSTED_TEXT_RULE
 from app.llm.client import get_model
 from app.schemas.cv import ReferenceContext
 from app.schemas.normalize import NormalizedProfile
@@ -29,6 +30,8 @@ PROMPT_RULES = """You are an experienced HR assistant working for LinQOrbit, a r
 You receive the current profile of a candidate (sections as the user wrote
 them) and you must return the canonical profile in the structured schema
 provided to you (NormalizedProfile).
+
+""" + UNTRUSTED_TEXT_RULE + """
 
 Your mission: make the candidate look as capable as they truly are. Mine
 EVERY free text — the bio, every experience description, every project

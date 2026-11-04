@@ -6,13 +6,14 @@ pipeline is the agent plus one repair turn, mirroring ``cv_parse``.
 
 from __future__ import annotations
 
-import json
 import logging
 
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
 
+from app.agents.candidate_grounding import ground_candidate
 from app.graphs.normalize_agent import build_normalize_agent
+from app.graphs.prompt_guard import wrap_untrusted_content
 from app.schemas.cv import ReferenceContext
 from app.schemas.normalize import (
     SCHEMA_VERSION,
@@ -55,6 +56,22 @@ def has_content(profile: CandidateProfile) -> bool:
     )
 
 
+def _ground(sheet: NormalizedProfile, profile: CandidateProfile) -> NormalizedProfile:
+    """Ground the mined facts in the candidate's own texts (D109).
+
+    The candidate sheet is the evidence the matching scores: a fact the
+    profile does not name has no business in it.
+    """
+    grounded, report = ground_candidate(sheet, profile)
+    if report.touched:
+        logger.info(
+            "Profile normalization : ungrounded facts removed : dropped=%d, nullified=%d",
+            report.dropped,
+            report.nullified,
+        )
+    return grounded
+
+
 def normalize_profile(
     profile: CandidateProfile,
     location: ProfileLocation | None = None,
@@ -84,7 +101,7 @@ def normalize_profile(
                 "messages": [
                     HumanMessage(
                         content="Normalize the following candidate profile:\n\n"
-                        + json.dumps(payload, ensure_ascii=False)
+                        + wrap_untrusted_content(payload)
                     )
                 ]
             },
@@ -99,7 +116,7 @@ def normalize_profile(
     parsed = result.get("structured_response")
     if isinstance(parsed, NormalizedProfile):
         parsed.schema_version = SCHEMA_VERSION
-        return parsed
+        return _ground(parsed, profile)
 
     # One repair turn, replaying this run's history explicitly (no checkpointer)
     # so the model sees its own unfinished answer and can submit the schema now.
@@ -126,7 +143,7 @@ def normalize_profile(
     if isinstance(parsed, NormalizedProfile):
         logger.info("Profile normalization : repair turn recovered the structured output")
         parsed.schema_version = SCHEMA_VERSION
-        return parsed
+        return _ground(parsed, profile)
 
     raise ProfileNormalizeError(
         "no_output",

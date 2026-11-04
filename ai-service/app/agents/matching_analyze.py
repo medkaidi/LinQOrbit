@@ -28,7 +28,6 @@ and their coverage checked against every criterion of the request.
 
 from __future__ import annotations
 
-import json
 import logging
 
 from langchain.agents.structured_output import (
@@ -44,6 +43,7 @@ from app.core.config import settings
 from app.graphs.matching_agent import build_matching_agent
 from app.graphs.matching_policy import POLICY_VERSION, score_education
 from app.graphs.matching_policy import EducationRequirement as EducationRules
+from app.graphs.prompt_guard import wrap_untrusted_content
 from app.schemas.matching import (
     EVIDENCE_ARRAYS,
     SCHEMA_VERSION,
@@ -198,7 +198,7 @@ def _schema_repair_message(exc: StructuredOutputError, errors: list[dict]) -> st
         line = f"- {location}: {error.get('msg')}."
         rejected = _rejected_assessment(error)
         if rejected is not None:
-            line += " Rejected assessment: " + json.dumps(rejected, ensure_ascii=False)
+            line += " Rejected assessment: " + wrap_untrusted_content(rejected)
         parts.append(line)
     if any(EVIDENCE_RULE in str(error.get("msg", "")) for error in errors):
         parts.append(EVIDENCE_RULE_HINT)
@@ -323,7 +323,7 @@ def _analyze_with_model(request: MatchingAnalyzeRequest) -> MatchingAnalysis:
     messages = [
         HumanMessage(
             content="Score the candidate sheet against each criterion of the offer:\n\n"
-            + json.dumps(payload, ensure_ascii=False)
+            + wrap_untrusted_content(payload)
         )
     ]
     try:

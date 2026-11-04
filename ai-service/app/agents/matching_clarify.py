@@ -7,7 +7,6 @@ left to the model: with no question remaining the agent is never called.
 
 from __future__ import annotations
 
-import json
 import logging
 
 from langchain.agents.structured_output import StructuredOutputError
@@ -15,6 +14,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
 
 from app.graphs.matching_clarify_agent import build_matching_clarify_agent
+from app.graphs.prompt_guard import wrap_untrusted_content
 from app.schemas.matching import ClarificationSuggestion, MatchingClarifyRequest
 
 logger = logging.getLogger(__name__)
@@ -69,7 +69,7 @@ def clarify_matching(request: MatchingClarifyRequest) -> ClarificationSuggestion
     messages = [
         HumanMessage(
             content="Suggest the next clarification question for the candidate, or none:\n\n"
-            + json.dumps(payload, ensure_ascii=False)
+            + wrap_untrusted_content(payload)
         )
     ]
     history = messages
